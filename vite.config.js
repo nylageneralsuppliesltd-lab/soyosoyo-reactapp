@@ -4,7 +4,7 @@ import path from 'path'
 
 // Use this config to make GitHub Pages work with a repo named "soyosoyo-reactapp"
 export default defineConfig(({ mode }) => ({
-  base: mode === 'development' ? '/' : '/soyosoyo-reactapp/',
+    base: '/',
 
   plugins: [react()],
 
