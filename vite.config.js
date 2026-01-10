@@ -1,11 +1,17 @@
-// vite.config.js
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+<<<<<<< HEAD
 export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
+=======
+export default defineConfig({
+  base: '/soyosoyo-reactapp/', // 🔥 REQUIRED for GitHub Pages
+
+  plugins: [react()],
+>>>>>>> 0d17ac8 (Fix routing for GitHub Pages using HashRouter)
 
     /**
      * IMPORTANT:
