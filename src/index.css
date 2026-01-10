@@ -1,0 +1,76 @@
+/* src/index.css - Premium White + Green Theme */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --primary-green: #28a745;
+  --primary-orange: #fd7e14;
+  --dark: #212529;
+  --light-bg: #f8f9fa;
+  --card-bg: #ffffff;
+  --text: #333333;
+  --border: #dee2e6;
+  --shadow-soft: 0 4px 20px rgba(0,0,0,0.08);
+  --shadow-hover: 0 10px 30px rgba(0,0,0,0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background: var(--light-bg);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+h1 {
+  font-size: 26px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--dark);
+}
+
+h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--primary-green);
+}
+
+/* Card - Premium style */
+.card, .form-card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: var(--shadow-soft);
+  padding: 24px;
+  margin-bottom: 24px;
+  transition: all 0.3s ease;
+}
+
+.card:hover, .form-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-4px);
+}
+
+/* Button - Your original premium green/orange */
+.submit-btn {
+  background: var(--primary-orange);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 6px rgba(253,126,20,0.3);
+}
+
+.submit-btn:hover {
+  background: #e96d00;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(253,126,20,0.4);
+}

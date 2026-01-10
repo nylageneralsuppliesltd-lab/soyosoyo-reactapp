@@ -1,0 +1,139 @@
+/* src/styles/dashboard.css Dashboard Premium Styles - Amended */
+
+/* Dashboard Premium Styles - Compact & Responsive */
+
+.dashboard {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1rem;
+  font-family: Arial, sans-serif;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.8rem;
+  margin: 1rem 0;
+}
+
+.metric-card {
+  background: white;
+  padding: 0.8rem 1rem;
+  border-radius: 10px;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+
+.metric-card h3 {
+  font-size: 0.85rem;
+  color: #555;
+  margin: 0 0 0.3rem;
+  font-weight: 500;
+}
+
+.metric-card h2 {
+  font-size: 1.2rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.expenses-card h2 { color: #dc3545; }
+.income-card h2 { color: #007bff; }
+.contributions-card h2 { color: #28a745; }
+.interest-card h2 { color: #17a2b8; }
+
+.balance-dist {
+  font-size: 0.75rem;
+  color: #555;
+  margin-top: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.members-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.stat {
+  text-align: center;
+  padding: 0.4rem 0.6rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+}
+
+.stat h2 {
+  font-size: 1rem;
+  margin: 0 0 0.2rem;
+  font-weight: 600;
+}
+
+.stat p {
+  font-size: 0.65rem;
+  margin: 0;
+  color: #555;
+}
+
+.section-card {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  padding: 1rem;
+  margin: 1rem 0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.section-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.chart-note {
+  color: #666;
+  font-size: 0.75rem;
+  margin-bottom: 0.3rem;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.4rem;
+  }
+
+  .metric-card h3 { font-size: 0.75rem; }
+  .metric-card h2 { font-size: 1rem; }
+
+  .members-summary {
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 0.3rem;
+  }
+
+  .stat h2 { font-size: 0.85rem; }
+  .stat p { font-size: 0.55rem; }
+
+  .chart-container { height: 240px; padding: 0.3rem; }
+}
