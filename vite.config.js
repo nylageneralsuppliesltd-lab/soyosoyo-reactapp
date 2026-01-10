@@ -1,28 +1,32 @@
-// vite.config.js
+// vite.config.js - Clean & Working for SoyoSoyo SACCO
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
-export default defineConfig(({ mode }) => ({
-
-    base: '/',
-
+export default defineConfig({
   plugins: [react()],
-  
-  // IMPORTANT: Set base to your GitHub Pages repo name
-  // If your repo is https://github.com/yourusername/soyosoyobank → base: '/soyosoyobank/'
-  // If deployed to custom domain api.soyosoyosacco.com → base: '/'
-  base: '/',
 
-   // <-- CHANGE THIS to match your actual repo name or leave '/' for custom domain
-  
-  build: {
-    // Ensure correct assets path
-    outDir: 'dist',
-    assetsDir: 'assets',
+  // Base path for GitHub Pages (change to your repo name)
+  // Example: if repo is https://github.com/username/soyosoyobank → base: '/soyosoyobank/'
+  base: '/',   // ← CHANGE THIS to match your actual repo name
+
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@pages': path.resolve(__dirname, './src/pages'),
+      '@components': path.resolve(__dirname, './src/components'),
+      '@styles': path.resolve(__dirname, './src/styles'),
+    },
   },
-  
+
   server: {
     port: 5173,
     open: true,
+  },
+
+  build: {
+    outDir: 'dist',
+    sourcemap: true,
   },
 })
