@@ -2,23 +2,16 @@
 import { useState, useEffect } from 'react';
 import '../styles/dashboard.css';
 
+import { Chart as ChartJS, CategoryScale, LinearScale, BarController, BarElement, LineController, LineElement, PointElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js';
 
+// Register all required Chart.js controllers & elements
 ChartJS.register(
   CategoryScale,
   LinearScale,
+  BarController,
   BarElement,
+  LineController,
   LineElement,
   PointElement,
   Title,
@@ -109,7 +102,7 @@ const DashboardPage = () => {
   const hasTransactions = deposits.length || withdrawals.length || loans.length || repayments.length;
   const bankDistribution = settings.bankAccounts || [];
 
-  // Chart
+  // Chart data
   const chartData = {
     labels: monthlyData.map(m => m.label),
     datasets: [
@@ -123,8 +116,21 @@ const DashboardPage = () => {
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } } },
-    scales: { y: { beginAtZero: true, ticks: { callback: v => formatCurrency(v) } } }
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}`
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: v => formatCurrency(v)
+        }
+      }
+    }
   };
 
   return (
