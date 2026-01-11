@@ -13,12 +13,13 @@
     "@nestjs/platform-express": "^10.3.0",
     "@prisma/client": "^7.2.0",
     "@prisma/adapter-neon": "^7.2.0",
-    "neon-serverless": "^0.10.0",
+    "@neondatabase/serverless": "^0.9.5",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.0"
   },
   "devDependencies": {
     "prisma": "^7.2.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "dotenv": "^16.4.5"
   }
 }
