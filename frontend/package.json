@@ -13,16 +13,21 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
     "@phosphor-icons/react": "^2.1.10",
     "axios": "^1.13.2",
     "chart.js": "^4.5.1",
+    "papaparse": "^5.5.3",
     "react": "^19.2.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.12.0"
+    "react-hook-form": "^7.71.0",
+    "react-router-dom": "^7.12.0",
+    "yup": "^1.7.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
@@ -31,7 +36,7 @@
     "eslint-plugin-react-refresh": "^0.4.24",
     "gh-pages": "^6.3.0",
     "globals": "^16.5.0",
+    "tailwindcss": "^4.1.18",
     "vite": "^7.2.4"
- 
   }
 }

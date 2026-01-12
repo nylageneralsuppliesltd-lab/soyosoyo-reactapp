@@ -1,7 +1,17 @@
-/* src/index.css - Premium White + Green Theme */
+/* src/index.css - Premium White + Green Theme + Tailwind v4 */
 
+
+
+/* -------------------- */
+/* Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+/* -------------------- */
+/* -------------------- */
+/* Tailwind Import (v4) */
+/* -------------------- */
+@import "tailwindcss";
+/* CSS Variables / Theme */
 :root {
   --primary-green: #28a745;
   --primary-orange: #fd7e14;
@@ -14,12 +24,15 @@
   --shadow-hover: 0 10px 30px rgba(0,0,0,0.12);
 }
 
+/* -------------------- */
+/* Global Resets */
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  margin: 0;
   font-family: 'Inter', sans-serif;
   background: var(--light-bg);
   color: var(--text);
@@ -27,6 +40,13 @@ body {
   line-height: 1.6;
 }
 
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* -------------------- */
+/* Headings */
 h1 {
   font-size: 26px;
   font-weight: 700;
@@ -40,7 +60,8 @@ h2 {
   color: var(--primary-green);
 }
 
-/* Card - Premium style */
+/* -------------------- */
+/* Cards */
 .card, .form-card {
   background: var(--card-bg);
   border-radius: 12px;
@@ -55,7 +76,8 @@ h2 {
   transform: translateY(-4px);
 }
 
-/* Button - Your original premium green/orange */
+/* -------------------- */
+/* Buttons */
 .submit-btn {
   background: var(--primary-orange);
   color: white;
@@ -73,4 +95,48 @@ h2 {
   background: #e96d00;
   transform: translateY(-2px);
   box-shadow: 0 6px 15px rgba(253,126,20,0.4);
+}
+
+/* -------------------- */
+/* Tailwind Customization Overrides (optional) */
+.bg-light { background-color: var(--light-bg); }
+.text-dark { color: var(--dark); }
+.text-green { color: var(--primary-green); }
+.text-orange { color: var(--primary-orange); }
+.bg-card { background-color: var(--card-bg); }
+.shadow-soft { box-shadow: var(--shadow-soft); }
+.shadow-hover { box-shadow: var(--shadow-hover); }
+
+/* -------------------- */
+/* Utilities for Layouts */
+.page {
+  @apply p-6 bg-white rounded-lg shadow mb-6;
+}
+
+/* -------------------- */
+/* Forms */
+input, select, textarea {
+  @apply w-full p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400;
+}
+
+label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+/* -------------------- */
+/* Responsive Helper Classes (Optional) */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+
+  h1 {
+    font-size: 22px;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
 }
