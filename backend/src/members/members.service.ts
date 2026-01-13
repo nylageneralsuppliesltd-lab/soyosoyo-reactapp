@@ -11,9 +11,14 @@ export class MembersService {
   async create(dto: CreateMemberDto) {
     const existing = await this.prisma.member.findUnique({ where: { phone: dto.phone } });
     if (existing) throw new BadRequestException('Member with this phone already exists.');
-    // Convert DTO to plain object for Prisma compatibility
-    const data = instanceToPlain(dto);
-    return this.prisma.member.create({ data });
+    // Manually spread fields to match Prisma type
+    const { nextOfKin, ...rest } = dto;
+    return this.prisma.member.create({
+      data: {
+        ...rest,
+        nextOfKin: nextOfKin ? JSON.parse(JSON.stringify(nextOfKin)) : [],
+      },
+    });
   }
 
   async findAll() {
@@ -28,8 +33,14 @@ export class MembersService {
 
   async update(id: number, dto: UpdateMemberDto) {
     await this.findOne(id); // Ensure exists
-    const data = instanceToPlain(dto);
-    return this.prisma.member.update({ where: { id }, data });
+    const { nextOfKin, ...rest } = dto;
+    return this.prisma.member.update({
+      where: { id },
+      data: {
+        ...rest,
+        nextOfKin: nextOfKin ? JSON.parse(JSON.stringify(nextOfKin)) : [],
+      },
+    });
   }
 
   async suspend(id: number) {
