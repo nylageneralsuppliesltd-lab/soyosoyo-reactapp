@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { instanceToPlain } from 'class-transformer';
 
 @Injectable()
 export class MembersService {
@@ -10,8 +11,9 @@ export class MembersService {
   async create(dto: CreateMemberDto) {
     const existing = await this.prisma.member.findUnique({ where: { phone: dto.phone } });
     if (existing) throw new BadRequestException('Member with this phone already exists.');
-
-    return this.prisma.member.create({ data: dto });
+    // Convert DTO to plain object for Prisma compatibility
+    const data = instanceToPlain(dto);
+    return this.prisma.member.create({ data });
   }
 
   async findAll() {
@@ -26,7 +28,8 @@ export class MembersService {
 
   async update(id: number, dto: UpdateMemberDto) {
     await this.findOne(id); // Ensure exists
-    return this.prisma.member.update({ where: { id }, data: dto });
+    const data = instanceToPlain(dto);
+    return this.prisma.member.update({ where: { id }, data });
   }
 
   async suspend(id: number) {
