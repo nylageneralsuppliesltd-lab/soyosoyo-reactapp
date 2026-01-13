@@ -14,6 +14,8 @@ import {
   Tooltip,
   Legend,
   Filler,
+  LineController,
+  BarController,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 
@@ -27,7 +29,9 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
+  LineController,
+  BarController
 );
 
 // Import your ErrorBoundary
