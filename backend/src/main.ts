@@ -9,14 +9,19 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
-  // CORS so frontend can call backend
+  // Robust CORS for local dev and production
   app.enableCors({
     origin: [
-      'https://soyosoyo-reactapp.onrender.com',
-      'https://app.soyosoyosacco.com',
-      'http://localhost:5173',
       'http://localhost:3000',
+      'http://localhost:5173',
+      'https://api.soyosoyosacco.com',
+      'https://app.soyosoyosacco.com',
+      'https://soyosoyo-reactapp.onrender.com',
+      'http://localhost',
+      '*', // fallback for dev, remove for production security
     ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type, Authorization, Accept',
     credentials: true,
   });
 
