@@ -6,42 +6,6 @@ datasource db {
   provider = "postgresql"
 }
 
-model Member {
-  id                 Int       @id @default(autoincrement())
-  name               String
-  phone              String    @unique
-  email              String?
-  idNumber           String?
-  dob                DateTime?
-  gender             String?
-  physicalAddress    String?
-  town               String?
-  employmentStatus   String?
-  employerName       String?
-  regNo              String?
-  employerAddress    String?
-  role               String
-  introducerName     String
-  introducerMemberNo String
-  balance            Float     @default(0)
-  active             Boolean   @default(true)
-  ledger             Ledger[]  // one-to-many relation to Ledger
-  nextOfKin          Json?     // Stores array of nominees
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-}
-
-model Ledger {
-  id           Int       @id @default(autoincrement())
-  member       Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)  // added onDelete: Cascade (common for financial ledgers)
-  memberId     Int
-  type         String
-  amount       Float
-  description  String?
-  balanceAfter Float
-  date         DateTime  @default(now())
-}
-
 model history {
   id                 Int       @id @default(autoincrement())
   period             DateTime  @unique(map: "idx_history_period") @db.Date

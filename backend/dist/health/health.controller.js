@@ -9,29 +9,25 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PrismaService = void 0;
+exports.HealthController = void 0;
 const common_1 = require("@nestjs/common");
-const client_1 = require("@prisma/client");
-const adapter_neon_1 = require("@prisma/adapter-neon");
-let PrismaService = class PrismaService extends client_1.PrismaClient {
-    constructor() {
-        super({
-            adapter: new adapter_neon_1.PrismaNeon({
-                connectionString: process.env.DATABASE_URL,
-            }),
-            log: ['query', 'info', 'warn', 'error'],
-        });
-    }
-    async onModuleInit() {
-        await this.$connect();
-    }
-    async onModuleDestroy() {
-        await this.$disconnect();
+let HealthController = class HealthController {
+    check() {
+        return {
+            status: 'ok',
+            service: 'soyosoyo-backend',
+            timestamp: new Date().toISOString(),
+        };
     }
 };
-exports.PrismaService = PrismaService;
-exports.PrismaService = PrismaService = __decorate([
-    (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [])
-], PrismaService);
-//# sourceMappingURL=prisma.service.js.map
+exports.HealthController = HealthController;
+__decorate([
+    (0, common_1.Get)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], HealthController.prototype, "check", null);
+exports.HealthController = HealthController = __decorate([
+    (0, common_1.Controller)('health')
+], HealthController);
+//# sourceMappingURL=health.controller.js.map

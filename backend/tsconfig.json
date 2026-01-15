@@ -9,6 +9,31 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
-    "incremental": true
-  }
+    "incremental": true,
+
+    // ──────────────────────────────────────────────
+    // Prisma + NestJS recommended additions
+    // ──────────────────────────────────────────────
+
+    "esModuleInterop": true,                // helps with CommonJS/ESM interop
+    "allowSyntheticDefaultImports": true,   // same as above
+    "skipLibCheck": true,                   // speeds up compilation, skips 3rd-party type checks
+    "strict": false,                        // or true if you want stricter typing
+    "forceConsistentCasingInFileNames": true,
+
+    // Paths alias for cleaner imports (optional but nice)
+    "paths": {
+      "@prisma/client": ["node_modules/@prisma/client"]
+    }
+  },
+
+  "include": [
+    "src/**/*.ts",                          // your source files
+    "node_modules/@prisma/client"           // ← critical: includes Prisma generated types
+  ],
+
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
