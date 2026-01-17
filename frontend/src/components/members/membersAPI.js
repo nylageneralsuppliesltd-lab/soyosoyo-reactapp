@@ -4,10 +4,17 @@ import axios from 'axios';
 
 // Use Vite's import.meta.env for environment variables
 // All client-exposed env vars in Vite MUST start with VITE_
-const API_BASE = import.meta.env.VITE_API_URL || 'https://api.soyosoyosacco.com';
 
-// You can also fallback to localhost during development if needed:
-// const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Smart API base URL logic
+let API_BASE = import.meta.env.VITE_API_URL;
+if (!API_BASE) {
+  const isLocal = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  );
+  API_BASE = isLocal
+    ? 'http://localhost:3000'
+    : 'https://api.soyosoyosacco.com';
+}
 
 const API = axios.create({
   baseURL: API_BASE,
