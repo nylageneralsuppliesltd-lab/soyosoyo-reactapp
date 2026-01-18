@@ -40,6 +40,8 @@ export default function MemberForm({ member = null, goBack }) {
     } catch (err) {
       // Improved error handling
       let message = 'Error submitting form.';
+      // Log error to browser console for debugging
+      console.error('Member creation failed:', err);
       if (err.response) {
         if (err.response.status === 0 || err.message?.includes('ERR_CONNECTION_REFUSED')) {
           message = 'Cannot connect to server. Please check your backend and try again.';
