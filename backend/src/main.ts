@@ -16,15 +16,14 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
-  // Dynamic allowed origins for your frontends
-  const allowedBaseDomains = ['soyosoyosacco.com']; // allow any subdomain
+  // CORS configuration - allow any subdomain of soyosoyosacco.com
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (curl, Postman, mobile apps)
+      // Allow no origin (curl, Postman, server-to-server, mobile)
       if (!origin) return callback(null, true);
-
-      const isAllowed = allowedBaseDomains.some(domain => origin.endsWith(domain));
-      if (isAllowed || process.env.NODE_ENV === 'development') {
+      
+      // Allow any soyosoyosacco.com subdomain
+      if (origin.includes('soyosoyosacco.com') || process.env.NODE_ENV === 'development') {
         callback(null, true);
       } else {
         console.warn(`CORS blocked for origin: ${origin}`);
@@ -33,10 +32,10 @@ async function bootstrap() {
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Authorization, Accept',
-    credentials: true,            // allow cookies/auth if needed
-    preflightContinue: false,     // ensures Nest handles OPTIONS
-    optionsSuccessStatus: 204,    // some browsers require this
-    maxAge: 86400,                // cache preflight 24h
+    credentials: false,           // set to true only if using cookies/auth
+    preflightContinue: false,
+    optionsSuccessStatus: 200,
+    maxAge: 3600,
   });
 
   const port = process.env.PORT || 3000;
