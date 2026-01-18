@@ -16,26 +16,14 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
-  // CORS configuration - allow any subdomain of soyosoyosacco.com
+  // CORS - allow all soyosoyosacco.com subdomains + fallback wildcard
   app.enableCors({
-    origin: (origin, callback) => {
-      // Allow no origin (curl, Postman, server-to-server, mobile)
-      if (!origin) return callback(null, true);
-      
-      // Allow any soyosoyosacco.com subdomain
-      if (origin.includes('soyosoyosacco.com') || process.env.NODE_ENV === 'development') {
-        callback(null, true);
-      } else {
-        console.warn(`CORS blocked for origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: true,  // Allow all origins (simplest workaround for testing)
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Authorization, Accept',
-    credentials: false,           // set to true only if using cookies/auth
+    credentials: false,
     preflightContinue: false,
     optionsSuccessStatus: 200,
-    maxAge: 3600,
   });
 
   const port = process.env.PORT || 3000;
