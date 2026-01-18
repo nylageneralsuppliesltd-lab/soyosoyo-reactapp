@@ -5,15 +5,22 @@ import axios from 'axios';
 // Use Vite's import.meta.env for environment variables
 // All client-exposed env vars in Vite MUST start with VITE_
 
-// Smart API base URL logic
+// Smart API base URL detection for same-origin and cross-origin setups
 let API_BASE = import.meta.env.VITE_API_URL;
+
 if (!API_BASE) {
-  const isLocal = typeof window !== 'undefined' && (
-    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  );
-  API_BASE = isLocal
-    ? 'http://localhost:3000'
-    : 'https://api.soyosoyosacco.com';
+  // Auto-detect based on current domain
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+  const isReactDomain = hostname === 'react.soyosoyosacco.com' || hostname.includes('localhost');
+
+  if (isReactDomain) {
+    // Same domain as backend - use relative paths (no CORS needed)
+    API_BASE = '';
+  } else {
+    // Different domain - call backend explicitly
+    API_BASE = 'https://react.soyosoyosacco.com';
+  }
 }
 
 const API = axios.create({
