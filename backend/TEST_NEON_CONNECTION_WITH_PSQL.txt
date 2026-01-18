@@ -1,0 +1,22 @@
+# How to test your Neon PostgreSQL connection with psql
+
+1. Install psql (PostgreSQL CLI) if you don't have it:
+   - Windows: Download from https://www.postgresql.org/download/windows/
+   - Mac: `brew install postgresql`
+   - Linux: `sudo apt install postgresql-client`
+
+2. Use the following command, replacing the placeholders with your actual values:
+
+```
+psql "postgresql://neondb_owner:npg_JMZ6ug8ARDNi@ep-morning-field-a8pq6uq7-pooler.eastus2.azure.neon.tech/neondb?sslmode=require&channel_binding=require"
+```
+
+3. If you connect successfully, you'll see a `neondb=>` prompt. If not, you'll get a network or authentication error.
+
+4. If you get a network error, try from another network or machine. If you get an authentication error, double-check your credentials in Neon.
+
+5. If you connect, but Prisma still fails, the issue is with Prisma or your Node.js environment.
+
+---
+
+Let me know the result, and I can help you further troubleshoot based on what you see!

@@ -4,8 +4,10 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // NO url or directUrl here anymore in Prisma 7+
 }
 
+// Your models below (Member, Ledger, history, sacco_history) – unchanged
 model Member {
   id                 Int       @id @default(autoincrement())
   name               String
@@ -25,15 +27,15 @@ model Member {
   introducerMemberNo String
   balance            Float     @default(0)
   active             Boolean   @default(true)
-  ledger             Ledger[]  // one-to-many relation to Ledger
-  nextOfKin          Json?     // Stores array of nominees
+  ledger             Ledger[]  
+  nextOfKin          Json?     
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 }
 
 model Ledger {
   id           Int       @id @default(autoincrement())
-  member       Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)  // added onDelete: Cascade (common for financial ledgers)
+  member       Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
   memberId     Int
   type         String
   amount       Float

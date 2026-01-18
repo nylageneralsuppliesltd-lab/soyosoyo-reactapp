@@ -2,15 +2,18 @@
 import 'dotenv/config';
 import { defineConfig, env } from 'prisma/config';
 
-console.log('Loaded DATABASE_URL:', process.env.DATABASE_URL); // debug
-
 export default defineConfig({
-  schema: 'prisma/schema.prisma',
-  migrations: {
-    path: 'prisma/migrations',
-  },
+  schema: 'prisma/schema.prisma',  // adjust path if your schema is elsewhere
+
   datasource: {
-    url: env('DATABASE_URL'),          // pooled for PrismaClient queries (your app)
-    shadowDatabaseUrl: env('DIRECT_URL')  // direct for migrate dev / shadow ops
+    // CLI / migrate dev / studio use this URL → MUST be DIRECT (non-pooled)
+    url: env('DIRECT_URL'),
+    // If Neon ever requires a separate shadow DB (rare), add:
+    // shadowDatabaseUrl: env('SHADOW_DATABASE_URL'),
   },
+
+  // Optional: custom seed command (if you have prisma/seed.ts)
+  // migrations: {
+  //   seed: 'tsx prisma/seed.ts',
+  // },
 });

@@ -8,12 +8,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 var PrismaService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PrismaService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const adapter_neon_1 = require("@prisma/adapter-neon");
+const serverless_1 = require("@neondatabase/serverless");
+const ws_1 = __importDefault(require("ws"));
+serverless_1.neonConfig.webSocketConstructor = ws_1.default;
 let PrismaService = PrismaService_1 = class PrismaService extends client_1.PrismaClient {
     constructor() {
         super({
@@ -21,18 +27,28 @@ let PrismaService = PrismaService_1 = class PrismaService extends client_1.Prism
                 connectionString: process.env.DATABASE_URL,
             }),
             log: process.env.NODE_ENV === 'development'
-                ? ['query', 'info', 'warn', 'error']
+                ? [
+                    { emit: 'event', level: 'query' },
+                    { emit: 'event', level: 'info' },
+                    { emit: 'event', level: 'warn' },
+                    { emit: 'event', level: 'error' },
+                ]
                 : ['error'],
         });
         this.logger = new common_1.Logger(PrismaService_1.name);
+        if (process.env.NODE_ENV === 'development') {
+            this.$on('query', (e) => {
+                this.logger.debug(`Query: ${e.query} - Duration: ${e.duration}ms - Params: ${e.params}`);
+            });
+        }
     }
     async onModuleInit() {
         try {
             await this.$connect();
-            this.logger.log('Prisma connected successfully');
+            this.logger.log('Prisma connected successfully to Neon');
         }
         catch (error) {
-            this.logger.error('Failed to connect to database during init', error);
+            this.logger.error('Failed to connect to Neon database during init', error);
             throw error;
         }
     }
