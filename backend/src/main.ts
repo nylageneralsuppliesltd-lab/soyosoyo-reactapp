@@ -17,6 +17,7 @@ async function bootstrap() {
       'https://api.soyosoyosacco.com',
       'https://app.soyosoyosacco.com',
       'https://soyosoyo-reactapp.onrender.com',
+      'https://react.soyosoyosacco.com',
       'http://localhost',
       '*', // fallback for dev, remove for production security
     ],
