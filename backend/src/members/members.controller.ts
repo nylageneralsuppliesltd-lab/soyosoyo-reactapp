@@ -9,7 +9,10 @@ export class MembersController {
 
   @Post()
   create(@Body() dto: CreateMemberDto) {
-    return this.membersService.create(dto);
+    return this.membersService.create(dto).catch((err) => {
+      console.error('Create member failed', err);
+      throw err;
+    });
   }
 
   @Get()
