@@ -20,11 +20,21 @@ export class MembersService {
         throw new BadRequestException('Member with this phone already exists.');
       }
       
-      // Prepare data
-      const { nextOfKin, ...rest } = dto;
+      // Prepare data and convert empty strings to null for optional fields
+      const { nextOfKin, customRole, ...rest } = dto; // Remove customRole (not in schema)
+      
+      // Convert empty strings to null for DateTime fields
       const dataToCreate = {
         ...rest,
-        nextOfKin: nextOfKin ? JSON.parse(JSON.stringify(nextOfKin)) : [],
+        dob: rest.dob && rest.dob.trim() ? rest.dob : null,
+        email: rest.email && rest.email.trim() ? rest.email : null,
+        idNumber: rest.idNumber && rest.idNumber.trim() ? rest.idNumber : null,
+        gender: rest.gender && rest.gender.trim() ? rest.gender : null,
+        employmentStatus: rest.employmentStatus && rest.employmentStatus.trim() ? rest.employmentStatus : null,
+        employerName: rest.employerName && rest.employerName.trim() ? rest.employerName : null,
+        regNo: rest.regNo && rest.regNo.trim() ? rest.regNo : null,
+        employerAddress: rest.employerAddress && rest.employerAddress.trim() ? rest.employerAddress : null,
+        nextOfKin: nextOfKin && nextOfKin.length > 0 ? JSON.parse(JSON.stringify(nextOfKin)) : null,
       };
       console.log('[MembersService.create] Prepared data for creation:', JSON.stringify(dataToCreate));
       
