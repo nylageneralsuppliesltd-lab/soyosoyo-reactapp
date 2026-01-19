@@ -9,16 +9,36 @@ export class MembersService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateMemberDto) {
-    const existing = await this.prisma.member.findUnique({ where: { phone: dto.phone } });
-    if (existing) throw new BadRequestException('Member with this phone already exists.');
-    // Manually spread fields to match Prisma type
-    const { nextOfKin, ...rest } = dto;
-    return this.prisma.member.create({
-      data: {
+    try {
+      console.log('[MembersService.create] Starting with dto:', JSON.stringify(dto));
+      
+      // Check if member exists
+      console.log('[MembersService.create] Checking if member with phone exists:', dto.phone);
+      const existing = await this.prisma.member.findUnique({ where: { phone: dto.phone } });
+      if (existing) {
+        console.warn('[MembersService.create] Member already exists with phone:', dto.phone);
+        throw new BadRequestException('Member with this phone already exists.');
+      }
+      
+      // Prepare data
+      const { nextOfKin, ...rest } = dto;
+      const dataToCreate = {
         ...rest,
         nextOfKin: nextOfKin ? JSON.parse(JSON.stringify(nextOfKin)) : [],
-      },
-    });
+      };
+      console.log('[MembersService.create] Prepared data for creation:', JSON.stringify(dataToCreate));
+      
+      // Create member
+      const result = await this.prisma.member.create({ data: dataToCreate });
+      console.log('[MembersService.create] Member created with id:', result.id);
+      return result;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      const errorName = err instanceof Error ? err.name : 'Unknown';
+      console.error('[MembersService.create] FAILED:', errorName, errorMsg);
+      console.error('[MembersService.create] Error details:', err);
+      throw err;
+    }
   }
 
   async findAll() {

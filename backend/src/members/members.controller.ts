@@ -8,11 +8,20 @@ export class MembersController {
   constructor(private readonly membersService: MembersService) {}
 
   @Post()
-  create(@Body() dto: CreateMemberDto) {
-    return this.membersService.create(dto).catch((err) => {
-      console.error('Create member failed', err);
+  async create(@Body() dto: CreateMemberDto) {
+    try {
+      console.log('[POST /members] Received dto:', JSON.stringify(dto));
+      const result = await this.membersService.create(dto);
+      console.log('[POST /members] Member created successfully:', result);
+      return result;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      const errorStack = err instanceof Error ? err.stack : 'No stack trace';
+      console.error('[POST /members] ERROR:', errorMsg);
+      console.error('[POST /members] STACK:', errorStack);
+      console.error('[POST /members] Full error object:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
       throw err;
-    });
+    }
   }
 
   @Get()
