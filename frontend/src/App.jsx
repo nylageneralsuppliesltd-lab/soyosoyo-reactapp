@@ -18,6 +18,7 @@ import Sidebar from './components/Sidebar';
 
 // Pages
 import DashboardPage from './pages/DashboardPage';
+import LandingPage from './pages/LandingPage';
 import MembersList from './components/members/MembersList';
 import MemberForm from './components/members/MemberForm';
 
@@ -46,6 +47,13 @@ function App() {
   const toggleSubmenu = (key) => setOpenSubmenu(openSubmenu === key ? null : key);
   const closeSidebar = () => setIsSidebarOpen(false);
 
+  // Show landing page layout for root and landing path
+  const isLanding = location.pathname === '/' || location.pathname === '/landing';
+
+  if (isLanding) {
+    return <LandingPage />;
+  }
+
   return (
     <div className="app-container flex min-h-screen bg-gray-50">
       {/* Hamburger */}
@@ -72,6 +80,7 @@ function App() {
       <main className="content flex-1 ml-0 md:ml-64 p-6 bg-gray-50 transition-all">
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/landing" element={<LandingPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
 
           {/* Member routes */}

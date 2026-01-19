@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { getMembers, suspendMember, reactivateMember } from './membersAPI';
 import MemberLedger from './MemberLedger';
 import MemberForm from './MemberForm';
+import ReportHeader from '../ReportHeader';
 import '../../../src/styles/members.css';
+import '../../../src/styles/report.css';
 
 export default function MembersList() {
   const [members, setMembers] = useState([]);
@@ -90,6 +92,47 @@ export default function MembersList() {
     fetchMembers(pagination.skip);
   };
 
+  const downloadMemberList = () => {
+    if (members.length === 0) {
+      alert('No members to download');
+      return;
+    }
+
+    // Prepare CSV content with SACCO header
+    const saccoInfo = [
+      ['SOYOSOYO SACCO MEMBER LIST'],
+      ['Empowering Your Financial Future'],
+      [''],
+      ['Generated on:', new Date().toLocaleString('en-KE')],
+      ['Total Members:', pagination.total],
+      [''],
+    ];
+
+    const headers = ['#', 'Name', 'Phone', 'Email', 'Role', 'Balance', 'Status', 'Date Joined'];
+    const rows = members.map((m, idx) => [
+      idx + 1,
+      m.name,
+      m.phone,
+      m.email || '-',
+      m.role,
+      `KES ${m.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00'}`,
+      m.active ? 'Active' : 'Suspended',
+      new Date(m.createdAt).toLocaleDateString('en-KE'),
+    ]);
+
+    const csvContent = [
+      ...saccoInfo.map((row) => row.join(',')),
+      headers.join(','),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Member-List-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
   if (view === 'form') {
     return <MemberForm member={selectedMember} goBack={handleBack} />;
   }
@@ -102,21 +145,33 @@ export default function MembersList() {
 
   return (
     <div className="members-container">
-      {/* Header */}
+      {/* SACCO Report Header */}
+      <ReportHeader title="Members Register" subtitle={`Total Members: ${pagination.total}`} />
+
+      {/* Action Header */}
       <div className="members-header">
         <div>
           <h1>Members Management</h1>
-          <p className="subtitle">Total Members: {pagination.total}</p>
+          <p className="subtitle">Manage and track all member information</p>
         </div>
-        <button
-          className="btn-primary btn-large"
-          onClick={() => {
-            setSelectedMember(null);
-            setView('form');
-          }}
-        >
-          + Register New Member
-        </button>
+        <div className="header-actions">
+          <button
+            className="btn-secondary"
+            onClick={downloadMemberList}
+            title="Download member list as CSV"
+          >
+            ⬇ Download CSV
+          </button>
+          <button
+            className="btn-primary btn-large"
+            onClick={() => {
+              setSelectedMember(null);
+              setView('form');
+            }}
+          >
+            + Register New Member
+          </button>
+        </div>
       </div>
 
       {/* Error Message */}
