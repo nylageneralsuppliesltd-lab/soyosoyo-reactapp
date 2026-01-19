@@ -35,7 +35,9 @@ export class MembersService {
         regNo: rest.regNo && rest.regNo.trim() ? rest.regNo : null,
         employerAddress: rest.employerAddress && rest.employerAddress.trim() ? rest.employerAddress : null,
         nextOfKin: nextOfKin && nextOfKin.length > 0 ? JSON.parse(JSON.stringify(nextOfKin)) : null,
-      } as any; // Cast to any to allow extra fields that Prisma will ignore
+      };
+      // Delete any extra fields not in Prisma schema
+      delete (dataToCreate as any).customRole;
       console.log('[MembersService.create] Prepared data for creation:', JSON.stringify(dataToCreate));
       
       // Create member
