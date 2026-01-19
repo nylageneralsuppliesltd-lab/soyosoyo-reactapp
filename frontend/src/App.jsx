@@ -22,12 +22,10 @@ import LandingPage from './pages/LandingPage';
 import MembersList from './components/members/MembersList';
 import MemberForm from './components/members/MemberForm';
 import SaccoSettingsPage from './pages/SaccoSettingsPage';
-
-// Placeholder pages
-const DepositsPage = () => <div className="p-6 bg-white rounded-lg shadow mb-6"><h1>Deposits</h1></div>;
-const WithdrawalsPage = () => <div className="p-6 bg-white rounded-lg shadow mb-6"><h1>Withdrawals</h1></div>;
-const LoansPage = () => <div className="p-6 bg-white rounded-lg shadow mb-6"><h1>Loans</h1></div>;
-const ReportsPage = () => <div className="p-6 bg-white rounded-lg shadow mb-6"><h1>Reports</h1></div>;
+import DepositsPage from './pages/DepositsPage';
+import WithdrawalsPage from './pages/WithdrawalsPage';
+import LoansPage from './pages/LoansPage';
+import ReportsPage from './pages/ReportsPage';
 
 const NotFound = () => (
   <div className="flex flex-col items-center justify-center h-full text-center p-6">

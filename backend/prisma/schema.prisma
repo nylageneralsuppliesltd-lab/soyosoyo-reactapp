@@ -28,6 +28,9 @@ model Member {
   balance            Float     @default(0)
   active             Boolean   @default(true)
   ledger             Ledger[]  
+  deposits           Deposit[]
+  withdrawals        Withdrawal[]
+  loans              Loan[]
   nextOfKin          Json?     
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -78,4 +81,85 @@ model sacco_history {
   total_assets       Decimal?  @default(0) @db.Decimal(15, 2)
   extra_fields       Json?     @default("{}")
   period             DateTime? @unique @db.Date
+}
+
+enum PaymentMethod {
+  cash
+  bank
+  mpesa
+  other
+}
+
+enum LoanStatus {
+  Active
+  Closed
+  Defaulted
+}
+
+model Deposit {
+  id         Int            @id @default(autoincrement())
+  member     Member?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  memberId   Int?
+  memberName String
+  amount     Decimal        @db.Decimal(14, 2)
+  method     PaymentMethod  @default(cash)
+  reference  String?
+  notes      String?
+  date       DateTime       @db.Date
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([memberId])
+  @@index([date])
+}
+
+model Withdrawal {
+  id         Int            @id @default(autoincrement())
+  member     Member?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  memberId   Int?
+  memberName String
+  amount     Decimal        @db.Decimal(14, 2)
+  method     PaymentMethod  @default(cash)
+  purpose    String?
+  notes      String?
+  date       DateTime       @db.Date
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([memberId])
+  @@index([date])
+}
+
+model Loan {
+  id           Int           @id @default(autoincrement())
+  borrower     Member?       @relation(fields: [borrowerId], references: [id], onDelete: SetNull)
+  borrowerId   Int?
+  borrowerName String
+  amount       Decimal       @db.Decimal(14, 2)
+  rate         Decimal?      @db.Decimal(5, 2)
+  termMonths   Int?
+  startDate    DateTime      @db.Date
+  status       LoanStatus    @default(Active)
+  purpose      String?
+  repayments   Repayment[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([borrowerId])
+  @@index([status])
+}
+
+model Repayment {
+  id        Int           @id @default(autoincrement())
+  loan      Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loanId    Int
+  amount    Decimal       @db.Decimal(14, 2)
+  method    PaymentMethod @default(cash)
+  notes     String?
+  date      DateTime      @db.Date
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([loanId])
+  @@index([date])
 }

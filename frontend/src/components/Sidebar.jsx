@@ -81,7 +81,9 @@ export default function Sidebar({ isOpen, onClose }) {
             </button>
             {openSubmenu === 'deposits' && (
               <ul className="submenu">
-                <li><span className="text-gray-400">Coming soon</span></li>
+                <li>
+                  <Link to="/deposits" onClick={onClose}>Deposits Register</Link>
+                </li>
               </ul>
             )}
           </li>
@@ -97,7 +99,9 @@ export default function Sidebar({ isOpen, onClose }) {
             </button>
             {openSubmenu === 'withdrawals' && (
               <ul className="submenu">
-                <li><span className="text-gray-400">Coming soon</span></li>
+                <li>
+                  <Link to="/withdrawals" onClick={onClose}>Withdrawals Register</Link>
+                </li>
               </ul>
             )}
           </li>
@@ -113,7 +117,9 @@ export default function Sidebar({ isOpen, onClose }) {
             </button>
             {openSubmenu === 'loans' && (
               <ul className="submenu">
-                <li><span className="text-gray-400">Coming soon</span></li>
+                <li>
+                  <Link to="/loans" onClick={onClose}>Loans Portfolio</Link>
+                </li>
               </ul>
             )}
           </li>
@@ -129,7 +135,9 @@ export default function Sidebar({ isOpen, onClose }) {
             </button>
             {openSubmenu === 'reports' && (
               <ul className="submenu">
-                <li><span className="text-gray-400">Coming soon</span></li>
+                <li>
+                  <Link to="/reports" onClick={onClose}>Financial Reports</Link>
+                </li>
               </ul>
             )}
           </li>
