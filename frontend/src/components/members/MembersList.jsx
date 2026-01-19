@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { getMembers, suspendMember, reactivateMember } from './membersAPI';
 import MemberLedger from './MemberLedger';
 import MemberForm from './MemberForm';
@@ -13,6 +15,7 @@ export default function MembersList() {
   const [selectedMember, setSelectedMember] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const reportHeaderRef = useRef(null);
 
   // Filter & search state
   const [search, setSearch] = useState('');
@@ -133,6 +136,155 @@ export default function MembersList() {
     link.click();
   };
 
+  const downloadMemberListPDF = async () => {
+    if (members.length === 0) {
+      alert('No members to download');
+      return;
+    }
+
+    try {
+      const element = document.createElement('div');
+      element.style.padding = '20px';
+      element.style.backgroundColor = 'white';
+      element.style.fontFamily = 'Arial, sans-serif';
+
+      // Create header section
+      const header = document.createElement('div');
+      header.style.marginBottom = '20px';
+      header.style.borderBottom = '2px solid #2563eb';
+      header.style.paddingBottom = '15px';
+
+      const title = document.createElement('h1');
+      title.textContent = 'SOYOSOYO SACCO';
+      title.style.margin = '0 0 5px 0';
+      title.style.color = '#2563eb';
+      title.style.fontSize = '24px';
+      title.style.fontWeight = 'bold';
+
+      const slogan = document.createElement('p');
+      slogan.textContent = 'Empowering Your Financial Future';
+      slogan.style.margin = '0 0 10px 0';
+      slogan.style.color = '#666';
+      slogan.style.fontSize = '12px';
+
+      const contact = document.createElement('p');
+      contact.textContent = 'Phone: +254 (0) 700 123 456 | Email: info@soyosoyosacco.com';
+      contact.style.margin = '0';
+      contact.style.color = '#666';
+      contact.style.fontSize = '11px';
+
+      header.appendChild(title);
+      header.appendChild(slogan);
+      header.appendChild(contact);
+
+      // Create report info
+      const reportInfo = document.createElement('div');
+      reportInfo.style.marginBottom = '15px';
+      reportInfo.style.fontSize = '11px';
+      reportInfo.style.color = '#666';
+
+      const generated = document.createElement('p');
+      generated.textContent = `Report Generated: ${new Date().toLocaleString('en-KE')}`;
+      generated.style.margin = '0 0 5px 0';
+
+      const totalMembers = document.createElement('p');
+      totalMembers.textContent = `Total Members: ${pagination.total}`;
+      totalMembers.style.margin = '0';
+
+      reportInfo.appendChild(generated);
+      reportInfo.appendChild(totalMembers);
+
+      // Create table
+      const table = document.createElement('table');
+      table.style.width = '100%';
+      table.style.borderCollapse = 'collapse';
+      table.style.fontSize = '10px';
+
+      // Create headers
+      const headerRow = document.createElement('tr');
+      headerRow.style.backgroundColor = '#2563eb';
+      headerRow.style.color = 'white';
+      ['#', 'Name', 'Phone', 'Email', 'Role', 'Balance', 'Status', 'Date Joined'].forEach((h) => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        th.style.padding = '8px';
+        th.style.border = '1px solid #ddd';
+        th.style.textAlign = 'left';
+        th.style.fontWeight = 'bold';
+        headerRow.appendChild(th);
+      });
+      table.appendChild(headerRow);
+
+      // Create rows
+      members.forEach((member, idx) => {
+        const row = document.createElement('tr');
+        row.style.backgroundColor = idx % 2 === 0 ? '#f9fafb' : 'white';
+
+        const cells = [
+          idx + 1,
+          member.name,
+          member.phone,
+          member.email || '-',
+          member.role,
+          `KES ${member.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00'}`,
+          member.active ? 'Active' : 'Suspended',
+          new Date(member.createdAt).toLocaleDateString('en-KE'),
+        ];
+
+        cells.forEach((cell) => {
+          const td = document.createElement('td');
+          td.textContent = cell;
+          td.style.padding = '6px';
+          td.style.border = '1px solid #ddd';
+          row.appendChild(td);
+        });
+
+        table.appendChild(row);
+      });
+
+      element.appendChild(header);
+      element.appendChild(reportInfo);
+      element.appendChild(table);
+
+      // Convert to PDF
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth - 20;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 10;
+
+      pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight - 20;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight + 10;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight - 20;
+      }
+
+      pdf.save(`Member-List-${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (err) {
+      console.error('PDF download error:', err);
+      alert('Failed to generate PDF. Please try again.');
+    }
+  };
+
   if (view === 'form') {
     return <MemberForm member={selectedMember} goBack={handleBack} />;
   }
@@ -160,7 +312,14 @@ export default function MembersList() {
             onClick={downloadMemberList}
             title="Download member list as CSV"
           >
-            ⬇ Download CSV
+            ⬇ CSV
+          </button>
+          <button
+            className="btn-secondary"
+            onClick={downloadMemberListPDF}
+            title="Download member list as PDF"
+          >
+            ⬇ PDF
           </button>
           <button
             className="btn-primary btn-large"
