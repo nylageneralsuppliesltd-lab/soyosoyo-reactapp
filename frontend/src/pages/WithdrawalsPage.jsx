@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import { useFinancial } from '../context/FinancialContext';
+import { getMembers } from '../components/members/membersAPI';
 import '../styles/finance.css';
 
 const formatCurrency = (value) =>
@@ -9,7 +10,7 @@ const formatCurrency = (value) =>
 const exportWithdrawalsCSV = (rows) => {
   const headers = ['Date', 'Member', 'Amount', 'Method', 'Purpose', 'Notes'];
   const csv = [headers.join(',')]
-    .concat(rows.map((d) => [d.date, d.member, d.amount, d.method, d.purpose, d.notes].map((c) => `"${c ?? ''}"`).join(',')))
+    .concat(rows.map((d) => [d.memberName || d.member, d.amount, d.method, d.purpose, d.notes].map((c) => `"${c ?? ''}"`).join(',')))
     .join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -55,7 +56,8 @@ const exportWithdrawalsPDF = (rows) => {
       pdf.setTextColor(0, 0, 0);
     }
     let x = margin;
-    const values = [idx + 1, row.date, row.member, formatCurrency(row.amount), row.method, row.purpose || '-', row.notes || '-'];
+    const memberName = row.memberName || row.member || '-';
+    const values = [idx + 1, row.date, memberName, formatCurrency(row.amount), row.method, row.purpose || '-', row.notes || '-'];
     pdf.setFontSize(8);
     values.forEach((val, i) => {
       pdf.text(String(val).slice(0, 42), x + 2, y + 4, { maxWidth: widths[i] - 4 });
@@ -69,8 +71,10 @@ const exportWithdrawalsPDF = (rows) => {
 
 const WithdrawalsPage = () => {
   const { withdrawals, addWithdrawal, deleteWithdrawal } = useFinancial();
+  const [members, setMembers] = useState([]);
   const [form, setForm] = useState({
-    member: '',
+    memberId: '',
+    memberName: '',
     amount: '',
     method: 'cash',
     purpose: '',
@@ -80,9 +84,22 @@ const WithdrawalsPage = () => {
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState('all');
 
+  // Load members on mount
+  useEffect(() => {
+    const loadMembers = async () => {
+      try {
+        const res = await getMembers('take=1000');
+        setMembers(res.data?.data || []);
+      } catch (err) {
+        console.error('Failed to load members:', err);
+      }
+    };
+    loadMembers();
+  }, []);
+
   const filtered = useMemo(() => {
     return withdrawals.filter((d) => {
-      const matchesSearch = !search || `${d.member} ${d.purpose} ${d.notes}`.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = !search || `${d.memberName} ${d.purpose} ${d.notes}`.toLowerCase().includes(search.toLowerCase());
       const matchesMethod = methodFilter === 'all' || d.method === methodFilter;
       return matchesSearch && matchesMethod;
     });
@@ -94,10 +111,41 @@ const WithdrawalsPage = () => {
     return { totalAmount, count: filtered.length, avg };
   }, [filtered]);
 
+  const handleMemberSelect = (e) => {
+    const memberId = parseInt(e.target.value);
+    const selected = members.find(m => m.id === memberId);
+    if (selected) {
+      setForm(prev => ({
+        ...prev,
+        memberId,
+        memberName: selected.name,
+      }));
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    addWithdrawal(form);
-    setForm((prev) => ({ ...prev, amount: '', purpose: '', notes: '' }));
+    if (!form.memberId) {
+      alert('Please select a member');
+      return;
+    }
+    addWithdrawal({
+      memberId: form.memberId,
+      memberName: form.memberName,
+      amount: form.amount,
+      method: form.method,
+      purpose: form.purpose,
+      date: form.date,
+      notes: form.notes,
+    });
+    setForm((prev) => ({ 
+      ...prev, 
+      memberId: '', 
+      memberName: '', 
+      amount: '', 
+      purpose: '', 
+      notes: '' 
+    }));
   };
 
   return (
@@ -105,126 +153,143 @@ const WithdrawalsPage = () => {
       <div className="finance-grid">
         <div className="finance-card">
           <h3>New Withdrawal</h3>
-          <p>Record payouts with purpose and method for audit clarity.</p>
+          <p>Record member withdrawal requests.</p>
           <form className="finance-form" onSubmit={handleSubmit}>
-            <input
-              placeholder="Member / Payee"
-              value={form.member}
-              onChange={(e) => setForm({ ...form, member: e.target.value })}
+            <label>Member *</label>
+            <select 
+              value={form.memberId} 
+              onChange={handleMemberSelect}
               required
-            />
+            >
+              <option value="">-- Select Member --</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} (ID: {m.id})
+                </option>
+              ))}
+            </select>
+            <label>Amount (KES) *</label>
             <input
               type="number"
               min="0"
               step="0.01"
-              placeholder="Amount (KES)"
+              placeholder="Amount"
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
               required
             />
+            <label>Payment Method</label>
             <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>
               <option value="cash">Cash</option>
               <option value="mpesa">M-Pesa</option>
               <option value="bank">Bank</option>
               <option value="cheque">Cheque</option>
             </select>
+            <label>Purpose</label>
             <input
-              placeholder="Purpose"
+              placeholder="Purpose of withdrawal"
               value={form.purpose}
               onChange={(e) => setForm({ ...form, purpose: e.target.value })}
             />
+            <label>Date</label>
             <input
               type="date"
               value={form.date}
               onChange={(e) => setForm({ ...form, date: e.target.value })}
             />
+            <label>Notes</label>
             <textarea
-              placeholder="Notes (optional)"
+              placeholder="Additional notes..."
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
-            <div className="finance-actions">
-              <button className="action-btn" type="submit">Save Withdrawal</button>
-              <span className="tag">Auto-saves to your browser</span>
-            </div>
+            <button type="submit" className="btn-primary">Record Withdrawal</button>
           </form>
         </div>
 
         <div className="finance-card">
-          <h3>Withdrawal Snapshot</h3>
-          <div className="finance-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-            <div>
-              <p className="text-sm">Total Withdrawals</p>
-              <h3>KES {formatCurrency(totals.totalAmount)}</h3>
-            </div>
-            <div>
-              <p className="text-sm">Transactions</p>
-              <h3>{totals.count}</h3>
-            </div>
-            <div>
-              <p className="text-sm">Average Ticket</p>
-              <h3>KES {formatCurrency(totals.avg)}</h3>
-            </div>
+          <h3>Withdrawals Summary</h3>
+          <div className="summary-stat">
+            <span>Total Withdrawals:</span>
+            <strong>KES {formatCurrency(totals.totalAmount)}</strong>
           </div>
-          <div className="finance-actions" style={{ marginTop: '10px' }}>
-            <button className="action-btn secondary" type="button" onClick={() => exportWithdrawalsCSV(filtered)}>Export CSV</button>
-            <button className="action-btn ghost" type="button" onClick={() => exportWithdrawalsPDF(filtered)}>Export PDF</button>
+          <div className="summary-stat">
+            <span>Count:</span>
+            <strong>{totals.count}</strong>
+          </div>
+          <div className="summary-stat">
+            <span>Average:</span>
+            <strong>KES {formatCurrency(totals.avg)}</strong>
+          </div>
+          <div className="summary-actions">
+            <button onClick={() => exportWithdrawalsCSV(filtered)} className="btn-secondary">
+              📥 CSV
+            </button>
+            <button onClick={() => exportWithdrawalsPDF(filtered)} className="btn-secondary">
+              📄 PDF
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="finance-card">
-        <div className="filters-row" style={{ marginBottom: '10px' }}>
+      <div className="finance-table">
+        <div className="finance-toolbar">
           <input
-            placeholder="Search member, purpose, notes"
+            type="text"
+            placeholder="Search by member, purpose..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            className="search-input"
           />
           <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)}>
-            <option value="all">All methods</option>
+            <option value="all">All Methods</option>
             <option value="cash">Cash</option>
             <option value="mpesa">M-Pesa</option>
             <option value="bank">Bank</option>
             <option value="cheque">Cheque</option>
           </select>
         </div>
-        <div className="finance-table-wrapper">
-          <table className="finance-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Member</th>
-                <th>Amount</th>
-                <th>Method</th>
-                <th>Purpose</th>
-                <th>Notes</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((d) => (
-                <tr key={d.id}>
-                  <td>{d.date}</td>
-                  <td>{d.member}</td>
-                  <td>KES {formatCurrency(d.amount)}</td>
-                  <td>{d.method}</td>
-                  <td>{d.purpose || '-'}</td>
-                  <td>{d.notes || '-'}</td>
-                  <td>
-                    <button className="action-btn ghost" type="button" onClick={() => deleteWithdrawal(d.id)}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
+
+        {filtered.length === 0 ? (
+          <p className="empty-message">No withdrawals recorded yet.</p>
+        ) : (
+          <div className="table-responsive">
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan="7">No withdrawals yet. Capture the first one above.</td>
+                  <th>Date</th>
+                  <th>Member</th>
+                  <th>Amount (KES)</th>
+                  <th>Method</th>
+                  <th>Purpose</th>
+                  <th>Notes</th>
+                  <th>Action</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filtered.map((w) => (
+                  <tr key={w.id}>
+                    <td>{w.date}</td>
+                    <td>{w.memberName}</td>
+                    <td className="amount">{formatCurrency(w.amount)}</td>
+                    <td>{w.method}</td>
+                    <td>{w.purpose || '-'}</td>
+                    <td>{w.notes || '-'}</td>
+                    <td>
+                      <button
+                        onClick={() => deleteWithdrawal(w.id)}
+                        className="btn-small btn-danger"
+                        title="Delete"
+                      >
+                        🗑️
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

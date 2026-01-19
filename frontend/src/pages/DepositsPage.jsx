@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import { useFinancial } from '../context/FinancialContext';
+import { getMembers } from '../components/members/membersAPI';
 import '../styles/finance.css';
 
 const formatCurrency = (value) =>
@@ -9,7 +10,7 @@ const formatCurrency = (value) =>
 const exportDepositsCSV = (rows) => {
   const headers = ['Date', 'Member', 'Amount', 'Method', 'Reference', 'Notes'];
   const csv = [headers.join(',')]
-    .concat(rows.map((d) => [d.date, d.member, d.amount, d.method, d.reference, d.notes].map((c) => `"${c ?? ''}"`).join(',')))
+    .concat(rows.map((d) => [d.memberName || d.member, d.amount, d.method, d.reference, d.notes].map((c) => `"${c ?? ''}"`).join(',')))
     .join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -58,7 +59,8 @@ const exportDepositsPDF = (rows) => {
       pdf.setTextColor(0, 0, 0);
     }
     let x = margin;
-    const values = [idx + 1, row.date, row.member, formatCurrency(row.amount), row.method, row.reference || '-', row.notes || '-'];
+    const memberName = row.memberName || row.member || '-';
+    const values = [idx + 1, row.date, memberName, formatCurrency(row.amount), row.method, row.reference || '-', row.notes || '-'];
     pdf.setFontSize(8);
     values.forEach((val, i) => {
       pdf.text(String(val).slice(0, 42), x + 2, y + 4, { maxWidth: widths[i] - 4 });
@@ -72,8 +74,10 @@ const exportDepositsPDF = (rows) => {
 
 const DepositsPage = () => {
   const { deposits, addDeposit, deleteDeposit } = useFinancial();
+  const [members, setMembers] = useState([]);
   const [form, setForm] = useState({
-    member: '',
+    memberId: '',
+    memberName: '',
     amount: '',
     method: 'cash',
     reference: '',
@@ -83,9 +87,22 @@ const DepositsPage = () => {
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState('all');
 
+  // Load members on mount
+  useEffect(() => {
+    const loadMembers = async () => {
+      try {
+        const res = await getMembers('take=1000');
+        setMembers(res.data?.data || []);
+      } catch (err) {
+        console.error('Failed to load members:', err);
+      }
+    };
+    loadMembers();
+  }, []);
+
   const filtered = useMemo(() => {
     return deposits.filter((d) => {
-      const matchesSearch = !search || `${d.member} ${d.reference} ${d.notes}`.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = !search || `${d.memberName} ${d.reference} ${d.notes}`.toLowerCase().includes(search.toLowerCase());
       const matchesMethod = methodFilter === 'all' || d.method === methodFilter;
       return matchesSearch && matchesMethod;
     });
@@ -97,10 +114,41 @@ const DepositsPage = () => {
     return { totalAmount, count: filtered.length, avg };
   }, [filtered]);
 
+  const handleMemberSelect = (e) => {
+    const memberId = parseInt(e.target.value);
+    const selected = members.find(m => m.id === memberId);
+    if (selected) {
+      setForm(prev => ({
+        ...prev,
+        memberId,
+        memberName: selected.name,
+      }));
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    addDeposit(form);
-    setForm((prev) => ({ ...prev, amount: '', reference: '', notes: '' }));
+    if (!form.memberId) {
+      alert('Please select a member');
+      return;
+    }
+    addDeposit({
+      memberId: form.memberId,
+      memberName: form.memberName,
+      amount: form.amount,
+      method: form.method,
+      reference: form.reference,
+      date: form.date,
+      notes: form.notes,
+    });
+    setForm((prev) => ({ 
+      ...prev, 
+      memberId: '', 
+      memberName: '', 
+      amount: '', 
+      reference: '', 
+      notes: '' 
+    }));
   };
 
   return (
@@ -108,29 +156,39 @@ const DepositsPage = () => {
       <div className="finance-grid">
         <div className="finance-card">
           <h3>New Deposit</h3>
-          <p>Capture live contributions with full audit trail.</p>
+          <p>Record member deposit contributions.</p>
           <form className="finance-form" onSubmit={handleSubmit}>
-            <input
-              placeholder="Member name"
-              value={form.member}
-              onChange={(e) => setForm({ ...form, member: e.target.value })}
+            <label>Member *</label>
+            <select 
+              value={form.memberId} 
+              onChange={handleMemberSelect}
               required
-            />
+            >
+              <option value="">-- Select Member --</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} (ID: {m.id})
+                </option>
+              ))}
+            </select>
+            <label>Amount (KES) *</label>
             <input
               type="number"
               min="0"
               step="0.01"
-              placeholder="Amount (KES)"
+              placeholder="Amount"
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
               required
             />
+            <label>Payment Method</label>
             <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>
               <option value="cash">Cash</option>
               <option value="mpesa">M-Pesa</option>
               <option value="bank">Bank</option>
               <option value="cheque">Cheque</option>
             </select>
+            <label>Reference (optional)</label>
             <input
               placeholder="Reference"
               value={form.reference}
