@@ -1,5 +1,8 @@
 import API from './membersAPI';
 
+// Export the API instance for direct use in components
+export const financeAPI = API;
+
 // Deposits
 export const getDeposits = (take = 100, skip = 0) =>
   API.get(`/deposits?take=${take}&skip=${skip}`);
