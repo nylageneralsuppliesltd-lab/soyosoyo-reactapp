@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import {
   House,
@@ -42,10 +42,14 @@ const NotFound = () => (
 function App() {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [openSubmenu, setOpenSubmenu] = useState(null);
 
-  const toggleSubmenu = (key) => setOpenSubmenu(openSubmenu === key ? null : key);
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeSidebar = () => setIsSidebarOpen(false);
+
+  // Close sidebar when route changes
+  useEffect(() => {
+    closeSidebar();
+  }, [location.pathname]);
 
   // Show landing page layout for root and landing path
   const isLanding = location.pathname === '/' || location.pathname === '/landing';
@@ -55,29 +59,29 @@ function App() {
   }
 
   return (
-    <div className="app-container flex min-h-screen bg-gray-50">
-      {/* Hamburger */}
+    <div className="app-container">
+      {/* Mobile Hamburger Button */}
       <button
-        className="hamburger md:hidden fixed top-4 left-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow"
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        aria-label="Toggle menu"
+        className="mobile-hamburger"
+        onClick={toggleSidebar}
+        aria-label="Toggle navigation menu"
+        aria-expanded={isSidebarOpen}
       >
-        ☰
+        <span className="hamburger-line"></span>
+        <span className="hamburger-line"></span>
+        <span className="hamburger-line"></span>
       </button>
 
-      {/* Overlay */}
+      {/* Mobile Overlay */}
       {isSidebarOpen && (
-        <div
-          className="overlay fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
-          onClick={closeSidebar}
-        />
+        <div className="mobile-overlay" onClick={closeSidebar}></div>
       )}
 
       {/* Sidebar */}
       <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
 
       {/* Main Content */}
-      <main className="content flex-1 ml-0 md:ml-64 p-6 bg-gray-50 transition-all">
+      <main className="main-content">
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/landing" element={<LandingPage />} />

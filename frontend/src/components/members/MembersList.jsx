@@ -103,23 +103,33 @@ export default function MembersList() {
 
     // Prepare CSV content with SACCO header
     const saccoInfo = [
-      ['SOYOSOYO SACCO MEMBER LIST'],
+      ['SOYOSOYO SACCO MEMBER REGISTER'],
       ['Empowering Your Financial Future'],
+      ['Contact: +254 (0) 700 123 456 | Email: info@soyosoyosacco.com'],
       [''],
       ['Generated on:', new Date().toLocaleString('en-KE')],
       ['Total Members:', pagination.total],
       [''],
     ];
 
-    const headers = ['#', 'Name', 'Phone', 'Email', 'Role', 'Balance', 'Status', 'Date Joined'];
+    const headers = ['#', 'Full Name', 'Phone', 'Email', 'ID Number', 'DOB', 'Gender', 'Role', 'Physical Address', 'Town', 'Employment Status', 'Employer Name', 'Balance (KES)', 'Status', 'Introducer Name', 'Date Joined'];
+    
     const rows = members.map((m, idx) => [
       idx + 1,
       m.name,
       m.phone,
       m.email || '-',
+      m.idNumber || '-',
+      m.dob ? new Date(m.dob).toLocaleDateString('en-KE') : '-',
+      m.gender || '-',
       m.role,
-      `KES ${m.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00'}`,
+      m.physicalAddress || '-',
+      m.town || '-',
+      m.employmentStatus || '-',
+      m.employerName || '-',
+      m.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00',
       m.active ? 'Active' : 'Suspended',
+      m.introducerName || '-',
       new Date(m.createdAt).toLocaleDateString('en-KE'),
     ]);
 
@@ -128,6 +138,13 @@ export default function MembersList() {
       headers.join(','),
       ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
     ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Member-Register-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -198,19 +215,21 @@ export default function MembersList() {
       const table = document.createElement('table');
       table.style.width = '100%';
       table.style.borderCollapse = 'collapse';
-      table.style.fontSize = '10px';
+      table.style.fontSize = '9px';
 
       // Create headers
       const headerRow = document.createElement('tr');
       headerRow.style.backgroundColor = '#2563eb';
       headerRow.style.color = 'white';
-      ['#', 'Name', 'Phone', 'Email', 'Role', 'Balance', 'Status', 'Date Joined'].forEach((h) => {
+      const headerTexts = ['#', 'Name', 'Phone', 'Email', 'ID', 'DOB', 'Gender', 'Role', 'Address', 'Town', 'Employment', 'Employer', 'Balance', 'Status', 'Introducer', 'Joined'];
+      headerTexts.forEach((h) => {
         const th = document.createElement('th');
         th.textContent = h;
-        th.style.padding = '8px';
+        th.style.padding = '6px';
         th.style.border = '1px solid #ddd';
         th.style.textAlign = 'left';
         th.style.fontWeight = 'bold';
+        th.style.fontSize = '9px';
         headerRow.appendChild(th);
       });
       table.appendChild(headerRow);
@@ -225,17 +244,26 @@ export default function MembersList() {
           member.name,
           member.phone,
           member.email || '-',
+          member.idNumber || '-',
+          member.dob ? new Date(member.dob).toLocaleDateString('en-KE') : '-',
+          member.gender || '-',
           member.role,
-          `KES ${member.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00'}`,
+          member.physicalAddress ? member.physicalAddress.substring(0, 20) : '-',
+          member.town || '-',
+          member.employmentStatus ? member.employmentStatus.substring(0, 10) : '-',
+          member.employerName ? member.employerName.substring(0, 15) : '-',
+          member.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00',
           member.active ? 'Active' : 'Suspended',
+          member.introducerName || '-',
           new Date(member.createdAt).toLocaleDateString('en-KE'),
         ];
 
         cells.forEach((cell) => {
           const td = document.createElement('td');
           td.textContent = cell;
-          td.style.padding = '6px';
+          td.style.padding = '5px';
           td.style.border = '1px solid #ddd';
+          td.style.fontSize = '8px';
           row.appendChild(td);
         });
 
