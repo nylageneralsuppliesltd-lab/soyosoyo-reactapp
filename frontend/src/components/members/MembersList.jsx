@@ -3,8 +3,8 @@ import { getMembers, suspendMember, reactivateMember } from './membersAPI';
 import MemberLedger from './MemberLedger';
 import MemberForm from './MemberForm';
 import ReportHeader from '../ReportHeader';
-import '../../../src/styles/members.css';
-import '../../../src/styles/report.css';
+import '../../styles/members.css';
+import '../../styles/report.css';
 
 export default function MembersList() {
   const [members, setMembers] = useState([]);
