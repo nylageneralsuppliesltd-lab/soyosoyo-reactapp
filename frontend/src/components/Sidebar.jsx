@@ -134,10 +134,10 @@ export default function Sidebar({ isOpen, onClose }) {
             )}
           </li>
 
-          <li className={location.pathname.startsWith('/settings') ? 'active' : ''}>
-            <Link to="/settings" onClick={onClose} className="menu-item">
+          <li className={location.pathname.startsWith('/settings') || location.pathname.startsWith('/sacco-settings') ? 'active' : ''}>
+            <Link to="/sacco-settings" onClick={onClose} className="menu-item">
               <GearSix size={20} weight="bold" />
-              <span>Settings</span>
+              <span>SACCO Settings</span>
             </Link>
           </li>
         </ul>
