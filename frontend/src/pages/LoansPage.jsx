@@ -78,24 +78,28 @@ const exportLoansPDF = (rows, repayments) => {
 };
 
 const LoansPage = () => {
-  const { loans, repayments, addLoan, addRepayment, deleteLoan } = useFinancial();
+  const { loans, repayments, addLoan, addRepayment, deleteLoan, updateLoan, updateRepayment, deleteRepayment } = useFinancial();
   const [loanForm, setLoanForm] = useState({
     borrower: '',
     amount: '',
     rate: '',
     termMonths: '',
     startDate: new Date().toISOString().slice(0, 10),
-    status: 'Active',
+    status: 'active',
     purpose: '',
   });
   const [repayForm, setRepayForm] = useState({ loanId: '', amount: '', date: new Date().toISOString().slice(0, 10), method: 'cash', notes: '' });
+  const [editingLoanId, setEditingLoanId] = useState(null);
+  const [editingRepaymentId, setEditingRepaymentId] = useState(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
   const filtered = useMemo(() => {
     return loans.filter((l) => {
-      const matchesSearch = !search || `${l.borrower} ${l.purpose}`.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || l.status === statusFilter;
+      const searchHaystack = `${l.memberName || l.borrower || ''} ${l.purpose || ''}`.toLowerCase();
+      const matchesSearch = !search || searchHaystack.includes(search.toLowerCase());
+      const normalizedStatus = (l.status || '').toString().toLowerCase();
+      const matchesStatus = statusFilter === 'all' || normalizedStatus === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [loans, search, statusFilter]);
@@ -103,7 +107,7 @@ const LoansPage = () => {
   const metrics = useMemo(() => {
     const total = filtered.reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
     const outstanding = filtered.reduce((sum, l) => sum + calculateOutstanding(l, repayments), 0);
-    const active = filtered.filter((l) => l.status === 'Active').length;
+    const active = filtered.filter((l) => (l.status || '').toLowerCase() === 'active').length;
     return { total, outstanding, active, count: filtered.length };
   }, [filtered, repayments]);
 
@@ -118,9 +122,15 @@ const LoansPage = () => {
       return;
     }
     try {
-      await addLoan(loanForm);
-      alert('Loan disbursed successfully');
+      if (editingLoanId) {
+        await updateLoan(editingLoanId, loanForm);
+        alert('Loan updated successfully');
+      } else {
+        await addLoan(loanForm);
+        alert('Loan disbursed successfully');
+      }
       setLoanForm((prev) => ({ ...prev, amount: '', rate: '', termMonths: '', purpose: '', borrower: '' }));
+      setEditingLoanId(null);
     } catch (err) {
       alert(`Failed to disburse loan: ${err.message}`);
       console.error('Loan error:', err);
@@ -138,21 +148,63 @@ const LoansPage = () => {
       return;
     }
     try {
-      await addRepayment(repayForm);
-      alert('Repayment recorded successfully');
+      if (editingRepaymentId) {
+        await updateRepayment(editingRepaymentId, repayForm);
+        alert('Repayment updated successfully');
+      } else {
+        await addRepayment(repayForm);
+        alert('Repayment recorded successfully');
+      }
       setRepayForm((prev) => ({ ...prev, amount: '', notes: '', loanId: '' }));
+      setEditingRepaymentId(null);
     } catch (err) {
       alert(`Failed to record repayment: ${err.message}`);
       console.error('Repayment error:', err);
     }
   };
 
+  const beginLoanEdit = (loan) => {
+    setEditingLoanId(loan.id);
+    setLoanForm({
+      borrower: loan.memberName || loan.borrower || '',
+      amount: loan.amount,
+      rate: loan.interestRate ?? loan.rate ?? '',
+      termMonths: loan.periodMonths ?? loan.termMonths ?? '',
+      startDate: (loan.startDate || loan.disbursementDate)
+        ? new Date(loan.startDate || loan.disbursementDate).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
+      status: (loan.status || 'active').toString().toLowerCase(),
+      purpose: loan.purpose || '',
+    });
+  };
+
+  const cancelLoanEdit = () => {
+    setEditingLoanId(null);
+    setLoanForm((prev) => ({ ...prev, borrower: '', amount: '', rate: '', termMonths: '', purpose: '' }));
+  };
+
+  const beginRepaymentEdit = (repayment) => {
+    setEditingRepaymentId(repayment.id);
+    setRepayForm({
+      loanId: repayment.loanId,
+      amount: repayment.amount,
+      date: repayment.date ? new Date(repayment.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      method: repayment.method || 'cash',
+      notes: repayment.notes || '',
+    });
+  };
+
+  const cancelRepaymentEdit = () => {
+    setEditingRepaymentId(null);
+    setRepayForm((prev) => ({ ...prev, loanId: '', amount: '', notes: '' }));
+  };
+
   return (
     <div className="finance-page">
       <div className="finance-grid">
         <div className="finance-card">
-          <h3>New Loan</h3>
-          <p>Disburse loans with rate, term, and status tracking.</p>
+          <h3>{editingLoanId ? `Edit Loan #${editingLoanId}` : 'New Loan'}</h3>
+          <p>{editingLoanId ? 'Update existing loan details.' : 'Disburse loans with rate, term, and status tracking.'}</p>
           <form className="finance-form" onSubmit={handleLoanSubmit}>
             <input
               placeholder="Borrower"
@@ -191,10 +243,10 @@ const LoansPage = () => {
               onChange={(e) => setLoanForm({ ...loanForm, startDate: e.target.value })}
             />
             <select value={loanForm.status} onChange={(e) => setLoanForm({ ...loanForm, status: e.target.value })}>
-              <option value="Active">Active</option>
-              <option value="Pending">Pending</option>
-              <option value="Repaid">Repaid</option>
-              <option value="Defaulted">Defaulted</option>
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="closed">Closed</option>
+              <option value="defaulted">Defaulted</option>
             </select>
             <textarea
               placeholder="Purpose (optional)"
@@ -202,15 +254,18 @@ const LoansPage = () => {
               onChange={(e) => setLoanForm({ ...loanForm, purpose: e.target.value })}
             />
             <div className="finance-actions">
-              <button className="action-btn" type="submit">Save Loan</button>
+              <button className="action-btn" type="submit">{editingLoanId ? 'Update Loan' : 'Save Loan'}</button>
+              {editingLoanId && (
+                <button className="action-btn ghost" type="button" onClick={cancelLoanEdit}>Cancel Edit</button>
+              )}
               <span className="tag">Auto-saves to your browser</span>
             </div>
           </form>
         </div>
 
         <div className="finance-card">
-          <h3>Record Repayment</h3>
-          <p>Map repayments to a loan ID to track outstanding balances.</p>
+          <h3>{editingRepaymentId ? `Edit Repayment #${editingRepaymentId}` : 'Record Repayment'}</h3>
+          <p>{editingRepaymentId ? 'Update repayment details for the selected loan.' : 'Map repayments to a loan ID to track outstanding balances.'}</p>
           <form className="finance-form" onSubmit={handleRepaySubmit}>
             <select value={repayForm.loanId} onChange={(e) => setRepayForm({ ...repayForm, loanId: e.target.value })} required>
               <option value="">Select loan</option>
@@ -246,7 +301,10 @@ const LoansPage = () => {
               onChange={(e) => setRepayForm({ ...repayForm, notes: e.target.value })}
             />
             <div className="finance-actions">
-              <button className="action-btn secondary" type="submit">Save Repayment</button>
+              <button className="action-btn secondary" type="submit">{editingRepaymentId ? 'Update Repayment' : 'Save Repayment'}</button>
+              {editingRepaymentId && (
+                <button className="action-btn ghost" type="button" onClick={cancelRepaymentEdit}>Cancel Edit</button>
+              )}
               <span className="tag">Links to the selected loan</span>
             </div>
           </form>
@@ -288,10 +346,10 @@ const LoansPage = () => {
           />
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">All statuses</option>
-            <option value="Active">Active</option>
-            <option value="Pending">Pending</option>
-            <option value="Repaid">Repaid</option>
-            <option value="Defaulted">Defaulted</option>
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+            <option value="closed">Closed</option>
+            <option value="defaulted">Defaulted</option>
           </select>
         </div>
         <div className="finance-table-wrapper">
@@ -310,24 +368,31 @@ const LoansPage = () => {
             </thead>
             <tbody>
               {filtered.map((l) => {
+                const borrower = l.memberName || l.borrower || '-';
                 const outstanding = calculateOutstanding(l, repayments);
+                const statusLabel = (l.status || '').toString().toLowerCase();
                 return (
                   <tr key={l.id}>
-                    <td>{l.borrower}</td>
+                    <td>{borrower}</td>
                     <td>KES {formatCurrency(l.amount)}</td>
-                    <td>{l.rate}</td>
-                    <td>{l.termMonths}</td>
-                    <td>{l.startDate}</td>
+                    <td>{l.interestRate ?? l.rate}</td>
+                    <td>{l.periodMonths ?? l.termMonths}</td>
+                    <td>{l.startDate || l.disbursementDate}</td>
                     <td>
-                      <span className={`badge ${l.status === 'Active' ? 'success' : l.status === 'Defaulted' ? 'danger' : 'warning'}`}>
-                        {l.status}
+                      <span className={`badge ${statusLabel === 'active' ? 'success' : statusLabel === 'defaulted' ? 'danger' : 'warning'}`}>
+                        {statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1) || 'Pending'}
                       </span>
                     </td>
                     <td>KES {formatCurrency(outstanding)}</td>
                     <td>
-                      <button className="action-btn ghost" type="button" onClick={() => deleteLoan(l.id)}>
-                        Delete
-                      </button>
+                      <div className="action-stack">
+                        <button className="action-btn secondary" type="button" onClick={() => beginLoanEdit(l)}>
+                          Edit
+                        </button>
+                        <button className="action-btn ghost" type="button" onClick={() => deleteLoan(l.id)}>
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -339,6 +404,53 @@ const LoansPage = () => {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div className="finance-card">
+        <div className="finance-table-wrapper">
+          <h3>Repayments</h3>
+          {repayments.length === 0 ? (
+            <p className="empty-message">No repayments recorded yet.</p>
+          ) : (
+            <table className="finance-table" style={{ marginTop: '10px' }}>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Loan</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Notes</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {repayments.map((r) => {
+                  const loan = loans.find((l) => l.id === r.loanId);
+                  const borrower = loan?.memberName || loan?.borrower || '-';
+                  return (
+                    <tr key={r.id}>
+                      <td>{r.date}</td>
+                      <td>{loan ? `${borrower} • Loan #${loan.id}` : `Loan #${r.loanId}`}</td>
+                      <td>KES {formatCurrency(r.amount)}</td>
+                      <td>{r.method}</td>
+                      <td>{r.notes || '-'}</td>
+                      <td>
+                        <div className="action-stack">
+                          <button className="action-btn secondary" type="button" onClick={() => beginRepaymentEdit(r)}>
+                            Edit
+                          </button>
+                          <button className="action-btn ghost" type="button" onClick={() => deleteRepayment(r.id)}>
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

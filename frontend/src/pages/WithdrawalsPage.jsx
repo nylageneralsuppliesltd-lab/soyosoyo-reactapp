@@ -70,7 +70,7 @@ const exportWithdrawalsPDF = (rows) => {
 };
 
 const WithdrawalsPage = () => {
-  const { withdrawals, addWithdrawal, deleteWithdrawal } = useFinancial();
+  const { withdrawals, addWithdrawal, deleteWithdrawal, updateWithdrawal } = useFinancial();
   const [members, setMembers] = useState([]);
   const [form, setForm] = useState({
     memberId: '',
@@ -81,6 +81,7 @@ const WithdrawalsPage = () => {
     date: new Date().toISOString().slice(0, 10),
     notes: '',
   });
+  const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState('all');
 
@@ -134,7 +135,7 @@ const WithdrawalsPage = () => {
       return;
     }
     try {
-      await addWithdrawal({
+      const payload = {
         memberId: form.memberId,
         memberName: form.memberName,
         amount: form.amount,
@@ -142,8 +143,15 @@ const WithdrawalsPage = () => {
         purpose: form.purpose,
         date: form.date,
         notes: form.notes,
-      });
-      alert('Withdrawal recorded successfully');
+      };
+
+      if (editingId) {
+        await updateWithdrawal(editingId, payload);
+        alert('Withdrawal updated successfully');
+      } else {
+        await addWithdrawal(payload);
+        alert('Withdrawal recorded successfully');
+      }
       setForm((prev) => ({ 
         ...prev, 
         memberId: '', 
@@ -152,18 +160,37 @@ const WithdrawalsPage = () => {
         purpose: '', 
         notes: '' 
       }));
+      setEditingId(null);
     } catch (err) {
       alert(`Failed to record withdrawal: ${err.message}`);
       console.error('Withdrawal error:', err);
     }
   };
 
+  const beginEdit = (withdrawal) => {
+    setEditingId(withdrawal.id);
+    setForm({
+      memberId: withdrawal.memberId || '',
+      memberName: withdrawal.memberName || withdrawal.member?.name || '',
+      amount: withdrawal.amount,
+      method: withdrawal.method || 'cash',
+      purpose: withdrawal.purpose || '',
+      date: withdrawal.date ? new Date(withdrawal.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      notes: withdrawal.notes || '',
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setForm((prev) => ({ ...prev, memberId: '', memberName: '', amount: '', purpose: '', notes: '' }));
+  };
+
   return (
     <div className="finance-page">
       <div className="finance-grid">
         <div className="finance-card">
-          <h3>New Withdrawal</h3>
-          <p>Record member withdrawal requests.</p>
+          <h3>{editingId ? `Edit Withdrawal #${editingId}` : 'New Withdrawal'}</h3>
+          <p>{editingId ? 'Update an existing withdrawal.' : 'Record member withdrawal requests.'}</p>
           <form className="finance-form" onSubmit={handleSubmit}>
             <label>Member *</label>
             <select 
@@ -213,7 +240,14 @@ const WithdrawalsPage = () => {
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
-            <button type="submit" className="btn-primary">Record Withdrawal</button>
+            <div className="finance-actions">
+              <button type="submit" className="btn-primary">{editingId ? 'Update Withdrawal' : 'Record Withdrawal'}</button>
+              {editingId && (
+                <button type="button" className="btn-secondary" onClick={cancelEdit}>
+                  Cancel Edit
+                </button>
+              )}
+            </div>
           </form>
         </div>
 
@@ -286,13 +320,22 @@ const WithdrawalsPage = () => {
                     <td>{w.purpose || '-'}</td>
                     <td>{w.notes || '-'}</td>
                     <td>
-                      <button
-                        onClick={() => deleteWithdrawal(w.id)}
-                        className="btn-small btn-danger"
-                        title="Delete"
-                      >
-                        🗑️
-                      </button>
+                      <div className="action-stack">
+                        <button
+                          onClick={() => beginEdit(w)}
+                          className="btn-small btn-secondary"
+                          title="Edit"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => deleteWithdrawal(w.id)}
+                          className="btn-small btn-danger"
+                          title="Delete"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

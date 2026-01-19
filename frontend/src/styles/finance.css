@@ -170,6 +170,13 @@
   background: #fff;
 }
 
+.action-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
 @media (max-width: 640px) {
   .finance-table {
     min-width: 640px;

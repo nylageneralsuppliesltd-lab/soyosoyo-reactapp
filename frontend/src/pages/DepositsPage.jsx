@@ -73,7 +73,7 @@ const exportDepositsPDF = (rows) => {
 };
 
 const DepositsPage = () => {
-  const { deposits, addDeposit, deleteDeposit } = useFinancial();
+  const { deposits, addDeposit, deleteDeposit, updateDeposit } = useFinancial();
   const [members, setMembers] = useState([]);
   const [form, setForm] = useState({
     memberId: '',
@@ -84,6 +84,7 @@ const DepositsPage = () => {
     date: new Date().toISOString().slice(0, 10),
     notes: '',
   });
+  const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState('all');
 
@@ -137,7 +138,7 @@ const DepositsPage = () => {
       return;
     }
     try {
-      await addDeposit({
+      const payload = {
         memberId: form.memberId,
         memberName: form.memberName,
         amount: form.amount,
@@ -145,8 +146,15 @@ const DepositsPage = () => {
         reference: form.reference,
         date: form.date,
         notes: form.notes,
-      });
-      alert('Deposit recorded successfully');
+      };
+
+      if (editingId) {
+        await updateDeposit(editingId, payload);
+        alert('Deposit updated successfully');
+      } else {
+        await addDeposit(payload);
+        alert('Deposit recorded successfully');
+      }
       setForm((prev) => ({ 
         ...prev, 
         memberId: '', 
@@ -155,18 +163,37 @@ const DepositsPage = () => {
         reference: '', 
         notes: '' 
       }));
+      setEditingId(null);
     } catch (err) {
       alert(`Failed to record deposit: ${err.message}`);
       console.error('Deposit error:', err);
     }
   };
 
+  const beginEdit = (deposit) => {
+    setEditingId(deposit.id);
+    setForm({
+      memberId: deposit.memberId || '',
+      memberName: deposit.memberName || deposit.member?.name || '',
+      amount: deposit.amount,
+      method: deposit.method || 'cash',
+      reference: deposit.reference || '',
+      date: deposit.date ? new Date(deposit.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      notes: deposit.notes || '',
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setForm((prev) => ({ ...prev, memberId: '', memberName: '', amount: '', reference: '', notes: '' }));
+  };
+
   return (
     <div className="finance-page">
       <div className="finance-grid">
         <div className="finance-card">
-          <h3>New Deposit</h3>
-          <p>Record member deposit contributions.</p>
+          <h3>{editingId ? `Edit Deposit #${editingId}` : 'New Deposit'}</h3>
+          <p>{editingId ? 'Update an existing deposit.' : 'Record member deposit contributions.'}</p>
           <form className="finance-form" onSubmit={handleSubmit}>
             <label>Member *</label>
             <select 
@@ -215,7 +242,12 @@ const DepositsPage = () => {
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
             <div className="finance-actions">
-              <button className="action-btn" type="submit">Save Deposit</button>
+              <button className="action-btn" type="submit">{editingId ? 'Update Deposit' : 'Save Deposit'}</button>
+              {editingId && (
+                <button className="action-btn ghost" type="button" onClick={cancelEdit}>
+                  Cancel Edit
+                </button>
+              )}
               <span className="tag">Auto-saves to your browser</span>
             </div>
           </form>
@@ -276,15 +308,20 @@ const DepositsPage = () => {
               {filtered.map((d) => (
                 <tr key={d.id}>
                   <td>{d.date}</td>
-                  <td>{d.member}</td>
+                  <td>{d.memberName || d.member?.name || '-'}</td>
                   <td>KES {formatCurrency(d.amount)}</td>
                   <td>{d.method}</td>
                   <td>{d.reference || '-'}</td>
                   <td>{d.notes || '-'}</td>
                   <td>
-                    <button className="action-btn ghost" type="button" onClick={() => deleteDeposit(d.id)}>
-                      Delete
-                    </button>
+                    <div className="action-stack">
+                      <button className="action-btn secondary" type="button" onClick={() => beginEdit(d)}>
+                        Edit
+                      </button>
+                      <button className="action-btn ghost" type="button" onClick={() => deleteDeposit(d.id)}>
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

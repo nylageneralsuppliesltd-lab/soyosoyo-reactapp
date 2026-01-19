@@ -5,6 +5,13 @@ import { PrismaService } from '../prisma.service';
 export class LoansService {
   constructor(private prisma: PrismaService) {}
 
+  private normalizeStatus(status?: string) {
+    const value = (status || '').toString().toLowerCase();
+    if (['active', 'pending', 'closed', 'defaulted'].includes(value)) return value;
+    if (value === 'repaid') return 'closed';
+    return 'pending';
+  }
+
   async create(data: any) {
     try {
       // Transform and validate incoming data
@@ -17,7 +24,7 @@ export class LoansService {
         interestRate: data.rate ? parseFloat(data.rate) : 0,
         interestType: data.interestType || 'flat',
         periodMonths: data.termMonths ? parseInt(data.termMonths) : 0,
-        status: data.status || 'pending',
+        status: this.normalizeStatus(data.status),
         loanDirection: data.loanDirection || 'outward',
         purpose: data.purpose?.trim() || null,
         disbursementDate: data.startDate ? new Date(data.startDate) : new Date(),
@@ -30,7 +37,7 @@ export class LoansService {
         throw new BadRequestException('Borrower name and valid amount are required');
       }
 
-      return this.prisma.loan.create({ data: loanData });
+      return this.prisma.loan.create({ data: loanData as any });
     } catch (error) {
       console.error('Loan creation error:', error);
       throw error;
@@ -54,9 +61,34 @@ export class LoansService {
   }
 
   async update(id: number, data: any) {
+    const updateData: any = {
+      memberName: data.borrower?.trim() ?? data.memberName?.trim(),
+      memberId: data.borrowerId
+        ? parseInt(data.borrowerId)
+        : data.memberId
+          ? parseInt(data.memberId)
+          : undefined,
+      amount: data.amount !== undefined ? parseFloat(data.amount) : undefined,
+      balance: data.balance !== undefined ? parseFloat(data.balance) : undefined,
+      interestRate: data.rate !== undefined ? parseFloat(data.rate) : undefined,
+      interestType: data.interestType ?? undefined,
+      periodMonths: data.termMonths !== undefined ? parseInt(data.termMonths) : undefined,
+      status: data.status ? this.normalizeStatus(data.status) : undefined,
+      loanDirection: data.loanDirection ?? undefined,
+      purpose: data.purpose?.trim() ?? undefined,
+      disbursementDate: data.startDate ? new Date(data.startDate) : undefined,
+      typeName: data.typeName?.trim() ?? undefined,
+      bankName: data.bankName?.trim() ?? undefined,
+      dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+    };
+
+    const cleanedUpdate = Object.fromEntries(
+      Object.entries(updateData).filter(([, value]) => value !== undefined),
+    );
+
     return this.prisma.loan.update({
       where: { id },
-      data,
+      data: cleanedUpdate,
       include: { member: true, repayments: true },
     });
   }
