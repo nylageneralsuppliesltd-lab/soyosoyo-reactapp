@@ -7,6 +7,8 @@ import {
   Param,
   Delete,
   Query,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { DepositsService } from './deposits.service';
 
@@ -16,7 +18,21 @@ export class DepositsController {
 
   @Post()
   async create(@Body() data: any) {
-    return this.depositsService.create(data);
+    try {
+      console.log('[DepositsController] Creating deposit with data:', data);
+      const result = await this.depositsService.create(data);
+      console.log('[DepositsController] Deposit created successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('[DepositsController] Error creating deposit:', error);
+      throw new HttpException(
+        {
+          status: HttpStatus.BAD_REQUEST,
+          message: error.message || 'Failed to create deposit',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 
   @Get()

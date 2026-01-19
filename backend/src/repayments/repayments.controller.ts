@@ -7,6 +7,8 @@ import {
   Param,
   Delete,
   Query,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { RepaymentsService } from './repayments.service';
 
@@ -16,7 +18,21 @@ export class RepaymentsController {
 
   @Post()
   async create(@Body() data: any) {
-    return this.repaymentsService.create(data);
+    try {
+      console.log('[RepaymentsController] Creating repayment with data:', data);
+      const result = await this.repaymentsService.create(data);
+      console.log('[RepaymentsController] Repayment created successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('[RepaymentsController] Error creating repayment:', error);
+      throw new HttpException(
+        {
+          status: HttpStatus.BAD_REQUEST,
+          message: error.message || 'Failed to create repayment',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 
   @Get()

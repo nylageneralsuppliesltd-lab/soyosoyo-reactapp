@@ -7,6 +7,8 @@ import {
   Param,
   Delete,
   Query,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { LoansService } from './loans.service';
 
@@ -16,7 +18,21 @@ export class LoansController {
 
   @Post()
   async create(@Body() data: any) {
-    return this.loansService.create(data);
+    try {
+      console.log('[LoansController] Creating loan with data:', data);
+      const result = await this.loansService.create(data);
+      console.log('[LoansController] Loan created successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('[LoansController] Error creating loan:', error);
+      throw new HttpException(
+        {
+          status: HttpStatus.BAD_REQUEST,
+          message: error.message || 'Failed to create loan',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 
   @Get()

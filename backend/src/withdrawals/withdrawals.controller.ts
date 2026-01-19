@@ -7,6 +7,8 @@ import {
   Param,
   Delete,
   Query,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { WithdrawalsService } from './withdrawals.service';
 
@@ -16,7 +18,21 @@ export class WithdrawalsController {
 
   @Post()
   async create(@Body() data: any) {
-    return this.withdrawalsService.create(data);
+    try {
+      console.log('[WithdrawalsController] Creating withdrawal with data:', data);
+      const result = await this.withdrawalsService.create(data);
+      console.log('[WithdrawalsController] Withdrawal created successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('[WithdrawalsController] Error creating withdrawal:', error);
+      throw new HttpException(
+        {
+          status: HttpStatus.BAD_REQUEST,
+          message: error.message || 'Failed to create withdrawal',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 
   @Get()
