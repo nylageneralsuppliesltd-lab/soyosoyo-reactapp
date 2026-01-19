@@ -16,12 +16,25 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
-  // CORS - allow all soyosoyosacco.com subdomains + fallback wildcard
+  // CORS - allow specific domains and support credentials
+  const allowedOrigins = [
+    'https://api.soyosoyosacco.com',
+    'https://react.soyosoyosacco.com',
+    'https://soyosoyo-reactapp-0twy.onrender.com',
+    'http://localhost:3000',
+    'http://localhost:5173',
+  ];
+
   app.enableCors({
-    origin: true,  // Allow all origins (simplest workaround for testing)
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      console.warn(`CORS blocked for origin: ${origin}`);
+      return callback(new Error('Not allowed by CORS'));
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Authorization, Accept',
-    credentials: false,
+    credentials: true, // needed because frontend sets withCredentials=true
     preflightContinue: false,
     optionsSuccessStatus: 200,
   });
