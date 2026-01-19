@@ -2,7 +2,15 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import { instanceToPlain } from 'class-transformer';
+
+interface ListOptions {
+  skip?: number;
+  take?: number;
+  search?: string;
+  role?: string;
+  active?: boolean;
+  sort?: 'asc' | 'desc';
+}
 
 @Injectable()
 export class MembersService {
@@ -11,19 +19,18 @@ export class MembersService {
   async create(dto: CreateMemberDto) {
     try {
       console.log('[MembersService.create] Starting with dto:', JSON.stringify(dto));
-      
+
       // Check if member exists
       console.log('[MembersService.create] Checking if member with phone exists:', dto.phone);
       const existing = await this.prisma.member.findUnique({ where: { phone: dto.phone } });
       if (existing) {
         console.warn('[MembersService.create] Member already exists with phone:', dto.phone);
-        throw new BadRequestException('Member with this phone already exists.');
+        throw new BadRequestException('Member with this phone number already exists.');
       }
-      
+
       // Prepare data and convert empty strings to null for optional fields
       const { nextOfKin, ...rest } = dto;
-      
-      // Convert empty strings to null for DateTime fields
+
       const dataToCreate = {
         ...rest,
         dob: rest.dob && rest.dob.trim() ? rest.dob : null,
@@ -36,11 +43,10 @@ export class MembersService {
         employerAddress: rest.employerAddress && rest.employerAddress.trim() ? rest.employerAddress : null,
         nextOfKin: nextOfKin && nextOfKin.length > 0 ? JSON.parse(JSON.stringify(nextOfKin)) : null,
       };
-      // Delete any extra fields not in Prisma schema
+
       delete (dataToCreate as any).customRole;
       console.log('[MembersService.create] Prepared data for creation:', JSON.stringify(dataToCreate));
-      
-      // Create member
+
       const result = await this.prisma.member.create({ data: dataToCreate });
       console.log('[MembersService.create] Member created with id:', result.id);
       return result;
@@ -48,49 +54,136 @@ export class MembersService {
       const errorMsg = err instanceof Error ? err.message : String(err);
       const errorName = err instanceof Error ? err.name : 'Unknown';
       console.error('[MembersService.create] FAILED:', errorName, errorMsg);
-      console.error('[MembersService.create] Error details:', err);
       throw err;
     }
   }
 
-  async findAll() {
-    return this.prisma.member.findMany({ orderBy: { createdAt: 'desc' } });
+  async findAll(options: ListOptions = {}) {
+    const { skip = 0, take = 50, search, role, active, sort = 'desc' } = options;
+
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (role) {
+      where.role = role;
+    }
+
+    if (active !== undefined) {
+      where.active = active;
+    }
+
+    const [members, total] = await Promise.all([
+      this.prisma.member.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: sort },
+      }),
+      this.prisma.member.count({ where }),
+    ]);
+
+    return {
+      data: members,
+      total,
+      skip,
+      take,
+      pages: Math.ceil(total / take),
+    };
   }
 
   async findOne(id: number) {
-    const member = await this.prisma.member.findUnique({ where: { id } });
-    if (!member) throw new NotFoundException('Member not found.');
+    const member = await this.prisma.member.findUnique({
+      where: { id },
+      include: { ledger: true },
+    });
+    if (!member) throw new NotFoundException(`Member with ID ${id} not found.`);
     return member;
   }
 
   async update(id: number, dto: UpdateMemberDto) {
-    await this.findOne(id); // Ensure exists
+    await this.findOne(id);
+
+    // Check for duplicate phone if phone is being updated
+    if (dto.phone) {
+      const existing = await this.prisma.member.findUnique({
+        where: { phone: dto.phone },
+      });
+      if (existing && existing.id !== id) {
+        throw new BadRequestException('This phone number is already in use by another member.');
+      }
+    }
+
     const { nextOfKin, ...rest } = dto;
+
+    const dataToUpdate = {
+      ...rest,
+      dob: rest.dob !== undefined ? (rest.dob && rest.dob.trim() ? rest.dob : null) : undefined,
+      email: rest.email !== undefined ? (rest.email && rest.email.trim() ? rest.email : null) : undefined,
+      idNumber: rest.idNumber !== undefined ? (rest.idNumber && rest.idNumber.trim() ? rest.idNumber : null) : undefined,
+      gender: rest.gender !== undefined ? (rest.gender && rest.gender.trim() ? rest.gender : null) : undefined,
+      employmentStatus: rest.employmentStatus !== undefined ? (rest.employmentStatus && rest.employmentStatus.trim() ? rest.employmentStatus : null) : undefined,
+      employerName: rest.employerName !== undefined ? (rest.employerName && rest.employerName.trim() ? rest.employerName : null) : undefined,
+      regNo: rest.regNo !== undefined ? (rest.regNo && rest.regNo.trim() ? rest.regNo : null) : undefined,
+      employerAddress: rest.employerAddress !== undefined ? (rest.employerAddress && rest.employerAddress.trim() ? rest.employerAddress : null) : undefined,
+      nextOfKin: nextOfKin ? JSON.parse(JSON.stringify(nextOfKin)) : undefined,
+    };
+
+    delete (dataToUpdate as any).customRole;
+
     return this.prisma.member.update({
       where: { id },
-      data: {
-        ...rest,
-        nextOfKin: nextOfKin ? JSON.parse(JSON.stringify(nextOfKin)) : [],
-      },
+      data: dataToUpdate,
     });
   }
 
   async suspend(id: number) {
     await this.findOne(id);
-    return this.prisma.member.update({ where: { id }, data: { active: false } });
+    return this.prisma.member.update({
+      where: { id },
+      data: { active: false },
+    });
   }
 
   async reactivate(id: number) {
     await this.findOne(id);
-    return this.prisma.member.update({ where: { id }, data: { active: true } });
+    return this.prisma.member.update({
+      where: { id },
+      data: { active: true },
+    });
+  }
+
+  async delete(id: number) {
+    await this.findOne(id);
+    return this.prisma.member.delete({ where: { id } });
   }
 
   async ledger(id: number) {
-    const member = await this.prisma.member.findUnique({
-      where: { id },
-      include: { ledger: true },
-    });
-    if (!member) throw new NotFoundException('Member not found.');
+    const member = await this.findOne(id);
     return member;
+  }
+
+  async getStats() {
+    const [total, active, suspended, balance] = await Promise.all([
+      this.prisma.member.count(),
+      this.prisma.member.count({ where: { active: true } }),
+      this.prisma.member.count({ where: { active: false } }),
+      this.prisma.member.aggregate({
+        _sum: { balance: true },
+      }),
+    ]);
+
+    return {
+      total,
+      active,
+      suspended,
+      totalBalance: balance._sum.balance || 0,
+    };
   }
 }
