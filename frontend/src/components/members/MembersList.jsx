@@ -145,14 +145,6 @@ export default function MembersList() {
     link.download = `Member-Register-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Member-List-${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-  };
-
   const downloadMemberListPDF = async () => {
     if (members.length === 0) {
       alert('No members to download');
@@ -160,86 +152,98 @@ export default function MembersList() {
     }
 
     try {
-      const element = document.createElement('div');
-      element.style.padding = '20px';
-      element.style.backgroundColor = 'white';
-      element.style.fontFamily = 'Arial, sans-serif';
-
-      // Create header section
-      const header = document.createElement('div');
-      header.style.marginBottom = '20px';
-      header.style.borderBottom = '2px solid #2563eb';
-      header.style.paddingBottom = '15px';
-
-      const title = document.createElement('h1');
-      title.textContent = 'SOYOSOYO SACCO';
-      title.style.margin = '0 0 5px 0';
-      title.style.color = '#2563eb';
-      title.style.fontSize = '24px';
-      title.style.fontWeight = 'bold';
-
-      const slogan = document.createElement('p');
-      slogan.textContent = 'Empowering Your Financial Future';
-      slogan.style.margin = '0 0 10px 0';
-      slogan.style.color = '#666';
-      slogan.style.fontSize = '12px';
-
-      const contact = document.createElement('p');
-      contact.textContent = 'Phone: +254 (0) 700 123 456 | Email: info@soyosoyosacco.com';
-      contact.style.margin = '0';
-      contact.style.color = '#666';
-      contact.style.fontSize = '11px';
-
-      header.appendChild(title);
-      header.appendChild(slogan);
-      header.appendChild(contact);
-
-      // Create report info
-      const reportInfo = document.createElement('div');
-      reportInfo.style.marginBottom = '15px';
-      reportInfo.style.fontSize = '11px';
-      reportInfo.style.color = '#666';
-
-      const generated = document.createElement('p');
-      generated.textContent = `Report Generated: ${new Date().toLocaleString('en-KE')}`;
-      generated.style.margin = '0 0 5px 0';
-
-      const totalMembers = document.createElement('p');
-      totalMembers.textContent = `Total Members: ${pagination.total}`;
-      totalMembers.style.margin = '0';
-
-      reportInfo.appendChild(generated);
-      reportInfo.appendChild(totalMembers);
-
-      // Create table
-      const table = document.createElement('table');
-      table.style.width = '100%';
-      table.style.borderCollapse = 'collapse';
-      table.style.fontSize = '9px';
-
-      // Create headers
-      const headerRow = document.createElement('tr');
-      headerRow.style.backgroundColor = '#2563eb';
-      headerRow.style.color = 'white';
-      const headerTexts = ['#', 'Name', 'Phone', 'Email', 'ID', 'DOB', 'Gender', 'Role', 'Address', 'Town', 'Employment', 'Employer', 'Balance', 'Status', 'Introducer', 'Joined'];
-      headerTexts.forEach((h) => {
-        const th = document.createElement('th');
-        th.textContent = h;
-        th.style.padding = '6px';
-        th.style.border = '1px solid #ddd';
-        th.style.textAlign = 'left';
-        th.style.fontWeight = 'bold';
-        th.style.fontSize = '9px';
-        headerRow.appendChild(th);
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
       });
-      table.appendChild(headerRow);
 
-      // Create rows
+      let yPosition = 15;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const contentWidth = pageWidth - (margin * 2);
+
+      // Title
+      pdf.setFontSize(16);
+      pdf.setTextColor(37, 99, 235); // Blue
+      pdf.text('SOYOSOYO SACCO', margin, yPosition);
+      yPosition += 6;
+
+      // Slogan
+      pdf.setFontSize(10);
+      pdf.setTextColor(102, 102, 102);
+      pdf.text('Empowering Your Financial Future', margin, yPosition);
+      yPosition += 4;
+
+      // Contact
+      pdf.setFontSize(9);
+      pdf.text('Phone: +254 (0) 700 123 456 | Email: info@soyosoyosacco.com', margin, yPosition);
+      yPosition += 8;
+
+      // Line separator
+      pdf.setDrawColor(37, 99, 235);
+      pdf.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 5;
+
+      // Report info
+      pdf.setFontSize(9);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Report Generated: ${new Date().toLocaleString('en-KE')}`, margin, yPosition);
+      yPosition += 4;
+      pdf.text(`Total Members: ${pagination.total}`, margin, yPosition);
+      yPosition += 8;
+
+      // Table headers
+      const headers = ['#', 'Name', 'Phone', 'Email', 'ID', 'DOB', 'Gender', 'Role', 'Address', 'Town', 'Employment', 'Employer', 'Balance', 'Status', 'Introducer', 'Joined'];
+      const colWidths = [6, 16, 14, 16, 10, 12, 10, 12, 14, 10, 12, 12, 14, 11, 12, 12];
+      
+      // Draw header row
+      pdf.setFillColor(37, 99, 235);
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(8);
+      let xPos = margin;
+      headers.forEach((header, i) => {
+        pdf.rect(xPos, yPosition, colWidths[i], 5, 'F');
+        pdf.text(header, xPos + 1, yPosition + 3.5);
+        xPos += colWidths[i];
+      });
+      yPosition += 6;
+
+      // Draw data rows
+      pdf.setTextColor(0, 0, 0);
       members.forEach((member, idx) => {
-        const row = document.createElement('tr');
-        row.style.backgroundColor = idx % 2 === 0 ? '#f9fafb' : 'white';
+        // Check if we need a new page
+        if (yPosition > pageHeight - 15) {
+          pdf.addPage();
+          yPosition = 15;
+          
+          // Repeat header on new page
+          pdf.setFillColor(37, 99, 235);
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(8);
+          xPos = margin;
+          headers.forEach((header, i) => {
+            pdf.rect(xPos, yPosition, colWidths[i], 5, 'F');
+            pdf.text(header, xPos + 1, yPosition + 3.5);
+            xPos += colWidths[i];
+          });
+          yPosition += 6;
+          pdf.setTextColor(0, 0, 0);
+        }
 
-        const cells = [
+        // Alternate row colors
+        if (idx % 2 === 0) {
+          pdf.setFillColor(249, 250, 251);
+          xPos = margin;
+          headers.forEach((_, i) => {
+            pdf.rect(xPos, yPosition, colWidths[i], 5, 'F');
+            xPos += colWidths[i];
+          });
+        }
+
+        // Add row data
+        const rowData = [
           idx + 1,
           member.name,
           member.phone,
@@ -248,70 +252,37 @@ export default function MembersList() {
           member.dob ? new Date(member.dob).toLocaleDateString('en-KE') : '-',
           member.gender || '-',
           member.role,
-          member.physicalAddress ? member.physicalAddress.substring(0, 20) : '-',
+          member.physicalAddress ? member.physicalAddress.substring(0, 15) : '-',
           member.town || '-',
-          member.employmentStatus ? member.employmentStatus.substring(0, 10) : '-',
-          member.employerName ? member.employerName.substring(0, 15) : '-',
+          member.employmentStatus ? member.employmentStatus.substring(0, 8) : '-',
+          member.employerName ? member.employerName.substring(0, 10) : '-',
           member.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00',
           member.active ? 'Active' : 'Suspended',
           member.introducerName || '-',
           new Date(member.createdAt).toLocaleDateString('en-KE'),
         ];
 
-        cells.forEach((cell) => {
-          const td = document.createElement('td');
-          td.textContent = cell;
-          td.style.padding = '5px';
-          td.style.border = '1px solid #ddd';
-          td.style.fontSize = '8px';
-          row.appendChild(td);
+        xPos = margin;
+        rowData.forEach((data, i) => {
+          const cellText = String(data).substring(0, 20);
+          pdf.text(cellText, xPos + 1, yPosition + 3.5, { maxWidth: colWidths[i] - 2 });
+          pdf.setDrawColor(200, 200, 200);
+          pdf.rect(xPos, yPosition, colWidths[i], 5);
+          xPos += colWidths[i];
         });
 
-        table.appendChild(row);
+        yPosition += 5;
       });
 
-      element.appendChild(header);
-      element.appendChild(reportInfo);
-      element.appendChild(table);
-
-      // Convert to PDF
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4',
-      });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth - 20;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      let heightLeft = imgHeight;
-      let position = 10;
-
-      pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight - 20;
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight + 10;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight - 20;
-      }
-
-      pdf.save(`Member-List-${new Date().toISOString().split('T')[0]}.pdf`);
+      // Save PDF
+      pdf.save(`Member-Register-${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (err) {
       console.error('PDF download error:', err);
-      alert('Failed to generate PDF. Please try again.');
+      alert('Error creating PDF. Your browser might be blocking file downloads. Please try again or use CSV export.');
     }
   };
+
+
 
   if (view === 'form') {
     return <MemberForm member={selectedMember} goBack={handleBack} />;

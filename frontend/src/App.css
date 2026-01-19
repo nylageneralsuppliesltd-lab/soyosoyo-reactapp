@@ -1,4 +1,5 @@
 /* App Layout & Mobile Navigation - Premium SACCO Theme */
+@import './styles/sidebar.css';
 
 :root {
   --primary: #2563eb;
@@ -189,5 +190,3 @@
   background: rgba(37, 99, 235, 0.08);
 }
 
-/* Import sidebar styles */
-@import './sidebar.css';

@@ -14,7 +14,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
-import { UsersThree, PiggyBank, ArrowDownLeft, Money, TrendingUp, Calendar } from '@phosphor-icons/react';
+import { UsersThree, PiggyBank, ArrowDownLeft, Money, TrendUp, Calendar } from '@phosphor-icons/react';
 import '../styles/dashboard-premium.css';
 
 ChartJS.register(
@@ -157,7 +157,7 @@ const DashboardPage = () => {
             <p className="metric-label">Total Members</p>
             <h3 className="metric-value">{stats.totalMembers.toLocaleString()}</h3>
             <p className="metric-subtext">
-              <TrendingUp size={12} /> <span className="positive">{stats.memberGrowth}% growth</span>
+              <TrendUp size={12} /> <span className="positive">{stats.memberGrowth}% growth</span>
             </p>
           </div>
         </div>
@@ -186,7 +186,7 @@ const DashboardPage = () => {
 
         <div className="metric-card interest-metric">
           <div className="metric-icon">
-            <TrendingUp size={24} />
+            <TrendUp size={24} />
           </div>
           <div className="metric-content">
             <p className="metric-label">Monthly Interest</p>
@@ -272,7 +272,7 @@ const DashboardPage = () => {
 
           <div className="activity-item">
             <div className="activity-icon interest">
-              <TrendingUp size={16} />
+              <TrendUp size={16} />
             </div>
             <div className="activity-details">
               <p className="activity-name">Interest Accrued</p>
@@ -300,123 +300,10 @@ const DashboardPage = () => {
             <span>Issue Loan</span>
           </button>
           <button className="action-btn view-reports">
-            <TrendingUp size={20} />
+            <TrendUp size={20} />
             <span>View Reports</span>
           </button>
         </div>
-      </div>
-    </div>
-  );
-};
-
-export default DashboardPage;
-
-  const chartData = {
-    labels: monthlyData.map((m) => m.label),
-    datasets: [
-      {
-        type: 'bar',
-        label: 'Contributions',
-        data: monthlyData.map((m) => m.contributions),
-        backgroundColor: '#28a745',
-      },
-      {
-        type: 'line',
-        label: 'Income',
-        data: monthlyData.map((m) => m.income),
-        borderColor: '#007bff',
-        fill: true,
-        tension: 0.4,
-      },
-      {
-        type: 'line',
-        label: 'Expenses',
-        data: monthlyData.map((m) => m.expenses),
-        borderColor: '#dc3545',
-        fill: true,
-        tension: 0.4,
-      },
-      {
-        type: 'line',
-        label: 'Interest',
-        data: monthlyData.map((m) => m.interest),
-        borderColor: '#17a2b8',
-        fill: true,
-        tension: 0.4,
-      },
-    ],
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      tooltip: {
-        callbacks: {
-          label: (context) => `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`,
-        },
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          callback: (value) => formatCurrency(value),
-        },
-      },
-    },
-  };
-
-  return (
-    <div className="dashboard p-4">
-      <h2 className="text-lg font-bold mb-4">{saccoConfig.name} Dashboard</h2>
-
-      {/* Metrics Grid */}
-      <div className="metrics-grid grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <div className="metric-card p-4 bg-white shadow rounded">
-          <h3 className="text-sm">Total SACCO Balance</h3>
-          <h2 className="text-xl font-bold">{formatCurrency(totalBalance)}</h2>
-          {settings.bankAccounts?.map((acc) => (
-            <div key={acc.name} className="text-xs">
-              <strong>{acc.name}:</strong> {formatCurrency(acc.balance || 0)}
-            </div>
-          ))}
-        </div>
-
-        <div className="metric-card p-4 bg-white shadow rounded">
-          <h3 className="text-sm">Total Contributions</h3>
-          <h2 className="text-xl font-bold">{formatCurrency(0)}</h2> {/* Placeholder */}
-        </div>
-
-        <div className="metric-card p-4 bg-white shadow rounded">
-          <h3 className="text-sm">Total Members</h3>
-          <h2 className="text-xl font-bold">{totalMembers}</h2>
-        </div>
-
-        <div className="metric-card p-4 bg-white shadow rounded">
-          <h3 className="text-sm">Active Members</h3>
-          <h2 className="text-xl font-bold text-green-600">{activeMembers}</h2>
-        </div>
-
-        <div className="metric-card p-4 bg-white shadow rounded">
-          <h3 className="text-sm">Suspended Members</h3>
-          <h2 className="text-xl font-bold text-red-600">{suspendedMembers}</h2>
-        </div>
-      </div>
-
-      {/* Financial Trends Chart */}
-      <div className="section-card p-4 bg-white shadow rounded">
-        <h3 className="text-sm font-semibold mb-1">
-          Financial Trends {new Date().getFullYear()}
-        </h3>
-        <p className="text-xs text-gray-500 mb-2">
-          {hasTransactions ? 'Contributions • Income • Expenses • Interest' : 'No transactions yet'}
-        </p>
-        <ErrorBoundary>
-          <div className="chart-container h-64">
-            <Bar ref={chartRef} data={chartData} options={chartOptions} />
-          </div>
-        </ErrorBoundary>
       </div>
     </div>
   );
