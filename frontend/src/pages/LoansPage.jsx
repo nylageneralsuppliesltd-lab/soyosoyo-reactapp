@@ -107,17 +107,44 @@ const LoansPage = () => {
     return { total, outstanding, active, count: filtered.length };
   }, [filtered, repayments]);
 
-  const handleLoanSubmit = (e) => {
+  const handleLoanSubmit = async (e) => {
     e.preventDefault();
-    addLoan(loanForm);
-    setLoanForm((prev) => ({ ...prev, amount: '', rate: '', termMonths: '', purpose: '' }));
+    if (!loanForm.borrower || !loanForm.amount) {
+      alert('Please fill in borrower and amount');
+      return;
+    }
+    if (Number(loanForm.amount) <= 0) {
+      alert('Amount must be greater than 0');
+      return;
+    }
+    try {
+      await addLoan(loanForm);
+      alert('Loan disbursed successfully');
+      setLoanForm((prev) => ({ ...prev, amount: '', rate: '', termMonths: '', purpose: '', borrower: '' }));
+    } catch (err) {
+      alert(`Failed to disburse loan: ${err.message}`);
+      console.error('Loan error:', err);
+    }
   };
 
-  const handleRepaySubmit = (e) => {
+  const handleRepaySubmit = async (e) => {
     e.preventDefault();
-    if (!repayForm.loanId) return;
-    addRepayment(repayForm);
-    setRepayForm((prev) => ({ ...prev, amount: '', notes: '' }));
+    if (!repayForm.loanId) {
+      alert('Please select a loan');
+      return;
+    }
+    if (!repayForm.amount || Number(repayForm.amount) <= 0) {
+      alert('Please enter a valid repayment amount');
+      return;
+    }
+    try {
+      await addRepayment(repayForm);
+      alert('Repayment recorded successfully');
+      setRepayForm((prev) => ({ ...prev, amount: '', notes: '', loanId: '' }));
+    } catch (err) {
+      alert(`Failed to record repayment: ${err.message}`);
+      console.error('Repayment error:', err);
+    }
   };
 
   return (

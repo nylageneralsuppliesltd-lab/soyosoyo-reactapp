@@ -123,29 +123,39 @@ const WithdrawalsPage = () => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.memberId) {
       alert('Please select a member');
       return;
     }
-    addWithdrawal({
-      memberId: form.memberId,
-      memberName: form.memberName,
-      amount: form.amount,
-      method: form.method,
-      purpose: form.purpose,
-      date: form.date,
-      notes: form.notes,
-    });
-    setForm((prev) => ({ 
-      ...prev, 
-      memberId: '', 
-      memberName: '', 
-      amount: '', 
-      purpose: '', 
-      notes: '' 
-    }));
+    if (!form.amount || Number(form.amount) <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+    try {
+      await addWithdrawal({
+        memberId: form.memberId,
+        memberName: form.memberName,
+        amount: form.amount,
+        method: form.method,
+        purpose: form.purpose,
+        date: form.date,
+        notes: form.notes,
+      });
+      alert('Withdrawal recorded successfully');
+      setForm((prev) => ({ 
+        ...prev, 
+        memberId: '', 
+        memberName: '', 
+        amount: '', 
+        purpose: '', 
+        notes: '' 
+      }));
+    } catch (err) {
+      alert(`Failed to record withdrawal: ${err.message}`);
+      console.error('Withdrawal error:', err);
+    }
   };
 
   return (
