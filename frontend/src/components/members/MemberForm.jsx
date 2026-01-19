@@ -33,15 +33,26 @@ export default function MemberForm({ member = null, goBack }) {
     const payload = { ...form, role: form.role === 'Other' ? form.customRole : form.role, nextOfKin: nominees };
 
     try {
-      if (member) await updateMember(member.id, payload);
-      else await createMember(payload);
+      if (member) {
+        console.log('[MemberForm] Updating member:', member.id);
+        await updateMember(member.id, payload);
+      } else {
+        console.log('[MemberForm] Creating member with payload:', payload);
+        const result = await createMember(payload);
+        console.log('[MemberForm] Member created successfully:', result);
+      }
       alert(member ? 'Member updated' : 'Member created');
       goBack();
     } catch (err) {
       // Improved error handling
       let message = 'Error submitting form.';
       // Log error to browser console for debugging
-      console.error('Member creation failed:', err);
+      console.error('[MemberForm] Full error object:', err);
+      console.error('[MemberForm] Error name:', err.name);
+      console.error('[MemberForm] Error message:', err.message);
+      console.error('[MemberForm] Error response:', err.response);
+      console.error('[MemberForm] Error config:', err.config);
+      
       if (err.response) {
         if (err.response.status === 0 || err.message?.includes('ERR_CONNECTION_REFUSED')) {
           message = 'Cannot connect to server. Please check your backend and try again.';
