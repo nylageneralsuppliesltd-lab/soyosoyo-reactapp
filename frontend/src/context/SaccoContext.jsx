@@ -12,16 +12,6 @@ export const useSacco = () => {
 };
 
 export const SaccoProvider = ({ children }) => {
-  const [currentSacco, setCurrentSacco] = useState(() => {
-    const stored = localStorage.getItem('currentSacco');
-    return stored ? JSON.parse(stored) : defaultSacco;
-  });
-
-  const [saccos, setSaccos] = useState(() => {
-    const stored = localStorage.getItem('saccos');
-    return stored ? JSON.parse(stored) : [defaultSacco];
-  });
-
   // Default SACCO configuration
   const defaultSacco = {
     id: 'sacco_001',
@@ -41,6 +31,16 @@ export const SaccoProvider = ({ children }) => {
     },
     createdAt: new Date().toISOString(),
   };
+
+  const [currentSacco, setCurrentSacco] = useState(() => {
+    const stored = localStorage.getItem('currentSacco');
+    return stored ? JSON.parse(stored) : defaultSacco;
+  });
+
+  const [saccos, setSaccos] = useState(() => {
+    const stored = localStorage.getItem('saccos');
+    return stored ? JSON.parse(stored) : [defaultSacco];
+  });
 
   // Save current SACCO to localStorage
   useEffect(() => {
