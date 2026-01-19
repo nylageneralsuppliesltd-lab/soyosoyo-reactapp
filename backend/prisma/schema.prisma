@@ -201,7 +201,7 @@ model Deposit {
   id           Int             @id @default(autoincrement())
   member       Member?         @relation(fields: [memberId], references: [id], onDelete: SetNull)
   memberId     Int?
-  memberName   String
+  memberName   String?
   type         TransactionType @default(contribution)
   category     String?
   amount       Decimal         @db.Decimal(14, 2)
