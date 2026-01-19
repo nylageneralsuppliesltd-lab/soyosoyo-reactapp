@@ -21,7 +21,7 @@ export class MembersService {
       }
       
       // Prepare data and convert empty strings to null for optional fields
-      const { nextOfKin, customRole, ...rest } = dto; // Remove customRole (not in schema)
+      const { nextOfKin, ...rest } = dto;
       
       // Convert empty strings to null for DateTime fields
       const dataToCreate = {
@@ -35,7 +35,7 @@ export class MembersService {
         regNo: rest.regNo && rest.regNo.trim() ? rest.regNo : null,
         employerAddress: rest.employerAddress && rest.employerAddress.trim() ? rest.employerAddress : null,
         nextOfKin: nextOfKin && nextOfKin.length > 0 ? JSON.parse(JSON.stringify(nextOfKin)) : null,
-      };
+      } as any; // Cast to any to allow extra fields that Prisma will ignore
       console.log('[MembersService.create] Prepared data for creation:', JSON.stringify(dataToCreate));
       
       // Create member
