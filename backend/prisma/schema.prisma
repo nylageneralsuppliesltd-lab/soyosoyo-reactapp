@@ -7,7 +7,67 @@ datasource db {
   // NO url or directUrl here anymore in Prisma 7+
 }
 
-// Your models below (Member, Ledger, history, sacco_history) – unchanged
+// ============== ENUMS ==============
+enum PaymentMethod {
+  cash
+  bank
+  mpesa
+  check_off
+  bank_deposit
+  other
+}
+
+enum LoanStatus {
+  pending
+  active
+  closed
+  defaulted
+}
+
+enum LoanDirection {
+  outward
+  inward
+}
+
+enum TransactionType {
+  contribution
+  income
+  fine
+  loan_repayment
+  expense
+  dividend
+  refund
+  transfer
+  loan_disbursement
+}
+
+enum AccountType {
+  cash
+  pettyCash
+  mobileMoney
+  bank
+}
+
+enum FineType {
+  late_payment
+  absenteeism
+  rule_violation
+  other
+}
+
+enum PermissionType {
+  view_members
+  edit_members
+  record_deposits
+  record_withdrawals
+  approve_loans
+  view_reports
+  manage_settings
+  manage_roles
+  view_ledger
+}
+
+// ============== CORE MODELS ==============
 model Member {
   id                 Int       @id @default(autoincrement())
   name               String
@@ -22,15 +82,20 @@ model Member {
   employerName       String?
   regNo              String?
   employerAddress    String?
-  role               String
-  introducerName     String
-  introducerMemberNo String
+  role               String?
+  introducerName     String?
+  introducerMemberNo String?
   balance            Float     @default(0)
+  loanBalance        Float     @default(0)
   active             Boolean   @default(true)
+  
   ledger             Ledger[]  
   deposits           Deposit[]
   withdrawals        Withdrawal[]
   loans              Loan[]
+  repayments         Repayment[]
+  fines              Fine[]
+  
   nextOfKin          Json?     
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -45,7 +110,290 @@ model Ledger {
   description  String?
   balanceAfter Float
   date         DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
+
+// ============== SETTINGS & CONFIGURATION ==============
+model ContributionType {
+  id                  Int       @id @default(autoincrement())
+  name                String    @unique
+  description         String?
+  amount              Decimal   @db.Decimal(14, 2)
+  frequency           String?   // Monthly, Weekly, Quarterly
+  typeCategory        String?   // Regular, OneTime
+  dayOfMonth          String?
+  invoiceDate         DateTime? @db.Date
+  dueDate             DateTime? @db.Date
+  smsNotifications    Boolean   @default(true)
+  emailNotifications  Boolean   @default(false)
+  finesEnabled        Boolean   @default(false)
+  invoiceAllMembers   Boolean   @default(true)
+  visibleInvoicing    Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model ExpenseCategory {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  isAdmin     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model IncomeCategory {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model FineCategory {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model GroupRole {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  permissions Json?     // Store as JSON array of permission strings
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Account {
+  id             Int         @id @default(autoincrement())
+  type           AccountType
+  name           String
+  description    String?
+  
+  // Bank Account fields
+  bankName       String?
+  branch         String?
+  accountName    String?
+  accountNumber  String?
+  
+  // Mobile Money fields
+  provider       String?
+  number         String?
+  
+  // Common fields
+  balance        Decimal     @default(0) @db.Decimal(14, 2)
+  currency       String      @default("KES")
+  isActive       Boolean     @default(true)
+  
+  journalEntries JournalEntry[] @relation("DebitAccount")
+  creditEntries  JournalEntry[] @relation("CreditAccount")
+  deposits       Deposit[]   @relation("DepositAccount")
+  withdrawals    Withdrawal[] @relation("WithdrawalAccount")
+  
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+// ============== FINANCIAL TRANSACTIONS ==============
+model Deposit {
+  id           Int             @id @default(autoincrement())
+  member       Member?         @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  memberId     Int?
+  memberName   String
+  type         TransactionType @default(contribution)
+  category     String?
+  amount       Decimal         @db.Decimal(14, 2)
+  description  String?
+  narration    String?
+  method       PaymentMethod   @default(cash)
+  account      Account?        @relation("DepositAccount", fields: [accountId], references: [id], onDelete: SetNull)
+  accountId    Int?
+  reference    String?
+  notes        String?
+  date         DateTime        @db.Date
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([memberId])
+  @@index([date])
+  @@index([type])
+}
+
+model Withdrawal {
+  id           Int             @id @default(autoincrement())
+  member       Member?         @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  memberId     Int?
+  memberName   String?
+  type         TransactionType @default(expense)
+  category     String?
+  amount       Decimal         @db.Decimal(14, 2)
+  description  String?
+  narration    String?
+  method       PaymentMethod   @default(cash)
+  account      Account?        @relation("WithdrawalAccount", fields: [accountId], references: [id], onDelete: SetNull)
+  accountId    Int?
+  purpose      String?
+  notes        String?
+  date         DateTime        @db.Date
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([memberId])
+  @@index([date])
+  @@index([type])
+}
+
+// ============== LOANS ==============
+model LoanType {
+  id                    Int       @id @default(autoincrement())
+  name                  String    @unique
+  description           String?
+  maxAmount             Decimal?  @db.Decimal(14, 2)
+  maxMultiple           Decimal?  @db.Decimal(5, 2)
+  periodMonths          Int       @default(12)
+  interestRate          Decimal   @db.Decimal(5, 2)
+  interestType          String    @default("flat") // flat or reducing
+  lateFinesEnabled      Boolean   @default(false)
+  lateFinesType         String?   // one-off, fixed, percentage
+  lateFinesValue        Decimal?  @db.Decimal(5, 2)
+  outstandingFinesEnabled Boolean @default(false)
+  outstandingFinesType  String?
+  outstandingFinesValue Decimal?  @db.Decimal(5, 2)
+  
+  loans                 Loan[]
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Loan {
+  id                Int             @id @default(autoincrement())
+  member            Member?         @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  memberId          Int?
+  memberName        String?
+  bankName          String?         // For inward loans
+  loanType          LoanType?       @relation(fields: [loanTypeId], references: [id], onDelete: SetNull)
+  loanTypeId        Int?
+  typeName          String?
+  
+  amount            Decimal         @db.Decimal(14, 2)
+  balance           Decimal         @db.Decimal(14, 2)
+  interestRate      Decimal         @db.Decimal(5, 2)
+  interestType      String          @default("flat")
+  periodMonths      Int
+  
+  status            LoanStatus      @default(pending)
+  loanDirection     LoanDirection   @default(outward)
+  
+  schedule          Json?           // Amortization schedule
+  disbursementDate  DateTime?       @db.Date
+  disbursementAccount String?
+  startDate         DateTime?       @db.Date
+  dueDate           DateTime?       @db.Date
+  purpose           String?
+  
+  repayments        Repayment[]
+  fines             Fine[]
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([memberId])
+  @@index([status])
+  @@index([loanDirection])
+}
+
+model Repayment {
+  id           Int       @id @default(autoincrement())
+  loan         Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loanId       Int
+  member       Member?   @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  memberId     Int?
+  
+  amount       Decimal   @db.Decimal(14, 2)
+  principal    Decimal   @default(0) @db.Decimal(14, 2)
+  interest     Decimal   @default(0) @db.Decimal(14, 2)
+  
+  method       PaymentMethod @default(cash)
+  reference    String?
+  notes        String?
+  date         DateTime  @db.Date
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([loanId])
+  @@index([memberId])
+  @@index([date])
+}
+
+// ============== FINES & PENALTIES ==============
+model Fine {
+  id           Int       @id @default(autoincrement())
+  member       Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId     Int
+  loan         Loan?     @relation(fields: [loanId], references: [id], onDelete: SetNull)
+  loanId       Int?
+  
+  type         FineType
+  reason       String?
+  amount       Decimal   @db.Decimal(14, 2)
+  
+  status       String    @default("unpaid") // unpaid, partial, paid
+  paidAmount   Decimal   @default(0) @db.Decimal(14, 2)
+  
+  dueDate      DateTime? @db.Date
+  paidDate     DateTime? @db.Date
+  notes        String?
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([memberId])
+  @@index([status])
+}
+
+model JournalEntry {
+  id             Int      @id @default(autoincrement())
+  date           DateTime @db.Date
+  reference      String?
+  description    String
+  narration      String?
+  
+  debitAccount   Account  @relation("DebitAccount", fields: [debitAccountId], references: [id], onDelete: Restrict)
+  debitAccountId Int
+  debitAmount    Decimal  @db.Decimal(14, 2)
+  
+  creditAccount  Account? @relation("CreditAccount", fields: [creditAccountId], references: [id], onDelete: SetNull)
+  creditAccountId Int?
+  creditAmount   Decimal  @db.Decimal(14, 2)
+  
+  category       String?
+  memo           String?
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([date])
+  @@index([reference])
+}
+
+// ============== INVOICE TEMPLATES ==============
+model InvoiceTemplate {
+  id            Int       @id @default(autoincrement())
+  type          String
+  sendTo        String    // All Members, Active Only, Specific Members
+  amount        Decimal   @db.Decimal(14, 2)
+  invoiceDate   DateTime  @db.Date
+  dueDate       DateTime  @db.Date
+  description   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+
 
 model history {
   id                 Int       @id @default(autoincrement())
@@ -81,85 +429,4 @@ model sacco_history {
   total_assets       Decimal?  @default(0) @db.Decimal(15, 2)
   extra_fields       Json?     @default("{}")
   period             DateTime? @unique @db.Date
-}
-
-enum PaymentMethod {
-  cash
-  bank
-  mpesa
-  other
-}
-
-enum LoanStatus {
-  Active
-  Closed
-  Defaulted
-}
-
-model Deposit {
-  id         Int            @id @default(autoincrement())
-  member     Member?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  memberId   Int?
-  memberName String
-  amount     Decimal        @db.Decimal(14, 2)
-  method     PaymentMethod  @default(cash)
-  reference  String?
-  notes      String?
-  date       DateTime       @db.Date
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-
-  @@index([memberId])
-  @@index([date])
-}
-
-model Withdrawal {
-  id         Int            @id @default(autoincrement())
-  member     Member?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  memberId   Int?
-  memberName String
-  amount     Decimal        @db.Decimal(14, 2)
-  method     PaymentMethod  @default(cash)
-  purpose    String?
-  notes      String?
-  date       DateTime       @db.Date
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-
-  @@index([memberId])
-  @@index([date])
-}
-
-model Loan {
-  id           Int           @id @default(autoincrement())
-  borrower     Member?       @relation(fields: [borrowerId], references: [id], onDelete: SetNull)
-  borrowerId   Int?
-  borrowerName String
-  amount       Decimal       @db.Decimal(14, 2)
-  rate         Decimal?      @db.Decimal(5, 2)
-  termMonths   Int?
-  startDate    DateTime      @db.Date
-  status       LoanStatus    @default(Active)
-  purpose      String?
-  repayments   Repayment[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-
-  @@index([borrowerId])
-  @@index([status])
-}
-
-model Repayment {
-  id        Int           @id @default(autoincrement())
-  loan      Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  loanId    Int
-  amount    Decimal       @db.Decimal(14, 2)
-  method    PaymentMethod @default(cash)
-  notes     String?
-  date      DateTime      @db.Date
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-
-  @@index([loanId])
-  @@index([date])
 }

@@ -13,15 +13,15 @@ export class LoansService {
     return this.prisma.loan.findMany({
       take,
       skip,
-      orderBy: { startDate: 'desc' },
-      include: { borrower: true, repayments: true },
+      orderBy: { disbursementDate: 'desc' },
+      include: { member: true, repayments: true },
     });
   }
 
   async findOne(id: number) {
     return this.prisma.loan.findUnique({
       where: { id },
-      include: { borrower: true, repayments: { orderBy: { date: 'desc' } } },
+      include: { member: true, repayments: { orderBy: { date: 'desc' } } },
     });
   }
 
@@ -29,7 +29,7 @@ export class LoansService {
     return this.prisma.loan.update({
       where: { id },
       data,
-      include: { borrower: true, repayments: true },
+      include: { member: true, repayments: true },
     });
   }
 
@@ -37,10 +37,10 @@ export class LoansService {
     return this.prisma.loan.delete({ where: { id } });
   }
 
-  async findByBorrower(borrowerId: number) {
+  async findByMember(memberId: number) {
     return this.prisma.loan.findMany({
-      where: { borrowerId },
-      orderBy: { startDate: 'desc' },
+      where: { memberId },
+      orderBy: { disbursementDate: 'desc' },
       include: { repayments: true },
     });
   }
@@ -48,8 +48,9 @@ export class LoansService {
   async findByStatus(status: string) {
     return this.prisma.loan.findMany({
       where: { status: status as any },
-      orderBy: { startDate: 'desc' },
-      include: { borrower: true, repayments: true },
+      orderBy: { disbursementDate: 'desc' },
+      include: { member: true, repayments: true },
     });
   }
 }
+

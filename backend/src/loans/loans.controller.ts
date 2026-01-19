@@ -30,9 +30,9 @@ export class LoansController {
     );
   }
 
-  @Get('borrower/:borrowerId')
-  async findByBorrower(@Param('borrowerId') borrowerId: string) {
-    return this.loansService.findByBorrower(parseInt(borrowerId));
+  @Get('member/:memberId')
+  async findByMember(@Param('memberId') memberId: string) {
+    return this.loansService.findByMember(parseInt(memberId));
   }
 
   @Get('status/:status')

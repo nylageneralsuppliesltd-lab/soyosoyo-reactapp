@@ -142,7 +142,21 @@ export default function Sidebar({ isOpen, onClose }) {
             )}
           </li>
 
-          <li className={location.pathname.startsWith('/settings') || location.pathname.startsWith('/sacco-settings') ? 'active' : ''}>
+          <li className={location.pathname === '/ledger' ? 'active' : ''}>
+            <Link to="/ledger" onClick={onClose} className="menu-item">
+              <ChartBar size={20} weight="bold" />
+              <span>General Ledger</span>
+            </Link>
+          </li>
+
+          <li className={location.pathname === '/settings' ? 'active' : ''}>
+            <Link to="/settings" onClick={onClose} className="menu-item">
+              <GearSix size={20} weight="bold" />
+              <span>Configuration</span>
+            </Link>
+          </li>
+
+          <li className={location.pathname.startsWith('/sacco-settings') ? 'active' : ''}>
             <Link to="/sacco-settings" onClick={onClose} className="menu-item">
               <GearSix size={20} weight="bold" />
               <span>SACCO Settings</span>

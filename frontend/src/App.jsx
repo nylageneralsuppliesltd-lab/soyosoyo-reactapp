@@ -26,6 +26,8 @@ import DepositsPage from './pages/DepositsPage';
 import WithdrawalsPage from './pages/WithdrawalsPage';
 import LoansPage from './pages/LoansPage';
 import ReportsPage from './pages/ReportsPage';
+import SettingsPage from './pages/SettingsPage';
+import GeneralLedgerPage from './pages/GeneralLedgerPage';
 
 const NotFound = () => (
   <div className="flex flex-col items-center justify-center h-full text-center p-6">
@@ -94,7 +96,8 @@ function App() {
           <Route path="/withdrawals/*" element={<WithdrawalsPage />} />
           <Route path="/loans/*" element={<LoansPage />} />
           <Route path="/reports/*" element={<ReportsPage />} />
-          <Route path="/settings" element={<SaccoSettingsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/ledger" element={<GeneralLedgerPage />} />
           <Route path="/sacco-settings" element={<SaccoSettingsPage />} />
 
           <Route path="*" element={<NotFound />} />
