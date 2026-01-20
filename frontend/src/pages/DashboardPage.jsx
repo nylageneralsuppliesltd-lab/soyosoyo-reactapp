@@ -1,5 +1,6 @@
 // src/pages/DashboardPage.jsx - Premium SACCO Dashboard
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -14,7 +15,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
-import { UsersThree, PiggyBank, ArrowDownLeft, Money, TrendUp, Calendar } from '@phosphor-icons/react';
+import { UsersThree, PiggyBank, ArrowDownLeft, Money, TrendUp, Calendar, ArrowRight } from '@phosphor-icons/react';
 import '../styles/dashboard-premium.css';
 
 ChartJS.register(
@@ -31,6 +32,7 @@ ChartJS.register(
 );
 
 const DashboardPage = () => {
+  const navigate = useNavigate();
   const [monthlyData, setMonthlyData] = useState([]);
   const [selectedPeriod, setSelectedPeriod] = useState('6months');
   const lineChartRef = useRef(null);
@@ -147,162 +149,154 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Key Metrics */}
-      <div className="metrics-grid">
-        <div className="metric-card member-metric">
-          <div className="metric-icon">
-            <UsersThree size={24} />
+      {/* Key Metrics - Compact Grid */}
+      <div className="metrics-grid-compact">
+        <div className="metric-card-compact member-metric" onClick={() => navigate('/members')}>
+          <div className="metric-header">
+            <UsersThree size={18} />
+            <span className="metric-label">Total Members</span>
           </div>
-          <div className="metric-content">
-            <p className="metric-label">Total Members</p>
-            <h3 className="metric-value">{stats.totalMembers.toLocaleString()}</h3>
-            <p className="metric-subtext">
-              <TrendUp size={12} /> <span className="positive">{stats.memberGrowth}% growth</span>
-            </p>
-          </div>
+          <h3 className="metric-value-compact">{stats.totalMembers.toLocaleString()}</h3>
+          <p className="metric-growth"><span className="positive">{stats.memberGrowth}% growth</span></p>
+          <p className="metric-link">View all <ArrowRight size={12} /></p>
         </div>
 
-        <div className="metric-card deposit-metric">
-          <div className="metric-icon">
-            <PiggyBank size={24} />
+        <div className="metric-card-compact deposit-metric" onClick={() => navigate('/deposits')}>
+          <div className="metric-header">
+            <PiggyBank size={18} />
+            <span className="metric-label">Total Savings</span>
           </div>
-          <div className="metric-content">
-            <p className="metric-label">Total Savings</p>
-            <h3 className="metric-value">KES {(stats.totalSavings / 1000000).toFixed(1)}M</h3>
-            <p className="metric-subtext">Across all accounts</p>
-          </div>
+          <h3 className="metric-value-compact">KES {(stats.totalSavings / 1000000).toFixed(1)}M</h3>
+          <p className="metric-subtext-compact">Across all accounts</p>
+          <p className="metric-link">View deposits <ArrowRight size={12} /></p>
         </div>
 
-        <div className="metric-card loan-metric">
-          <div className="metric-icon">
-            <Money size={24} />
+        <div className="metric-card-compact loan-metric" onClick={() => navigate('/loans')}>
+          <div className="metric-header">
+            <Money size={18} />
+            <span className="metric-label">Outstanding Loans</span>
           </div>
-          <div className="metric-content">
-            <p className="metric-label">Outstanding Loans</p>
-            <h3 className="metric-value">KES {(stats.totalLoans / 1000000).toFixed(1)}M</h3>
-            <p className="metric-subtext">Active loan portfolio</p>
-          </div>
+          <h3 className="metric-value-compact">KES {(stats.totalLoans / 1000000).toFixed(1)}M</h3>
+          <p className="metric-subtext-compact">Active portfolio</p>
+          <p className="metric-link">View loans <ArrowRight size={12} /></p>
         </div>
 
-        <div className="metric-card interest-metric">
-          <div className="metric-icon">
-            <TrendUp size={24} />
+        <div className="metric-card-compact interest-metric" onClick={() => navigate('/dashboard')}>
+          <div className="metric-header">
+            <TrendUp size={18} />
+            <span className="metric-label">Monthly Interest</span>
           </div>
-          <div className="metric-content">
-            <p className="metric-label">Monthly Interest</p>
-            <h3 className="metric-value">KES {(stats.monthlyInterest / 1000).toFixed(0)}K</h3>
-            <p className="metric-subtext">This month's income</p>
-          </div>
+          <h3 className="metric-value-compact">KES {(stats.monthlyInterest / 1000).toFixed(0)}K</h3>
+          <p className="metric-subtext-compact">This month</p>
+          <p className="metric-link">View reports <ArrowRight size={12} /></p>
         </div>
       </div>
 
-      {/* Charts Row 1 */}
-      <div className="charts-grid">
-        <div className="chart-card">
+      {/* Charts Row 1 - Side by Side */}
+      <div className="charts-grid-compact">
+        <div className="chart-card-compact">
           <h3 className="chart-title">Member Status Distribution</h3>
-          <div className="chart-wrapper">
+          <div className="chart-wrapper-compact">
             <Doughnut data={memberStatusData} options={chartOptions} ref={barChartRef} />
           </div>
-          <div className="chart-stats">
-            <div className="stat-item">
+          <div className="chart-stats-compact">
+            <div className="stat-item-compact">
               <span className="stat-dot active"></span>
               <span>Active: {stats.activeMembers}</span>
             </div>
-            <div className="stat-item">
+            <div className="stat-item-compact">
               <span className="stat-dot suspended"></span>
               <span>Suspended: {stats.suspendedMembers}</span>
             </div>
           </div>
         </div>
 
-        <div className="chart-card">
+        <div className="chart-card-compact">
           <h3 className="chart-title">Deposits Trend</h3>
-          <div className="chart-wrapper">
+          <div className="chart-wrapper-compact">
             <Line data={depositsTrendData} options={chartOptions} ref={lineChartRef} />
           </div>
         </div>
-      </div>
 
-      {/* Charts Row 2 */}
-      <div className="charts-grid single">
-        <div className="chart-card">
-          <h3 className="chart-title">Withdrawals vs Loans Distribution</h3>
-          <div className="chart-wrapper">
+        <div className="chart-card-compact">
+          <h3 className="chart-title">Withdrawals vs Loans</h3>
+          <div className="chart-wrapper-compact">
             <Bar data={withdrawalsVsLoansData} options={chartOptions} />
           </div>
         </div>
       </div>
 
-      {/* Activity Section */}
-      <div className="activity-section">
-        <h3 className="section-title">Recent Activity</h3>
-        <div className="activity-list">
-          <div className="activity-item">
-            <div className="activity-icon deposit">
-              <PiggyBank size={16} />
+      {/* Activity & Quick Actions Combined */}
+      <div className="bottom-section">
+        <div className="activity-section-compact">
+          <h3 className="section-title">Recent Activity</h3>
+          <div className="activity-list-compact">
+            <div className="activity-item-compact" onClick={() => navigate('/members')}>
+              <div className="activity-icon deposit">
+                <PiggyBank size={14} />
+              </div>
+              <div className="activity-details-compact">
+                <p className="activity-name">New Member Registration</p>
+                <p className="activity-time">5 minutes ago</p>
+              </div>
+              <p className="activity-amount">+1</p>
             </div>
-            <div className="activity-details">
-              <p className="activity-name">New Member Registration</p>
-              <p className="activity-time">5 minutes ago</p>
-            </div>
-            <p className="activity-amount">+1 member</p>
-          </div>
 
-          <div className="activity-item">
-            <div className="activity-icon withdrawal">
-              <ArrowDownLeft size={16} />
+            <div className="activity-item-compact" onClick={() => navigate('/withdrawals')}>
+              <div className="activity-icon withdrawal">
+                <ArrowDownLeft size={14} />
+              </div>
+              <div className="activity-details-compact">
+                <p className="activity-name">Withdrawal Processed</p>
+                <p className="activity-time">32 minutes ago</p>
+              </div>
+              <p className="activity-amount">KES 50K</p>
             </div>
-            <div className="activity-details">
-              <p className="activity-name">Withdrawal Processed</p>
-              <p className="activity-time">32 minutes ago</p>
-            </div>
-            <p className="activity-amount">-KES 50,000</p>
-          </div>
 
-          <div className="activity-item">
-            <div className="activity-icon loan">
-              <Money size={16} />
+            <div className="activity-item-compact" onClick={() => navigate('/loans')}>
+              <div className="activity-icon loan">
+                <Money size={14} />
+              </div>
+              <div className="activity-details-compact">
+                <p className="activity-name">Loan Disbursement</p>
+                <p className="activity-time">2 hours ago</p>
+              </div>
+              <p className="activity-amount">KES 150K</p>
             </div>
-            <div className="activity-details">
-              <p className="activity-name">Loan Disbursement</p>
-              <p className="activity-time">2 hours ago</p>
-            </div>
-            <p className="activity-amount">+KES 150,000</p>
-          </div>
 
-          <div className="activity-item">
-            <div className="activity-icon interest">
-              <TrendUp size={16} />
+            <div className="activity-item-compact" onClick={() => navigate('/dashboard')}>
+              <div className="activity-icon interest">
+                <TrendUp size={14} />
+              </div>
+              <div className="activity-details-compact">
+                <p className="activity-name">Interest Accrued</p>
+                <p className="activity-time">4 hours ago</p>
+              </div>
+              <p className="activity-amount">KES 12.5K</p>
             </div>
-            <div className="activity-details">
-              <p className="activity-name">Interest Accrued</p>
-              <p className="activity-time">4 hours ago</p>
-            </div>
-            <p className="activity-amount">+KES 12,500</p>
           </div>
         </div>
-      </div>
 
-      {/* Quick Actions */}
-      <div className="quick-actions">
-        <h3 className="section-title">Quick Actions</h3>
-        <div className="action-buttons">
-          <button className="action-btn register-member">
-            <UsersThree size={20} />
-            <span>Register Member</span>
-          </button>
-          <button className="action-btn record-deposit">
-            <PiggyBank size={20} />
-            <span>Record Deposit</span>
-          </button>
-          <button className="action-btn issue-loan">
-            <Money size={20} />
-            <span>Issue Loan</span>
-          </button>
-          <button className="action-btn view-reports">
-            <TrendUp size={20} />
-            <span>View Reports</span>
-          </button>
+        <div className="quick-actions-compact">
+          <h3 className="section-title">Quick Actions</h3>
+          <div className="action-buttons-compact">
+            <button className="action-btn-compact register-member" onClick={() => navigate('/members')}>
+              <UsersThree size={18} />
+              <span>Register Member</span>
+            </button>
+            <button className="action-btn-compact record-deposit" onClick={() => navigate('/deposits')}>
+              <PiggyBank size={18} />
+              <span>Record Deposit</span>
+            </button>
+            <button className="action-btn-compact issue-loan" onClick={() => navigate('/loans')}>
+              <Money size={18} />
+              <span>Issue Loan</span>
+            </button>
+            <button className="action-btn-compact view-reports" onClick={() => navigate('/dashboard')}>
+              <TrendUp size={18} />
+              <span>View Reports</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
