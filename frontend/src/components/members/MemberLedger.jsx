@@ -26,15 +26,16 @@ export default function MemberLedger({ member, goBack }) {
       <p>Status: {member.active ? 'Active' : 'Suspended'} | Contributions: {summary.contributions} | Loans: {summary.loansOut} | Balance: {summary.balance}</p>
       <table>
         <thead>
-          <tr><th>Date</th><th>Type</th><th>Amount</th><th>Description</th><th>Balance After</th></tr>
+          <tr><th>Date</th><th>Type</th><th>Amount</th><th>Reference</th><th>Description</th><th>Balance After</th></tr>
         </thead>
         <tbody>
-          {ledger.length === 0 ? <tr><td colSpan={5}>No transactions</td></tr> :
+          {ledger.length === 0 ? <tr><td colSpan={6}>No transactions</td></tr> :
             ledger.map(tx => (
               <tr key={tx.id}>
                 <td>{new Date(tx.date).toLocaleDateString()}</td>
                 <td>{tx.type}</td>
                 <td>{tx.amount}</td>
+                <td><small>{tx.reference || '-'}</small></td>
                 <td>{tx.description || '-'}</td>
                 <td>{tx.balanceAfter}</td>
               </tr>

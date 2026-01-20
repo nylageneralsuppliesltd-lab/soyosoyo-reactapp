@@ -86,6 +86,26 @@ export class DepositsService {
         },
       });
 
+      // Update member balance and personal ledger for statement view
+      if (depositData.memberId) {
+        const updatedMember = await this.prisma.member.update({
+          where: { id: depositData.memberId },
+          data: { balance: { increment: depositData.amount } },
+        });
+
+        await this.prisma.ledger.create({
+          data: {
+            memberId: depositData.memberId,
+            type: depositData.type || 'Deposit',
+            amount: depositData.amount,
+            description: depositData.description || depositData.narration || depositData.category || 'Deposit',
+            reference: depositData.reference,
+            balanceAfter: updatedMember.balance,
+            date: depositData.date,
+          },
+        });
+      }
+
       return deposit;
     } catch (error) {
       console.error('Deposit creation error:', error);

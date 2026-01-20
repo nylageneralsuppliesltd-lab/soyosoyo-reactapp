@@ -101,7 +101,11 @@ export class MembersService {
   async findOne(id: number) {
     const member = await this.prisma.member.findUnique({
       where: { id },
-      include: { ledger: true },
+      include: { 
+        ledger: {
+          orderBy: { date: 'asc' },
+        },
+      },
     });
     if (!member) throw new NotFoundException(`Member with ID ${id} not found.`);
     return member;
