@@ -18,6 +18,17 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 const formatCurrency = (value) =>
   (Number(value) || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// Render-safe name resolver for member/borrower fields that may be nested objects
+const displayName = (value) => {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'string') return value || '—';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'object') {
+    return value.name || value.fullName || value.memberName || value.borrowerName || value.phone || '—';
+  }
+  return '—';
+};
+
 const ReportsPage = () => {
   const { deposits, withdrawals, loans, repayments } = useFinancial();
   const [year, setYear] = useState(new Date().getFullYear());
@@ -463,7 +474,7 @@ const ReportsPage = () => {
                 {deposits.slice(0, 10).map((d) => (
                   <tr key={d.id}>
                     <td>{d.date}</td>
-                    <td>{d.member}</td>
+                    <td>{displayName(d.member || d.memberName)}</td>
                     <td>KES {formatCurrency(d.amount)}</td>
                     <td>{d.method}</td>
                     <td>{d.reference || '-'}</td>
@@ -495,7 +506,7 @@ const ReportsPage = () => {
                 {withdrawals.slice(0, 10).map((w) => (
                   <tr key={w.id}>
                     <td>{w.date}</td>
-                    <td>{w.member}</td>
+                    <td>{displayName(w.member || w.memberName)}</td>
                     <td>KES {formatCurrency(w.amount)}</td>
                     <td>{w.method}</td>
                     <td>{w.purpose || '-'}</td>
@@ -530,7 +541,7 @@ const ReportsPage = () => {
                 const outstanding = Math.max((Number(l.amount) || 0) - paid, 0);
                 return (
                   <tr key={l.id}>
-                    <td>{l.borrower}</td>
+                    <td>{displayName(l.borrower || l.borrowerName)}</td>
                     <td>KES {formatCurrency(l.amount)}</td>
                     <td>{l.status}</td>
                     <td>KES {formatCurrency(outstanding)}</td>
