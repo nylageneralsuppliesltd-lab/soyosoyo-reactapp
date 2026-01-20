@@ -7,10 +7,19 @@ import '../styles/finance.css';
 const formatCurrency = (value) =>
   (Number(value) || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// Render-safe member name resolver
+const renderMemberName = (entry) => {
+  const val = entry?.memberName ?? entry?.member;
+  if (!val) return '-';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object') return val.name || val.fullName || val.phone || '-';
+  return '-';
+};
+
 const exportWithdrawalsCSV = (rows) => {
   const headers = ['Date', 'Member', 'Amount', 'Method', 'Purpose', 'Notes'];
   const csv = [headers.join(',')]
-    .concat(rows.map((d) => [d.memberName || d.member, d.amount, d.method, d.purpose, d.notes].map((c) => `"${c ?? ''}"`).join(',')))
+    .concat(rows.map((d) => [renderMemberName(d), d.amount, d.method, d.purpose, d.notes].map((c) => `"${c ?? ''}"`).join(',')))
     .join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -56,7 +65,7 @@ const exportWithdrawalsPDF = (rows) => {
       pdf.setTextColor(0, 0, 0);
     }
     let x = margin;
-    const memberName = row.memberName || row.member || '-';
+    const memberName = renderMemberName(row);
     const values = [idx + 1, row.date, memberName, formatCurrency(row.amount), row.method, row.purpose || '-', row.notes || '-'];
     pdf.setFontSize(8);
     values.forEach((val, i) => {
@@ -314,7 +323,7 @@ const WithdrawalsPage = () => {
                 {filtered.map((w) => (
                   <tr key={w.id}>
                     <td>{w.date}</td>
-                    <td>{w.memberName}</td>
+                    <td>{renderMemberName(w)}</td>
                     <td className="amount">{formatCurrency(w.amount)}</td>
                     <td>{w.method}</td>
                     <td>{w.purpose || '-'}</td>
