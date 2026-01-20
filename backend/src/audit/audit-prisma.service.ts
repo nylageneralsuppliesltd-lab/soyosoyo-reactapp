@@ -15,8 +15,15 @@ export class AuditPrismaService extends AuditPrismaClient implements OnModuleIni
       process.env.AUDIT_DATABASE_URL = url;
     }
 
-    // Pass a non-empty options object to satisfy the generated client runtime guard
-    super({});
+    // Force library engine via env to avoid data proxy/edge "client" engine requirement
+    process.env.PRISMA_CLIENT_ENGINE_TYPE = 'library';
+
+    // Pass datasource URL explicitly so Prisma picks the correct database (cast to satisfy typings)
+    super({
+      datasources: {
+        auditDb: { url },
+      },
+    } as any);
   }
 
   async onModuleInit() {
