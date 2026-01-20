@@ -1,0 +1,20 @@
+generator auditClient {
+  provider = "prisma-client-js"
+  output   = "./generated/audit-client"
+}
+
+datasource auditDb {
+  provider = "postgresql"
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actor      String   @auditDb.Text
+  action     String
+  resource   String
+  resourceId String?
+  ip         String?
+  userAgent  String?
+  payload    Json?
+  createdAt  DateTime @default(now())
+}
