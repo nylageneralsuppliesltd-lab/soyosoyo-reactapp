@@ -16,7 +16,6 @@ import FinePaymentForm from './FinePaymentForm';
 import LoanRepaymentForm from './LoanRepaymentForm';
 import IncomeRecordingForm from './IncomeRecordingForm';
 import MiscellaneousPaymentForm from './MiscellaneousPaymentForm';
-import LoanDisbursementForm from './LoanDisbursementForm';
 import ShareCapitalForm from './ShareCapitalForm';
 import BulkPaymentImport from './BulkPaymentImport';
 import '../../styles/deposits.css';
@@ -148,7 +147,7 @@ const DepositsPage = () => {
     <div className="deposits-page">
       <div className="page-header">
         <h1>Deposits & Payments</h1>
-        <p>Record and manage all incoming transactions - 8 payment types available</p>
+        <p>Record and manage all incoming transactions - 7 payment types available</p>
       </div>
 
       <div className="deposits-menu">
@@ -186,13 +185,6 @@ const DepositsPage = () => {
         >
           <TrendingDown size={18} />
           Loan Repayment
-        </button>
-        <button
-          className={`menu-tab ${activeTab === 'loan_disbursement' ? 'active' : ''}`}
-          onClick={() => setActiveTab('loan_disbursement')}
-        >
-          <Banknote size={18} />
-          Loan Disbursement
         </button>
         <button
           className={`menu-tab ${activeTab === 'income' ? 'active' : ''}`}
@@ -242,7 +234,6 @@ const DepositsPage = () => {
                 <option value="share_capital">Share Capital</option>
                 <option value="fine">Fines</option>
                 <option value="loan_repayment">Loan Repayments</option>
-                <option value="loan_disbursement">Loan Disbursements</option>
                 <option value="income">Income</option>
                 <option value="miscellaneous">Miscellaneous</option>
               </select>
@@ -327,7 +318,6 @@ const DepositsPage = () => {
         {activeTab === 'share_capital' && <ShareCapitalForm onSuccess={handleSuccess} />}
         {activeTab === 'fine' && <FinePaymentForm onSuccess={handleSuccess} />}
         {activeTab === 'loan_repayment' && <LoanRepaymentForm onSuccess={handleSuccess} />}
-        {activeTab === 'loan_disbursement' && <LoanDisbursementForm onSuccess={handleSuccess} />}
         {activeTab === 'income' && <IncomeRecordingForm onSuccess={handleSuccess} />}
         {activeTab === 'miscellaneous' && <MiscellaneousPaymentForm onSuccess={handleSuccess} />}
         {activeTab === 'bulk' && <BulkPaymentImport onSuccess={handleSuccess} />}
