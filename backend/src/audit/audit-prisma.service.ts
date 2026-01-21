@@ -13,8 +13,8 @@ export class AuditPrismaService extends AuditPrismaClient implements OnModuleIni
     // Ensure the runtime env var is populated for the generated client
     process.env.AUDIT_DATABASE_URL = url;
 
-    // Call parent constructor - URL is picked up from AUDIT_DATABASE_URL via prisma.audit.config.ts
-    super();
+    // Pass empty options object - URL is picked up from AUDIT_DATABASE_URL env var
+    super({});
   }
 
   async onModuleInit() {
