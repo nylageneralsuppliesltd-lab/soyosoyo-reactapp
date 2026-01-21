@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import { useFinancial } from '../context/FinancialContext';
 import { getMembers } from '../components/members/membersAPI';
+import { getAccounts } from '../utils/settingsAPI';
 import '../styles/finance.css';
 
 const formatCurrency = (value) =>
@@ -84,11 +85,14 @@ const exportDepositsPDF = (rows) => {
 const DepositsPage = () => {
   const { deposits, addDeposit, deleteDeposit, updateDeposit } = useFinancial();
   const [members, setMembers] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [form, setForm] = useState({
     memberId: '',
     memberName: '',
     amount: '',
     method: 'cash',
+    accountId: '',
+    accountName: '',
     reference: '',
     date: new Date().toISOString().slice(0, 10),
     notes: '',
@@ -99,15 +103,18 @@ const DepositsPage = () => {
 
   // Load members on mount
   useEffect(() => {
-    const loadMembers = async () => {
+    const loadData = async () => {
       try {
-        const res = await getMembers('take=1000');
-        setMembers(res.data?.data || []);
+        const memberRes = await getMembers('take=1000');
+        setMembers(memberRes.data?.data || []);
+        
+        const accountRes = await getAccounts();
+        setAccounts(accountRes || []);
       } catch (err) {
-        console.error('Failed to load members:', err);
+        console.error('Failed to load data:', err);
       }
     };
-    loadMembers();
+    loadData();
   }, []);
 
   const filtered = useMemo(() => {
@@ -136,6 +143,18 @@ const DepositsPage = () => {
     }
   };
 
+  const handleAccountSelect = (e) => {
+    const accountId = parseInt(e.target.value);
+    const selected = accounts.find(a => a.id === accountId);
+    if (selected) {
+      setForm(prev => ({
+        ...prev,
+        accountId,
+        accountName: selected.name,
+      }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.memberId) {
@@ -147,14 +166,23 @@ const DepositsPage = () => {
       return;
     }
     try {
+      // Build description with account info
+      let description = `Contribution for shares`;
+      if (form.accountName) {
+        description += ` deposited in ${form.accountName}`;
+      }
+      
       const payload = {
         memberId: form.memberId,
         memberName: form.memberName,
         amount: form.amount,
         method: form.method,
+        accountId: form.accountId || null,
+        accountName: form.accountName || null,
         reference: form.reference,
         date: form.date,
         notes: form.notes,
+        description: description,
       };
 
       if (editingId) {
@@ -169,6 +197,8 @@ const DepositsPage = () => {
         memberId: '', 
         memberName: '', 
         amount: '', 
+        accountId: '',
+        accountName: '',
         reference: '', 
         notes: '' 
       }));
@@ -186,6 +216,8 @@ const DepositsPage = () => {
       memberName: deposit.memberName || deposit.member?.name || '',
       amount: deposit.amount,
       method: deposit.method || 'cash',
+      accountId: deposit.accountId || '',
+      accountName: deposit.accountName || '',
       reference: deposit.reference || '',
       date: deposit.date ? new Date(deposit.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
       notes: deposit.notes || '',
@@ -194,7 +226,7 @@ const DepositsPage = () => {
 
   const cancelEdit = () => {
     setEditingId(null);
-    setForm((prev) => ({ ...prev, memberId: '', memberName: '', amount: '', reference: '', notes: '' }));
+    setForm((prev) => ({ ...prev, memberId: '', memberName: '', amount: '', accountId: '', accountName: '', reference: '', notes: '' }));
   };
 
   return (
@@ -233,6 +265,18 @@ const DepositsPage = () => {
               <option value="mpesa">M-Pesa</option>
               <option value="bank">Bank</option>
               <option value="cheque">Cheque</option>
+            </select>
+            <label>Account Credited To</label>
+            <select 
+              value={form.accountId} 
+              onChange={handleAccountSelect}
+            >
+              <option value="">-- Select Account --</option>
+              {accounts.map((acc) => (
+                <option key={acc.id} value={acc.id}>
+                  {acc.name} ({acc.type === 'mobileMoney' ? 'MPESA' : acc.type === 'cash' ? 'Cash' : 'Bank'})
+                </option>
+              ))}
             </select>
             <label>Reference (optional)</label>
             <input

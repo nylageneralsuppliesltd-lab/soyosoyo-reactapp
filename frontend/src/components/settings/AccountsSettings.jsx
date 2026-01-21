@@ -93,6 +93,18 @@ const AccountsSettings = () => {
     setShowForm(false);
   };
 
+  const getFormFields = () => {
+    const type = formData.type;
+    if (type === 'bank') {
+      return ['bankName', 'branch', 'accountName', 'accountNumber', 'description'];
+    } else if (type === 'mobileMoney') {
+      return ['provider', 'number', 'description'];
+    } else {
+      // cash, pettyCash - minimal fields
+      return ['description'];
+    }
+  };
+
   const getAccountIcon = (type) => {
     switch (type) {
       case 'bank':
@@ -134,6 +146,7 @@ const AccountsSettings = () => {
           </h3>
           <form onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {/* Account Type */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Account Type *
@@ -151,6 +164,7 @@ const AccountsSettings = () => {
                 </select>
               </div>
 
+              {/* Account Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Account Name *
@@ -161,10 +175,11 @@ const AccountsSettings = () => {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Main Bank Account"
+                  placeholder={formData.type === 'bank' ? "e.g., Equity Bank Main" : formData.type === 'mobileMoney' ? "e.g., MPESA Main" : "e.g., Cash Box"}
                 />
               </div>
 
+              {/* BANK ACCOUNT SPECIFIC FIELDS */}
               {formData.type === 'bank' && (
                 <>
                   <div>
@@ -176,7 +191,7 @@ const AccountsSettings = () => {
                       value={formData.bankName}
                       onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
                       className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., Equity Bank"
+                      placeholder="e.g., Equity Bank Kenya"
                     />
                   </div>
 
@@ -202,7 +217,7 @@ const AccountsSettings = () => {
                       value={formData.accountNumber}
                       onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
                       className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Account number"
+                      placeholder="e.g., 0012345678"
                     />
                   </div>
 
@@ -215,76 +230,83 @@ const AccountsSettings = () => {
                       value={formData.accountName}
                       onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
                       className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Account holder"
+                      placeholder="e.g., SOYOSOYO SACCO"
                     />
                   </div>
                 </>
               )}
 
+              {/* MPESA ACCOUNT SPECIFIC FIELDS */}
               {formData.type === 'mobileMoney' && (
                 <>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Provider
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={formData.provider}
                       onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
                       className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., MPESA, Airtel Money"
-                    />
+                    >
+                      <option value="">-- Select Provider --</option>
+                      <option value="MPESA">M-PESA (Safaricom)</option>
+                      <option value="Airtel Money">Airtel Money</option>
+                      <option value="Equity Mobile">Equity Bank Mobile</option>
+                    </select>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number
+                      Phone Number / Shortcode
                     </label>
                     <input
                       type="text"
                       value={formData.number}
                       onChange={(e) => setFormData({ ...formData, number: e.target.value })}
                       className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., 0712345678"
+                      placeholder="e.g., 0712345678 or 123456"
                     />
                   </div>
                 </>
               )}
 
+              {/* OPENING BALANCE - shown for all */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Opening Balance
+                  Opening Balance (KES)
                 </label>
                 <input
                   type="number"
                   step="0.01"
                   value={formData.balance}
-                  onChange={(e) => setFormData({ ...formData, balance: parseFloat(e.target.value) })}
+                  onChange={(e) => setFormData({ ...formData, balance: parseFloat(e.target.value) || 0 })}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="0.00"
                 />
               </div>
 
+              {/* DESCRIPTION - optional for all */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
+                  Description (Optional)
                 </label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   rows="2"
-                  placeholder="Optional description"
+                  placeholder={formData.type === 'cash' ? "e.g., Cash petty box for office expenses" : "e.g., Main operational account for member transactions"}
                 />
               </div>
 
-              <div className="flex items-center">
+              {/* ACTIVE STATUS */}
+              <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   id="isActive"
                   checked={formData.isActive}
                   onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  className="mr-2"
+                  className="w-4 h-4 rounded"
                 />
                 <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
                   Account is active
