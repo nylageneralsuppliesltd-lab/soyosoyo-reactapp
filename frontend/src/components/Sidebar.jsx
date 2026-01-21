@@ -124,7 +124,7 @@ export default function Sidebar({ isOpen, onClose }) {
             )}
           </li>
 
-          <li className={location.pathname.startsWith('/reports') ? 'active' : ''}>
+          <li className={location.pathname.startsWith('/reports') || location.pathname === '/api-reports' ? 'active' : ''}>
             <button
               className="menu-item submenu-toggle"
               onClick={() => toggleSubmenu('reports')}
@@ -136,7 +136,10 @@ export default function Sidebar({ isOpen, onClose }) {
             {openSubmenu === 'reports' && (
               <ul className="submenu">
                 <li>
-                  <Link to="/reports" onClick={onClose}>Financial Reports</Link>
+                  <Link to="/api-reports" onClick={onClose}>Download Reports (API)</Link>
+                </li>
+                <li>
+                  <Link to="/reports" onClick={onClose}>Financial Analytics</Link>
                 </li>
               </ul>
             )}

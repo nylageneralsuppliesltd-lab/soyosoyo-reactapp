@@ -26,6 +26,7 @@ import DepositsPage from './pages/DepositsPage';
 import WithdrawalsPage from './pages/WithdrawalsPage';
 import LoansPage from './pages/LoansPage';
 import ReportsPage from './pages/ReportsPage';
+import APIReportsPage from './pages/APIReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import GeneralLedgerPage from './pages/GeneralLedgerPage';
 
@@ -96,6 +97,7 @@ function App() {
           <Route path="/withdrawals/*" element={<WithdrawalsPage />} />
           <Route path="/loans/*" element={<LoansPage />} />
           <Route path="/reports/*" element={<ReportsPage />} />
+          <Route path="/api-reports" element={<APIReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/ledger" element={<GeneralLedgerPage />} />
           <Route path="/sacco-settings" element={<SaccoSettingsPage />} />
