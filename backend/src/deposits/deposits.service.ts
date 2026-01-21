@@ -26,21 +26,6 @@ export interface BulkImportResult {
 export class DepositsService {
   constructor(private prisma: PrismaService) {}
 
-  private async ensureAccount(name: string, type: string, description?: string) {
-    const existing = await this.prisma.account.findFirst({ where: { name } });
-    if (existing) return existing;
-
-    return this.prisma.account.create({
-      data: {
-        name,
-        type: type as any,
-        description: description ?? null,
-        currency: 'KES',
-        balance: new Prisma.Decimal(0),
-      },
-    });
-  }
-
   async create(data: any) {
     try {
       // Transform and validate incoming data
@@ -72,9 +57,9 @@ export class DepositsService {
       // Ensure accounts exist (fallback defaults if none provided)
       const cashAccount = depositData.accountId
         ? await this.prisma.account.findUnique({ where: { id: depositData.accountId } })
-        : await this.ensureAccount('Cashbox', 'cash', 'Default cash account');
+        : await this.ensureAccountByName('Cashbox', 'cash', 'Default cash account');
 
-      const memberDepositAccount = await this.ensureAccount(
+      const memberDepositAccount = await this.ensureAccountByName(
         'Member Deposits',
         'cash',
         'Member deposits holding account',
@@ -439,7 +424,7 @@ export class DepositsService {
     if (memberId) {
       const member = await this.prisma.member.update({
         where: { id: memberId },
-        data: { balance: { increment: amount } },
+        data: { balance: { increment: Number(amount) } },
       });
 
       await this.prisma.ledger.create({
