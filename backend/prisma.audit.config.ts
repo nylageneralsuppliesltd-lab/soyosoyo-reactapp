@@ -12,4 +12,7 @@ export default defineConfig({
   datasource: {
     url: auditUrl,
   },
+  migrations: {
+    path: 'prisma/migrations-audit',
+  },
 });
