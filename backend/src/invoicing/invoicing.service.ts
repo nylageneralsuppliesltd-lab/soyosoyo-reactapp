@@ -258,11 +258,84 @@ export class InvoicingService {
           this.logger.log(`📱 Overdue reminder SMS for member ${invoice.member.phone}: Invoice #${invoice.invoiceNumber}`);
           await this.logInvoiceAction(invoice.id, 'overdue_reminder', 'success');
         }
+
+        // Auto-create and post late contribution fine if configured
+        if (
+          invoice.contributionType?.lateFineEnabled &&
+          Number(invoice.contributionType.lateFineAmount || 0) > 0 &&
+          this.hasPassedGracePeriod(invoice)
+        ) {
+          const existingFine = await this.prisma.fine.findFirst({
+            where: {
+              memberInvoiceId: invoice.id,
+              memberId: invoice.memberId,
+              type: 'late_payment',
+            },
+          });
+
+          if (!existingFine) {
+            try {
+              await this.createLateFineForInvoice(invoice);
+            } catch (error) {
+              this.logger.error(`Failed to create late fine for invoice ${invoice.invoiceNumber}`, error);
+              await this.logInvoiceAction(invoice.id, 'late_fine', 'failed', { error: error?.message });
+            }
+          }
+        }
       }
 
       this.logger.log('✅ Overdue check completed');
     } catch (error) {
       this.logger.error('Error in overdue check:', error);
     }
+  }
+
+  /**
+   * Create a late payment fine tied to an overdue invoice and post it to the member ledger.
+   */
+  private async createLateFineForInvoice(invoice: any): Promise<void> {
+    const fineAmountNum = Number(invoice.contributionType?.lateFineAmount || 0);
+    if (fineAmountNum <= 0) return;
+
+    const fine = await this.prisma.fine.create({
+      data: {
+        memberId: invoice.memberId,
+        type: 'late_payment',
+        reason: `Late contribution payment - ${invoice.contributionType?.name || 'Contribution'}`,
+        amount: fineAmountNum,
+        status: 'unpaid',
+        dueDate: new Date(),
+        memberInvoiceId: invoice.id,
+        notes: `Auto-generated for overdue invoice ${invoice.invoiceNumber}`,
+      },
+    });
+
+    // Post member ledger debit for the fine
+    const currentBalance = await this.getMemberBalance(invoice.memberId);
+    const newBalance = currentBalance - fineAmountNum;
+
+    await this.prisma.ledger.create({
+      data: {
+        memberId: invoice.memberId,
+        type: 'fine',
+        amount: fineAmountNum,
+        description: `Late fine: ${invoice.contributionType?.name || 'Contribution'}`,
+        reference: `FINE-${invoice.invoiceNumber}`,
+        balanceAfter: newBalance,
+        memberInvoiceId: invoice.id,
+      },
+    });
+
+    await this.logInvoiceAction(invoice.id, 'late_fine', 'success', { fineId: fine.id, amount: fineAmountNum });
+  }
+
+  /**
+   * Respect grace period before applying fines.
+   */
+  private hasPassedGracePeriod(invoice: any): boolean {
+    const graceDays = invoice.contributionType?.lateFineGraceDays || 0;
+    const graceDate = new Date(invoice.dueDate);
+    graceDate.setDate(graceDate.getDate() + graceDays);
+    return new Date() > graceDate;
   }
 }

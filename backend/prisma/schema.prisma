@@ -135,6 +135,9 @@ model ContributionType {
   smsNotifications    Boolean   @default(true)
   emailNotifications  Boolean   @default(false)
   finesEnabled        Boolean   @default(false)
+  lateFineEnabled     Boolean   @default(false)
+  lateFineAmount      Decimal   @default(0) @db.Decimal(14, 2)
+  lateFineGraceDays   Int       @default(0)
   invoiceAllMembers   Boolean   @default(true)
   visibleInvoicing    Boolean   @default(true)
   createdAt           DateTime  @default(now())
@@ -409,6 +412,8 @@ model Fine {
   memberId     Int
   loan         Loan?     @relation(fields: [loanId], references: [id], onDelete: SetNull)
   loanId       Int?
+  memberInvoice MemberInvoice? @relation(fields: [memberInvoiceId], references: [id], onDelete: SetNull)
+  memberInvoiceId Int?
   
   type         FineType
   reason       String?
@@ -426,6 +431,8 @@ model Fine {
 
   @@index([memberId])
   @@index([status])
+  @@index([memberInvoiceId])
+  @@unique([memberId, memberInvoiceId], name: "unique_member_invoice_fine")
 }
 
 model JournalEntry {
@@ -561,6 +568,7 @@ model MemberInvoice {
   updatedAt             DateTime      @updatedAt
   
   ledgerEntries         Ledger[]      @relation("InvoiceLedger")
+  fines                 Fine[]
   logs                  InvoiceLog[]
 
   @@index([memberId])

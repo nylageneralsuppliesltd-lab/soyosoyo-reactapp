@@ -83,6 +83,9 @@ const SettingsPage = () => {
             smsNotifications: true,
             emailNotifications: true,
             finesEnabled: false,
+            lateFineEnabled: false,
+            lateFineAmount: 0,
+            lateFineGraceDays: 0,
             invoiceAllMembers: true,
             visibleInvoicing: true,
           }
@@ -340,6 +343,7 @@ const SettingsPage = () => {
                         <th>Schedule</th>
                         <th>Invoice & Due</th>
                         <th>Notifications</th>
+                        <th>Late Fine</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -365,6 +369,16 @@ const SettingsPage = () => {
                             <div>{ct.smsNotifications ? 'SMS ✓' : 'SMS ✗'}</div>
                             <div>{ct.emailNotifications ? 'Email ✓' : 'Email ✗'}</div>
                             <div>{ct.finesEnabled ? 'Fines On' : 'Fines Off'}</div>
+                          </td>
+                          <td>
+                            {ct.lateFineEnabled ? (
+                              <div>
+                                <div>{ct.lateFineAmount ? `KES ${Number(ct.lateFineAmount).toLocaleString()}` : '-'}</div>
+                                <div style={{ color: '#666', fontSize: '12px' }}>Grace: {ct.lateFineGraceDays || 0} day(s)</div>
+                              </div>
+                            ) : (
+                              'Off'
+                            )}
                           </td>
                           <td>
                             <button className="btn-edit" onClick={() => {
@@ -685,6 +699,37 @@ const SettingsPage = () => {
                       <option value="yes">Enabled</option>
                     </select>
                   </div>
+                  <div className="form-group">
+                    <label>Late Contribution Fine</label>
+                    <select value={formData.lateFineEnabled ? 'yes' : 'no'} onChange={(e) => setFormData({...formData, lateFineEnabled: e.target.value === 'yes'})}>
+                      <option value="no">Disabled</option>
+                      <option value="yes">Enabled</option>
+                    </select>
+                  </div>
+                  {formData.lateFineEnabled && (
+                    <>
+                      <div className="form-group">
+                        <label>Late Fine Amount (KES)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.lateFineAmount ?? ''}
+                          onChange={(e) => setFormData({...formData, lateFineAmount: parseFloat(e.target.value) || 0})}
+                          placeholder="e.g., 500"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Grace Period (days)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={formData.lateFineGraceDays ?? 0}
+                          onChange={(e) => setFormData({...formData, lateFineGraceDays: parseInt(e.target.value) || 0})}
+                          placeholder="e.g., 3"
+                        />
+                      </div>
+                    </>
+                  )}
                   <div className="form-group">
                     <label>Invoice Audience</label>
                     <select value={formData.invoiceAllMembers ? 'all' : 'segment'} onChange={(e) => setFormData({...formData, invoiceAllMembers: e.target.value === 'all'})}>
