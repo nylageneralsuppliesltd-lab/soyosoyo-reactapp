@@ -395,6 +395,24 @@ model InvoiceTemplate {
   updatedAt     DateTime  @updatedAt
 }
 
+// ============== ASSETS ==============
+model Asset {
+  id               Int       @id @default(autoincrement())
+  name             String
+  description      String?
+  category         String?   // Equipment, Vehicle, Building, etc.
+  purchaseDate     DateTime? @db.Date
+  purchasePrice    Decimal?  @db.Decimal(14, 2)
+  currentValue     Decimal?  @db.Decimal(14, 2)
+  location         String?
+  serialNumber     String?
+  condition        String?   // Excellent, Good, Fair, Poor
+  notes            String?
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
 
 
 model history {
@@ -431,4 +449,19 @@ model sacco_history {
   total_assets       Decimal?  @default(0) @db.Decimal(15, 2)
   extra_fields       Json?     @default("{}")
   period             DateTime? @unique @db.Date
+}
+
+// ============== AUDIT LOG ==============
+model AuditLog {
+  id         String   @id @default(cuid())
+  actor      String   @db.Text
+  action     String
+  resource   String
+  resourceId String?
+  ip         String?
+  userAgent  String?
+  payload    Json?
+  createdAt  DateTime @default(now())
+
+  @@map("AuditLog")
 }

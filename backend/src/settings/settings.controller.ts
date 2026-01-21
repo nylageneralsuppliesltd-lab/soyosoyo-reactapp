@@ -5,6 +5,27 @@ import { SettingsService } from './settings.service';
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
+  // ============== ACCOUNTS ==============
+  @Get('accounts')
+  async getAccounts() {
+    return this.settingsService.getAccounts();
+  }
+
+  @Post('accounts')
+  async createAccount(@Body() data: any) {
+    return this.settingsService.createAccount(data);
+  }
+
+  @Patch('accounts/:id')
+  async updateAccount(@Param('id') id: string, @Body() data: any) {
+    return this.settingsService.updateAccount(+id, data);
+  }
+
+  @Delete('accounts/:id')
+  async deleteAccount(@Param('id') id: string) {
+    return this.settingsService.deleteAccount(+id);
+  }
+
   // ============== CONTRIBUTION TYPES ==============
   @Get('contribution-types')
   async getContributionTypes() {
@@ -129,5 +150,26 @@ export class SettingsController {
   @Delete('invoice-templates/:id')
   async deleteInvoiceTemplate(@Param('id') id: string) {
     return this.settingsService.deleteInvoiceTemplate(+id);
+  }
+
+  // ============== ASSETS ==============
+  @Get('assets')
+  async getAssets() {
+    return this.settingsService.getAssets();
+  }
+
+  @Post('assets')
+  async createAsset(@Body() data: any) {
+    return this.settingsService.createAsset(data);
+  }
+
+  @Patch('assets/:id')
+  async updateAsset(@Param('id') id: string, @Body() data: any) {
+    return this.settingsService.updateAsset(+id, data);
+  }
+
+  @Delete('assets/:id')
+  async deleteAsset(@Param('id') id: string) {
+    return this.settingsService.deleteAsset(+id);
   }
 }

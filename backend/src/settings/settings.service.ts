@@ -5,6 +5,25 @@ import { PrismaService } from '../prisma.service';
 export class SettingsService {
   constructor(private prisma: PrismaService) {}
 
+  // ============== ACCOUNTS ==============
+  async getAccounts() {
+    return this.prisma.account.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createAccount(data: any) {
+    return this.prisma.account.create({ data });
+  }
+
+  async updateAccount(id: number, data: any) {
+    return this.prisma.account.update({ where: { id }, data });
+  }
+
+  async deleteAccount(id: number) {
+    return this.prisma.account.delete({ where: { id } });
+  }
+
   // ============== CONTRIBUTION TYPES ==============
   async getContributionTypes() {
     return this.prisma.contributionType.findMany({
@@ -117,5 +136,24 @@ export class SettingsService {
 
   async deleteInvoiceTemplate(id: number) {
     return this.prisma.invoiceTemplate.delete({ where: { id } });
+  }
+
+  // ============== ASSETS ==============
+  async getAssets() {
+    return this.prisma.asset.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createAsset(data: any) {
+    return this.prisma.asset.create({ data });
+  }
+
+  async updateAsset(id: number, data: any) {
+    return this.prisma.asset.update({ where: { id }, data });
+  }
+
+  async deleteAsset(id: number) {
+    return this.prisma.asset.delete({ where: { id } });
   }
 }
