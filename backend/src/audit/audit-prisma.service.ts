@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaClient as AuditPrismaClient } from '../../prisma/generated/audit-client';
+import { PrismaNeon } from '@prisma/adapter-neon';
 
 @Injectable()
 export class AuditPrismaService extends AuditPrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -13,8 +14,13 @@ export class AuditPrismaService extends AuditPrismaClient implements OnModuleIni
     // Ensure the runtime env var is populated for the generated client
     process.env.AUDIT_DATABASE_URL = url;
 
-    // Pass empty options object - URL is picked up from AUDIT_DATABASE_URL env var
-    super({});
+    // Use Neon adapter for serverless connection
+    const adapter = new PrismaNeon({
+      connectionString: url,
+    });
+
+    // Pass adapter to constructor
+    super({ adapter });
   }
 
   async onModuleInit() {
