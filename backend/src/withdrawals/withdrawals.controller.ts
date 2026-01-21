@@ -9,6 +9,7 @@ import {
   Query,
   HttpException,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { WithdrawalsService } from './withdrawals.service';
 
@@ -16,23 +17,57 @@ import { WithdrawalsService } from './withdrawals.service';
 export class WithdrawalsController {
   constructor(private readonly withdrawalsService: WithdrawalsService) {}
 
-  @Post()
-  async create(@Body() data: any) {
+  @Post('expense')
+  async createExpense(@Body() data: any) {
     try {
-      console.log('[WithdrawalsController] Creating withdrawal with data:', data);
-      const result = await this.withdrawalsService.create(data);
-      console.log('[WithdrawalsController] Withdrawal created successfully:', result);
-      return result;
+      return await this.withdrawalsService.createExpense(data);
     } catch (error) {
-      console.error('[WithdrawalsController] Error creating withdrawal:', error);
       throw new HttpException(
-        {
-          status: HttpStatus.BAD_REQUEST,
-          message: error.message || 'Failed to create withdrawal',
-        },
-        HttpStatus.BAD_REQUEST,
+        error.message || 'Failed to create expense',
+        error.status || HttpStatus.BAD_REQUEST,
       );
     }
+  }
+
+  @Post('transfer')
+  async createTransfer(@Body() data: any) {
+    try {
+      return await this.withdrawalsService.createTransfer(data);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to create transfer',
+        error.status || HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('refund')
+  async createRefund(@Body() data: any) {
+    try {
+      return await this.withdrawalsService.createRefund(data);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to create refund',
+        error.status || HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('dividend')
+  async createDividend(@Body() data: any) {
+    try {
+      return await this.withdrawalsService.createDividend(data);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to create dividend payout',
+        error.status || HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('stats')
+  async getStats() {
+    return this.withdrawalsService.getWithdrawalStats();
   }
 
   @Get()

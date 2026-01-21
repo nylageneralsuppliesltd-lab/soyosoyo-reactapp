@@ -1,33 +1,7 @@
-import { useMemo, useState, useEffect } from 'react';
-import jsPDF from 'jspdf';
-import { useFinancial } from '../context/FinancialContext';
-import { getMembers } from '../components/members/membersAPI';
-import { getAccounts } from '../utils/settingsAPI';
-import '../styles/finance.css';
+import WithdrawalsPage from '../components/withdrawals/WithdrawalsPage';
 
-const formatCurrency = (value) =>
-  (Number(value) || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export default WithdrawalsPage;
 
-// Render-safe member name resolver
-const renderMemberName = (entry) => {
-  const val = entry?.memberName ?? entry?.member;
-  if (!val) return '-';
-  if (typeof val === 'string') return val;
-  if (typeof val === 'object') return val.name || val.fullName || val.phone || '-';
-  return '-';
-};
-
-const exportWithdrawalsCSV = (rows) => {
-  const headers = ['Date', 'Member', 'Amount', 'Method', 'Purpose', 'Notes'];
-  const csv = [headers.join(',')]
-    .concat(rows.map((d) => [renderMemberName(d), d.amount, d.method, d.purpose, d.notes].map((c) => `"${c ?? ''}"`).join(',')))
-    .join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `withdrawals-${new Date().toISOString().split('T')[0]}.csv`;
-  link.click();
-};
 
 const exportWithdrawalsPDF = (rows) => {
   const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
