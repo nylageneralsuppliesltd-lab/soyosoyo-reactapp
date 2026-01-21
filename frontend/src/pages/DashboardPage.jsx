@@ -1,4 +1,4 @@
-// src/pages/DashboardPage.jsx - Premium SACCO Dashboard
+// src/pages/DashboardPage.jsx - Premium SACCO Dashboard with Real Data
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
@@ -15,8 +15,13 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
-import { UsersThree, PiggyBank, ArrowDownLeft, Money, TrendUp, Calendar, ArrowRight } from '@phosphor-icons/react';
+import { UsersThree, PiggyBank, ArrowDownLeft, Money, TrendUp, Calendar, ArrowRight, Spinner } from '@phosphor-icons/react';
 import '../styles/dashboard-premium.css';
+import {
+  calculateDashboardStats,
+  getMonthlyTrendData,
+  getRecentActivity,
+} from '../utils/dashboardAPI';
 
 ChartJS.register(
   CategoryScale,
@@ -34,46 +39,60 @@ ChartJS.register(
 const DashboardPage = () => {
   const navigate = useNavigate();
   const [monthlyData, setMonthlyData] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState('6months');
   const lineChartRef = useRef(null);
   const barChartRef = useRef(null);
 
   useEffect(() => {
-    generateMockData();
+    loadDashboardData();
     return () => {
       if (lineChartRef.current?.chartInstance) lineChartRef.current.chartInstance.destroy();
       if (barChartRef.current?.chartInstance) barChartRef.current.chartInstance.destroy();
     };
   }, [selectedPeriod]);
 
-  const generateMockData = () => {
-    const currentYear = new Date().getFullYear();
-    const months = selectedPeriod === '6months' ? 6 : 12;
-    const data = Array.from({ length: months }, (_, i) => ({
-      month: new Date(currentYear, new Date().getMonth() - months + i + 1, 1).toLocaleString('default', { month: 'short' }),
-      deposits: Math.floor(Math.random() * 500000) + 100000,
-      withdrawals: Math.floor(Math.random() * 300000) + 50000,
-      loans: Math.floor(Math.random() * 200000) + 30000,
-      interest: Math.floor(Math.random() * 50000) + 10000,
-    }));
-    setMonthlyData(data);
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch all dashboard data in parallel
+      const [statsData, trendData, activityData] = await Promise.all([
+        calculateDashboardStats(),
+        getMonthlyTrendData(selectedPeriod === '6months' ? 6 : 12),
+        getRecentActivity(10),
+      ]);
+
+      if (statsData) setStats(statsData);
+      setMonthlyData(trendData);
+      setRecentActivities(activityData);
+    } catch (err) {
+      console.error('Error loading dashboard data:', err);
+      setError('Failed to load dashboard data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Mock stats
-  const stats = {
-    totalMembers: 2547,
-    activeMembers: 2189,
-    suspendedMembers: 358,
-    totalSavings: 45230500,
-    totalLoans: 12500000,
-    monthlyInterest: 185000,
-    memberGrowth: 12.5,
+  // Default stats while loading
+  const displayStats = stats || {
+    totalMembers: 0,
+    activeMembers: 0,
+    suspendedMembers: 0,
+    totalSavings: 0,
+    totalLoans: 0,
+    monthlyInterest: 0,
+    memberGrowth: 0,
   };
 
   const memberStatusData = {
     labels: ['Active', 'Suspended'],
     datasets: [{
-      data: [stats.activeMembers, stats.suspendedMembers],
+      data: [displayStats.activeMembers, displayStats.suspendedMembers],
       backgroundColor: ['#10b981', '#ef4444'],
       borderColor: '#ffffff',
       borderWidth: 2,
@@ -127,6 +146,14 @@ const DashboardPage = () => {
 
   return (
     <div className="dashboard-container">
+      {/* Error Banner */}
+      {error && (
+        <div className="error-banner">
+          <p>{error}</p>
+          <button onClick={loadDashboardData}>Retry</button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="dashboard-header">
         <div>
@@ -149,6 +176,14 @@ const DashboardPage = () => {
         </div>
       </div>
 
+      {/* Loading State */}
+      {loading && !stats ? (
+        <div className="loading-container">
+          <Spinner size={32} weight="bold" />
+          <p>Loading dashboard data...</p>
+        </div>
+      ) : (
+
       {/* Key Metrics - Compact Grid */}
       <div className="metrics-grid-compact">
         <div className="metric-card-compact member-metric" onClick={() => navigate('/members')}>
@@ -156,8 +191,8 @@ const DashboardPage = () => {
             <UsersThree size={18} />
             <span className="metric-label">Total Members</span>
           </div>
-          <h3 className="metric-value-compact">{stats.totalMembers.toLocaleString()}</h3>
-          <p className="metric-growth"><span className="positive">{stats.memberGrowth}% growth</span></p>
+          <h3 className="metric-value-compact">{displayStats.totalMembers.toLocaleString()}</h3>
+          <p className="metric-growth"><span className="positive">{displayStats.memberGrowth}% growth</span></p>
           <p className="metric-link">View all <ArrowRight size={12} /></p>
         </div>
 
@@ -166,7 +201,7 @@ const DashboardPage = () => {
             <PiggyBank size={18} />
             <span className="metric-label">Total Savings</span>
           </div>
-          <h3 className="metric-value-compact">KES {(stats.totalSavings / 1000000).toFixed(1)}M</h3>
+          <h3 className="metric-value-compact">KES {(displayStats.totalSavings / 1000000).toFixed(1)}M</h3>
           <p className="metric-subtext-compact">Across all accounts</p>
           <p className="metric-link">View deposits <ArrowRight size={12} /></p>
         </div>
@@ -176,7 +211,7 @@ const DashboardPage = () => {
             <Money size={18} />
             <span className="metric-label">Outstanding Loans</span>
           </div>
-          <h3 className="metric-value-compact">KES {(stats.totalLoans / 1000000).toFixed(1)}M</h3>
+          <h3 className="metric-value-compact">KES {(displayStats.totalLoans / 1000000).toFixed(1)}M</h3>
           <p className="metric-subtext-compact">Active portfolio</p>
           <p className="metric-link">View loans <ArrowRight size={12} /></p>
         </div>
@@ -186,7 +221,7 @@ const DashboardPage = () => {
             <TrendUp size={18} />
             <span className="metric-label">Monthly Interest</span>
           </div>
-          <h3 className="metric-value-compact">KES {(stats.monthlyInterest / 1000).toFixed(0)}K</h3>
+          <h3 className="metric-value-compact">KES {(displayStats.monthlyInterest / 1000).toFixed(0)}K</h3>
           <p className="metric-subtext-compact">This month</p>
           <p className="metric-link">View reports <ArrowRight size={12} /></p>
         </div>
@@ -202,11 +237,11 @@ const DashboardPage = () => {
           <div className="chart-stats-compact">
             <div className="stat-item-compact">
               <span className="stat-dot active"></span>
-              <span>Active: {stats.activeMembers}</span>
+              <span>Active: {displayStats.activeMembers}</span>
             </div>
             <div className="stat-item-compact">
               <span className="stat-dot suspended"></span>
-              <span>Suspended: {stats.suspendedMembers}</span>
+              <span>Suspended: {displayStats.suspendedMembers}</span>
             </div>
           </div>
         </div>
@@ -231,49 +266,75 @@ const DashboardPage = () => {
         <div className="activity-section-compact">
           <h3 className="section-title">Recent Activity</h3>
           <div className="activity-list-compact">
-            <div className="activity-item-compact" onClick={() => navigate('/members')}>
-              <div className="activity-icon deposit">
-                <PiggyBank size={14} />
+            {loading ? (
+              <div className="loading-spinner">
+                <Spinner size={24} weight="bold" />
+                <p>Loading activities...</p>
               </div>
-              <div className="activity-details-compact">
-                <p className="activity-name">New Member Registration</p>
-                <p className="activity-time">5 minutes ago</p>
-              </div>
-              <p className="activity-amount">+1</p>
-            </div>
+            ) : recentActivities.length > 0 ? (
+              recentActivities.map((activity, index) => {
+                const getActivityIcon = () => {
+                  switch (activity.type) {
+                    case 'deposit':
+                      return <PiggyBank size={14} />;
+                    case 'withdrawal':
+                      return <ArrowDownLeft size={14} />;
+                    case 'loan':
+                      return <Money size={14} />;
+                    case 'member_registration':
+                      return <UsersThree size={14} />;
+                    default:
+                      return <TrendUp size={14} />;
+                  }
+                };
 
-            <div className="activity-item-compact" onClick={() => navigate('/withdrawals')}>
-              <div className="activity-icon withdrawal">
-                <ArrowDownLeft size={14} />
-              </div>
-              <div className="activity-details-compact">
-                <p className="activity-name">Withdrawal Processed</p>
-                <p className="activity-time">32 minutes ago</p>
-              </div>
-              <p className="activity-amount">KES 50K</p>
-            </div>
+                const getActivityRoute = () => {
+                  switch (activity.type) {
+                    case 'deposit':
+                      return '/deposits';
+                    case 'withdrawal':
+                      return '/withdrawals';
+                    case 'loan':
+                      return '/loans';
+                    case 'member_registration':
+                      return '/members';
+                    default:
+                      return '/dashboard';
+                  }
+                };
 
-            <div className="activity-item-compact" onClick={() => navigate('/loans')}>
-              <div className="activity-icon loan">
-                <Money size={14} />
-              </div>
-              <div className="activity-details-compact">
-                <p className="activity-name">Loan Disbursement</p>
-                <p className="activity-time">2 hours ago</p>
-              </div>
-              <p className="activity-amount">KES 150K</p>
-            </div>
+                const getTimeSince = (timestamp) => {
+                  const date = new Date(timestamp);
+                  const now = new Date();
+                  const seconds = Math.floor((now - date) / 1000);
+                  
+                  if (seconds < 60) return 'just now';
+                  const minutes = Math.floor(seconds / 60);
+                  if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+                  const hours = Math.floor(minutes / 60);
+                  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+                  const days = Math.floor(hours / 24);
+                  return `${days} day${days > 1 ? 's' : ''} ago`;
+                };
 
-            <div className="activity-item-compact" onClick={() => navigate('/dashboard')}>
-              <div className="activity-icon interest">
-                <TrendUp size={14} />
+                return (
+                  <div key={index} className="activity-item-compact" onClick={() => navigate(getActivityRoute())}>
+                    <div className={`activity-icon ${activity.type}`}>
+                      {getActivityIcon()}
+                    </div>
+                    <div className="activity-details-compact">
+                      <p className="activity-name">{activity.description}</p>
+                      <p className="activity-time">{getTimeSince(activity.timestamp)}</p>
+                    </div>
+                    <p className="activity-amount">{activity.amount}</p>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="no-activities">
+                <p>No recent activities</p>
               </div>
-              <div className="activity-details-compact">
-                <p className="activity-name">Interest Accrued</p>
-                <p className="activity-time">4 hours ago</p>
-              </div>
-              <p className="activity-amount">KES 12.5K</p>
-            </div>
+            )}
           </div>
         </div>
 
@@ -298,7 +359,7 @@ const DashboardPage = () => {
             </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
