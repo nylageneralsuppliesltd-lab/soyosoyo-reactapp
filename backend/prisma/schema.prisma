@@ -151,6 +151,9 @@ model ExpenseCategory {
   isAdmin     Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  
+  // Link to auto-created ledger for this category
+  categoryLedger CategoryLedger? @relation("ExpenseCategoryLedger")
 }
 
 model IncomeCategory {
@@ -159,6 +162,61 @@ model IncomeCategory {
   description String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  
+  // Link to auto-created ledger for this category
+  categoryLedger CategoryLedger? @relation("IncomeCategoryLedger")
+}
+
+model CategoryLedger {
+  id               Int       @id @default(autoincrement())
+  categoryType     String    // 'income' or 'expense'
+  categoryName     String    @unique
+  
+  // Relations to categories
+  expenseCategory  ExpenseCategory? @relation("ExpenseCategoryLedger", fields: [expenseCategoryId], references: [id], onDelete: Cascade)
+  expenseCategoryId Int? @unique
+  
+  incomeCategory   IncomeCategory? @relation("IncomeCategoryLedger", fields: [incomeCategoryId], references: [id], onDelete: Cascade)
+  incomeCategoryId Int? @unique
+  
+  // Ledger totals
+  totalAmount      Decimal   @default(0) @db.Decimal(14, 2)
+  balance          Decimal   @default(0) @db.Decimal(14, 2)
+  
+  // Entries posted to this ledger
+  entries          CategoryLedgerEntry[]
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  @@index([categoryType])
+  @@index([categoryName])
+}
+
+model CategoryLedgerEntry {
+  id               Int       @id @default(autoincrement())
+  categoryLedger   CategoryLedger @relation(fields: [categoryLedgerId], references: [id], onDelete: Cascade)
+  categoryLedgerId Int
+  
+  type             String    // 'debit', 'credit', 'transfer'
+  amount           Decimal   @db.Decimal(14, 2)
+  description      String?
+  narration        String?
+  reference        String?
+  
+  // Source information
+  sourceType       String?   // 'deposit', 'withdrawal', 'manual_journal', 'transfer', 'invoice'
+  sourceId         String?   // Reference ID to source transaction
+  
+  balanceAfter     Decimal   @db.Decimal(14, 2)
+  
+  date             DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  @@index([categoryLedgerId])
+  @@index([date])
+  @@index([sourceType])
 }
 
 model FineCategory {

@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { CategoryLedgerService } from '../category-ledger/category-ledger.service';
 
 @Injectable()
 export class SettingsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private categoryLedgerService: CategoryLedgerService,
+  ) {}
 
   // ============== ACCOUNTS ==============
   async getAccounts() {
@@ -47,11 +51,24 @@ export class SettingsService {
   async getExpenseCategories() {
     return this.prisma.expenseCategory.findMany({
       orderBy: { name: 'asc' },
+      include: { categoryLedger: true },
     });
   }
 
   async createExpenseCategory(data: any) {
-    return this.prisma.expenseCategory.create({ data });
+    const category = await this.prisma.expenseCategory.create({ data });
+    
+    // Auto-create category ledger
+    await this.categoryLedgerService.createCategoryLedger(
+      'expense',
+      category.id,
+      category.name,
+    );
+
+    return this.prisma.expenseCategory.findUnique({
+      where: { id: category.id },
+      include: { categoryLedger: true },
+    });
   }
 
   async updateExpenseCategory(id: number, data: any) {
@@ -66,11 +83,24 @@ export class SettingsService {
   async getIncomeCategories() {
     return this.prisma.incomeCategory.findMany({
       orderBy: { name: 'asc' },
+      include: { categoryLedger: true },
     });
   }
 
   async createIncomeCategory(data: any) {
-    return this.prisma.incomeCategory.create({ data });
+    const category = await this.prisma.incomeCategory.create({ data });
+    
+    // Auto-create category ledger
+    await this.categoryLedgerService.createCategoryLedger(
+      'income',
+      category.id,
+      category.name,
+    );
+
+    return this.prisma.incomeCategory.findUnique({
+      where: { id: category.id },
+      include: { categoryLedger: true },
+    });
   }
 
   async updateIncomeCategory(id: number, data: any) {

@@ -14,6 +14,7 @@ import { AccountsModule } from './accounts/accounts.module';
 import { GeneralLedgerModule } from './general-ledger/general-ledger.module';
 import { FinesModule } from './fines/fines.module';
 import { InvoicingModule } from './invoicing/invoicing.module';
+import { CategoryLedgerModule } from './category-ledger/category-ledger.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -31,6 +32,7 @@ import { AppController } from './app.controller';
     GeneralLedgerModule,
     FinesModule,
     InvoicingModule,
+    CategoryLedgerModule,
   ],
   controllers: [AppController],
 })
