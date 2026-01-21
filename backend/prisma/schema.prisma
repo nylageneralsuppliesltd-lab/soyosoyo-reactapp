@@ -260,6 +260,9 @@ model Account {
   creditEntries  JournalEntry[] @relation("CreditAccount")
   deposits       Deposit[]   @relation("DepositAccount")
   withdrawals    Withdrawal[] @relation("WithdrawalAccount")
+  assetPurchases Asset[]     @relation("AssetPurchaseAccount")
+  assetDisposals Asset[]     @relation("AssetDisposalAccount")
+  assetTransactions AssetTransaction[] @relation("AssetTransactionAccount")
   
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
@@ -450,6 +453,73 @@ model JournalEntry {
   @@index([reference])
 }
 
+// ============== ASSETS ==============
+model Asset {
+  id              Int       @id @default(autoincrement())
+  name            String
+  description     String?
+  category        String    // Equipment, Vehicle, Building, Furniture, etc.
+  
+  // Purchase details
+  purchasePrice   Decimal   @db.Decimal(14, 2)
+  purchaseDate    DateTime  @db.Date
+  purchaseAccount Account?  @relation("AssetPurchaseAccount", fields: [purchaseAccountId], references: [id], onDelete: SetNull)
+  purchaseAccountId Int?
+  
+  // Current value
+  currentValue    Decimal   @db.Decimal(14, 2)
+  depreciationRate Decimal? @db.Decimal(5, 2) // Annual depreciation percentage
+  lastValueUpdate DateTime? @db.Date
+  
+  // Disposal/Selling
+  status          String    @default("active")      // active, sold, disposed, damaged
+  disposalDate    DateTime? @db.Date
+  disposalPrice   Decimal?  @db.Decimal(14, 2)
+  disposalAccount Account?  @relation("AssetDisposalAccount", fields: [disposalAccountId], references: [id], onDelete: SetNull)
+  disposalAccountId Int?
+  disposalReason  String?
+  
+  // Tracking
+  transactions    AssetTransaction[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([category])
+  @@index([status])
+  @@index([purchaseDate])
+}
+
+model AssetTransaction {
+  id              Int       @id @default(autoincrement())
+  asset           Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId         Int
+  
+  type            String    // 'purchase', 'sale', 'depreciation', 'adjustment'
+  amount          Decimal   @db.Decimal(14, 2)
+  
+  // Account affected
+  account         Account?  @relation("AssetTransactionAccount", fields: [accountId], references: [id], onDelete: SetNull)
+  accountId       Int?
+  accountName     String?   // Cached account name (cash, mpesa, bank, etc.)
+  accountType     String?   // Cached account type
+  
+  description     String?
+  reference       String?
+  notes           String?
+  
+  // For sales transactions
+  gainLoss        Decimal?  @db.Decimal(14, 2)  // Difference between disposal price and current value
+  
+  date            DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([assetId])
+  @@index([type])
+  @@index([date])
+  @@index([accountId])
+}
+
 // ============== INVOICE TEMPLATES ==============
 model InvoiceTemplate {
   id            Int       @id @default(autoincrement())
@@ -515,26 +585,6 @@ model InvoiceLog {
   @@index([action])
   @@index([createdAt])
 }
-
-// ============== ASSETS ==============
-model Asset {
-  id               Int       @id @default(autoincrement())
-  name             String
-  description      String?
-  category         String?   // Equipment, Vehicle, Building, etc.
-  purchaseDate     DateTime? @db.Date
-  purchasePrice    Decimal?  @db.Decimal(14, 2)
-  currentValue     Decimal?  @db.Decimal(14, 2)
-  location         String?
-  serialNumber     String?
-  condition        String?   // Excellent, Good, Fair, Poor
-  notes            String?
-  isActive         Boolean   @default(true)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-}
-
-
 
 model history {
   id                 Int       @id @default(autoincrement())
