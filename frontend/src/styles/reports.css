@@ -196,9 +196,7 @@
 .filter-field input:focus,
 .filter-field select:focus {
   outline: none;
-  ring: 2px;
-  ring-color: var(--primary-color);
-  border-color: transparent;
+  border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
