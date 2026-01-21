@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { financeAPI } from '../components/members/financeAPI';
+import AccountsSettings from '../components/settings/AccountsSettings';
+import AssetsSettings from '../components/settings/AssetsSettings';
 import '../styles/settings.css';
 
 const SettingsPage = () => {
@@ -233,6 +235,12 @@ const SettingsPage = () => {
           {/* Configuration Tabs */}
           <div className="config-tabs">
             <button 
+              className={`tab ${activeTab2 === 'accounts' ? 'active' : ''}`}
+              onClick={() => setActiveTab2('accounts')}
+            >
+              🏦 Accounts
+            </button>
+            <button 
               className={`tab ${activeTab2 === 'contributions' ? 'active' : ''}`}
               onClick={() => setActiveTab2('contributions')}
             >
@@ -268,7 +276,20 @@ const SettingsPage = () => {
             >
               📄 Invoices
             </button>
+            <button 
+              className={`tab ${activeTab2 === 'assets' ? 'active' : ''}`}
+              onClick={() => setActiveTab2('assets')}
+            >
+              🏢 Assets
+            </button>
           </div>
+
+          {/* CONTRIBUTION TYPES */}
+          {activeTab2 === 'accounts' && (
+            <div className="card">
+              <AccountsSettings />
+            </div>
+          )}
 
           {/* CONTRIBUTION TYPES */}
           {activeTab2 === 'contributions' && (
@@ -519,6 +540,12 @@ const SettingsPage = () => {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab2 === 'assets' && (
+            <div className="card">
+              <AssetsSettings />
             </div>
           )}
         </div>
