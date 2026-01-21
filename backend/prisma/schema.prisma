@@ -95,6 +95,7 @@ model Member {
   loans              Loan[]
   repayments         Repayment[]
   fines              Fine[]
+  invoices           MemberInvoice[]
   
   nextOfKin          Json?     
   createdAt          DateTime  @default(now())
@@ -112,6 +113,12 @@ model Ledger {
   balanceAfter Float
   date         DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  
+  // Link to invoice that triggered this ledger entry
+  memberInvoice MemberInvoice? @relation("InvoiceLedger", fields: [memberInvoiceId], references: [id], onDelete: SetNull)
+  memberInvoiceId Int?
+
+  @@index([memberInvoiceId])
 }
 
 // ============== SETTINGS & CONFIGURATION ==============
@@ -132,6 +139,9 @@ model ContributionType {
   visibleInvoicing    Boolean   @default(true)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+  
+  // Relationship to generated invoices
+  memberInvoices      MemberInvoice[]
 }
 
 model ExpenseCategory {
@@ -393,6 +403,59 @@ model InvoiceTemplate {
   description   String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+// ============== MEMBER INVOICES (Auto-generated from Contribution Types) ==============
+model MemberInvoice {
+  id                    Int           @id @default(autoincrement())
+  member                Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId              Int
+  contributionType      ContributionType? @relation(fields: [contributionTypeId], references: [id], onDelete: SetNull)
+  contributionTypeId    Int?
+  
+  invoiceNumber         String        @unique
+  amount                Decimal       @db.Decimal(14, 2)
+  invoiceDate           DateTime      @db.Date
+  dueDate               DateTime      @db.Date
+  
+  status                String        @default("sent")      // sent, viewed, paid, overdue, cancelled
+  paidAmount            Decimal       @default(0) @db.Decimal(14, 2)
+  paidDate              DateTime?     @db.Date
+  
+  smsNotificationSent   Boolean       @default(false)
+  emailNotificationSent Boolean       @default(false)
+  notificationSentAt    DateTime?
+  
+  description           String?
+  notes                 String?
+  
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  
+  ledgerEntries         Ledger[]      @relation("InvoiceLedger")
+  logs                  InvoiceLog[]
+
+  @@index([memberId])
+  @@index([invoiceDate])
+  @@index([dueDate])
+  @@index([status])
+}
+
+// ============== INVOICE LOG (Audit Trail) ==============
+model InvoiceLog {
+  id                    String        @id @default(cuid())
+  memberInvoice         MemberInvoice @relation(fields: [memberInvoiceId], references: [id], onDelete: Cascade)
+  memberInvoiceId       Int
+  
+  action                String        // generated, sent_sms, sent_email, paid, overdue_reminder
+  status                String        // success, failed, pending
+  details               Json?         // Error details, delivery status, etc.
+  
+  createdAt             DateTime      @default(now())
+  
+  @@index([memberInvoiceId])
+  @@index([action])
+  @@index([createdAt])
 }
 
 // ============== ASSETS ==============

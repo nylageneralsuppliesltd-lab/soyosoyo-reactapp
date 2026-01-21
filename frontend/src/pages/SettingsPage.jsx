@@ -17,6 +17,7 @@ const SettingsPage = () => {
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({});
   const [activeTab2, setActiveTab2] = useState('contributions');
+  const [invoiceDateManuallySet, setInvoiceDateManuallySet] = useState(false);
 
   // System Settings
   const [systemSettings, setSystemSettings] = useState({
@@ -72,9 +73,38 @@ const SettingsPage = () => {
 
   const handleAddNew = (tab) => {
     setActiveTab2(tab);
-    setFormData({});
+    // Preload sensible defaults for contribution scheduling so invoicing can auto-trigger.
+    const defaults =
+      tab === 'contributions'
+        ? {
+            frequency: 'Monthly',
+            typeCategory: 'Regular Contribution',
+            dayOfMonth: '3',
+            smsNotifications: true,
+            emailNotifications: true,
+            finesEnabled: false,
+            invoiceAllMembers: true,
+            visibleInvoicing: true,
+          }
+        : {};
+    setFormData(defaults);
     setEditingId(null);
     setShowForm(true);
+    setInvoiceDateManuallySet(false);
+  };
+
+  const formatDateInput = (value) => {
+    if (!value) return '';
+    const d = typeof value === 'string' ? value : value.toString();
+    return d.length >= 10 ? d.substring(0, 10) : d;
+  };
+
+  const computeInvoiceDateFromDue = (dueDateString) => {
+    if (!dueDateString) return '';
+    const d = new Date(dueDateString);
+    if (Number.isNaN(d.getTime())) return '';
+    d.setDate(d.getDate() - 3);
+    return d.toISOString().substring(0, 10);
   };
 
   const handleSave = async () => {
@@ -307,8 +337,9 @@ const SettingsPage = () => {
                       <tr>
                         <th>Name</th>
                         <th>Amount</th>
-                        <th>Frequency</th>
-                        <th>SMS</th>
+                        <th>Schedule</th>
+                        <th>Invoice & Due</th>
+                        <th>Notifications</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -317,12 +348,29 @@ const SettingsPage = () => {
                         <tr key={ct.id}>
                           <td>{ct.name}</td>
                           <td>{ct.amount ? `KES ${parseInt(ct.amount).toLocaleString()}` : '-'}</td>
-                          <td>{ct.frequency || '-'}</td>
-                          <td>{ct.smsNotifications ? '✓' : '✗'}</td>
+                          <td>
+                            <div>{ct.typeCategory || 'Regular Contribution'}</div>
+                            <div style={{ color: '#666', fontSize: '12px' }}>
+                              {ct.frequency || '-'} {ct.dayOfMonth ? `(Day ${ct.dayOfMonth})` : ''}
+                            </div>
+                            <div style={{ color: '#666', fontSize: '12px' }}>
+                              {ct.invoiceAllMembers ? 'All members' : 'Segmented'} · {ct.visibleInvoicing ? 'Invoicing Active' : 'Hidden'}
+                            </div>
+                          </td>
+                          <td>
+                            <div>Invoice: {ct.invoiceDate ? formatDateInput(ct.invoiceDate) : '-'}</div>
+                            <div>Contribution: {ct.dueDate ? formatDateInput(ct.dueDate) : '-'}</div>
+                          </td>
+                          <td>
+                            <div>{ct.smsNotifications ? 'SMS ✓' : 'SMS ✗'}</div>
+                            <div>{ct.emailNotifications ? 'Email ✓' : 'Email ✗'}</div>
+                            <div>{ct.finesEnabled ? 'Fines On' : 'Fines Off'}</div>
+                          </td>
                           <td>
                             <button className="btn-edit" onClick={() => {
                               setFormData(ct);
                               setEditingId(ct.id);
+                              setInvoiceDateManuallySet(true);
                               setShowForm(true);
                             }}>Edit</button>
                             <button className="btn-delete" onClick={() => handleDelete(ct.id, 'contribution-types')}>Delete</button>
@@ -562,11 +610,11 @@ const SettingsPage = () => {
                 <>
                   <div className="form-group">
                     <label>Name *</label>
-                    <input type="text" value={formData.name || ''} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g., Monthly Savings" required/>
+                    <input type="text" value={formData.name || ''} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g., Monthly Minimum Contribution" required/>
                   </div>
                   <div className="form-group">
                     <label>Amount (KES) *</label>
-                    <input type="number" step="0.01" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: parseFloat(e.target.value)})} required/>
+                    <input type="number" step="0.01" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: parseFloat(e.target.value)})} placeholder="e.g., 200.00" required/>
                   </div>
                   <div className="form-group">
                     <label>Frequency</label>
@@ -580,15 +628,80 @@ const SettingsPage = () => {
                     </select>
                   </div>
                   <div className="form-group">
+                    <label>Contribution Type</label>
+                    <select value={formData.typeCategory || ''} onChange={(e) => setFormData({...formData, typeCategory: e.target.value})}>
+                      <option value="Regular Contribution">Regular Contribution</option>
+                      <option value="One-Time">One-Time</option>
+                      <option value="Entrance Fee">Entrance Fee</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Day of Month (1-31)</label>
+                    <input type="number" min="1" max="31" value={formData.dayOfMonth || ''} onChange={(e) => setFormData({...formData, dayOfMonth: e.target.value})} placeholder="e.g., 3 (every 3rd)" />
+                  </div>
+                  <div className="form-group">
+                    <label>Invoice Date (auto-trigger)</label>
+                    <input
+                      type="date"
+                      value={formatDateInput(formData.invoiceDate)}
+                      onChange={(e) => {
+                        setInvoiceDateManuallySet(true);
+                        setFormData({...formData, invoiceDate: e.target.value});
+                      }}
+                    />
+                    <small style={{ color: '#666' }}>Defaults to 3 days before contribution date.</small>
+                  </div>
+                  <div className="form-group">
+                    <label>Contribution Date / Due Date</label>
+                    <input
+                      type="date"
+                      value={formatDateInput(formData.dueDate)}
+                      onChange={(e) => {
+                        const newDue = e.target.value;
+                        const autoInvoice = !invoiceDateManuallySet ? computeInvoiceDateFromDue(newDue) : formData.invoiceDate;
+                        setFormData({...formData, dueDate: newDue, invoiceDate: autoInvoice});
+                      }}
+                      placeholder="e.g., 2026-02-03"
+                    />
+                  </div>
+                  <div className="form-group">
                     <label>SMS Notifications</label>
                     <select value={formData.smsNotifications ? 'yes' : 'no'} onChange={(e) => setFormData({...formData, smsNotifications: e.target.value === 'yes'})}>
                       <option value="yes">Enabled</option>
                       <option value="no">Disabled</option>
                     </select>
                   </div>
+                  <div className="form-group">
+                    <label>Email Notifications</label>
+                    <select value={formData.emailNotifications ? 'yes' : 'no'} onChange={(e) => setFormData({...formData, emailNotifications: e.target.value === 'yes'})}>
+                      <option value="yes">Enabled</option>
+                      <option value="no">Disabled</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Fines</label>
+                    <select value={formData.finesEnabled ? 'yes' : 'no'} onChange={(e) => setFormData({...formData, finesEnabled: e.target.value === 'yes'})}>
+                      <option value="no">Disabled</option>
+                      <option value="yes">Enabled</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Invoice Audience</label>
+                    <select value={formData.invoiceAllMembers ? 'all' : 'segment'} onChange={(e) => setFormData({...formData, invoiceAllMembers: e.target.value === 'all'})}>
+                      <option value="all">All members</option>
+                      <option value="segment">Specific members (future filter)</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Invoicing Active</label>
+                    <select value={formData.visibleInvoicing ? 'yes' : 'no'} onChange={(e) => setFormData({...formData, visibleInvoicing: e.target.value === 'yes'})}>
+                      <option value="yes">Active (send and post)</option>
+                      <option value="no">Inactive / draft</option>
+                    </select>
+                  </div>
                   <div className="form-group full-width">
                     <label>Description</label>
-                    <textarea value={formData.description || ''} onChange={(e) => setFormData({...formData, description: e.target.value})} placeholder="Optional description" />
+                    <textarea value={formData.description || ''} onChange={(e) => setFormData({...formData, description: e.target.value})} placeholder="e.g., Once a month, invoice 3 days before month-end; applies to all active members" />
                   </div>
                 </>
               )}
