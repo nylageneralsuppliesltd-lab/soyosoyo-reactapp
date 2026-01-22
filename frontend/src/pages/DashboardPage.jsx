@@ -183,7 +183,7 @@ const DashboardPage = () => {
           <p>Loading dashboard data...</p>
         </div>
       ) : (
-
+      <>
       {/* Key Metrics - Compact Grid */}
       <div className="metrics-grid-compact">
         <div className="metric-card-compact member-metric" onClick={() => navigate('/members')}>
@@ -359,6 +359,8 @@ const DashboardPage = () => {
             </button>
           </div>
         </div>
+      </div>
+      </>
       )}
     </div>
   );
