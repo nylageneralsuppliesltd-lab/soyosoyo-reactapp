@@ -20,8 +20,20 @@ export class WithdrawalsController {
   @Post('expense')
   async createExpense(@Body() data: any) {
     try {
+      // Validate required fields
+      if (!data.amount || isNaN(parseFloat(data.amount)) || parseFloat(data.amount) <= 0) {
+        throw new BadRequestException('Valid amount is required');
+      }
+      if (!data.category || typeof data.category !== 'string' || data.category.trim() === '') {
+        throw new BadRequestException('Expense category is required');
+      }
+
       return await this.withdrawalsService.createExpense(data);
     } catch (error) {
+      // If it's already an HttpException, rethrow it
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         error.message || 'Failed to create expense',
         error.status || HttpStatus.BAD_REQUEST,
@@ -32,8 +44,16 @@ export class WithdrawalsController {
   @Post('transfer')
   async createTransfer(@Body() data: any) {
     try {
+      // Validate required fields
+      if (!data.amount || isNaN(parseFloat(data.amount)) || parseFloat(data.amount) <= 0) {
+        throw new BadRequestException('Valid amount is required');
+      }
+
       return await this.withdrawalsService.createTransfer(data);
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         error.message || 'Failed to create transfer',
         error.status || HttpStatus.BAD_REQUEST,
@@ -44,8 +64,16 @@ export class WithdrawalsController {
   @Post('refund')
   async createRefund(@Body() data: any) {
     try {
+      // Validate required fields
+      if (!data.amount || isNaN(parseFloat(data.amount)) || parseFloat(data.amount) <= 0) {
+        throw new BadRequestException('Valid amount is required');
+      }
+
       return await this.withdrawalsService.createRefund(data);
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         error.message || 'Failed to create refund',
         error.status || HttpStatus.BAD_REQUEST,
@@ -56,8 +84,16 @@ export class WithdrawalsController {
   @Post('dividend')
   async createDividend(@Body() data: any) {
     try {
+      // Validate required fields
+      if (!data.amount || isNaN(parseFloat(data.amount)) || parseFloat(data.amount) <= 0) {
+        throw new BadRequestException('Valid amount is required');
+      }
+
       return await this.withdrawalsService.createDividend(data);
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         error.message || 'Failed to create dividend payout',
         error.status || HttpStatus.BAD_REQUEST,
@@ -75,10 +111,19 @@ export class WithdrawalsController {
     @Query('take') take?: string,
     @Query('skip') skip?: string,
   ) {
-    return this.withdrawalsService.findAll(
-      take ? parseInt(take) : 100,
-      skip ? parseInt(skip) : 0,
-    );
+    // Validate and parse query parameters
+    const takeNum = take ? parseInt(take, 10) : 100;
+    const skipNum = skip ? parseInt(skip, 10) : 0;
+
+    if (isNaN(takeNum) || takeNum < 0) {
+      throw new BadRequestException('Invalid take parameter - must be a positive number');
+    }
+
+    if (isNaN(skipNum) || skipNum < 0) {
+      throw new BadRequestException('Invalid skip parameter - must be a non-negative number');
+    }
+
+    return this.withdrawalsService.findAll(takeNum, skipNum);
   }
 
   @Get('member/:memberId')

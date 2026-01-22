@@ -95,12 +95,18 @@ const ExpenseForm = ({ onSuccess }) => {
           if (onSuccess) onSuccess();
         }, 1500);
       } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Failed to record expense');
+        let errorMsg = 'Failed to record expense';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorMsg;
+        } catch {
+          // If response body is not JSON, use default message
+        }
+        setError(errorMsg);
       }
     } catch (error) {
       console.error('Error recording expense:', error);
-      setError('An error occurred. Please try again.');
+      setError(error.message || 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -82,52 +82,58 @@ export class WithdrawalsService {
       throw new BadRequestException('Valid amount is required');
     }
 
-    if (!category) {
+    if (!category || typeof category !== 'string' || category.trim() === '') {
       throw new BadRequestException('Expense category is required');
     }
 
-    const parsedDate = new Date(date || new Date());
-    const amountDecimal = new Prisma.Decimal(amount);
+    try {
+      const parsedDate = new Date(date || new Date());
+      const amountDecimal = new Prisma.Decimal(amount);
 
-    // Get or create expense category
-    let expenseCategory = await this.prisma.expenseCategory.findFirst({
-      where: { name: category },
-    });
+      // Validate the parsed amount
+      if (isNaN(amountDecimal.toNumber()) || amountDecimal.toNumber() <= 0) {
+        throw new BadRequestException('Amount must be a valid positive number');
+      }
 
-    if (!expenseCategory) {
-      expenseCategory = await this.prisma.expenseCategory.create({
-        data: { name: category },
+      // Get or create expense category
+      let expenseCategory = await this.prisma.expenseCategory.findFirst({
+        where: { name: category },
       });
-    }
 
-    // Get accounts
-    const cashAccount = accountId
-      ? await this.prisma.account.findUnique({ where: { id: accountId } })
-      : await this.ensureAccountByName('Cashbox', 'cash', 'Default cash account');
+      if (!expenseCategory) {
+        expenseCategory = await this.prisma.expenseCategory.create({
+          data: { name: category },
+        });
+      }
 
-    if (!cashAccount) {
-      throw new NotFoundException('Cash account not found');
-    }
+      // Get accounts
+      const cashAccount = accountId
+        ? await this.prisma.account.findUnique({ where: { id: accountId } })
+        : await this.ensureAccountByName('Cashbox', 'cash', 'Default cash account');
 
-    const expenseAccount = await this.ensureAccountByName(
-      category,
-      'expense',
-      `Expense account for ${category}`,
-    );
+      if (!cashAccount) {
+        throw new NotFoundException('Cash account not found');
+      }
 
-    // Create withdrawal record
-    const withdrawal = await this.prisma.withdrawal.create({
-      data: {
-        type: 'expense',
+      const expenseAccount = await this.ensureAccountByName(
         category,
-        amount: amountDecimal,
-        description: description || `Expense - ${category}`,
-        narration: notes || null,
-        reference: reference || null,
-        method: paymentMethod,
-        accountId: cashAccount.id,
-        date: parsedDate,
-      },
+        'expense',
+        `Expense account for ${category}`,
+      );
+
+      // Create withdrawal record
+      const withdrawal = await this.prisma.withdrawal.create({
+        data: {
+          type: 'expense',
+          category,
+          amount: amountDecimal,
+          description: description || `Expense - ${category}`,
+          narration: notes || null,
+          reference: reference || null,
+          method: paymentMethod,
+          accountId: cashAccount.id,
+          date: parsedDate,
+        },
     });
 
     // Double-entry: DR Expense Account, CR Cash Account
