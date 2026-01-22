@@ -8,8 +8,20 @@ export class LoanTypesController {
   @Post()
   async create(@Body() data: any) {
     try {
+      if (!data.name || typeof data.name !== 'string' || data.name.trim() === '') {
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            message: 'Loan type name is required',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
       return await this.loanTypesService.create(data);
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         {
           status: HttpStatus.BAD_REQUEST,

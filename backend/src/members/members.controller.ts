@@ -35,9 +35,19 @@ export class MembersController {
     @Query('active') active?: string,
     @Query('sort') sort?: 'asc' | 'desc',
   ) {
+    const skipNum = skip ? parseInt(skip, 10) : 0;
+    const takeNum = take ? parseInt(take, 10) : 50;
+
+    if (isNaN(skipNum) || skipNum < 0) {
+      throw new Error('Invalid skip parameter - must be a non-negative number');
+    }
+    if (isNaN(takeNum) || takeNum < 0) {
+      throw new Error('Invalid take parameter - must be a positive number');
+    }
+
     return this.membersService.findAll({
-      skip: skip ? parseInt(skip) : 0,
-      take: take ? parseInt(take) : 50,
+      skip: skipNum,
+      take: takeNum,
       search,
       role,
       active: active === 'true' ? true : active === 'false' ? false : undefined,

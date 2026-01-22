@@ -24,11 +24,23 @@ export class DepositsController {
   async create(@Body() data: any) {
     try {
       console.log('[DepositsController] Creating deposit with data:', data);
+      
+      // Validate required fields
+      if (!data.amount || isNaN(parseFloat(data.amount)) || parseFloat(data.amount) <= 0) {
+        throw new BadRequestException('Valid amount is required');
+      }
+      if (!data.memberName && !data.memberId) {
+        throw new BadRequestException('Member name or ID is required');
+      }
+
       const result = await this.depositsService.create(data);
       console.log('[DepositsController] Deposit created successfully:', result);
       return result;
     } catch (error) {
       console.error('[DepositsController] Error creating deposit:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         {
           status: HttpStatus.BAD_REQUEST,
@@ -44,10 +56,17 @@ export class DepositsController {
     @Query('take') take?: string,
     @Query('skip') skip?: string,
   ) {
-    return this.depositsService.findAll(
-      take ? parseInt(take) : 100,
-      skip ? parseInt(skip) : 0,
-    );
+    const takeNum = take ? parseInt(take, 10) : 100;
+    const skipNum = skip ? parseInt(skip, 10) : 0;
+
+    if (isNaN(takeNum) || takeNum < 0) {
+      throw new BadRequestException('Invalid take parameter - must be a positive number');
+    }
+    if (isNaN(skipNum) || skipNum < 0) {
+      throw new BadRequestException('Invalid skip parameter - must be a non-negative number');
+    }
+
+    return this.depositsService.findAll(takeNum, skipNum);
   }
 
   @Get('member/:memberId')

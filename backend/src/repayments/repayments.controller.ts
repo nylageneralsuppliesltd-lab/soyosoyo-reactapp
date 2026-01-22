@@ -20,11 +20,35 @@ export class RepaymentsController {
   async create(@Body() data: any) {
     try {
       console.log('[RepaymentsController] Creating repayment with data:', data);
+      
+      // Validate required fields
+      if (!data.amount || isNaN(parseFloat(data.amount)) || parseFloat(data.amount) <= 0) {
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            message: 'Valid amount is required',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      if (!data.loanId) {
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            message: 'Loan ID is required',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
       const result = await this.repaymentsService.create(data);
       console.log('[RepaymentsController] Repayment created successfully:', result);
       return result;
     } catch (error) {
       console.error('[RepaymentsController] Error creating repayment:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         {
           status: HttpStatus.BAD_REQUEST,
@@ -40,10 +64,23 @@ export class RepaymentsController {
     @Query('take') take?: string,
     @Query('skip') skip?: string,
   ) {
-    return this.repaymentsService.findAll(
-      take ? parseInt(take) : 100,
-      skip ? parseInt(skip) : 0,
-    );
+    const takeNum = take ? parseInt(take, 10) : 100;
+    const skipNum = skip ? parseInt(skip, 10) : 0;
+
+    if (isNaN(takeNum) || takeNum < 0) {
+      throw new HttpException(
+        { success: false, message: 'Invalid take parameter - must be a positive number' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (isNaN(skipNum) || skipNum < 0) {
+      throw new HttpException(
+        { success: false, message: 'Invalid skip parameter - must be a non-negative number' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    return this.repaymentsService.findAll(takeNum, skipNum);
   }
 
   @Get('loan/:loanId')
