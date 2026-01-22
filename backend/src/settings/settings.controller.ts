@@ -172,4 +172,15 @@ export class SettingsController {
   async deleteAsset(@Param('id') id: string) {
     return this.settingsService.deleteAsset(+id);
   }
+
+  // ============== SHARE VALUE ==============
+  @Get('share-value')
+  async getShareValue() {
+    return this.settingsService.getShareValue();
+  }
+
+  @Patch('share-value')
+  async updateShareValue(@Body() data: any) {
+    return this.settingsService.updateShareValue(data);
+  }
 }

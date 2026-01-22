@@ -76,10 +76,14 @@ const ShareCapitalForm = ({ onSuccess }) => {
   const fetchShareValue = async () => {
     try {
       const response = await fetch(`${API_BASE}/settings/share-value`);
-      const data = await response.json();
-      if (data.value) setShareValue(parseFloat(data.value));
+      if (response.ok) {
+        const data = await response.json();
+        if (data.value) setShareValue(parseFloat(data.value));
+      }
+      // If endpoint doesn't exist (404), use default value of 100
     } catch (error) {
       console.error('Error fetching share value:', error);
+      // Use default share value of 100
     }
   };
 

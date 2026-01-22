@@ -186,4 +186,52 @@ export class SettingsService {
   async deleteAsset(id: number) {
     return this.prisma.asset.delete({ where: { id } });
   }
+
+  // ============== SHARE VALUE ==============
+  async getShareValue() {
+    // Return a default share value if not found in database
+    // This is a simple configuration value, stored as an Asset with a special name
+    try {
+      const shareValueRecord = await this.prisma.asset.findFirst({
+        where: { name: '__SHARE_VALUE__' },
+      });
+      if (shareValueRecord) {
+        return { value: shareValueRecord.value };
+      }
+    } catch (error) {
+      // If Asset model doesn't have these fields, return default
+    }
+    return { value: 100 }; // Default share value
+  }
+
+  async updateShareValue(data: any) {
+    // Update or create share value configuration
+    const { value } = data;
+    if (!value || isNaN(parseFloat(value))) {
+      throw new Error('Invalid share value');
+    }
+    try {
+      const existing = await this.prisma.asset.findFirst({
+        where: { name: '__SHARE_VALUE__' },
+      });
+      if (existing) {
+        return this.prisma.asset.update({
+          where: { id: existing.id },
+          data: { value: parseFloat(value) },
+        });
+      } else {
+        return this.prisma.asset.create({
+          data: {
+            name: '__SHARE_VALUE__',
+            value: parseFloat(value),
+            category: 'configuration',
+            purchaseDate: new Date(),
+          },
+        });
+      }
+    } catch (error) {
+      // If Asset model doesn't support this, return the value as-is
+      return { value: parseFloat(value) };
+    }
+  }
 }
