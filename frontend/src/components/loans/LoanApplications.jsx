@@ -1,4 +1,4 @@
-// LoanApplications.jsx - Pending Loan Applications
+﻿// LoanApplications.jsx - Pending Loan Applications
 import React, { useState, useEffect } from 'react';
 import { Eye, Check, X, Loader } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
@@ -15,7 +15,7 @@ const LoanApplications = ({ onError, onLoading }) => {
   const fetchApplications = async () => {
     try {
       setLoading(true);
-      const response = await fetch(\\$\{API_BASE\}/loans?status=pending');
+      const response = await fetch(`${API_BASE}/loans?status=pending`);
       if (!response.ok) throw new Error('Failed to fetch applications');
       const data = await response.json();
       setApplications(data.data || []);

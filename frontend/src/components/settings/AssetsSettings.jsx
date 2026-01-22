@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { getAssets, createAsset, updateAsset, deleteAsset } from '../../utils/settingsAPI';
 
 const defaultAsset = {

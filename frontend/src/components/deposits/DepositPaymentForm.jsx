@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Upload, Plus, Check, AlertCircle, ChevronDown } from 'lucide-react';
 import '../../styles/deposits.css';
 import { API_BASE } from '../../utils/apiBase';
@@ -32,7 +32,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
 
   const fetchMembers = async () => {
     try {
-      const response = await fetch(\\$\{API_BASE\}/members');
+      const response = await fetch(`${API_BASE}/members`);
       const data = await response.json();
       setMembers(data || []);
     } catch (err) {
@@ -42,7 +42,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(\\$\{API_BASE\}/accounts');
+      const response = await fetch(`${API_BASE}/accounts`);
       const data = await response.json();
       setAccounts(data || []);
     } catch (err) {
@@ -107,7 +107,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
         ],
       };
 
-      const response = await fetch(\\$\{API_BASE\}/deposits/bulk/import-json', {
+      const response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

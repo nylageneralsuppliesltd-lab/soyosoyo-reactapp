@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { createMember, updateMember } from './membersAPI';
 import NomineeInputs from './NomineeInputs';
 import '../../../src/styles/members.css';

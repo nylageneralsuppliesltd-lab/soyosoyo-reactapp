@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { DollarSign, Calendar, User, CreditCard, FileText, Hash, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 

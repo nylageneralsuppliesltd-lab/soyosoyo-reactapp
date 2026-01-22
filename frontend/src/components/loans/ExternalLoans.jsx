@@ -1,4 +1,4 @@
-// ExternalLoans.jsx - Loans to Non-Members
+﻿// ExternalLoans.jsx - Loans to Non-Members
 import React, { useState, useEffect } from 'react';
 import { Plus, Eye, Loader, AlertCircle, Trash2 } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
@@ -31,8 +31,8 @@ const ExternalLoans = ({ onError }) => {
     try {
       setLoading(true);
       const [loansRes, typesRes] = await Promise.all([
-        fetch(\\$\{API_BASE\}/loans?external=true'),
-        fetch(\\$\{API_BASE\}/loan-types'),
+        fetch(`${API_BASE}/loans?external=true`),
+        fetch(`${API_BASE}/loan-types`),
       ]);
 
       if (!loansRes.ok || !typesRes.ok) throw new Error('Failed to fetch data');
@@ -65,7 +65,7 @@ const ExternalLoans = ({ onError }) => {
     if (!validateForm()) return;
 
     try {
-      const response = await fetch(\\$\{API_BASE\}/loans/external', {
+      const response = await fetch(`${API_BASE}/loans/external`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

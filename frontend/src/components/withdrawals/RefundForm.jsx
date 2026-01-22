@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { RefreshCcw, Calendar, DollarSign, User, Tag, CreditCard, FileText, Hash } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
@@ -28,7 +28,7 @@ const RefundForm = ({ onSuccess }) => {
 
   const fetchMembers = async () => {
     try {
-      const response = await fetch(\\$\{API_BASE\}/members');
+      const response = await fetch(`${API_BASE}/members`);
       if (response.ok) {
         const data = await response.json();
         setMembers(data);
@@ -40,7 +40,7 @@ const RefundForm = ({ onSuccess }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(\\$\{API_BASE\}/accounts');
+      const response = await fetch(`${API_BASE}/accounts`);
       if (response.ok) {
         const data = await response.json();
         setAccounts(data.filter((a) => a.type === 'cash' || a.type === 'bank'));
@@ -96,7 +96,7 @@ const RefundForm = ({ onSuccess }) => {
         accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
       };
 
-      const response = await fetch(\\$\{API_BASE\}/withdrawals/refund', {
+      const response = await fetch(`${API_BASE}/withdrawals/refund`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

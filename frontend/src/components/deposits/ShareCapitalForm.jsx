@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
@@ -49,7 +49,7 @@ const ShareCapitalForm = ({ onSuccess }) => {
 
   const fetchMembers = async () => {
     try {
-      const response = await fetch(\\$\{API_BASE\}/members');
+      const response = await fetch(`${API_BASE}/members`);
       const data = await response.json();
       setMembers(data);
       setFilteredMembers(data);
@@ -60,7 +60,7 @@ const ShareCapitalForm = ({ onSuccess }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(\\$\{API_BASE\}/accounts');
+      const response = await fetch(`${API_BASE}/accounts`);
       const data = await response.json();
       setAccounts(data.filter(acc => ['ASSET', 'BANK'].includes(acc.type)));
     } catch (error) {
@@ -70,7 +70,7 @@ const ShareCapitalForm = ({ onSuccess }) => {
 
   const fetchShareValue = async () => {
     try {
-      const response = await fetch(\\$\{API_BASE\}/settings/share-value');
+      const response = await fetch(`${API_BASE}/settings/share-value`);
       const data = await response.json();
       if (data.value) setShareValue(parseFloat(data.value));
     } catch (error) {
@@ -127,7 +127,7 @@ const ShareCapitalForm = ({ onSuccess }) => {
         }]
       };
 
-      const response = await fetch(\\$\{API_BASE\}/deposits/bulk/import-json', {
+      const response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

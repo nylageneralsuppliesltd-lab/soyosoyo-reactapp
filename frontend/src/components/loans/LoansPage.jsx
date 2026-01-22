@@ -1,4 +1,4 @@
-// LoansPage.jsx - Comprehensive Loans Module
+﻿// LoansPage.jsx - Comprehensive Loans Module
 // Features: Loan Applications, Loan Types, Member Loans, External Loans, Bank Loans
 
 import React, { useState, useEffect } from 'react';

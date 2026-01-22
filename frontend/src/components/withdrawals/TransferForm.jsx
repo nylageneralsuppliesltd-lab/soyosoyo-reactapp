@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { ArrowRightLeft, Calendar, DollarSign, FileText, Hash } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
@@ -23,7 +23,7 @@ const TransferForm = ({ onSuccess }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(\\$\{API_BASE\}/accounts');
+      const response = await fetch(`${API_BASE}/accounts`);
       if (response.ok) {
         const data = await response.json();
         setAccounts(data);
@@ -65,7 +65,7 @@ const TransferForm = ({ onSuccess }) => {
         toAccountId: parseInt(formData.toAccountId),
       };
 
-      const response = await fetch(\\$\{API_BASE\}/withdrawals/transfer', {
+      const response = await fetch(`${API_BASE}/withdrawals/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
