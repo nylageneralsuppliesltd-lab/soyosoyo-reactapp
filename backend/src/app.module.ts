@@ -18,6 +18,7 @@ import { CategoryLedgerModule } from './category-ledger/category-ledger.module';
 import { AssetsModule } from './assets/assets.module';
 import { ReportsModule } from './reports/reports.module';
 import { AppController } from './app.controller';
+import { LoanTypesModule } from './loan-types/loan-types.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AppController } from './app.controller';
     DepositsModule,
     WithdrawalsModule,
     LoansModule,
+    LoanTypesModule,
     RepaymentsModule,
     SettingsModule,
     AccountsModule,

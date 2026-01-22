@@ -16,6 +16,9 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
+  // Align backend routes with frontend expectations
+  app.setGlobalPrefix('api');
+
   // CORS - allow specific domains and support credentials
   const allowedOrigins = [
     'https://api.soyosoyosacco.com',
