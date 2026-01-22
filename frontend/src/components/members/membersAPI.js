@@ -5,12 +5,13 @@ let API_BASE = import.meta.env.VITE_API_URL;
 if (!API_BASE) {
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
   const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
-  const isReactDomain = hostname === 'react.soyosoyosacco.com' || hostname.includes('localhost');
 
-  if (isReactDomain) {
-    API_BASE = '';
+  if (isLocal) {
+    // Local development: use localhost with /api prefix
+    API_BASE = 'http://localhost:3000/api';
   } else {
-    API_BASE = 'https://react.soyosoyosacco.com';
+    // Production: use the backend API service with /api prefix
+    API_BASE = 'https://api.soyosoyosacco.com/api';
   }
 }
 
