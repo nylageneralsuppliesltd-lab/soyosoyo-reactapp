@@ -48,15 +48,17 @@ export const FinancialProvider = ({ children }) => {
         ]);
 
         setData({
-          deposits: depositsRes.data || [],
-          withdrawals: withdrawalsRes.data || [],
-          loans: loansRes.data || [],
-          repayments: repaymentsRes.data || [],
+          deposits: Array.isArray(depositsRes?.data) ? depositsRes.data : [],
+          withdrawals: Array.isArray(withdrawalsRes?.data) ? withdrawalsRes.data : [],
+          loans: Array.isArray(loansRes?.data) ? loansRes.data : [],
+          repayments: Array.isArray(repaymentsRes?.data) ? repaymentsRes.data : [],
         });
         setError(null);
       } catch (err) {
         console.error('[FinancialContext] Failed to load data:', err);
         setError(err.message);
+        // Ensure data structure is maintained even on error
+        setData(defaultState);
       } finally {
         setLoading(false);
       }
@@ -147,7 +149,10 @@ export const FinancialProvider = ({ children }) => {
   const deleteDepositEntry = async (id) => {
     try {
       await deleteDeposit(id);
-      setData((prev) => ({ ...prev, deposits: prev.deposits.filter((item) => item.id !== id) }));
+      setData((prev) => ({
+        ...prev,
+        deposits: Array.isArray(prev.deposits) ? prev.deposits.filter((item) => item.id !== id) : [],
+      }));
     } catch (err) {
       console.error('[FinancialContext] Failed to delete deposit:', err);
       throw err;
@@ -159,7 +164,7 @@ export const FinancialProvider = ({ children }) => {
       const response = await updateDeposit(id, payload);
       setData((prev) => ({
         ...prev,
-        deposits: prev.deposits.map((item) => (item.id === id ? response.data : item)),
+        deposits: Array.isArray(prev.deposits) ? prev.deposits.map((item) => (item.id === id ? response.data : item)) : [],
       }));
       return response.data;
     } catch (err) {
@@ -171,7 +176,10 @@ export const FinancialProvider = ({ children }) => {
   const deleteWithdrawalEntry = async (id) => {
     try {
       await deleteWithdrawal(id);
-      setData((prev) => ({ ...prev, withdrawals: prev.withdrawals.filter((item) => item.id !== id) }));
+      setData((prev) => ({
+        ...prev,
+        withdrawals: Array.isArray(prev.withdrawals) ? prev.withdrawals.filter((item) => item.id !== id) : [],
+      }));
     } catch (err) {
       console.error('[FinancialContext] Failed to delete withdrawal:', err);
       throw err;
@@ -183,7 +191,7 @@ export const FinancialProvider = ({ children }) => {
       const response = await updateWithdrawal(id, payload);
       setData((prev) => ({
         ...prev,
-        withdrawals: prev.withdrawals.map((item) => (item.id === id ? response.data : item)),
+        withdrawals: Array.isArray(prev.withdrawals) ? prev.withdrawals.map((item) => (item.id === id ? response.data : item)) : [],
       }));
       return response.data;
     } catch (err) {
@@ -195,7 +203,10 @@ export const FinancialProvider = ({ children }) => {
   const deleteLoanEntry = async (id) => {
     try {
       await deleteLoan(id);
-      setData((prev) => ({ ...prev, loans: prev.loans.filter((item) => item.id !== id) }));
+      setData((prev) => ({
+        ...prev,
+        loans: Array.isArray(prev.loans) ? prev.loans.filter((item) => item.id !== id) : [],
+      }));
     } catch (err) {
       console.error('[FinancialContext] Failed to delete loan:', err);
       throw err;
@@ -207,7 +218,7 @@ export const FinancialProvider = ({ children }) => {
       const response = await updateLoan(id, payload);
       setData((prev) => ({
         ...prev,
-        loans: prev.loans.map((item) => (item.id === id ? response.data : item)),
+        loans: Array.isArray(prev.loans) ? prev.loans.map((item) => (item.id === id ? response.data : item)) : [],
       }));
       return response.data;
     } catch (err) {
@@ -219,7 +230,10 @@ export const FinancialProvider = ({ children }) => {
   const deleteRepaymentEntry = async (id) => {
     try {
       await deleteRepayment(id);
-      setData((prev) => ({ ...prev, repayments: prev.repayments.filter((item) => item.id !== id) }));
+      setData((prev) => ({
+        ...prev,
+        repayments: Array.isArray(prev.repayments) ? prev.repayments.filter((item) => item.id !== id) : [],
+      }));
     } catch (err) {
       console.error('[FinancialContext] Failed to delete repayment:', err);
       throw err;
@@ -231,7 +245,7 @@ export const FinancialProvider = ({ children }) => {
       const response = await updateRepayment(id, payload);
       setData((prev) => ({
         ...prev,
-        repayments: prev.repayments.map((item) => (item.id === id ? response.data : item)),
+        repayments: Array.isArray(prev.repayments) ? prev.repayments.map((item) => (item.id === id ? response.data : item)) : [],
       }));
       return response.data;
     } catch (err) {
