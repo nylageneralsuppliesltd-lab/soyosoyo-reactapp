@@ -11,7 +11,7 @@ if (!API_BASE) {
     API_BASE = 'http://localhost:3000/api';
   } else {
     // Production: use the backend API service with /api prefix
-    API_BASE = 'https://api.soyosoyosacco.com/api';
+    API_BASE = 'https://soyosoyo-reactapp-0twy.onrender.com/api';
   }
 }
 

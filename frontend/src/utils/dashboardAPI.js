@@ -8,7 +8,7 @@ if (!API_BASE) {
   );
   API_BASE = isLocal
     ? 'http://localhost:3000/api'
-    : 'https://api.soyosoyosacco.com/api';
+    : 'https://soyosoyo-reactapp-0twy.onrender.com/api';
 }
 
 const API = axios.create({
