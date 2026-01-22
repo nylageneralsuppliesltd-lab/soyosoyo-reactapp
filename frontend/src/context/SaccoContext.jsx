@@ -33,8 +33,15 @@ export const SaccoProvider = ({ children }) => {
   };
 
   const [currentSacco, setCurrentSacco] = useState(() => {
-    const stored = localStorage.getItem('currentSacco');
-    return stored ? JSON.parse(stored) : defaultSacco;
+    try {
+      const stored = localStorage.getItem('currentSacco');
+      const parsed = stored ? JSON.parse(stored) : null;
+      // Validate that it's a proper object, not NaN or invalid
+      return (parsed && typeof parsed === 'object' && parsed.id) ? parsed : defaultSacco;
+    } catch (error) {
+      console.error('Error loading currentSacco from localStorage:', error);
+      return defaultSacco;
+    }
   });
 
   const [saccos, setSaccos] = useState(() => {
@@ -44,12 +51,24 @@ export const SaccoProvider = ({ children }) => {
 
   // Save current SACCO to localStorage
   useEffect(() => {
-    localStorage.setItem('currentSacco', JSON.stringify(currentSacco));
+    try {
+      if (currentSacco && typeof currentSacco === 'object') {
+        localStorage.setItem('currentSacco', JSON.stringify(currentSacco));
+      }
+    } catch (error) {
+      console.error('Error saving currentSacco to localStorage:', error);
+    }
   }, [currentSacco]);
 
   // Save all SACCOs to localStorage
   useEffect(() => {
-    localStorage.setItem('saccos', JSON.stringify(saccos));
+    try {
+      if (Array.isArray(saccos) && saccos.length > 0) {
+        localStorage.setItem('saccos', JSON.stringify(saccos));
+      }
+    } catch (error) {
+      console.error('Error saving saccos to localStorage:', error);
+    }
   }, [saccos]);
 
   // Switch to a different SACCO

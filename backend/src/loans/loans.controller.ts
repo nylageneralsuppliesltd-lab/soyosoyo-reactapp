@@ -96,13 +96,42 @@ export class LoansController {
     @Query('memberId') memberId?: string,
   ) {
     try {
+      // Validate and parse query parameters, provide safe defaults
+      const takeNum = take ? parseInt(take, 10) : 100;
+      const skipNum = skip ? parseInt(skip, 10) : 0;
+
+      // Validate parsed values are valid numbers
+      if (isNaN(takeNum) || takeNum < 0) {
+        throw new HttpException(
+          {
+            success: false,
+            message: 'Invalid take parameter - must be a positive number',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      if (isNaN(skipNum) || skipNum < 0) {
+        throw new HttpException(
+          {
+            success: false,
+            message: 'Invalid skip parameter - must be a non-negative number',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
       const result = await this.loansService.findAll(
-        take ? parseInt(take) : 100,
-        skip ? parseInt(skip) : 0,
+        takeNum,
+        skipNum,
         { status, direction, external, memberId },
       );
       return { success: true, ...result };
     } catch (error) {
+      // If it's already an HttpException, rethrow it
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         {
           success: false,
