@@ -11,6 +11,12 @@ if (!API_BASE) {
     : 'https://soyosoyo-reactapp-0twy.onrender.com/api';
 }
 
+// Normalize to ensure /api suffix even if env is missing it
+if (API_BASE) {
+  const trimmed = API_BASE.replace(/\/+$/, '');
+  API_BASE = trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+}
+
 const API = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
