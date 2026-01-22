@@ -118,7 +118,19 @@ export default function Sidebar({ isOpen, onClose }) {
             {openSubmenu === 'loans' && (
               <ul className="submenu">
                 <li>
-                  <Link to="/loans" onClick={onClose}>Loans Portfolio</Link>
+                  <Link to="/loans?tab=applications" onClick={onClose}>Loan Applications</Link>
+                </li>
+                <li>
+                  <Link to="/loans?tab=types" onClick={onClose}>Loan Types</Link>
+                </li>
+                <li>
+                  <Link to="/loans?tab=member-loans" onClick={onClose}>Member Loans</Link>
+                </li>
+                <li>
+                  <Link to="/loans?tab=external-loans" onClick={onClose}>External Loans</Link>
+                </li>
+                <li>
+                  <Link to="/loans?tab=bank-loans" onClick={onClose}>Bank Loans</Link>
                 </li>
               </ul>
             )}

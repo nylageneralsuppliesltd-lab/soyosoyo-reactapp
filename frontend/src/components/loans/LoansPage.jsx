@@ -2,6 +2,7 @@
 // Features: Loan Applications, Loan Types, Member Loans, External Loans, Bank Loans
 
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   DollarSign,
   Building2,
@@ -24,6 +25,7 @@ const LoansPage = () => {
   const [activeTab, setActiveTab] = useState('applications');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const location = useLocation();
 
   const tabs = [
     { id: 'applications', label: 'Loan Applications', icon: FileText, component: LoanApplications },
@@ -32,6 +34,13 @@ const LoansPage = () => {
     { id: 'external-loans', label: 'External Loans', icon: Building2, component: ExternalLoans },
     { id: 'bank-loans', label: 'Bank Loans', icon: DollarSign, component: BankLoans },
   ];
+
+  useEffect(() => {
+    const param = new URLSearchParams(location.search).get('tab');
+    if (param && tabs.some(t => t.id === param)) {
+      setActiveTab(param);
+    }
+  }, [location.search]);
 
   const CurrentComponent = tabs.find(t => t.id === activeTab)?.component;
 
