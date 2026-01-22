@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, Download, AlertCircle, Check, X } from 'lucide-react';
+import { API_BASE } from '../../utils/apiBase';
 
 const BulkPaymentImport = ({ onSuccess, onCancel }) => {
   const [file, setFile] = useState(null);
@@ -63,7 +64,7 @@ const BulkPaymentImport = ({ onSuccess, onCancel }) => {
         throw new Error('File must contain a "payments" array');
       }
 
-      const response = await fetch('/api/deposits/bulk/import-json', {
+      const response = await fetch(\\$\{API_BASE\}/deposits/bulk/import-json', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

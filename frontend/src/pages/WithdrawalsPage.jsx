@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import WithdrawalsPageComponent from '../components/withdrawals/WithdrawalsPage';
 
 const WithdrawalsPage = () => {

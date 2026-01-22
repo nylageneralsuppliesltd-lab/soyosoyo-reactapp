@@ -1,6 +1,7 @@
 // LoanTypes.jsx - Configure Loan Products
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Loader, AlertCircle } from 'lucide-react';
+import { API_BASE } from '../../utils/apiBase';
 
 const LoanTypes = ({ onError }) => {
   const [loanTypes, setLoanTypes] = useState([]);
@@ -29,7 +30,7 @@ const LoanTypes = ({ onError }) => {
   const fetchLoanTypes = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/loan-types');
+      const response = await fetch(\\$\{API_BASE\}/loan-types');
       if (!response.ok) throw new Error('Failed to fetch loan types');
       const data = await response.json();
       setLoanTypes(data.data || []);

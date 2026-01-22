@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Calendar, DollarSign, User, CreditCard, FileText, Hash, Tag } from 'lucide-react';
+import { API_BASE } from '../../utils/apiBase';
 
 const DividendForm = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -26,7 +27,7 @@ const DividendForm = ({ onSuccess }) => {
 
   const fetchMembers = async () => {
     try {
-      const response = await fetch('/api/members');
+      const response = await fetch(\\$\{API_BASE\}/members');
       if (response.ok) {
         const data = await response.json();
         setMembers(data);
@@ -38,7 +39,7 @@ const DividendForm = ({ onSuccess }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch('/api/accounts');
+      const response = await fetch(\\$\{API_BASE\}/accounts');
       if (response.ok) {
         const data = await response.json();
         setAccounts(data.filter((a) => a.type === 'cash' || a.type === 'bank'));
@@ -88,7 +89,7 @@ const DividendForm = ({ onSuccess }) => {
         accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
       };
 
-      const response = await fetch('/api/withdrawals/dividend', {
+      const response = await fetch(\\$\{API_BASE\}/withdrawals/dividend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

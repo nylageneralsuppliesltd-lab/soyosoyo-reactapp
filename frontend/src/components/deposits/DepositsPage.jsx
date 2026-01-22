@@ -19,6 +19,7 @@ import MiscellaneousPaymentForm from './MiscellaneousPaymentForm';
 import ShareCapitalForm from './ShareCapitalForm';
 import BulkPaymentImport from './BulkPaymentImport';
 import '../../styles/deposits.css';
+import { API_BASE } from '../../utils/apiBase';
 
 const DepositsPage = () => {
   const [activeTab, setActiveTab] = useState('list');
@@ -45,7 +46,7 @@ const DepositsPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/deposits?take=200');
+      const response = await fetch(`${API_BASE}/deposits?take=200`);
       if (!response.ok) throw new Error('Failed to fetch deposits');
       const data = await response.json();
       setDeposits(Array.isArray(data) ? data : []);

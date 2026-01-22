@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Filter, Calendar, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
 import '../styles/reports.css';
+import { API_BASE } from '../utils/apiBase';
 
 const APIReportsPage = () => {
   const [reports, setReports] = useState([]);
@@ -20,7 +21,7 @@ const APIReportsPage = () => {
   useEffect(() => {
     const fetchCatalog = async () => {
       try {
-        const response = await fetch('/api/reports/catalog');
+        const response = await fetch(`${API_BASE}/reports/catalog`);
         if (!response.ok) throw new Error('Failed to fetch catalog');
         const data = await response.json();
         setReports(data);
@@ -47,7 +48,7 @@ const APIReportsPage = () => {
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
 
-      const response = await fetch(`/api/reports/${reportKey}?${params}`);
+      const response = await fetch(`${API_BASE}/reports/${reportKey}?${params}`);
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 

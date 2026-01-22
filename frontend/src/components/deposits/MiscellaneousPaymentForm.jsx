@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, Package } from 'lucide-react';
+import { API_BASE } from '../../utils/apiBase';
 
 const MiscellaneousPaymentForm = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -40,7 +41,7 @@ const MiscellaneousPaymentForm = ({ onSuccess }) => {
 
   const fetchMembers = async () => {
     try {
-      const response = await fetch('/api/members');
+      const response = await fetch(\\$\{API_BASE\}/members');
       const data = await response.json();
       setMembers(data);
       setFilteredMembers(data);
@@ -51,7 +52,7 @@ const MiscellaneousPaymentForm = ({ onSuccess }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch('/api/accounts');
+      const response = await fetch(\\$\{API_BASE\}/accounts');
       const data = await response.json();
       setAccounts(data.filter(acc => ['ASSET', 'BANK'].includes(acc.type)));
     } catch (error) {
@@ -108,7 +109,7 @@ const MiscellaneousPaymentForm = ({ onSuccess }) => {
         }]
       };
 
-      const response = await fetch('/api/deposits/bulk/import-json', {
+      const response = await fetch(\\$\{API_BASE\}/deposits/bulk/import-json', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, TrendingUp, Tag } from 'lucide-react';
+import { API_BASE } from '../../utils/apiBase';
 
 const IncomeRecordingForm = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -47,7 +48,7 @@ const IncomeRecordingForm = ({ onSuccess }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch('/api/accounts');
+      const response = await fetch(\\$\{API_BASE\}/accounts');
       const data = await response.json();
       setAccounts(data.filter(acc => ['ASSET', 'BANK'].includes(acc.type)));
     } catch (error) {
@@ -76,7 +77,7 @@ const IncomeRecordingForm = ({ onSuccess }) => {
         }]
       };
 
-      const response = await fetch('/api/deposits/bulk/import-json', {
+      const response = await fetch(\\$\{API_BASE\}/deposits/bulk/import-json', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

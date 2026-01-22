@@ -5,6 +5,7 @@ import TransferForm from './TransferForm';
 import RefundForm from './RefundForm';
 import DividendForm from './DividendForm';
 import '../../styles/withdrawals.css';
+import { API_BASE } from '../../utils/apiBase';
 
 const WithdrawalsPage = () => {
   const [activeTab, setActiveTab] = useState('list');
@@ -24,7 +25,7 @@ const WithdrawalsPage = () => {
   const fetchWithdrawals = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/withdrawals?take=200');
+      const response = await fetch(`${API_BASE}/withdrawals?take=200`);
       if (response.ok) {
         const data = await response.json();
         setWithdrawals(data);
@@ -38,7 +39,7 @@ const WithdrawalsPage = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/withdrawals/stats');
+      const response = await fetch(`${API_BASE}/withdrawals/stats`);
       if (response.ok) {
         const data = await response.json();
         setStats(data);
@@ -54,7 +55,7 @@ const WithdrawalsPage = () => {
     }
 
     try {
-      const response = await fetch(`/api/withdrawals/${id}`, {
+      const response = await fetch(`${API_BASE}/withdrawals/${id}`, {
         method: 'DELETE',
       });
 

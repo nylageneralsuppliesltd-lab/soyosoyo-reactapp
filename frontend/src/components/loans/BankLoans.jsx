@@ -1,6 +1,7 @@
 // BankLoans.jsx - Bank & Institutional Loans (Inward Liabilities)
 import React, { useState, useEffect } from 'react';
 import { Plus, Eye, Loader, AlertCircle, Trash2 } from 'lucide-react';
+import { API_BASE } from '../../utils/apiBase';
 
 const BankLoans = ({ onError }) => {
   const [loans, setLoans] = useState([]);
@@ -32,8 +33,8 @@ const BankLoans = ({ onError }) => {
     try {
       setLoading(true);
       const [loansRes, typesRes] = await Promise.all([
-        fetch('/api/loans?direction=inward'),
-        fetch('/api/loan-types'),
+        fetch(\\$\{API_BASE\}/loans?direction=inward'),
+        fetch(\\$\{API_BASE\}/loan-types'),
       ]);
 
       if (!loansRes.ok || !typesRes.ok) throw new Error('Failed to fetch data');
@@ -65,7 +66,7 @@ const BankLoans = ({ onError }) => {
     if (!validateForm()) return;
 
     try {
-      const response = await fetch('/api/loans/bank', {
+      const response = await fetch(\\$\{API_BASE\}/loans/bank', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

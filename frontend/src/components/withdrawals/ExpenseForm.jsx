@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, Calendar, Tag, CreditCard, FileText, Hash } from 'lucide-react';
+import { API_BASE } from '../../utils/apiBase';
 
 const ExpenseForm = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -25,7 +26,7 @@ const ExpenseForm = ({ onSuccess }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch('/api/accounts');
+      const response = await fetch(`${API_BASE}/accounts`);
       if (response.ok) {
         const data = await response.json();
         setAccounts(data.filter((a) => a.type === 'cash' || a.type === 'bank'));
@@ -37,7 +38,7 @@ const ExpenseForm = ({ onSuccess }) => {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/settings/expense-categories');
+      const response = await fetch(`${API_BASE}/settings/expense-categories`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -72,7 +73,7 @@ const ExpenseForm = ({ onSuccess }) => {
         accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
       };
 
-      const response = await fetch('/api/withdrawals/expense', {
+      const response = await fetch(`${API_BASE}/withdrawals/expense`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

@@ -1,6 +1,7 @@
 // MemberLoans.jsx - Outward Loans to Members
 import React, { useState, useEffect } from 'react';
 import { Plus, Eye, Loader, AlertCircle } from 'lucide-react';
+import { API_BASE } from '../../utils/apiBase';
 
 const MemberLoans = ({ onError, onLoading }) => {
   const [loans, setLoans] = useState([]);
@@ -27,9 +28,9 @@ const MemberLoans = ({ onError, onLoading }) => {
     try {
       setLoading(true);
       const [loansRes, membersRes, typesRes] = await Promise.all([
-        fetch('/api/loans?direction=outward'),
-        fetch('/api/members'),
-        fetch('/api/loan-types'),
+        fetch(\\$\{API_BASE\}/loans?direction=outward'),
+        fetch(\\$\{API_BASE\}/members'),
+        fetch(\\$\{API_BASE\}/loan-types'),
       ]);
 
       if (!loansRes.ok || !membersRes.ok || !typesRes.ok) throw new Error('Failed to fetch data');
@@ -63,7 +64,7 @@ const MemberLoans = ({ onError, onLoading }) => {
     if (!validateForm()) return;
 
     try {
-      const response = await fetch('/api/loans', {
+      const response = await fetch(\\$\{API_BASE\}/loans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

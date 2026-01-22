@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, Calendar, User, CreditCard, FileText, Hash, Tag } from 'lucide-react';
+import { API_BASE } from '../../utils/apiBase';
 
 const ContributionForm = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -27,7 +28,7 @@ const ContributionForm = ({ onSuccess }) => {
 
   const fetchMembers = async () => {
     try {
-      const response = await fetch('/api/members');
+      const response = await fetch(`${API_BASE}/members`);
       if (response.ok) {
         const data = await response.json();
         setMembers(data);
@@ -39,7 +40,7 @@ const ContributionForm = ({ onSuccess }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch('/api/accounts');
+      const response = await fetch(`${API_BASE}/accounts`);
       if (response.ok) {
         const data = await response.json();
         setAccounts(data.filter((a) => a.type === 'cash' || a.type === 'bank'));
@@ -96,7 +97,7 @@ const ContributionForm = ({ onSuccess }) => {
         description: `${formData.contributionType} from ${formData.memberName}`,
       };
 
-      const response = await fetch('/api/deposits/bulk/import-json', {
+      const response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payments: [payload] }),
