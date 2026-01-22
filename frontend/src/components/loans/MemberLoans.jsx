@@ -143,7 +143,7 @@ const MemberLoans = ({ onError, onLoading }) => {
                   <option value="">-- Select Member --</option>
                   {members.map(m => (
                     <option key={m.id} value={m.id}>
-                      {m.firstName} {m.lastName} (Balance: KES {(m.balance || 0).toLocaleString()})
+                      {m.firstName} {m.lastName}
                     </option>
                   ))}
                 </select>
