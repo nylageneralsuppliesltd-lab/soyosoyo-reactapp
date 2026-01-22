@@ -28,7 +28,8 @@ const API = axios.create({
 export const getAllMembers = async () => {
   try {
     const response = await API.get('/members');
-    return response.data;
+    // Handle both array response and { data: [] } response
+    return Array.isArray(response.data) ? response.data : (response.data?.data || []);
   } catch (error) {
     console.error('Error fetching members:', error);
     return [];
@@ -41,7 +42,8 @@ export const getAllMembers = async () => {
 export const getAllDeposits = async () => {
   try {
     const response = await API.get('/deposits');
-    return response.data;
+    // Handle both array response and { data: [] } response
+    return Array.isArray(response.data) ? response.data : (response.data?.data || []);
   } catch (error) {
     console.error('Error fetching deposits:', error);
     return [];
@@ -54,7 +56,8 @@ export const getAllDeposits = async () => {
 export const getAllWithdrawals = async () => {
   try {
     const response = await API.get('/withdrawals');
-    return response.data;
+    // Handle both array response and { data: [] } response
+    return Array.isArray(response.data) ? response.data : (response.data?.data || []);
   } catch (error) {
     console.error('Error fetching withdrawals:', error);
     return [];
@@ -67,7 +70,8 @@ export const getAllWithdrawals = async () => {
 export const getAllLoans = async () => {
   try {
     const response = await API.get('/loans');
-    return response.data;
+    // Handle both array response and { data: [] } response
+    return Array.isArray(response.data) ? response.data : (response.data?.data || []);
   } catch (error) {
     console.error('Error fetching loans:', error);
     return [];
