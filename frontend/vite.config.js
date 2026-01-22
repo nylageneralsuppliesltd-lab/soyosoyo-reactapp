@@ -24,6 +24,14 @@ export default defineConfig({
   server: {
     port: 5173,  // dev server port
     open: true,  // auto open browser
+    proxy: {
+      // Proxy API calls to the Nest backend during development
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   css: {
     // optional: enable CSS modules for *.module.css files

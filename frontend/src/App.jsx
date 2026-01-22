@@ -52,12 +52,7 @@ function App() {
     closeSidebar();
   }, [location.pathname]);
 
-  // Show landing page layout for root and landing path
-  const isLanding = location.pathname === '/' || location.pathname === '/landing';
-
-  if (isLanding) {
-    return <LandingPage />;
-  }
+  // Routes handle landing page; always render app layout here
 
   return (
     <div className="app-container">
