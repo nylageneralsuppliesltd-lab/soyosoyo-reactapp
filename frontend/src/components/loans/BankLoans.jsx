@@ -79,7 +79,16 @@ const BankLoans = ({ onError }) => {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to record bank loan');
+      if (!response.ok) {
+        let errorMsg = 'Failed to record bank loan';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorMsg;
+        } catch {
+          // Use default error message
+        }
+        throw new Error(errorMsg);
+      }
       
       onError?.('Bank loan recorded successfully!');
       setTimeout(() => onError?.(null), 3000);

@@ -77,7 +77,16 @@ const ExternalLoans = ({ onError }) => {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to create external loan');
+      if (!response.ok) {
+        let errorMsg = 'Failed to create external loan';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorMsg;
+        } catch {
+          // Use default error message
+        }
+        throw new Error(errorMsg);
+      }
       
       onError?.('External loan created successfully!');
       setTimeout(() => onError?.(null), 3000);

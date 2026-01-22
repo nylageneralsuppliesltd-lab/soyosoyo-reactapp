@@ -77,8 +77,17 @@ const MemberLoans = ({ onError, onLoading }) => {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to create loan');
-      
+      if (!response.ok) {
+        let errorMsg = 'Failed to create loan';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorMsg;
+        } catch {
+          // Use default error message
+        }
+        throw new Error(errorMsg);
+      }
+
       onError?.('Member loan created successfully!');
       setTimeout(() => onError?.(null), 3000);
       

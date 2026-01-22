@@ -9,6 +9,7 @@ import {
   Query,
   HttpException,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { LoansService } from './loans.service';
 
@@ -19,9 +20,23 @@ export class LoansController {
   @Post()
   async create(@Body() data: any) {
     try {
+      // Validate required fields
+      if (!data.amount || isNaN(parseFloat(data.amount)) || parseFloat(data.amount) <= 0) {
+        throw new BadRequestException('Valid loan amount is required');
+      }
+
+      // At least one borrower identifier is required
+      if (!data.memberName && !data.memberId && !data.bankName && !data.externalName && !data.borrower) {
+        throw new BadRequestException('Member name, bank name, or external borrower name is required');
+      }
+
       const result = await this.loansService.create(data);
       return { success: true, data: result };
     } catch (error) {
+      // If it's already an HttpException, rethrow it
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         {
           success: false,
@@ -35,12 +50,23 @@ export class LoansController {
   @Post('bank')
   async createBankLoan(@Body() data: any) {
     try {
+      // Validate required fields
+      if (!data.amount || isNaN(parseFloat(data.amount)) || parseFloat(data.amount) <= 0) {
+        throw new BadRequestException('Valid loan amount is required');
+      }
+      if (!data.bankName) {
+        throw new BadRequestException('Bank name is required');
+      }
+
       const result = await this.loansService.create({
         ...data,
         loanDirection: 'inward',
       });
       return { success: true, data: result };
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         {
           success: false,
@@ -54,12 +80,23 @@ export class LoansController {
   @Post('external')
   async createExternalLoan(@Body() data: any) {
     try {
+      // Validate required fields
+      if (!data.amount || isNaN(parseFloat(data.amount)) || parseFloat(data.amount) <= 0) {
+        throw new BadRequestException('Valid loan amount is required');
+      }
+      if (!data.externalName) {
+        throw new BadRequestException('External borrower name is required');
+      }
+
       const result = await this.loansService.create({
         ...data,
         loanDirection: 'outward',
       });
       return { success: true, data: result };
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         {
           success: false,
