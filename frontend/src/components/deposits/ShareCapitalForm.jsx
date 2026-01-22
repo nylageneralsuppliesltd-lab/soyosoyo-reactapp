@@ -51,10 +51,13 @@ const ShareCapitalForm = ({ onSuccess }) => {
     try {
       const response = await fetch(`${API_BASE}/members`);
       const data = await response.json();
-      setMembers(data);
-      setFilteredMembers(data);
+      const membersArray = Array.isArray(data) ? data : (data.data || []);
+      setMembers(membersArray);
+      setFilteredMembers(membersArray);
     } catch (error) {
       console.error('Error fetching members:', error);
+      setMembers([]);
+      setFilteredMembers([]);
     }
   };
 
@@ -62,9 +65,11 @@ const ShareCapitalForm = ({ onSuccess }) => {
     try {
       const response = await fetch(`${API_BASE}/accounts`);
       const data = await response.json();
-      setAccounts(data.filter(acc => ['ASSET', 'BANK'].includes(acc.type)));
+      const accountsArray = Array.isArray(data) ? data : (data.data || []);
+      setAccounts(accountsArray.filter(acc => ['ASSET', 'BANK'].includes(acc.type)));
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      setAccounts([]);
     }
   };
 

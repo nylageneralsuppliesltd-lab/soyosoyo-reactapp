@@ -34,9 +34,10 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
     try {
       const response = await fetch(`${API_BASE}/members`);
       const data = await response.json();
-      setMembers(data || []);
+      setMembers(Array.isArray(data) ? data : (data.data || []));
     } catch (err) {
       console.error('Failed to fetch members:', err);
+      setMembers([]);
     }
   };
 
@@ -44,9 +45,11 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
     try {
       const response = await fetch(`${API_BASE}/accounts`);
       const data = await response.json();
-      setAccounts(data || []);
+      const accountsArray = Array.isArray(data) ? data : (data.data || []);
+      setAccounts(accountsArray);
     } catch (err) {
       console.error('Failed to fetch accounts:', err);
+      setAccounts([]);
     }
   };
 

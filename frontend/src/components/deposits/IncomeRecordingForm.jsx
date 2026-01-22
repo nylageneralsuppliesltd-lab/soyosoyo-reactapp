@@ -50,9 +50,11 @@ const IncomeRecordingForm = ({ onSuccess }) => {
     try {
       const response = await fetch(`${API_BASE}/accounts`);
       const data = await response.json();
-      setAccounts(data.filter(acc => ['ASSET', 'BANK'].includes(acc.type)));
+      const accountsArray = Array.isArray(data) ? data : (data.data || []);
+      setAccounts(accountsArray.filter(acc => ['ASSET', 'BANK'].includes(acc.type)));
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      setAccounts([]);
     }
   };
 

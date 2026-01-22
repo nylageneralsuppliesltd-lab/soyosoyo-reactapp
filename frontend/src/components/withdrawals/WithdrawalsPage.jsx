@@ -28,10 +28,13 @@ const WithdrawalsPage = () => {
       const response = await fetch(`${API_BASE}/withdrawals?take=200`);
       if (response.ok) {
         const data = await response.json();
-        setWithdrawals(data);
+        setWithdrawals(Array.isArray(data) ? data : (data.data || []));
+      } else {
+        setWithdrawals([]);
       }
     } catch (error) {
       console.error('Error fetching withdrawals:', error);
+      setWithdrawals([]);
     } finally {
       setLoading(false);
     }

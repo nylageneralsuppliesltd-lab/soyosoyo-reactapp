@@ -26,10 +26,14 @@ const TransferForm = ({ onSuccess }) => {
       const response = await fetch(`${API_BASE}/accounts`);
       if (response.ok) {
         const data = await response.json();
-        setAccounts(data);
+        const accountsArray = Array.isArray(data) ? data : (data.data || []);
+        setAccounts(accountsArray);
+      } else {
+        setAccounts([]);
       }
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      setAccounts([]);
     }
   };
 

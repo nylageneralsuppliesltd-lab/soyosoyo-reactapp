@@ -29,10 +29,14 @@ const ExpenseForm = ({ onSuccess }) => {
       const response = await fetch(`${API_BASE}/accounts`);
       if (response.ok) {
         const data = await response.json();
-        setAccounts(data.filter((a) => a.type === 'cash' || a.type === 'bank'));
+        const accountsArray = Array.isArray(data) ? data : (data.data || []);
+        setAccounts(accountsArray.filter((a) => a.type === 'cash' || a.type === 'bank'));
+      } else {
+        setAccounts([]);
       }
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      setAccounts([]);
     }
   };
 
