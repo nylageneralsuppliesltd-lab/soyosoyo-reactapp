@@ -299,66 +299,68 @@ const APIReportsPage = () => {
 
                 {/* Card Content - Report Data */}
                 {expandedReport === report.key && (
-                  <div className="border-t border-gray-200 px-5 sm:px-6 py-5 bg-gray-50 space-y-5">
+                  <div className="border-t border-gray-200 px-5 sm:px-6 py-6 bg-gray-50 space-y-6">
                     {/* Report Loading State */}
                     {reportLoading && (
-                      <div className="flex items-center justify-center py-8">
-                        <div className="animate-spin h-6 w-6 border-3 border-blue-600 border-t-transparent rounded-full mr-3"></div>
+                      <div className="flex items-center justify-center py-12">
+                        <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mr-4"></div>
                         <p className="text-gray-600 font-medium">Loading report data...</p>
                       </div>
                     )}
 
                     {/* Report Data Table */}
                     {!reportLoading && reportData && (
-                      <div className="space-y-4">
-                        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="bg-gray-100 border-b border-gray-200">
+                      <div className="space-y-6">
+                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="bg-gradient-to-r from-blue-50 to-blue-25 border-b-2 border-blue-200">
+                                  {reportData.rows && reportData.rows.length > 0 ? (
+                                    Object.keys(reportData.rows[0]).map((key) => (
+                                      <th key={key} className="px-5 py-4 text-left font-bold text-gray-800 whitespace-nowrap">
+                                        {key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
+                                      </th>
+                                    ))
+                                  ) : (
+                                    <th className="px-5 py-4 text-left font-bold text-gray-800">Data</th>
+                                  )}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200">
                                 {reportData.rows && reportData.rows.length > 0 ? (
-                                  Object.keys(reportData.rows[0]).map((key) => (
-                                    <th key={key} className="px-4 py-3 text-left font-semibold text-gray-700">
-                                      {key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
-                                    </th>
+                                  reportData.rows.slice(0, 50).map((row, rowIndex) => (
+                                    <tr key={rowIndex} className="hover:bg-blue-50 transition-colors">
+                                      {Object.values(row).map((cell, cellIndex) => (
+                                        <td key={cellIndex} className="px-5 py-4 text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">
+                                          {typeof cell === 'object' ? JSON.stringify(cell) : String(cell)}
+                                        </td>
+                                      ))}
+                                    </tr>
                                   ))
                                 ) : (
-                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Data</th>
-                                )}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {reportData.rows && reportData.rows.length > 0 ? (
-                                reportData.rows.map((row, rowIndex) => (
-                                  <tr key={rowIndex} className="border-b border-gray-200 hover:bg-gray-50">
-                                    {Object.values(row).map((cell, cellIndex) => (
-                                      <td key={cellIndex} className="px-4 py-3 text-gray-700">
-                                        {typeof cell === 'object' ? JSON.stringify(cell) : String(cell)}
-                                      </td>
-                                    ))}
+                                  <tr>
+                                    <td colSpan="100%" className="px-5 py-12 text-center text-gray-500 font-medium">
+                                      No data available
+                                    </td>
                                   </tr>
-                                ))
-                              ) : (
-                                <tr>
-                                  <td colSpan="100%" className="px-4 py-8 text-center text-gray-500">
-                                    No data available
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
 
                         {/* Report Summary */}
                         {reportData.meta && (
-                          <div className="bg-white rounded-lg border border-gray-200 p-4">
-                            <h4 className="font-semibold text-gray-900 mb-2">Summary</h4>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+                            <h4 className="font-bold text-gray-900 mb-4 text-lg">Report Summary</h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                               {Object.entries(reportData.meta).map(([key, value]) => (
-                                <div key={key} className="p-3 bg-gray-50 rounded-lg">
-                                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                                <div key={key} className="p-4 bg-gradient-to-br from-blue-50 to-blue-25 border border-blue-200 rounded-lg hover:shadow-md transition-shadow">
+                                  <p className="text-xs text-blue-700 font-bold uppercase tracking-wider mb-2">
                                     {key.replace(/_/g, ' ')}
                                   </p>
-                                  <p className="text-lg font-bold text-gray-900 mt-1">
+                                  <p className="text-2xl font-bold text-blue-900">
                                     {typeof value === 'number' ? value.toLocaleString() : value}
                                   </p>
                                 </div>
@@ -371,15 +373,15 @@ const APIReportsPage = () => {
 
                     {/* Download Section - Bottom of Report */}
                     {!reportLoading && reportData && (
-                      <div className="pt-4 border-t border-gray-200">
-                        <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3">Download as</p>
+                      <div className="pt-6 border-t-2 border-gray-300">
+                        <p className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-4">Export Report</p>
 
-                        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                           {/* PDF Button */}
                           <DownloadButton
                             format="pdf"
                             label="PDF"
-                            icon={<FileText size={16} />}
+                            icon={<FileText size={20} />}
                             reportKey={report.key}
                             isLoading={downloadingReport === `${report.key}-pdf`}
                             status={downloadStatus[`${report.key}-pdf`]}
@@ -390,7 +392,7 @@ const APIReportsPage = () => {
                           <DownloadButton
                             format="csv"
                             label="CSV"
-                            icon={<Table size={16} />}
+                            icon={<Table size={20} />}
                             reportKey={report.key}
                             isLoading={downloadingReport === `${report.key}-csv`}
                             status={downloadStatus[`${report.key}-csv`]}
@@ -401,7 +403,7 @@ const APIReportsPage = () => {
                           <DownloadButton
                             format="xlsx"
                             label="Excel"
-                            icon={<FileSpreadsheet size={16} />}
+                            icon={<FileSpreadsheet size={20} />}
                             reportKey={report.key}
                             isLoading={downloadingReport === `${report.key}-xlsx`}
                             status={downloadStatus[`${report.key}-xlsx`]}
@@ -412,7 +414,7 @@ const APIReportsPage = () => {
                           <DownloadButton
                             format="json"
                             label="JSON"
-                            icon={<FileJson size={16} />}
+                            icon={<FileJson size={20} />}
                             reportKey={report.key}
                             isLoading={downloadingReport === `${report.key}-json`}
                             status={downloadStatus[`${report.key}-json`]}
@@ -458,34 +460,34 @@ const DownloadButton = ({ format, label, icon, reportKey, isLoading, status, onD
     <button
       onClick={onDownload}
       disabled={isLoading}
-      className={`flex flex-col items-center justify-center gap-2 px-3 py-3 rounded-lg font-medium text-xs sm:text-sm transition-all ${
+      className={`flex flex-col items-center justify-center gap-3 px-4 py-5 rounded-lg font-semibold text-sm transition-all duration-300 ${
         status === 'success'
-          ? 'bg-green-100 text-green-700 border border-green-300 hover:bg-green-200'
+          ? 'bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg border border-green-600 hover:shadow-xl hover:from-green-600 hover:to-green-700'
           : status === 'error'
-          ? 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'
-          : 'bg-white border border-gray-300 text-gray-700 hover:bg-blue-50 hover:border-blue-400'
-      } disabled:opacity-50 disabled:cursor-not-allowed`}
+          ? 'bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg border border-red-600 hover:shadow-xl'
+          : 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md border border-blue-700 hover:shadow-lg hover:from-blue-700 hover:to-blue-800 active:from-blue-800 active:to-blue-900'
+      } disabled:opacity-60 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95`}
       title={`Download as ${label}`}
     >
       {isLoading ? (
         <>
-          <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></div>
-          <span className="text-xs">Downloading...</span>
+          <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+          <span className="text-xs font-bold">Exporting...</span>
         </>
       ) : status === 'success' ? (
         <>
-          <CheckCircle2 size={16} />
-          <span className="text-xs font-semibold">Done!</span>
+          <CheckCircle2 size={20} className="animate-bounce" />
+          <span className="text-xs font-bold">Complete!</span>
         </>
       ) : status === 'error' ? (
         <>
-          <AlertCircle size={16} />
-          <span className="text-xs font-semibold">Failed</span>
+          <AlertCircle size={20} />
+          <span className="text-xs font-bold">Error</span>
         </>
       ) : (
         <>
-          {icon}
-          <span>{label}</span>
+          <div className="text-2xl">{icon}</div>
+          <span className="font-bold">{label}</span>
         </>
       )}
     </button>
