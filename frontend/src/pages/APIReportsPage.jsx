@@ -16,6 +16,8 @@ const APIReportsPage = () => {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [expandedReport, setExpandedReport] = useState(null);
+  const [reportData, setReportData] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
   // Fetch report catalog on mount
   useEffect(() => {
@@ -122,6 +124,40 @@ const APIReportsPage = () => {
           : 'Custom range';
       default:
         return 'Select period';
+    }
+  };
+
+  const fetchReportData = async (reportKey) => {
+    setReportLoading(true);
+    try {
+      const params = new URLSearchParams({
+        format: 'json',
+        period: filters.period,
+      });
+
+      if (filters.startDate) params.append('startDate', filters.startDate);
+      if (filters.endDate) params.append('endDate', filters.endDate);
+
+      const response = await fetch(`${API_BASE}/reports/${reportKey}?${params}`);
+      if (!response.ok) throw new Error(`Failed to fetch report: ${response.status}`);
+      
+      const data = await response.json();
+      setReportData(data);
+    } catch (error) {
+      console.error('Failed to fetch report:', error);
+      setReportData(null);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleReportClick = async (reportKey) => {
+    if (expandedReport === reportKey) {
+      setExpandedReport(null);
+      setReportData(null);
+    } else {
+      setExpandedReport(reportKey);
+      await fetchReportData(reportKey);
     }
   };
 
@@ -236,7 +272,7 @@ const APIReportsPage = () => {
         </div>
 
         {/* Reports Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6">
           {reports.map((report) => {
             return (
               <div
@@ -245,7 +281,7 @@ const APIReportsPage = () => {
               >
                 {/* Card Header - Clickable */}
                 <button
-                  onClick={() => setExpandedReport(expandedReport === report.key ? null : report.key)}
+                  onClick={() => handleReportClick(report.key)}
                   className="w-full text-left p-5 sm:p-6 hover:bg-gradient-to-r hover:from-blue-50 hover:to-transparent transition-all"
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -261,63 +297,130 @@ const APIReportsPage = () => {
                   </div>
                 </button>
 
-                {/* Card Content - Download Options */}
+                {/* Card Content - Report Data */}
                 {expandedReport === report.key && (
-                  <div className="border-t border-gray-200 px-5 sm:px-6 py-5 bg-gray-50">
-                    <p className="text-xs sm:text-sm text-gray-600 mb-5 font-medium">
-                      Available filters: <span className="text-gray-700">{report.filters.join(', ')}</span>
-                    </p>
-
-                    {/* Download Buttons */}
-                    <div className="space-y-3">
-                      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Download as</p>
-                      
-                      <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                        {/* PDF Button */}
-                        <DownloadButton
-                          format="pdf"
-                          label="PDF"
-                          icon={<FileText size={16} />}
-                          reportKey={report.key}
-                          isLoading={downloadingReport === `${report.key}-pdf`}
-                          status={downloadStatus[`${report.key}-pdf`]}
-                          onDownload={() => handleDownload(report.key, 'pdf')}
-                        />
-
-                        {/* CSV Button */}
-                        <DownloadButton
-                          format="csv"
-                          label="CSV"
-                          icon={<Table size={16} />}
-                          reportKey={report.key}
-                          isLoading={downloadingReport === `${report.key}-csv`}
-                          status={downloadStatus[`${report.key}-csv`]}
-                          onDownload={() => handleDownload(report.key, 'csv')}
-                        />
-
-                        {/* Excel Button */}
-                        <DownloadButton
-                          format="xlsx"
-                          label="Excel"
-                          icon={<FileSpreadsheet size={16} />}
-                          reportKey={report.key}
-                          isLoading={downloadingReport === `${report.key}-xlsx`}
-                          status={downloadStatus[`${report.key}-xlsx`]}
-                          onDownload={() => handleDownload(report.key, 'xlsx')}
-                        />
-
-                        {/* JSON Button */}
-                        <DownloadButton
-                          format="json"
-                          label="JSON"
-                          icon={<FileJson size={16} />}
-                          reportKey={report.key}
-                          isLoading={downloadingReport === `${report.key}-json`}
-                          status={downloadStatus[`${report.key}-json`]}
-                          onDownload={() => handleDownload(report.key, 'json')}
-                        />
+                  <div className="border-t border-gray-200 px-5 sm:px-6 py-5 bg-gray-50 space-y-5">
+                    {/* Report Loading State */}
+                    {reportLoading && (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin h-6 w-6 border-3 border-blue-600 border-t-transparent rounded-full mr-3"></div>
+                        <p className="text-gray-600 font-medium">Loading report data...</p>
                       </div>
-                    </div>
+                    )}
+
+                    {/* Report Data Table */}
+                    {!reportLoading && reportData && (
+                      <div className="space-y-4">
+                        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-gray-100 border-b border-gray-200">
+                                {reportData.rows && reportData.rows.length > 0 ? (
+                                  Object.keys(reportData.rows[0]).map((key) => (
+                                    <th key={key} className="px-4 py-3 text-left font-semibold text-gray-700">
+                                      {key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
+                                    </th>
+                                  ))
+                                ) : (
+                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Data</th>
+                                )}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {reportData.rows && reportData.rows.length > 0 ? (
+                                reportData.rows.map((row, rowIndex) => (
+                                  <tr key={rowIndex} className="border-b border-gray-200 hover:bg-gray-50">
+                                    {Object.values(row).map((cell, cellIndex) => (
+                                      <td key={cellIndex} className="px-4 py-3 text-gray-700">
+                                        {typeof cell === 'object' ? JSON.stringify(cell) : String(cell)}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan="100%" className="px-4 py-8 text-center text-gray-500">
+                                    No data available
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Report Summary */}
+                        {reportData.meta && (
+                          <div className="bg-white rounded-lg border border-gray-200 p-4">
+                            <h4 className="font-semibold text-gray-900 mb-2">Summary</h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                              {Object.entries(reportData.meta).map(([key, value]) => (
+                                <div key={key} className="p-3 bg-gray-50 rounded-lg">
+                                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                                    {key.replace(/_/g, ' ')}
+                                  </p>
+                                  <p className="text-lg font-bold text-gray-900 mt-1">
+                                    {typeof value === 'number' ? value.toLocaleString() : value}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Download Section - Bottom of Report */}
+                    {!reportLoading && reportData && (
+                      <div className="pt-4 border-t border-gray-200">
+                        <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3">Download as</p>
+
+                        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                          {/* PDF Button */}
+                          <DownloadButton
+                            format="pdf"
+                            label="PDF"
+                            icon={<FileText size={16} />}
+                            reportKey={report.key}
+                            isLoading={downloadingReport === `${report.key}-pdf`}
+                            status={downloadStatus[`${report.key}-pdf`]}
+                            onDownload={() => handleDownload(report.key, 'pdf')}
+                          />
+
+                          {/* CSV Button */}
+                          <DownloadButton
+                            format="csv"
+                            label="CSV"
+                            icon={<Table size={16} />}
+                            reportKey={report.key}
+                            isLoading={downloadingReport === `${report.key}-csv`}
+                            status={downloadStatus[`${report.key}-csv`]}
+                            onDownload={() => handleDownload(report.key, 'csv')}
+                          />
+
+                          {/* Excel Button */}
+                          <DownloadButton
+                            format="xlsx"
+                            label="Excel"
+                            icon={<FileSpreadsheet size={16} />}
+                            reportKey={report.key}
+                            isLoading={downloadingReport === `${report.key}-xlsx`}
+                            status={downloadStatus[`${report.key}-xlsx`]}
+                            onDownload={() => handleDownload(report.key, 'xlsx')}
+                          />
+
+                          {/* JSON Button */}
+                          <DownloadButton
+                            format="json"
+                            label="JSON"
+                            icon={<FileJson size={16} />}
+                            reportKey={report.key}
+                            isLoading={downloadingReport === `${report.key}-json`}
+                            status={downloadStatus[`${report.key}-json`]}
+                            onDownload={() => handleDownload(report.key, 'json')}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
