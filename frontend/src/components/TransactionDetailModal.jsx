@@ -222,7 +222,7 @@ const TransactionDetailModal = ({ isOpen, transaction, type, onClose, onEdit }) 
                 <div className="detail-item">
                   <div className="detail-label">Transaction ID</div>
                   <div className="detail-value mono">
-                    {transaction.id.substring(0, 8)}...
+                    {String(transaction.id).substring(0, 8)}...
                   </div>
                 </div>
               )}
