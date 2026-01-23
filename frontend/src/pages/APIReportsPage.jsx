@@ -3,6 +3,61 @@ import { Download, Filter, Calendar, FileText, CheckCircle2, AlertCircle, FileJs
 import '../styles/reports.css';
 import { API_BASE } from '../utils/apiBase';
 
+// Helper function to format column names
+const formatColumnName = (key) => {
+  return key
+    .replace(/Id$/i, '')
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .trim()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+// Helper function to format cell values
+const formatCellValue = (key, value, row) => {
+  if (value === null || value === undefined) return '-';
+  
+  // Format amounts/money fields
+  if (key.toLowerCase().includes('amount') || key.toLowerCase().includes('balance') || key.toLowerCase().includes('principal') || key.toLowerCase().includes('interest')) {
+    const num = parseFloat(value);
+    return isNaN(num) ? value : `KES ${num.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  
+  // Format dates
+  if (key.toLowerCase().includes('date') || key.toLowerCase().includes('createdat') || key.toLowerCase().includes('updatedat')) {
+    try {
+      const date = new Date(value);
+      return date.toLocaleDateString('en-KE', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+      return value;
+    }
+  }
+  
+  // Format status
+  if (key.toLowerCase().includes('status')) {
+    return String(value).charAt(0).toUpperCase() + String(value).slice(1).toLowerCase();
+  }
+  
+  // Format member info - prioritize memberName if available
+  if (key.toLowerCase() === 'memberid' && row.memberName) {
+    return row.memberName;
+  }
+  
+  if (typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+  
+  return String(value);
+};
+
+// Helper function to determine which columns to hide
+const shouldHideColumn = (key) => {
+  const hiddenColumns = ['id', 'memberid', 'accountid', 'createdat', 'updatedat', 'narration', 'reference'];
+  return hiddenColumns.includes(key.toLowerCase());
+};
+
 const APIReportsPage = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -272,26 +327,29 @@ const APIReportsPage = () => {
         </div>
 
         {/* Reports Grid */}
-        <div className="grid grid-cols-1 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 gap-5">
           {reports.map((report) => {
             return (
               <div
                 key={report.key}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-300 hover:border-blue-300"
+                className="report-card-dashboard"
               >
                 {/* Card Header - Clickable */}
                 <button
                   onClick={() => handleReportClick(report.key)}
-                  className="w-full text-left p-5 sm:p-6 hover:bg-gradient-to-r hover:from-blue-50 hover:to-transparent transition-all"
+                  className="report-card-header-dashboard"
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start justify-between gap-4 w-full">
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-900">{report.name}</h3>
-                      <p className="text-xs sm:text-sm text-gray-500 mt-2">
-                        <span className="font-medium">{report.filters.length}</span> filter(s) available
+                      <div className="flex items-center gap-3">
+                        <FileText className="text-blue-600" size={24} />
+                        <h3 className="text-xl font-bold text-gray-900">{report.name}</h3>
+                      </div>
+                      <p className="text-sm text-gray-500 mt-2 ml-9">
+                        Click to view detailed report data
                       </p>
                     </div>
-                    <span className={`text-gray-400 flex-shrink-0 transition-transform ${expandedReport === report.key ? 'rotate-180' : ''}`}>
+                    <span className={`text-blue-600 flex-shrink-0 transition-transform duration-300 ${expandedReport === report.key ? 'rotate-180' : ''}`}>
                       ▼
                     </span>
                   </div>
@@ -299,7 +357,7 @@ const APIReportsPage = () => {
 
                 {/* Card Content - Report Data */}
                 {expandedReport === report.key && (
-                  <div className="border-t border-gray-200 px-5 sm:px-6 py-6 bg-gray-50 space-y-6">
+                  <div className="report-content-area">
                     {/* Report Loading State */}
                     {reportLoading && (
                       <div className="flex items-center justify-center py-12">
@@ -311,61 +369,72 @@ const APIReportsPage = () => {
                     {/* Report Data Table */}
                     {!reportLoading && reportData && (
                       <div className="space-y-6">
-                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                        <div className="report-table-container">
                           <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
+                            <table className="report-table">
                               <thead>
-                                <tr className="bg-gradient-to-r from-blue-50 to-blue-25 border-b-2 border-blue-200">
+                                <tr>
                                   {reportData.rows && reportData.rows.length > 0 ? (
-                                    Object.keys(reportData.rows[0]).map((key) => (
-                                      <th key={key} className="px-5 py-4 text-left font-bold text-gray-800 whitespace-nowrap">
-                                        {key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
-                                      </th>
-                                    ))
+                                    Object.keys(reportData.rows[0])
+                                      .filter(key => !shouldHideColumn(key))
+                                      .map((key) => (
+                                        <th key={key}>
+                                          {formatColumnName(key)}
+                                        </th>
+                                      ))
                                   ) : (
-                                    <th className="px-5 py-4 text-left font-bold text-gray-800">Data</th>
+                                    <th>Data</th>
                                   )}
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-gray-200">
+                              <tbody>
                                 {reportData.rows && reportData.rows.length > 0 ? (
-                                  reportData.rows.slice(0, 50).map((row, rowIndex) => (
-                                    <tr key={rowIndex} className="hover:bg-blue-50 transition-colors">
-                                      {Object.values(row).map((cell, cellIndex) => (
-                                        <td key={cellIndex} className="px-5 py-4 text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">
-                                          {typeof cell === 'object' ? JSON.stringify(cell) : String(cell)}
-                                        </td>
-                                      ))}
+                                  reportData.rows.slice(0, 100).map((row, rowIndex) => (
+                                    <tr key={rowIndex}>
+                                      {Object.entries(row)
+                                        .filter(([key]) => !shouldHideColumn(key))
+                                        .map(([key, cell], cellIndex) => (
+                                          <td key={cellIndex}>
+                                            {formatCellValue(key, cell, row)}
+                                          </td>
+                                        ))}
                                     </tr>
                                   ))
                                 ) : (
                                   <tr>
-                                    <td colSpan="100%" className="px-5 py-12 text-center text-gray-500 font-medium">
-                                      No data available
+                                    <td colSpan="100" className="text-center py-12">
+                                      <FileText size={48} className="mx-auto text-gray-400 mb-3" />
+                                      <p className="text-gray-500 font-medium">No data available for this period</p>
                                     </td>
                                   </tr>
                                 )}
                               </tbody>
                             </table>
                           </div>
+                          {reportData.rows && reportData.rows.length > 100 && (
+                            <p className="text-sm text-gray-500 text-center py-3 bg-gray-50 border-t">
+                              Showing first 100 of {reportData.rows.length} records
+                            </p>
+                          )}
                         </div>
 
-                        {/* Report Summary */}
+                        {/* Report Summary - Dashboard Style */}
                         {reportData.meta && (
-                          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-                            <h4 className="font-bold text-gray-900 mb-4 text-lg">Report Summary</h4>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                              {Object.entries(reportData.meta).map(([key, value]) => (
-                                <div key={key} className="p-4 bg-gradient-to-br from-blue-50 to-blue-25 border border-blue-200 rounded-lg hover:shadow-md transition-shadow">
-                                  <p className="text-xs text-blue-700 font-bold uppercase tracking-wider mb-2">
-                                    {key.replace(/_/g, ' ')}
-                                  </p>
-                                  <p className="text-2xl font-bold text-blue-900">
-                                    {typeof value === 'number' ? value.toLocaleString() : value}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
+                          <div className="summary-metrics-grid">
+                            {Object.entries(reportData.meta).map(([key, value]) => (
+                              <div key={key} className="summary-metric-card">
+                                <p className="summary-metric-label">
+                                  {formatColumnName(key)}
+                                </p>
+                                <p className="summary-metric-value">
+                                  {typeof value === 'number' 
+                                    ? (key.toLowerCase().includes('amount') || key.toLowerCase().includes('total'))
+                                      ? `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                      : value.toLocaleString()
+                                    : value}
+                                </p>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -373,10 +442,10 @@ const APIReportsPage = () => {
 
                     {/* Download Section - Bottom of Report */}
                     {!reportLoading && reportData && (
-                      <div className="pt-6 border-t-2 border-gray-300">
-                        <p className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-4">Export Report</p>
+                      <div className="download-section">
+                        <p className="download-section-title">Export Report</p>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="download-buttons-grid">
                           {/* PDF Button */}
                           <DownloadButton
                             format="pdf"
