@@ -200,17 +200,21 @@ const FinePaymentForm = ({ onSuccess }) => {
               type="text"
               value={memberSearch}
               onChange={(e) => handleMemberSearch(e.target.value)}
-              onFocus={() => memberSearch.length > 0 && setShowMemberDropdown(true)}
+              onFocus={() => setShowMemberDropdown(true)}
               placeholder="Search by name, phone, or member number"
               required
             />
             {showMemberDropdown && filteredMembers.length > 0 && (
               <div className="member-dropdown">
                 {filteredMembers.slice(0, 10).map(member => (
-                  <div
+                  <button
                     key={member.id}
+                    type="button"
                     className="member-option"
-                    onClick={() => selectMember(member)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      selectMember(member);
+                    }}
                   >
                     <div className="member-info">
                       <span className="member-name">{member.name}</span>
@@ -219,7 +223,7 @@ const FinePaymentForm = ({ onSuccess }) => {
                     <div className="member-details">
                       <span className="member-phone">{member.phone}</span>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}

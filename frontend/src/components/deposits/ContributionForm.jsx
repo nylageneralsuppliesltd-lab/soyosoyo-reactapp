@@ -209,21 +209,25 @@ const ContributionForm = ({ onSuccess }) => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onFocus={() => setShowMemberDropdown(true)}
-            onBlur={() => setTimeout(() => setShowMemberDropdown(false), 200)}
             required
           />
           {showMemberDropdown && filteredMembers.length > 0 && (
             <div className="member-dropdown">
               {filteredMembers.slice(0, 10).map((member) => (
-                <div
+                <button
                   key={member.id}
+                  type="button"
                   className="member-option"
-                  onClick={() => handleMemberSelect(member)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleMemberSelect(member);
+                    setShowMemberDropdown(false);
+                  }}
                 >
                   <strong>{member.name}</strong>
                   <span>{member.phone}</span>
                   <span className="balance">Balance: KES {member.balance?.toFixed(2) || '0.00'}</span>
-                </div>
+                </button>
               ))}
             </div>
           )}
