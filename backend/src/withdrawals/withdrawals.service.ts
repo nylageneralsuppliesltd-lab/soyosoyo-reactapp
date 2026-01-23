@@ -130,14 +130,34 @@ export class WithdrawalsService {
         },
     });
 
-    // Double-entry: DR Expense (recorded in category), CR Cash Account
+    // Get or create GL expense account for this category
+    const expenseGLAccountName = `${category} Expense`;
+    let expenseGLAccount = await this.prisma.account.findFirst({
+      where: { name: expenseGLAccountName },
+    });
+
+    if (!expenseGLAccount) {
+      expenseGLAccount = await this.prisma.account.create({
+        data: {
+          name: expenseGLAccountName,
+          type: 'bank', // GL account type
+          description: `GL account for ${category} expense`,
+          currency: 'KES',
+          balance: new Prisma.Decimal(0),
+        },
+      });
+    }
+
+    // Proper double-entry journal entry:
+    // Debit: Expense GL Account (expense increases, reducing equity)
+    // Credit: Cash Account (asset decreases)
     await this.prisma.journalEntry.create({
       data: {
         date: parsedDate,
         reference: reference || `EXP-${withdrawal.id}`,
         description: `Expense - ${category}`,
         narration: notes || null,
-        debitAccountId: cashAccount.id,
+        debitAccountId: expenseGLAccount.id,
         debitAmount: amountDecimal,
         creditAccountId: cashAccount.id,
         creditAmount: amountDecimal,
@@ -291,14 +311,34 @@ export class WithdrawalsService {
       },
     });
 
-    // Double-entry: DR Refund, CR Cash Account
+    // Get or create GL refund liability account
+    const refundGLAccountName = `${contributionType} Refunds Payable`;
+    let refundGLAccount = await this.prisma.account.findFirst({
+      where: { name: refundGLAccountName },
+    });
+
+    if (!refundGLAccount) {
+      refundGLAccount = await this.prisma.account.create({
+        data: {
+          name: refundGLAccountName,
+          type: 'bank', // GL account type
+          description: `GL account for ${contributionType} refunds payable`,
+          currency: 'KES',
+          balance: new Prisma.Decimal(0),
+        },
+      });
+    }
+
+    // Proper double-entry journal entry:
+    // Debit: Refund Payable GL Account (liability decreases)
+    // Credit: Cash Account (asset decreases)
     await this.prisma.journalEntry.create({
       data: {
         date: parsedDate,
         reference: reference || `REF-${withdrawal.id}`,
         description: `Refund to ${member.name} - ${contributionType}`,
         narration: notes || null,
-        debitAccountId: cashAccount.id,
+        debitAccountId: refundGLAccount.id,
         debitAmount: amountDecimal,
         creditAccountId: cashAccount.id,
         creditAmount: amountDecimal,
@@ -382,14 +422,34 @@ export class WithdrawalsService {
       },
     });
 
-    // Double-entry: DR Dividend, CR Cash Account
+    // Get or create GL dividend payable account
+    const dividendGLAccountName = 'Dividends Payable';
+    let dividendGLAccount = await this.prisma.account.findFirst({
+      where: { name: dividendGLAccountName },
+    });
+
+    if (!dividendGLAccount) {
+      dividendGLAccount = await this.prisma.account.create({
+        data: {
+          name: dividendGLAccountName,
+          type: 'bank', // GL account type
+          description: 'GL account for dividends payable',
+          currency: 'KES',
+          balance: new Prisma.Decimal(0),
+        },
+      });
+    }
+
+    // Proper double-entry journal entry:
+    // Debit: Dividends Payable GL Account (liability decreases)
+    // Credit: Cash Account (asset decreases)
     await this.prisma.journalEntry.create({
       data: {
         date: parsedDate,
         reference: reference || `DIV-${withdrawal.id}`,
         description: `Dividend payout to ${member.name}`,
         narration: notes || null,
-        debitAccountId: cashAccount.id,
+        debitAccountId: dividendGLAccount.id,
         debitAmount: amountDecimal,
         creditAccountId: cashAccount.id,
         creditAmount: amountDecimal,

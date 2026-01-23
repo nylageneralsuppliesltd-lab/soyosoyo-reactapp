@@ -69,7 +69,31 @@ export class DepositsService {
         data: { balance: { increment: amountDecimal } },
       });
 
-      // Record journal entry for the ledger
+      // Get or create GL account for the contribution type/category
+      // This acts as a contra account that tracks what type of deposit it was
+      const glAccountName = depositData.category 
+        ? `${depositData.category} Received` 
+        : `${depositData.type} Received`;
+      
+      let glAccount = await this.prisma.account.findFirst({
+        where: { name: glAccountName },
+      });
+
+      if (!glAccount) {
+        glAccount = await this.prisma.account.create({
+          data: {
+            name: glAccountName,
+            type: 'bank', // GL account type
+            description: `GL account for ${depositData.category || depositData.type}`,
+            currency: 'KES',
+            balance: new Prisma.Decimal(0),
+          },
+        });
+      }
+
+      // Record proper double-entry journal entry:
+      // Debit: Cash Account (asset increases)
+      // Credit: Contribution GL Account (tracks source of deposit)
       await this.prisma.journalEntry.create({
         data: {
           date: depositData.date,
@@ -78,9 +102,9 @@ export class DepositsService {
           narration: depositData.notes ?? null,
           debitAccountId: cashAccount.id,
           debitAmount: amountDecimal,
-          creditAccountId: cashAccount.id,
+          creditAccountId: glAccount.id,
           creditAmount: amountDecimal,
-          category: 'deposit',
+          category: depositData.category || 'deposit',
         },
       });
 
@@ -264,11 +288,13 @@ export class DepositsService {
     let creditAccountId: number;
     let debitDescription: string;
     let creditDescription: string;
+    let creditAccountName: string;
 
     // Determine accounts based on payment type
     switch (depositType) {
       case 'contribution': {
         // DR: Cash/Bank Account (money comes in)
+        // CR: Contribution GL Account (tracks source)
         const cashAccount = accountId
           ? await this.ensureAccount(accountId)
           : await this.ensureAccount(null, 'cash', 'Default Cash Account');
@@ -277,8 +303,11 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
+        creditAccountName = description ? `${description} Received` : 'Contributions Received';
+        const creditAccount = await this.ensureAccountByName(creditAccountName, 'bank', creditAccountName);
+
         debitAccountId = cashAccount.id;
-        creditAccountId = cashAccount.id; // Single entry for now
+        creditAccountId = creditAccount.id;
         debitDescription = `Contribution received - ${description}`;
         creditDescription = `Contribution received - ${description}`;
         break;
@@ -286,6 +315,7 @@ export class DepositsService {
 
       case 'fine': {
         // DR: Cash (money comes in)
+        // CR: Fines Collected GL Account
         const cashAccount = accountId
           ? await this.ensureAccount(accountId)
           : await this.ensureAccount(null, 'cash', 'Default Cash Account');
@@ -294,8 +324,10 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
+        const creditAccount = await this.ensureAccountByName('Fines Collected', 'bank', 'Fines Collected GL Account');
+
         debitAccountId = cashAccount.id;
-        creditAccountId = cashAccount.id; // Single entry for now
+        creditAccountId = creditAccount.id;
         debitDescription = `Fine payment received`;
         creditDescription = `Fine payment received`;
         break;
@@ -303,6 +335,7 @@ export class DepositsService {
 
       case 'loan_repayment': {
         // DR: Cash (money comes in)
+        // CR: Loan Repayments GL Account
         const cashAccount = accountId
           ? await this.ensureAccount(accountId)
           : await this.ensureAccount(null, 'cash', 'Default Cash Account');
@@ -311,8 +344,10 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
+        const creditAccount = await this.ensureAccountByName('Loan Repayments Received', 'bank', 'Loan Repayments GL Account');
+
         debitAccountId = cashAccount.id;
-        creditAccountId = cashAccount.id; // Single entry for now
+        creditAccountId = creditAccount.id;
         debitDescription = `Loan repayment received`;
         creditDescription = `Loan repayment received`;
         break;
@@ -320,6 +355,7 @@ export class DepositsService {
 
       case 'income': {
         // DR: Cash (money comes in)
+        // CR: Income GL Account
         const cashAccount = accountId
           ? await this.ensureAccount(accountId)
           : await this.ensureAccount(null, 'cash', 'Default Cash Account');
@@ -328,8 +364,10 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
+        const creditAccount = await this.ensureAccountByName('Other Income', 'bank', 'Other Income GL Account');
+
         debitAccountId = cashAccount.id;
-        creditAccountId = cashAccount.id; // Single entry for now
+        creditAccountId = creditAccount.id;
         debitDescription = `Income received`;
         creditDescription = `Income received`;
         break;
@@ -338,6 +376,7 @@ export class DepositsService {
       case 'miscellaneous':
       default: {
         // DR: Cash (money comes in)
+        // CR: Miscellaneous GL Account
         const cashAccount = accountId
           ? await this.ensureAccount(accountId)
           : await this.ensureAccount(null, 'cash', 'Default Cash Account');
@@ -346,8 +385,10 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
+        const creditAccount = await this.ensureAccountByName('Miscellaneous Receipts', 'bank', 'Miscellaneous GL Account');
+
         debitAccountId = cashAccount.id;
-        creditAccountId = cashAccount.id; // Single entry for now
+        creditAccountId = creditAccount.id;
         debitDescription = `Payment received`;
         creditDescription = `Payment received`;
         break;

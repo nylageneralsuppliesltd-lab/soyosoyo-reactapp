@@ -35,22 +35,40 @@ export class GeneralLedgerService {
   async getTransactionSummary() {
     const journals = await this.prisma.journalEntry.findMany({
       orderBy: { date: 'asc' },
+      include: {
+        debitAccount: true,
+        creditAccount: true,
+      },
     });
 
-    let runningBalance = 0;
+    // In double-entry bookkeeping, total debits always equal total credits
     const totalDebits = journals.reduce((sum, j) => sum + Number(j.debitAmount || 0), 0);
     const totalCredits = journals.reduce((sum, j) => sum + Number(j.creditAmount || 0), 0);
+
+    // Get account balances to show real financial position
+    const accounts = await this.prisma.account.findMany({
+      orderBy: { name: 'asc' },
+    });
+
+    const totalAssets = accounts.reduce((sum, acc) => {
+      // Assets (cash, bank accounts) have positive balances when debited
+      if (['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(acc.type)) {
+        return sum + Number(acc.balance);
+      }
+      return sum;
+    }, 0);
 
     return {
       totalTransactions: journals.length,
       totalDebits,
       totalCredits,
-      netBalance: totalCredits - totalDebits,
+      debitsCreditBalance: totalDebits - totalCredits, // Should be 0 in proper accounting
+      totalAssets,
       transactions: journals.map(j => {
-        runningBalance += Number(j.creditAmount || 0) - Number(j.debitAmount || 0);
         return {
           ...j,
-          runningBalance,
+          debitAccountName: j.debitAccount?.name,
+          creditAccountName: j.creditAccount?.name,
         };
       }),
     };
@@ -71,6 +89,14 @@ export class GeneralLedgerService {
   }
 
   async getAccountLedger(accountId: number, startDate?: string, endDate?: string) {
+    const account = await this.prisma.account.findUnique({
+      where: { id: accountId },
+    });
+
+    if (!account) {
+      throw new Error('Account not found');
+    }
+
     const where: any = {
       OR: [
         { debitAccountId: accountId },
@@ -84,7 +110,7 @@ export class GeneralLedgerService {
       if (endDate) where.date.lte = new Date(endDate);
     }
 
-    return this.prisma.journalEntry.findMany({
+    const entries = await this.prisma.journalEntry.findMany({
       where,
       orderBy: { date: 'asc' },
       include: {
@@ -92,5 +118,53 @@ export class GeneralLedgerService {
         creditAccount: { select: { name: true } },
       },
     });
+
+    // Calculate running balance for this account
+    // For asset accounts (cash, bank): Debit increases, Credit decreases
+    // For liability/equity accounts: Debit decreases, Credit increases
+    let runningBalance = 0;
+    const isAssetAccount = ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type);
+
+    const transactions = entries.map(entry => {
+      let amount = 0;
+      let type = '';
+
+      if (entry.debitAccountId === accountId) {
+        // This account was debited
+        amount = Number(entry.debitAmount);
+        type = 'debit';
+        runningBalance += isAssetAccount ? amount : -amount;
+      } else if (entry.creditAccountId === accountId) {
+        // This account was credited
+        amount = Number(entry.creditAmount);
+        type = 'credit';
+        runningBalance += isAssetAccount ? -amount : amount;
+      }
+
+      return {
+        ...entry,
+        amount,
+        type,
+        runningBalance,
+        debitAccountName: entry.debitAccount?.name,
+        creditAccountName: entry.creditAccount?.name,
+      };
+    });
+
+    return {
+      account: {
+        id: account.id,
+        name: account.name,
+        type: account.type,
+        balance: Number(account.balance),
+      },
+      transactions,
+      summary: {
+        openingBalance: 0,
+        closingBalance: runningBalance,
+        totalDebits: entries.reduce((sum, e) => sum + (e.debitAccountId === accountId ? Number(e.debitAmount) : 0), 0),
+        totalCredits: entries.reduce((sum, e) => sum + (e.creditAccountId === accountId ? Number(e.creditAmount) : 0), 0),
+      },
+    };
   }
 }
