@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Filter, Calendar, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Download, Filter, Calendar, FileText, CheckCircle2, AlertCircle, FileJson, Table, FileSpreadsheet } from 'lucide-react';
 import '../styles/reports.css';
 import { API_BASE } from '../utils/apiBase';
 
 const APIReportsPage = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [downloading, setDownloading] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(null);
   const [downloadStatus, setDownloadStatus] = useState({});
   const [filters, setFilters] = useState({
     period: 'month',
@@ -35,13 +35,14 @@ const APIReportsPage = () => {
     fetchCatalog();
   }, []);
 
-  const handleDownload = async (reportKey) => {
-    setDownloading(true);
-    setDownloadStatus(prev => ({ ...prev, [reportKey]: 'downloading' }));
+  const handleDownload = async (reportKey, format) => {
+    const statusKey = `${reportKey}-${format}`;
+    setDownloadingReport(statusKey);
+    setDownloadStatus(prev => ({ ...prev, [statusKey]: 'downloading' }));
 
     try {
       const params = new URLSearchParams({
-        format: filters.format,
+        format: format,
         period: filters.period,
       });
 
@@ -55,36 +56,36 @@ const APIReportsPage = () => {
       let blob;
       let filename;
 
-      if (filters.format === 'json') {
+      if (format === 'json') {
         const data = await response.json();
         blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        filename = `${reportKey}.json`;
-      } else if (filters.format === 'csv') {
+        filename = `${reportKey}-${new Date().toISOString().split('T')[0]}.json`;
+      } else if (format === 'csv') {
         blob = await response.blob();
-        filename = `${reportKey}.csv`;
-      } else if (filters.format === 'xlsx') {
+        filename = `${reportKey}-${new Date().toISOString().split('T')[0]}.csv`;
+      } else if (format === 'xlsx') {
         blob = await response.blob();
-        filename = `${reportKey}.xlsx`;
-      } else if (filters.format === 'pdf') {
+        filename = `${reportKey}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      } else if (format === 'pdf') {
         blob = await response.blob();
-        filename = `${reportKey}.pdf`;
+        filename = `${reportKey}-${new Date().toISOString().split('T')[0]}.pdf`;
       }
 
       downloadBlob(blob, filename);
-      setDownloadStatus(prev => ({ ...prev, [reportKey]: 'success' }));
+      setDownloadStatus(prev => ({ ...prev, [statusKey]: 'success' }));
 
       // Clear success message after 3 seconds
       setTimeout(() => {
-        setDownloadStatus(prev => ({ ...prev, [reportKey]: null }));
+        setDownloadStatus(prev => ({ ...prev, [statusKey]: null }));
       }, 3000);
     } catch (error) {
       console.error('Download failed:', error);
-      setDownloadStatus(prev => ({ ...prev, [reportKey]: 'error' }));
+      setDownloadStatus(prev => ({ ...prev, [statusKey]: 'error' }));
       setTimeout(() => {
-        setDownloadStatus(prev => ({ ...prev, [reportKey]: null }));
+        setDownloadStatus(prev => ({ ...prev, [statusKey]: null }));
       }, 3000);
     } finally {
-      setDownloading(false);
+      setDownloadingReport(null);
     }
   };
 
@@ -237,68 +238,86 @@ const APIReportsPage = () => {
         {/* Reports Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {reports.map((report) => {
-            const status = downloadStatus[report.key];
             return (
               <div
                 key={report.key}
-                className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all border border-gray-200 overflow-hidden"
+                className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-300 hover:border-blue-300"
               >
+                {/* Card Header - Clickable */}
                 <button
                   onClick={() => setExpandedReport(expandedReport === report.key ? null : report.key)}
-                  className="w-full text-left p-4 sm:p-6 hover:bg-gray-50 transition-colors"
+                  className="w-full text-left p-5 sm:p-6 hover:bg-gradient-to-r hover:from-blue-50 hover:to-transparent transition-all"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900">{report.name}</h3>
-                      <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                        {report.filters.length} filter(s)
+                      <h3 className="text-lg font-bold text-gray-900">{report.name}</h3>
+                      <p className="text-xs sm:text-sm text-gray-500 mt-2">
+                        <span className="font-medium">{report.filters.length}</span> filter(s) available
                       </p>
                     </div>
-                    <span className="text-gray-400 flex-shrink-0">
-                      {expandedReport === report.key ? '▼' : '▶'}
+                    <span className={`text-gray-400 flex-shrink-0 transition-transform ${expandedReport === report.key ? 'rotate-180' : ''}`}>
+                      ▼
                     </span>
                   </div>
                 </button>
 
+                {/* Card Content - Download Options */}
                 {expandedReport === report.key && (
-                  <div className="border-t border-gray-200 px-4 sm:px-6 py-4 bg-gray-50">
-                    <p className="text-xs sm:text-sm text-gray-600 mb-4">
-                      <span className="font-semibold">Available filters:</span> {report.filters.join(', ')}
+                  <div className="border-t border-gray-200 px-5 sm:px-6 py-5 bg-gray-50">
+                    <p className="text-xs sm:text-sm text-gray-600 mb-5 font-medium">
+                      Available filters: <span className="text-gray-700">{report.filters.join(', ')}</span>
                     </p>
 
-                    <button
-                      onClick={() => handleDownload(report.key)}
-                      disabled={downloading || status === 'downloading'}
-                      className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm sm:text-base transition-all ${
-                        status === 'success'
-                          ? 'bg-green-50 text-green-700 border border-green-200'
-                          : status === 'error'
-                          ? 'bg-red-50 text-red-700 border border-red-200'
-                          : 'bg-blue-600 hover:bg-blue-700 text-white'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      {status === 'downloading' ? (
-                        <>
-                          <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></div>
-                          Downloading...
-                        </>
-                      ) : status === 'success' ? (
-                        <>
-                          <CheckCircle2 size={18} />
-                          Downloaded!
-                        </>
-                      ) : status === 'error' ? (
-                        <>
-                          <AlertCircle size={18} />
-                          Failed
-                        </>
-                      ) : (
-                        <>
-                          <Download size={18} />
-                          Download Report
-                        </>
-                      )}
-                    </button>
+                    {/* Download Buttons */}
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Download as</p>
+                      
+                      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                        {/* PDF Button */}
+                        <DownloadButton
+                          format="pdf"
+                          label="PDF"
+                          icon={<FileText size={16} />}
+                          reportKey={report.key}
+                          isLoading={downloadingReport === `${report.key}-pdf`}
+                          status={downloadStatus[`${report.key}-pdf`]}
+                          onDownload={() => handleDownload(report.key, 'pdf')}
+                        />
+
+                        {/* CSV Button */}
+                        <DownloadButton
+                          format="csv"
+                          label="CSV"
+                          icon={<Table size={16} />}
+                          reportKey={report.key}
+                          isLoading={downloadingReport === `${report.key}-csv`}
+                          status={downloadStatus[`${report.key}-csv`]}
+                          onDownload={() => handleDownload(report.key, 'csv')}
+                        />
+
+                        {/* Excel Button */}
+                        <DownloadButton
+                          format="xlsx"
+                          label="Excel"
+                          icon={<FileSpreadsheet size={16} />}
+                          reportKey={report.key}
+                          isLoading={downloadingReport === `${report.key}-xlsx`}
+                          status={downloadStatus[`${report.key}-xlsx`]}
+                          onDownload={() => handleDownload(report.key, 'xlsx')}
+                        />
+
+                        {/* JSON Button */}
+                        <DownloadButton
+                          format="json"
+                          label="JSON"
+                          icon={<FileJson size={16} />}
+                          reportKey={report.key}
+                          isLoading={downloadingReport === `${report.key}-json`}
+                          status={downloadStatus[`${report.key}-json`]}
+                          onDownload={() => handleDownload(report.key, 'json')}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -327,6 +346,46 @@ const APIReportsPage = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+// Download Button Component
+const DownloadButton = ({ format, label, icon, reportKey, isLoading, status, onDownload }) => {
+  return (
+    <button
+      onClick={onDownload}
+      disabled={isLoading}
+      className={`flex flex-col items-center justify-center gap-2 px-3 py-3 rounded-lg font-medium text-xs sm:text-sm transition-all ${
+        status === 'success'
+          ? 'bg-green-100 text-green-700 border border-green-300 hover:bg-green-200'
+          : status === 'error'
+          ? 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'
+          : 'bg-white border border-gray-300 text-gray-700 hover:bg-blue-50 hover:border-blue-400'
+      } disabled:opacity-50 disabled:cursor-not-allowed`}
+      title={`Download as ${label}`}
+    >
+      {isLoading ? (
+        <>
+          <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></div>
+          <span className="text-xs">Downloading...</span>
+        </>
+      ) : status === 'success' ? (
+        <>
+          <CheckCircle2 size={16} />
+          <span className="text-xs font-semibold">Done!</span>
+        </>
+      ) : status === 'error' ? (
+        <>
+          <AlertCircle size={16} />
+          <span className="text-xs font-semibold">Failed</span>
+        </>
+      ) : (
+        <>
+          {icon}
+          <span>{label}</span>
+        </>
+      )}
+    </button>
   );
 };
 
