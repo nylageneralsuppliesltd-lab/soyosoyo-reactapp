@@ -78,10 +78,9 @@ const FinePaymentForm = ({ onSuccess }) => {
     setMemberSearch(searchTerm);
     if (searchTerm.length > 0) {
       const filtered = members.filter(member =>
-        member.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.phoneNumber?.includes(searchTerm) ||
-        member.memberNumber?.includes(searchTerm)
+        member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        member.phone?.includes(searchTerm) ||
+        member.idNumber?.includes(searchTerm)
       );
       setFilteredMembers(filtered);
       setShowMemberDropdown(true);
@@ -95,9 +94,9 @@ const FinePaymentForm = ({ onSuccess }) => {
     setFormData({
       ...formData,
       memberId: member.id.toString(),
-      memberName: `${member.firstName} ${member.lastName}`
+      memberName: `${member.name}`
     });
-    setMemberSearch(`${member.firstName} ${member.lastName} (${member.memberNumber || 'N/A'})`);
+    setMemberSearch(`${member.name}`);
     setShowMemberDropdown(false);
   };
 
@@ -214,11 +213,11 @@ const FinePaymentForm = ({ onSuccess }) => {
                     onClick={() => selectMember(member)}
                   >
                     <div className="member-info">
-                      <span className="member-name">{member.firstName} {member.lastName}</span>
-                      <span className="member-number">{member.memberNumber || 'N/A'}</span>
+                      <span className="member-name">{member.name}</span>
+                      <span className="member-number">{member.idNumber || 'N/A'}</span>
                     </div>
                     <div className="member-details">
-                      <span className="member-phone">{member.phoneNumber}</span>
+                      <span className="member-phone">{member.phone}</span>
                     </div>
                   </div>
                 ))}
