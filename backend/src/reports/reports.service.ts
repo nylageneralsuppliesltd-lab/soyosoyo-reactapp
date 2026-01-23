@@ -145,9 +145,24 @@ export class ReportsService {
       date: { gte: dateRange.start, lte: dateRange.end },
       memberId: memberId ? Number(memberId) : undefined,
     };
-    const rows = await this.prisma.deposit.findMany({ where, orderBy: { date: 'asc' } });
-    const total = rows.reduce((sum, r) => sum + Number(r.amount), 0);
-    return { rows, meta: { total } };
+    const deposits = await this.prisma.deposit.findMany({ 
+      where, 
+      orderBy: { date: 'asc' },
+      include: { member: true }
+    });
+    
+    const rows = deposits.map(d => ({
+      date: d.date,
+      memberName: d.memberName || d.member?.name || 'Unknown',
+      type: d.type,
+      category: d.category,
+      amount: d.amount,
+      paymentMethod: d.method,
+      description: d.description,
+    }));
+    
+    const total = deposits.reduce((sum, r) => sum + Number(r.amount), 0);
+    return { rows, meta: { total, count: deposits.length } };
   }
 
   private async finesReport(dateRange: { start: Date; end: Date }, status?: string, memberId?: string) {
@@ -156,15 +171,31 @@ export class ReportsService {
       status: status || undefined,
       memberId: memberId ? Number(memberId) : undefined,
     };
-    const rows = await this.prisma.fine.findMany({ where, orderBy: { dueDate: 'asc' }, include: { member: true } });
-    const totals = rows.reduce(
+    const fines = await this.prisma.fine.findMany({ 
+      where, 
+      orderBy: { dueDate: 'asc' }, 
+      include: { member: true } 
+    });
+    
+    const rows = fines.map(f => ({
+      memberName: f.member?.name || 'Unknown',
+      type: f.type,
+      amount: f.amount,
+      paidAmount: f.paidAmount,
+      outstanding: Number(f.amount) - Number(f.paidAmount),
+      status: f.status,
+      dueDate: f.dueDate,
+      reason: f.reason,
+    }));
+    
+    const totals = fines.reduce(
       (acc, r) => {
         acc.issued += Number(r.amount);
         acc.paid += Number(r.paidAmount);
         acc.outstanding += Number(r.amount) - Number(r.paidAmount);
         return acc;
       },
-      { issued: 0, paid: 0, outstanding: 0 },
+      { issued: 0, paid: 0, outstanding: 0, count: fines.length },
     );
     return { rows, meta: totals };
   }
@@ -176,14 +207,30 @@ export class ReportsService {
       createdAt: { gte: dateRange.start, lte: dateRange.end },
       memberId: nonMemberOnly ? null : undefined,
     };
-    const rows = await this.prisma.loan.findMany({ where, orderBy: { createdAt: 'asc' }, include: { member: true, loanType: true } });
-    const totals = rows.reduce(
+    const loans = await this.prisma.loan.findMany({ 
+      where, 
+      orderBy: { createdAt: 'asc' }, 
+      include: { member: true, loanType: true } 
+    });
+    
+    const rows = loans.map(l => ({
+      memberName: l.borrowerName || l.member?.name || 'Non-member',
+      loanType: l.loanType?.name || 'Other',
+      principalAmount: l.amount,
+      interestRate: l.interestRate,
+      outstandingBalance: l.balance,
+      status: l.status,
+      disbursementDate: l.disbursementDate,
+      dueDate: l.dueDate,
+    }));
+    
+    const totals = loans.reduce(
       (acc, r) => {
         acc.principal += Number(r.amount);
         acc.balance += Number(r.balance);
         return acc;
       },
-      { principal: 0, balance: 0 },
+      { principal: 0, balance: 0, count: loans.length },
     );
     return { rows, meta: totals };
   }
@@ -194,15 +241,38 @@ export class ReportsService {
       date: { gte: dateRange.start, lte: dateRange.end },
       category: category || undefined,
     };
-    const rows = await this.prisma.withdrawal.findMany({ where, orderBy: { date: 'asc' } });
-    const total = rows.reduce((sum, r) => sum + Number(r.amount), 0);
-    return { rows, meta: { total } };
+    const withdrawals = await this.prisma.withdrawal.findMany({ 
+      where, 
+      orderBy: { date: 'asc' },
+      include: { account: true }
+    });
+    
+    const rows = withdrawals.map(w => ({
+      date: w.date,
+      category: w.category,
+      amount: w.amount,
+      paymentMethod: w.method,
+      description: w.description,
+      account: w.account?.name || 'Unknown',
+    }));
+    
+    const total = withdrawals.reduce((sum, r) => sum + Number(r.amount), 0);
+    return { rows, meta: { total, count: withdrawals.length } };
   }
 
   private async accountBalanceReport() {
-    const rows = await this.prisma.account.findMany({ orderBy: { name: 'asc' } });
-    const total = rows.reduce((sum, r) => sum + Number(r.balance), 0);
-    return { rows, meta: { total } };
+    const accounts = await this.prisma.account.findMany({ orderBy: { name: 'asc' } });
+    
+    const rows = accounts.map(a => ({
+      accountName: a.name,
+      accountType: a.type,
+      balance: a.balance,
+      currency: a.currency || 'KES',
+      isActive: a.isActive !== false ? 'Active' : 'Inactive',
+    }));
+    
+    const total = accounts.reduce((sum, r) => sum + Number(r.balance), 0);
+    return { rows, meta: { total, count: accounts.length } };
   }
 
   private async transactionStatement(dateRange: { start: Date; end: Date }, accountId?: string) {
@@ -215,14 +285,26 @@ export class ReportsService {
           ]
         : undefined,
     };
-    const rows = await this.prisma.journalEntry.findMany({
+    const entries = await this.prisma.journalEntry.findMany({
       where,
       orderBy: { date: 'asc' },
       include: { debitAccount: true, creditAccount: true },
     });
-    const totalDebit = rows.reduce((sum, r) => sum + Number(r.debitAmount), 0);
-    const totalCredit = rows.reduce((sum, r) => sum + Number(r.creditAmount), 0);
-    return { rows, meta: { totalDebit, totalCredit } };
+    
+    const rows = entries.map(e => ({
+      date: e.date,
+      reference: e.reference,
+      description: e.description,
+      debitAccount: e.debitAccount?.name || 'Unknown',
+      creditAccount: e.creditAccount?.name || 'Unknown',
+      debitAmount: e.debitAmount,
+      creditAmount: e.creditAmount,
+      category: e.category,
+    }));
+    
+    const totalDebit = entries.reduce((sum, r) => sum + Number(r.debitAmount), 0);
+    const totalCredit = entries.reduce((sum, r) => sum + Number(r.creditAmount), 0);
+    return { rows, meta: { totalDebit, totalCredit, count: entries.length } };
   }
 
   private async cashFlowReport(dateRange: { start: Date; end: Date }) {
@@ -284,17 +366,21 @@ export class ReportsService {
       const acc = accounts.get(id)!;
       const acctInfo = accountData.find(a => a.id === id);
       return {
-        accountId: id,
         accountName: acctInfo?.name || `Account ${id}`,
-        debit: acc.debit,
-        credit: acc.credit,
+        accountType: acctInfo?.type || 'Unknown',
+        debitAmount: acc.debit,
+        creditAmount: acc.credit,
         balance: acc.debit - acc.credit,
       };
     });
 
     const totals = rowsOut.reduce(
-      (t, r) => ({ debit: t.debit + r.debit, credit: t.credit + r.credit }),
-      { debit: 0, credit: 0 },
+      (t, r) => ({ 
+        debit: t.debit + r.debitAmount, 
+        credit: t.credit + r.creditAmount,
+        count: accountIds.length
+      }),
+      { debit: 0, credit: 0, count: 0 },
     );
 
     return { rows: rowsOut, meta: totals };
@@ -373,11 +459,25 @@ export class ReportsService {
   }
 
   private async dividendReport(dateRange: { start: Date; end: Date }) {
-    const deposits = await this.prisma.deposit.findMany({
-      where: { type: 'dividend', date: { gte: dateRange.start, lte: dateRange.end } },
+    const dividends = await this.prisma.withdrawal.findMany({
+      where: { 
+        type: 'dividend', 
+        date: { gte: dateRange.start, lte: dateRange.end } 
+      },
+      orderBy: { date: 'asc' },
+      include: { member: true }
     });
-    const total = deposits.reduce((s, d) => s + Number(d.amount), 0);
-    return { rows: deposits, meta: { total } };
+    
+    const rows = dividends.map(d => ({
+      date: d.date,
+      memberName: d.memberName || d.member?.name || 'Unknown',
+      amount: d.amount,
+      paymentMethod: d.method,
+      description: d.description,
+    }));
+    
+    const total = dividends.reduce((s, d) => s + Number(d.amount), 0);
+    return { rows, meta: { total, count: dividends.length } };
   }
 
   private toCsv(rows: any[]) {
