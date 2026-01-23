@@ -17,6 +17,18 @@ import { WithdrawalsService } from './withdrawals.service';
 export class WithdrawalsController {
   constructor(private readonly withdrawalsService: WithdrawalsService) {}
 
+  // Specific routes first (before :id)
+  @Get('stats')
+  async getStats() {
+    return this.withdrawalsService.getWithdrawalStats();
+  }
+
+  @Get('member/:memberId')
+  async findByMember(@Param('memberId') memberId: string) {
+    return this.withdrawalsService.findByMember(parseInt(memberId));
+  }
+
+  // POST routes for creating specific types
   @Post('expense')
   async createExpense(@Body() data: any) {
     try {
@@ -101,11 +113,7 @@ export class WithdrawalsController {
     }
   }
 
-  @Get('stats')
-  async getStats() {
-    return this.withdrawalsService.getWithdrawalStats();
-  }
-
+  // Generic routes after specific ones
   @Get()
   async findAll(
     @Query('take') take?: string,
@@ -126,11 +134,7 @@ export class WithdrawalsController {
     return this.withdrawalsService.findAll(takeNum, skipNum);
   }
 
-  @Get('member/:memberId')
-  async findByMember(@Param('memberId') memberId: string) {
-    return this.withdrawalsService.findByMember(parseInt(memberId));
-  }
-
+  // ID-based routes last (most generic)
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.withdrawalsService.findOne(parseInt(id));
