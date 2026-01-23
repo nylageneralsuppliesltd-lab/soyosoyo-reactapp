@@ -156,6 +156,9 @@ export default function Sidebar({ isOpen, onClose }) {
                 <li>
                   <Link to="/account-statement" onClick={onClose}>Account Statements</Link>
                 </li>
+                <li>
+                  <Link to="/general-ledger-detail" onClick={onClose}>General Ledger</Link>
+                </li>
               </ul>
             )}
           </li>

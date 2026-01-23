@@ -1,0 +1,640 @@
+/* General Ledger Page Styles */
+
+.general-ledger-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 2rem 1rem;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.ledger-header-section {
+  max-width: 1400px;
+  margin: 0 auto 2rem;
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.header-top h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1a202c;
+  margin: 0 0 0.5rem 0;
+}
+
+.header-top p {
+  color: #718096;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-action {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #2d3748;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.btn-action:hover {
+  background: #f7fafc;
+  border-color: #cbd5e0;
+}
+
+.dropdown {
+  position: relative;
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 150px;
+  z-index: 10;
+  margin-top: 0.5rem;
+}
+
+.dropdown:hover .dropdown-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.dropdown-menu button {
+  padding: 0.75rem 1.25rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.9rem;
+  color: #2d3748;
+  transition: all 0.2s ease;
+}
+
+.dropdown-menu button:hover {
+  background: #f7fafc;
+  color: #2563eb;
+}
+
+.filters-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-group label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4a5568;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filter-group input {
+  padding: 0.75rem 1rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: white;
+  color: #2d3748;
+  transition: all 0.2s ease;
+}
+
+.filter-group input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.btn-primary {
+  padding: 0.75rem 1.75rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: #1d4ed8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.btn-primary:disabled {
+  background: #cbd5e0;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Ledger Document */
+.ledger-document {
+  max-width: 1400px;
+  margin: 0 auto;
+  background: white;
+  padding: 3rem;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  page-break-after: always;
+}
+
+.document-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 3px solid #2563eb;
+}
+
+.org-info h2 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #1a202c;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: 1px;
+}
+
+.ledger-title {
+  font-size: 0.95rem;
+  color: #718096;
+  margin: 0;
+  font-weight: 500;
+}
+
+.print-date {
+  text-align: right;
+  font-size: 0.85rem;
+  color: #4a5568;
+}
+
+.print-date p {
+  margin: 0.25rem 0;
+  line-height: 1.6;
+}
+
+.print-date strong {
+  color: #2d3748;
+}
+
+/* Accounts Section */
+.accounts-section {
+  margin-bottom: 2rem;
+}
+
+.account-ledger-block {
+  margin-bottom: 2rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  page-break-inside: avoid;
+}
+
+.account-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: white;
+  padding: 1.25rem;
+  font-weight: 600;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.account-header:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+}
+
+.account-title-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.account-title-section svg {
+  flex-shrink: 0;
+}
+
+.account-name {
+  font-size: 1.1rem;
+  margin: 0 0 0.25rem 0;
+  color: white;
+  font-weight: 700;
+}
+
+.account-type {
+  font-size: 0.8rem;
+  margin: 0;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.account-balance {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.balance-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.balance-item .label {
+  font-size: 0.75rem;
+  opacity: 0.9;
+  margin-bottom: 0.25rem;
+}
+
+.balance-item .value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+}
+
+.balance-item .value.positive {
+  color: #86efac;
+}
+
+.balance-item .value.negative {
+  color: #fca5a5;
+}
+
+/* Ledger Table */
+.ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  background: white;
+}
+
+.ledger-table thead {
+  background: #f7fafc;
+  border-bottom: 2px solid #cbd5e0;
+}
+
+.ledger-table th {
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: #2d3748;
+  border-bottom: 2px solid #cbd5e0;
+}
+
+.ledger-table th.col-date { width: 11%; }
+.ledger-table th.col-ref { width: 9%; }
+.ledger-table th.col-desc { width: 18%; }
+.ledger-table th.col-opposite { width: 16%; }
+.ledger-table th.col-debit { width: 11%; text-align: right; }
+.ledger-table th.col-credit { width: 11%; text-align: right; }
+.ledger-table th.col-balance { width: 13%; text-align: right; }
+
+.ledger-table tbody tr {
+  border-bottom: 1px solid #e0e0e0;
+  transition: background-color 0.2s ease;
+}
+
+.ledger-table tbody tr:hover {
+  background-color: #f7fafc;
+}
+
+.ledger-table tbody tr.debit-row {
+  background-color: #f0f9ff;
+}
+
+.ledger-table tbody tr.credit-row {
+  background-color: #fef2f2;
+}
+
+.ledger-table td {
+  padding: 0.75rem;
+  color: #2d3748;
+}
+
+.ledger-table td.amount {
+  text-align: right;
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+}
+
+.ledger-table td.no-data {
+  text-align: center;
+  color: #718096;
+  font-style: italic;
+  padding: 1.5rem;
+}
+
+.ledger-table td.balance-cell {
+  background: linear-gradient(to right, transparent 0%, rgba(37, 99, 235, 0.05) 100%);
+  font-weight: 600;
+  color: #1e40af;
+  border-right: 2px solid #2563eb;
+}
+
+/* Account Summary */
+.account-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+  border-top: 1px solid #cbd5e0;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 6px;
+  border-left: 4px solid #cbd5e0;
+}
+
+.summary-row.highlight {
+  border-left-color: #2563eb;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+}
+
+.summary-row .label {
+  font-weight: 600;
+  color: #4a5568;
+  font-size: 0.8rem;
+}
+
+.summary-row .value {
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+}
+
+.summary-row .value.debit {
+  color: #059669;
+}
+
+.summary-row .value.credit {
+  color: #dc2626;
+}
+
+.summary-row .value.positive {
+  color: #059669;
+}
+
+.summary-row .value.negative {
+  color: #dc2626;
+}
+
+.summary-row .value.balance {
+  color: #1e40af;
+  font-size: 1.1rem;
+}
+
+/* Master Summary */
+.master-summary {
+  margin-top: 3rem;
+  padding: 2rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 3px solid #2563eb;
+  border-radius: 8px;
+}
+
+.master-summary h3 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.3rem;
+  color: #1e40af;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.summary-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: white;
+  border-radius: 6px;
+  border-left: 4px solid #2563eb;
+}
+
+.summary-card .label {
+  font-weight: 600;
+  color: #4a5568;
+  font-size: 0.9rem;
+}
+
+.summary-card .value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+}
+
+.summary-card .value.debit {
+  color: #059669;
+}
+
+.summary-card .value.credit {
+  color: #dc2626;
+}
+
+.summary-card .value.balanced {
+  color: #059669;
+}
+
+.summary-card .value.unbalanced {
+  color: #dc2626;
+}
+
+/* No Data State */
+.no-data-large {
+  padding: 3rem;
+  text-align: center;
+  color: #718096;
+  background: #f7fafc;
+  border-radius: 8px;
+  border: 2px dashed #cbd5e0;
+}
+
+.no-data-large p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* Footer */
+.document-footer {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e0e0e0;
+  text-align: center;
+  color: #718096;
+  font-size: 0.85rem;
+}
+
+.document-footer p {
+  margin: 0.5rem 0;
+  line-height: 1.6;
+}
+
+/* Alert Styles */
+.alert {
+  padding: 1rem;
+  border-radius: 6px;
+  margin: 1rem 0;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.alert-error {
+  background: #fee;
+  border: 1px solid #fcc;
+  color: #c00;
+}
+
+.alert strong {
+  font-weight: 600;
+}
+
+/* Print Styles */
+@media print {
+  .general-ledger-page {
+    background: white;
+    padding: 0;
+  }
+
+  .ledger-header-section {
+    display: none;
+  }
+
+  .ledger-document {
+    max-width: 100%;
+    padding: 0;
+    box-shadow: none;
+    page-break-inside: avoid;
+  }
+
+  .account-ledger-block {
+    page-break-inside: avoid;
+  }
+
+  .account-header {
+    background: #2563eb;
+    color: white;
+  }
+
+  .ledger-table tbody tr:hover {
+    background-color: white;
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .ledger-document {
+    padding: 1.5rem;
+  }
+
+  .document-header {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .print-date {
+    text-align: left;
+  }
+
+  .account-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .account-balance {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .ledger-table {
+    font-size: 0.75rem;
+  }
+
+  .ledger-table th,
+  .ledger-table td {
+    padding: 0.5rem;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .general-ledger-page {
+    padding: 1rem;
+  }
+
+  .ledger-header-section {
+    padding: 1rem;
+  }
+
+  .header-top {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .filters-section {
+    grid-template-columns: 1fr;
+  }
+
+  .ledger-document {
+    padding: 1rem;
+  }
+
+  .org-info h2 {
+    font-size: 1.3rem;
+  }
+}
