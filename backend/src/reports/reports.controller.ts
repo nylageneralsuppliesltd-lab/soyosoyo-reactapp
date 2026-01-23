@@ -80,4 +80,14 @@ export class ReportsController {
   async dividends(@Query() query: any, @Res({ passthrough: true }) res: Response) {
     return this.reportsService.handleReport('dividends', query, res);
   }
+
+  @Get('general-ledger')
+  async generalLedger(@Query() query: any, @Res({ passthrough: true }) res: Response) {
+    return this.reportsService.handleReport('generalLedger', query, res);
+  }
+
+  @Get('account-statement')
+  async accountStatement(@Query() query: any, @Res({ passthrough: true }) res: Response) {
+    return this.reportsService.handleReport('accountStatement', query, res);
+  }
 }

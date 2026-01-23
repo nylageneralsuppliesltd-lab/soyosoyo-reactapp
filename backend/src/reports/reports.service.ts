@@ -89,6 +89,12 @@ export class ReportsService {
       case 'dividends':
         result = await this.dividendReport(dateRange);
         break;
+      case 'generalLedger':
+        result = await this.generalLedgerReport(dateRange, query.accountId);
+        break;
+      case 'accountStatement':
+        result = await this.transactionStatement(dateRange, query.accountId);
+        break;
       default:
         throw new BadRequestException('Unknown report');
     }
@@ -297,21 +303,91 @@ export class ReportsService {
   }
 
   private async transactionStatement(dateRange: { start: Date; end: Date }, accountId?: string) {
-    const where: Prisma.JournalEntryWhereInput = {
+    let where: Prisma.JournalEntryWhereInput = {
       date: { gte: dateRange.start, lte: dateRange.end },
-      OR: accountId
-        ? [
-            { debitAccountId: Number(accountId) },
-            { creditAccountId: Number(accountId) },
-          ]
-        : undefined,
     };
+
+    // If specific account requested, filter to only that account's transactions
+    if (accountId) {
+      const account = await this.prisma.account.findUnique({
+        where: { id: Number(accountId) },
+      });
+
+      if (!account) {
+        return { rows: [], meta: { totalDebit: 0, totalCredit: 0, runningBalance: 0, count: 0, account: null } };
+      }
+
+      where.OR = [
+        { debitAccountId: Number(accountId) },
+        { creditAccountId: Number(accountId) },
+      ];
+
+      const entries = await this.prisma.journalEntry.findMany({
+        where,
+        orderBy: { date: 'asc' },
+        include: { 
+          debitAccount: { select: { name: true, type: true } }, 
+          creditAccount: { select: { name: true, type: true } },
+        },
+      });
+
+      // Calculate running balance for this account only
+      const isAssetAccount = ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type);
+      let runningBalance = 0;
+
+      const rows = entries.map(e => {
+        let debit = 0;
+        let credit = 0;
+        let description = e.description;
+        let oppositeAccount = '';
+
+        if (e.debitAccountId === Number(accountId)) {
+          // This account was debited
+          debit = Number(e.debitAmount);
+          oppositeAccount = e.creditAccount?.name || 'Unknown';
+          runningBalance += isAssetAccount ? debit : -debit;
+        } else if (e.creditAccountId === Number(accountId)) {
+          // This account was credited
+          credit = Number(e.creditAmount);
+          oppositeAccount = e.debitAccount?.name || 'Unknown';
+          runningBalance += isAssetAccount ? -credit : credit;
+        }
+
+        return {
+          date: e.date,
+          reference: e.reference,
+          description,
+          oppositeAccount,
+          debit: debit || null,
+          credit: credit || null,
+          runningBalance,
+          category: e.category,
+        };
+      });
+
+      const totalDebit = entries.reduce((sum, e) => sum + (e.debitAccountId === Number(accountId) ? Number(e.debitAmount) : 0), 0);
+      const totalCredit = entries.reduce((sum, e) => sum + (e.creditAccountId === Number(accountId) ? Number(e.creditAmount) : 0), 0);
+
+      return {
+        rows,
+        meta: {
+          totalDebit,
+          totalCredit,
+          netChange: totalDebit - totalCredit,
+          runningBalance,
+          count: entries.length,
+          account: { id: account.id, name: account.name, type: account.type },
+        },
+      };
+    }
+
+    // Full transaction statement (all accounts)
     const entries = await this.prisma.journalEntry.findMany({
       where,
       orderBy: { date: 'asc' },
       include: { debitAccount: true, creditAccount: true },
     });
-    
+
     const rows = entries.map(e => ({
       date: e.date,
       reference: e.reference,
@@ -322,7 +398,7 @@ export class ReportsService {
       creditAmount: e.creditAmount,
       category: e.category,
     }));
-    
+
     const totalDebit = entries.reduce((sum, r) => sum + Number(r.debitAmount), 0);
     const totalCredit = entries.reduce((sum, r) => sum + Number(r.creditAmount), 0);
     return { rows, meta: { totalDebit, totalCredit, count: entries.length } };
@@ -507,6 +583,79 @@ export class ReportsService {
     
     const total = dividends.reduce((s, d) => s + Number(d.amount), 0);
     return { rows, meta: { total, count: dividends.length } };
+  }
+
+  private async generalLedgerReport(dateRange: { start: Date; end: Date }, accountId?: string) {
+    // Get all accounts or specific account
+    const accounts = accountId
+      ? [await this.prisma.account.findUnique({ where: { id: Number(accountId) } })].filter(Boolean)
+      : await this.prisma.account.findMany({ orderBy: { name: 'asc' } });
+
+    if (accounts.length === 0) {
+      return { rows: [], meta: { accounts: [], totalAccounts: 0 } };
+    }
+
+    const accountsData = [];
+
+    for (const account of accounts) {
+      const where = {
+        date: { gte: dateRange.start, lte: dateRange.end },
+        OR: [
+          { debitAccountId: account.id },
+          { creditAccountId: account.id },
+        ],
+      };
+
+      const entries = await this.prisma.journalEntry.findMany({
+        where,
+        orderBy: { date: 'asc' },
+        include: {
+          debitAccount: { select: { name: true } },
+          creditAccount: { select: { name: true } },
+        },
+      });
+
+      // Calculate running balance
+      const isAssetAccount = ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type);
+      let runningBalance = 0;
+
+      const transactions = entries.map(e => {
+        let debit = 0;
+        let credit = 0;
+        let oppositeAccount = '';
+
+        if (e.debitAccountId === account.id) {
+          debit = Number(e.debitAmount);
+          oppositeAccount = e.creditAccount?.name || 'Unknown';
+          runningBalance += isAssetAccount ? debit : -debit;
+        } else {
+          credit = Number(e.creditAmount);
+          oppositeAccount = e.debitAccount?.name || 'Unknown';
+          runningBalance += isAssetAccount ? -credit : credit;
+        }
+
+        return {
+          date: e.date,
+          reference: e.reference,
+          description: e.description,
+          oppositeAccount,
+          debit: debit || null,
+          credit: credit || null,
+          runningBalance,
+        };
+      });
+
+      const totalDebits = entries.reduce((sum, e) => sum + (e.debitAccountId === account.id ? Number(e.debitAmount) : 0), 0);
+      const totalCredits = entries.reduce((sum, e) => sum + (e.creditAccountId === account.id ? Number(e.creditAmount) : 0), 0);
+
+      accountsData.push({
+        account: { id: account.id, name: account.name, type: account.type, balance: Number(account.balance) },
+        transactions,
+        summary: { totalDebits, totalCredits, netChange: totalDebits - totalCredits, closingBalance: runningBalance },
+      });
+    }
+
+    return { rows: accountsData, meta: { totalAccounts: accounts.length } };
   }
 
   private toCsv(rows: any[]) {
