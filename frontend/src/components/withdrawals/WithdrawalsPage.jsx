@@ -1,9 +1,10 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { DollarSign, ArrowRightLeft, RefreshCcw, TrendingUp, List, Plus, Upload, Edit, Trash2, Search } from 'lucide-react';
+import { DollarSign, ArrowRightLeft, RefreshCcw, TrendingUp, List, Plus, Upload, Edit, Trash2, Search, Eye } from 'lucide-react';
 import ExpenseForm from './ExpenseForm';
 import TransferForm from './TransferForm';
 import RefundForm from './RefundForm';
 import DividendForm from './DividendForm';
+import TransactionDetailModal from '../TransactionDetailModal';
 import '../../styles/withdrawals.css';
 import { API_BASE } from '../../utils/apiBase';
 
@@ -14,6 +15,8 @@ const WithdrawalsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [stats, setStats] = useState(null);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'list') {
@@ -73,6 +76,11 @@ const WithdrawalsPage = () => {
       console.error('Error deleting withdrawal:', error);
       alert('Error deleting withdrawal');
     }
+  };
+
+  const handleViewDetails = (withdrawal) => {
+    setSelectedTransaction(withdrawal);
+    setShowDetailModal(true);
   };
 
   const handleSuccess = () => {
@@ -149,6 +157,13 @@ const WithdrawalsPage = () => {
 
   return (
     <div className="withdrawals-page">
+      <TransactionDetailModal
+        isOpen={showDetailModal}
+        transaction={selectedTransaction}
+        type="withdrawal"
+        onClose={() => setShowDetailModal(false)}
+      />
+
       <div className="page-header">
         <h1>Withdrawals & Expenses</h1>
         <p>Record and manage all outgoing transactions</p>
@@ -269,6 +284,13 @@ const WithdrawalsPage = () => {
                         </td>
                         <td>
                           <div className="action-buttons">
+                            <button
+                              className="btn-icon info"
+                              title="View Details"
+                              onClick={() => handleViewDetails(withdrawal)}
+                            >
+                              <Eye size={16} />
+                            </button>
                             <button
                               className="btn-icon"
                               title="Edit"

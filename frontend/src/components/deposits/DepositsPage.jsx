@@ -9,7 +9,10 @@ import {
   Upload,
   Briefcase,
   Plus,
-  Search
+  Search,
+  Edit,
+  Trash2,
+  Eye
 } from 'lucide-react';
 import ContributionForm from './ContributionForm';
 import FinePaymentForm from './FinePaymentForm';
@@ -18,6 +21,7 @@ import IncomeRecordingForm from './IncomeRecordingForm';
 import MiscellaneousPaymentForm from './MiscellaneousPaymentForm';
 import ShareCapitalForm from './ShareCapitalForm';
 import BulkPaymentImport from './BulkPaymentImport';
+import TransactionDetailModal from '../TransactionDetailModal';
 import '../../styles/deposits.css';
 import { API_BASE } from '../../utils/apiBase';
 
@@ -29,6 +33,9 @@ const DepositsPage = () => {
   const [filterType, setFilterType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [stats, setStats] = useState(null);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [editingDeposit, setEditingDeposit] = useState(null);
 
   useEffect(() => {
     if (activeTab === 'list') {
@@ -70,6 +77,38 @@ const DepositsPage = () => {
       byType[type].amount += parseFloat(d.amount || 0);
     });
     setStats({ totalAmount, totalCount: deposits.length, byType });
+  };
+
+  const handleViewDetails = (deposit) => {
+    setSelectedTransaction(deposit);
+    setShowDetailModal(true);
+  };
+
+  const handleEditDeposit = (deposit) => {
+    setEditingDeposit(deposit);
+    setActiveTab(deposit.type);
+  };
+
+  const handleDeleteDeposit = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this deposit? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/deposits/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        alert('Deposit deleted successfully');
+        fetchDeposits();
+      } else {
+        alert('Failed to delete deposit');
+      }
+    } catch (error) {
+      console.error('Error deleting deposit:', error);
+      alert('Error deleting deposit');
+    }
   };
 
   const handleSuccess = () => {
@@ -146,6 +185,14 @@ const DepositsPage = () => {
 
   return (
     <div className="deposits-page">
+      <TransactionDetailModal
+        isOpen={showDetailModal}
+        transaction={selectedTransaction}
+        type="deposit"
+        onClose={() => setShowDetailModal(false)}
+        onEdit={handleEditDeposit}
+      />
+
       <div className="page-header">
         <h1>Deposits & Payments</h1>
         <p>Record and manage all incoming transactions - 7 payment types available</p>
@@ -269,6 +316,7 @@ const DepositsPage = () => {
                       <th>Description</th>
                       <th>Method</th>
                       <th className="text-right">Amount</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -289,12 +337,37 @@ const DepositsPage = () => {
                         <td className="text-right amount-cell income">
                           {formatCurrency(deposit.amount)}
                         </td>
+                        <td>
+                          <div className="action-buttons">
+                            <button
+                              className="btn-icon info"
+                              title="View Details"
+                              onClick={() => handleViewDetails(deposit)}
+                            >
+                              <Eye size={16} />
+                            </button>
+                            <button
+                              className="btn-icon"
+                              title="Edit"
+                              onClick={() => handleEditDeposit(deposit)}
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              className="btn-icon danger"
+                              title="Delete"
+                              onClick={() => handleDeleteDeposit(deposit.id)}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="totals-row">
-                      <td colSpan="5">
+                      <td colSpan="6">
                         <strong>Total ({filteredDeposits.length} transactions)</strong>
                       </td>
                       <td className="text-right">
@@ -307,6 +380,7 @@ const DepositsPage = () => {
                           )}
                         </strong>
                       </td>
+                      <td></td>
                     </tr>
                   </tfoot>
                 </table>

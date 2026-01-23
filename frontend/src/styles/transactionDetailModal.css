@@ -1,0 +1,274 @@
+/* Transaction Detail Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 800px;
+  width: 90%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.modal-close-btn:hover {
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid #e0e0e0;
+  background-color: #f9f9f9;
+}
+
+.modal-footer .btn-primary,
+.modal-footer .btn-secondary {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-footer .btn-primary {
+  background-color: #2563eb;
+  color: white;
+}
+
+.modal-footer .btn-primary:hover {
+  background-color: #1d4ed8;
+}
+
+.modal-footer .btn-secondary {
+  background-color: #e5e7eb;
+  color: #333;
+}
+
+.modal-footer .btn-secondary:hover {
+  background-color: #d1d5db;
+}
+
+/* Detail Sections */
+.detail-section {
+  margin-bottom: 24px;
+  background-color: #f9f9f9;
+  border-radius: 6px;
+  padding: 16px;
+  border-left: 4px solid #2563eb;
+}
+
+.detail-section.loan-section {
+  border-left-color: #16a34a;
+  background-color: #f0fdf4;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.detail-label svg {
+  color: #2563eb;
+}
+
+.detail-value {
+  font-size: 14px;
+  color: #333;
+  word-break: break-word;
+  padding: 4px 0;
+}
+
+.detail-value.amount-highlight {
+  font-size: 20px;
+  font-weight: 600;
+  color: #16a34a;
+}
+
+.detail-value.type-badge {
+  display: inline-block;
+  background-color: #dbeafe;
+  color: #1e40af;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+  width: fit-content;
+}
+
+.detail-value.mono {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #666;
+  background-color: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 3px;
+}
+
+.detail-description {
+  font-size: 14px;
+  color: #333;
+  line-height: 1.6;
+  background-color: white;
+  padding: 12px;
+  border-radius: 4px;
+  border-left: 3px solid #2563eb;
+}
+
+.loading-small {
+  font-size: 13px;
+  color: #666;
+  text-align: center;
+  padding: 20px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .modal-content {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .modal-header {
+    padding: 16px 20px;
+  }
+
+  .modal-body {
+    padding: 16px;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+    padding: 12px 16px;
+  }
+
+  .modal-footer button {
+    width: 100%;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-section {
+    padding: 12px;
+  }
+}
+
+/* Scrollbar styling */
+.modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
