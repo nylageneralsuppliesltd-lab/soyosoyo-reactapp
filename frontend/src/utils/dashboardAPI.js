@@ -91,8 +91,8 @@ export const calculateDashboardStats = async () => {
     ]);
 
     const totalMembers = members.length;
-    const activeMembers = members.filter(m => m.status === 'active').length;
-    const suspendedMembers = members.filter(m => m.status === 'suspended').length;
+    const activeMembers = members.filter(m => m.active === true).length;
+    const suspendedMembers = members.filter(m => m.active === false).length;
 
     // Calculate total savings (sum of all deposit amounts)
     const totalSavings = deposits.reduce((sum, d) => sum + (d.amount || 0), 0);
