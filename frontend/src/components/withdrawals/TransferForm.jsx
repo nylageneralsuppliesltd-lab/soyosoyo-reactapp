@@ -2,7 +2,7 @@
 import { ArrowRightLeft, Calendar, DollarSign, FileText, Hash } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
-const TransferForm = ({ onSuccess }) => {
+const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     amount: '',
@@ -20,6 +20,20 @@ const TransferForm = ({ onSuccess }) => {
   useEffect(() => {
     fetchAccounts();
   }, []);
+
+  useEffect(() => {
+    if (editingWithdrawal) {
+      setFormData({
+        date: editingWithdrawal.date ? new Date(editingWithdrawal.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        amount: editingWithdrawal.amount?.toString() || '',
+        fromAccountId: editingWithdrawal.fromAccountId?.toString() || '',
+        toAccountId: editingWithdrawal.toAccountId?.toString() || '',
+        description: editingWithdrawal.description || '',
+        reference: editingWithdrawal.reference || '',
+        notes: editingWithdrawal.notes || '',
+      });
+    }
+  }, [editingWithdrawal]);
 
   const fetchAccounts = async () => {
     try {
@@ -69,23 +83,30 @@ const TransferForm = ({ onSuccess }) => {
         toAccountId: parseInt(formData.toAccountId),
       };
 
-      const response = await fetch(`${API_BASE}/withdrawals/transfer`, {
-        method: 'POST',
+      const url = editingWithdrawal
+        ? `${API_BASE}/withdrawals/${editingWithdrawal.id}`
+        : `${API_BASE}/withdrawals/transfer`;
+      const method = editingWithdrawal ? 'PATCH' : 'POST';
+
+      const response = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       if (response.ok) {
-        setSuccess('Transfer recorded successfully!');
-        setFormData({
-          date: new Date().toISOString().split('T')[0],
-          amount: '',
-          fromAccountId: '',
-          toAccountId: '',
-          description: '',
-          reference: '',
-          notes: '',
-        });
+        setSuccess(editingWithdrawal ? 'Transfer updated successfully!' : 'Transfer recorded successfully!');
+        if (!editingWithdrawal) {
+          setFormData({
+            date: new Date().toISOString().split('T')[0],
+            amount: '',
+            fromAccountId: '',
+            toAccountId: '',
+            description: '',
+            reference: '',
+            notes: '',
+          });
+        }
         setTimeout(() => {
           if (onSuccess) onSuccess();
         }, 1500);
@@ -257,8 +278,13 @@ const TransferForm = ({ onSuccess }) => {
         </div>
 
         <div className="form-actions">
+          {onCancel && (
+            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Processing...' : 'Record Transfer'}
+            {loading ? (editingWithdrawal ? 'Updating...' : 'Processing...') : (editingWithdrawal ? 'Update Transfer' : 'Record Transfer')}
           </button>
         </div>
       </form>

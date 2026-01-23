@@ -2,7 +2,7 @@
 import { RefreshCcw, Calendar, DollarSign, User, Tag, CreditCard, FileText, Hash } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
-const RefundForm = ({ onSuccess }) => {
+const RefundForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
@@ -26,6 +26,23 @@ const RefundForm = ({ onSuccess }) => {
     fetchMembers();
     fetchAccounts();
   }, []);
+
+  useEffect(() => {
+    if (editingWithdrawal) {
+      setFormData({
+        date: editingWithdrawal.date ? new Date(editingWithdrawal.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        memberId: editingWithdrawal.memberId?.toString() || '',
+        memberName: editingWithdrawal.memberName || '',
+        amount: editingWithdrawal.amount?.toString() || '',
+        contributionType: editingWithdrawal.contributionType || '',
+        accountId: editingWithdrawal.accountId?.toString() || '',
+        paymentMethod: editingWithdrawal.paymentMethod || 'cash',
+        reference: editingWithdrawal.reference || '',
+        notes: editingWithdrawal.notes || '',
+      });
+      setSearchTerm(editingWithdrawal.memberName || '');
+    }
+  }, [editingWithdrawal]);
 
   const fetchMembers = async () => {
     try {
@@ -105,26 +122,33 @@ const RefundForm = ({ onSuccess }) => {
         accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
       };
 
-      const response = await fetch(`${API_BASE}/withdrawals/refund`, {
-        method: 'POST',
+      const url = editingWithdrawal
+        ? `${API_BASE}/withdrawals/${editingWithdrawal.id}`
+        : `${API_BASE}/withdrawals/refund`;
+      const method = editingWithdrawal ? 'PATCH' : 'POST';
+
+      const response = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       if (response.ok) {
-        setSuccess('Refund recorded successfully!');
-        setFormData({
-          date: new Date().toISOString().split('T')[0],
-          memberId: '',
-          memberName: '',
-          amount: '',
-          contributionType: '',
-          accountId: '',
-          paymentMethod: 'cash',
-          reference: '',
-          notes: '',
-        });
-        setSearchTerm('');
+        setSuccess(editingWithdrawal ? 'Refund updated successfully!' : 'Refund recorded successfully!');
+        if (!editingWithdrawal) {
+          setFormData({
+            date: new Date().toISOString().split('T')[0],
+            memberId: '',
+            memberName: '',
+            amount: '',
+            contributionType: '',
+            accountId: '',
+            paymentMethod: 'cash',
+            reference: '',
+            notes: '',
+          });
+          setSearchTerm('');
+        }
         setTimeout(() => {
           if (onSuccess) onSuccess();
         }, 1500);
@@ -320,8 +344,13 @@ const RefundForm = ({ onSuccess }) => {
         </div>
 
         <div className="form-actions">
+          {onCancel && (
+            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Processing...' : 'Record Refund'}
+            {loading ? (editingWithdrawal ? 'Updating...' : 'Processing...') : (editingWithdrawal ? 'Update Refund' : 'Record Refund')}
           </button>
         </div>
       </form>

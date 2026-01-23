@@ -17,6 +17,7 @@ const WithdrawalsPage = () => {
   const [stats, setStats] = useState(null);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [editingWithdrawal, setEditingWithdrawal] = useState(null);
 
   useEffect(() => {
     if (activeTab === 'list') {
@@ -83,10 +84,21 @@ const WithdrawalsPage = () => {
     setShowDetailModal(true);
   };
 
+  const handleEditWithdrawal = (withdrawal) => {
+    setEditingWithdrawal(withdrawal);
+    setActiveTab(withdrawal.type);
+  };
+
   const handleSuccess = () => {
     fetchWithdrawals();
     fetchStats();
     setActiveTab('list');
+    setEditingWithdrawal(null);
+  };
+
+  const handleCancel = () => {
+    setActiveTab('list');
+    setEditingWithdrawal(null);
   };
 
   const filteredWithdrawals = withdrawals.filter((w) => {
@@ -294,7 +306,7 @@ const WithdrawalsPage = () => {
                             <button
                               className="btn-icon"
                               title="Edit"
-                              onClick={() => alert('Edit feature coming soon')}
+                              onClick={() => handleEditWithdrawal(withdrawal)}
                             >
                               <Edit size={16} />
                             </button>
@@ -334,10 +346,10 @@ const WithdrawalsPage = () => {
           </div>
         )}
 
-        {activeTab === 'expense' && <ExpenseForm onSuccess={handleSuccess} />}
-        {activeTab === 'transfer' && <TransferForm onSuccess={handleSuccess} />}
-        {activeTab === 'refund' && <RefundForm onSuccess={handleSuccess} />}
-        {activeTab === 'dividend' && <DividendForm onSuccess={handleSuccess} />}
+        {activeTab === 'expense' && <ExpenseForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
+        {activeTab === 'transfer' && <TransferForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
+        {activeTab === 'refund' && <RefundForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
+        {activeTab === 'dividend' && <DividendForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
       </div>
     </div>
   );

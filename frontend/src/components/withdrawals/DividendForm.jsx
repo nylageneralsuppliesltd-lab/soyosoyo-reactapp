@@ -2,7 +2,7 @@
 import { TrendingUp, Calendar, DollarSign, User, CreditCard, FileText, Hash, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
-const DividendForm = ({ onSuccess }) => {
+const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
@@ -25,6 +25,22 @@ const DividendForm = ({ onSuccess }) => {
     fetchMembers();
     fetchAccounts();
   }, []);
+
+  useEffect(() => {
+    if (editingWithdrawal) {
+      setFormData({
+        date: editingWithdrawal.date ? new Date(editingWithdrawal.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        memberId: editingWithdrawal.memberId?.toString() || '',
+        memberName: editingWithdrawal.memberName || '',
+        amount: editingWithdrawal.amount?.toString() || '',
+        accountId: editingWithdrawal.accountId?.toString() || '',
+        paymentMethod: editingWithdrawal.paymentMethod || 'bank',
+        reference: editingWithdrawal.reference || '',
+        notes: editingWithdrawal.notes || '',
+      });
+      setSearchTerm(editingWithdrawal.memberName || '');
+    }
+  }, [editingWithdrawal]);
 
   const fetchMembers = async () => {
     try {
@@ -98,25 +114,32 @@ const DividendForm = ({ onSuccess }) => {
         accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
       };
 
-      const response = await fetch(`${API_BASE}/withdrawals/dividend`, {
-        method: 'POST',
+      const url = editingWithdrawal
+        ? `${API_BASE}/withdrawals/${editingWithdrawal.id}`
+        : `${API_BASE}/withdrawals/dividend`;
+      const method = editingWithdrawal ? 'PATCH' : 'POST';
+
+      const response = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       if (response.ok) {
-        setSuccess('Dividend payout recorded successfully!');
-        setFormData({
-          date: new Date().toISOString().split('T')[0],
-          memberId: '',
-          memberName: '',
-          amount: '',
-          accountId: '',
-          paymentMethod: 'bank',
-          reference: '',
-          notes: '',
-        });
-        setSearchTerm('');
+        setSuccess(editingWithdrawal ? 'Dividend payout updated successfully!' : 'Dividend payout recorded successfully!');
+        if (!editingWithdrawal) {
+          setFormData({
+            date: new Date().toISOString().split('T')[0],
+            memberId: '',
+            memberName: '',
+            amount: '',
+            accountId: '',
+            paymentMethod: 'bank',
+            reference: '',
+            notes: '',
+          });
+          setSearchTerm('');
+        }
         setTimeout(() => {
           if (onSuccess) onSuccess();
         }, 1500);
@@ -291,8 +314,13 @@ const DividendForm = ({ onSuccess }) => {
         </div>
 
         <div className="form-actions">
+          {onCancel && (
+            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Processing...' : 'Record Dividend Payout'}
+            {loading ? (editingWithdrawal ? 'Updating...' : 'Processing...') : (editingWithdrawal ? 'Update Dividend' : 'Record Dividend Payout')}
           </button>
         </div>
       </form>

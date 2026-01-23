@@ -2,7 +2,7 @@
 import { DollarSign, Calendar, Tag, CreditCard, FileText, Hash } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
-const ExpenseForm = ({ onSuccess }) => {
+const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     amount: '',
@@ -23,6 +23,21 @@ const ExpenseForm = ({ onSuccess }) => {
     fetchAccounts();
     fetchCategories();
   }, []);
+
+  useEffect(() => {
+    if (editingWithdrawal) {
+      setFormData({
+        date: editingWithdrawal.date ? new Date(editingWithdrawal.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        amount: editingWithdrawal.amount?.toString() || '',
+        category: editingWithdrawal.category || '',
+        accountId: editingWithdrawal.accountId?.toString() || '',
+        paymentMethod: editingWithdrawal.paymentMethod || 'cash',
+        description: editingWithdrawal.description || '',
+        reference: editingWithdrawal.reference || '',
+        notes: editingWithdrawal.notes || '',
+      });
+    }
+  }, [editingWithdrawal]);
 
   const fetchAccounts = async () => {
     try {
@@ -77,24 +92,31 @@ const ExpenseForm = ({ onSuccess }) => {
         accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
       };
 
-      const response = await fetch(`${API_BASE}/withdrawals/expense`, {
-        method: 'POST',
+      const url = editingWithdrawal
+        ? `${API_BASE}/withdrawals/${editingWithdrawal.id}`
+        : `${API_BASE}/withdrawals/expense`;
+      const method = editingWithdrawal ? 'PATCH' : 'POST';
+
+      const response = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       if (response.ok) {
-        setSuccess('Expense recorded successfully!');
-        setFormData({
-          date: new Date().toISOString().split('T')[0],
-          amount: '',
-          category: '',
-          accountId: '',
-          paymentMethod: 'cash',
-          description: '',
-          reference: '',
-          notes: '',
-        });
+        setSuccess(editingWithdrawal ? 'Expense updated successfully!' : 'Expense recorded successfully!');
+        if (!editingWithdrawal) {
+          setFormData({
+            date: new Date().toISOString().split('T')[0],
+            amount: '',
+            category: '',
+            accountId: '',
+            paymentMethod: 'cash',
+            description: '',
+            reference: '',
+            notes: '',
+          });
+        }
         setTimeout(() => {
           if (onSuccess) onSuccess();
         }, 1500);
@@ -281,8 +303,13 @@ const ExpenseForm = ({ onSuccess }) => {
         </div>
 
         <div className="form-actions">
+          {onCancel && (
+            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Recording...' : 'Record Expense'}
+            {loading ? (editingWithdrawal ? 'Updating...' : 'Recording...') : (editingWithdrawal ? 'Update Expense' : 'Record Expense')}
           </button>
         </div>
       </form>
