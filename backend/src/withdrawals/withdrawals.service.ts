@@ -117,7 +117,7 @@ export class WithdrawalsService {
 
       const expenseAccount = await this.ensureAccountByName(
         category,
-        'expense',
+        'bank',
         `Expense account for ${category}`,
       );
 
@@ -283,7 +283,7 @@ export class WithdrawalsService {
 
     const memberContributionAccount = await this.ensureAccountByName(
       'Member Contributions Received',
-      'liability',
+      'bank',
       'Member contributions liability account',
     );
 
@@ -385,7 +385,7 @@ export class WithdrawalsService {
 
     const dividendAccount = await this.ensureAccountByName(
       'Dividends Payable',
-      'liability',
+      'bank',
       'Dividends payable to members',
     );
 
