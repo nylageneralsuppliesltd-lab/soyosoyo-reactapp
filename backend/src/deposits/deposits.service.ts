@@ -59,20 +59,13 @@ export class DepositsService {
         ? await this.prisma.account.findUnique({ where: { id: depositData.accountId } })
         : await this.ensureAccountByName('Cashbox', 'cash', 'Default cash account');
 
-      const memberDepositAccount = await this.ensureAccountByName(
-        'Member Deposits',
-        'cash',
-        'Member deposits holding account',
-      );
+      if (!cashAccount) {
+        throw new Error('Cash account not found. Please select an account.');
+      }
 
-      // Update account balances
+      // Update only the real account balance
       await this.prisma.account.update({
         where: { id: cashAccount.id },
-        data: { balance: { increment: amountDecimal } },
-      });
-
-      await this.prisma.account.update({
-        where: { id: memberDepositAccount.id },
         data: { balance: { increment: amountDecimal } },
       });
 
@@ -85,7 +78,7 @@ export class DepositsService {
           narration: depositData.notes ?? null,
           debitAccountId: cashAccount.id,
           debitAmount: amountDecimal,
-          creditAccountId: memberDepositAccount.id,
+          creditAccountId: cashAccount.id,
           creditAmount: amountDecimal,
           category: 'deposit',
         },
@@ -275,98 +268,88 @@ export class DepositsService {
     // Determine accounts based on payment type
     switch (depositType) {
       case 'contribution': {
-        // DR: Cash/Bank Account | CR: Member Contribution Equity
+        // DR: Cash/Bank Account (money comes in)
         const cashAccount = accountId
           ? await this.ensureAccount(accountId)
           : await this.ensureAccount(null, 'cash', 'Default Cash Account');
 
-        const memberContributionAccount = await this.ensureAccountByName(
-          'Member Contributions Received',
-          'cash',
-          'Running balance of member contributions',
-        );
+        if (!cashAccount) {
+          throw new Error('Cash account not found');
+        }
 
         debitAccountId = cashAccount.id;
-        creditAccountId = memberContributionAccount.id;
+        creditAccountId = cashAccount.id; // Single entry for now
         debitDescription = `Contribution received - ${description}`;
-        creditDescription = `Member contribution equity`;
+        creditDescription = `Contribution received - ${description}`;
         break;
       }
 
       case 'fine': {
-        // DR: Cash | CR: Fines Received (Income)
+        // DR: Cash (money comes in)
         const cashAccount = accountId
           ? await this.ensureAccount(accountId)
           : await this.ensureAccount(null, 'cash', 'Default Cash Account');
 
-        const finesAccount = await this.ensureAccountByName(
-          'Fines & Penalties',
-          'cash',
-          'Fines and penalties received',
-        );
+        if (!cashAccount) {
+          throw new Error('Cash account not found');
+        }
 
         debitAccountId = cashAccount.id;
-        creditAccountId = finesAccount.id;
+        creditAccountId = cashAccount.id; // Single entry for now
         debitDescription = `Fine payment received`;
-        creditDescription = `Fines income`;
+        creditDescription = `Fine payment received`;
         break;
       }
 
       case 'loan_repayment': {
-        // DR: Cash | CR: Loans Receivable (Asset reduction)
+        // DR: Cash (money comes in)
         const cashAccount = accountId
           ? await this.ensureAccount(accountId)
           : await this.ensureAccount(null, 'cash', 'Default Cash Account');
 
-        const loansReceivableAccount = await this.ensureAccountByName(
-          'Loans Receivable',
-          'cash',
-          'Outstanding member loans',
-        );
+        if (!cashAccount) {
+          throw new Error('Cash account not found');
+        }
 
         debitAccountId = cashAccount.id;
-        creditAccountId = loansReceivableAccount.id;
+        creditAccountId = cashAccount.id; // Single entry for now
         debitDescription = `Loan repayment received`;
-        creditDescription = `Loans receivable reduced`;
+        creditDescription = `Loan repayment received`;
         break;
       }
 
       case 'income': {
-        // DR: Cash | CR: Income Account
+        // DR: Cash (money comes in)
         const cashAccount = accountId
           ? await this.ensureAccount(accountId)
           : await this.ensureAccount(null, 'cash', 'Default Cash Account');
 
-        const incomeAccount = await this.ensureAccountByName(
-          'Other Income',
-          'cash',
-          'Miscellaneous income',
-        );
+        if (!cashAccount) {
+          throw new Error('Cash account not found');
+        }
 
         debitAccountId = cashAccount.id;
-        creditAccountId = incomeAccount.id;
+        creditAccountId = cashAccount.id; // Single entry for now
         debitDescription = `Income received`;
-        creditDescription = `Income recorded`;
+        creditDescription = `Income received`;
         break;
       }
 
       case 'miscellaneous':
       default: {
-        // DR: Cash | CR: Miscellaneous (Could be various)
+        // DR: Cash (money comes in)
         const cashAccount = accountId
           ? await this.ensureAccount(accountId)
           : await this.ensureAccount(null, 'cash', 'Default Cash Account');
 
-        const miscAccount = await this.ensureAccountByName(
-          'Miscellaneous Receipts',
-          'cash',
-          'Other receipts',
-        );
+        if (!cashAccount) {
+          throw new Error('Cash account not found');
+        }
 
         debitAccountId = cashAccount.id;
-        creditAccountId = miscAccount.id;
+        creditAccountId = cashAccount.id; // Single entry for now
         debitDescription = `Payment received`;
-        creditDescription = `Miscellaneous receipt`;
+        creditDescription = `Payment received`;
         break;
       }
     }

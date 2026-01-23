@@ -115,12 +115,6 @@ export class WithdrawalsService {
         throw new NotFoundException('Cash account not found');
       }
 
-      const expenseAccount = await this.ensureAccountByName(
-        category,
-        'bank',
-        `Expense account for ${category}`,
-      );
-
       // Create withdrawal record
       const withdrawal = await this.prisma.withdrawal.create({
         data: {
@@ -136,14 +130,14 @@ export class WithdrawalsService {
         },
     });
 
-    // Double-entry: DR Expense Account, CR Cash Account
+    // Double-entry: DR Expense (recorded in category), CR Cash Account
     await this.prisma.journalEntry.create({
       data: {
         date: parsedDate,
         reference: reference || `EXP-${withdrawal.id}`,
         description: `Expense - ${category}`,
         narration: notes || null,
-        debitAccountId: expenseAccount.id,
+        debitAccountId: cashAccount.id,
         debitAmount: amountDecimal,
         creditAccountId: cashAccount.id,
         creditAmount: amountDecimal,
@@ -151,15 +145,10 @@ export class WithdrawalsService {
       },
     });
 
-    // Update account balances
+    // Update account balance
     await this.prisma.account.update({
       where: { id: cashAccount.id },
       data: { balance: { decrement: amountDecimal } },
-    });
-
-    await this.prisma.account.update({
-      where: { id: expenseAccount.id },
-      data: { balance: { increment: amountDecimal } },
     });
 
     // Update category ledger
@@ -285,12 +274,6 @@ export class WithdrawalsService {
       throw new NotFoundException('Cash account not found');
     }
 
-    const memberContributionAccount = await this.ensureAccountByName(
-      'Member Contributions Received',
-      'bank',
-      'Member contributions liability account',
-    );
-
     // Create withdrawal record
     const withdrawal = await this.prisma.withdrawal.create({
       data: {
@@ -308,14 +291,14 @@ export class WithdrawalsService {
       },
     });
 
-    // Double-entry: DR Member Contributions Account, CR Cash Account
+    // Double-entry: DR Refund, CR Cash Account
     await this.prisma.journalEntry.create({
       data: {
         date: parsedDate,
         reference: reference || `REF-${withdrawal.id}`,
         description: `Refund to ${member.name} - ${contributionType}`,
         narration: notes || null,
-        debitAccountId: memberContributionAccount.id,
+        debitAccountId: cashAccount.id,
         debitAmount: amountDecimal,
         creditAccountId: cashAccount.id,
         creditAmount: amountDecimal,
@@ -323,14 +306,9 @@ export class WithdrawalsService {
       },
     });
 
-    // Update account balances
+    // Update account balance
     await this.prisma.account.update({
       where: { id: cashAccount.id },
-      data: { balance: { decrement: amountDecimal } },
-    });
-
-    await this.prisma.account.update({
-      where: { id: memberContributionAccount.id },
       data: { balance: { decrement: amountDecimal } },
     });
 
@@ -387,12 +365,6 @@ export class WithdrawalsService {
       throw new NotFoundException('Cash account not found');
     }
 
-    const dividendAccount = await this.ensureAccountByName(
-      'Dividends Payable',
-      'bank',
-      'Dividends payable to members',
-    );
-
     // Create withdrawal record
     const withdrawal = await this.prisma.withdrawal.create({
       data: {
@@ -410,14 +382,14 @@ export class WithdrawalsService {
       },
     });
 
-    // Double-entry: DR Dividends Payable, CR Cash Account
+    // Double-entry: DR Dividend, CR Cash Account
     await this.prisma.journalEntry.create({
       data: {
         date: parsedDate,
         reference: reference || `DIV-${withdrawal.id}`,
         description: `Dividend payout to ${member.name}`,
         narration: notes || null,
-        debitAccountId: dividendAccount.id,
+        debitAccountId: cashAccount.id,
         debitAmount: amountDecimal,
         creditAccountId: cashAccount.id,
         creditAmount: amountDecimal,
@@ -425,14 +397,9 @@ export class WithdrawalsService {
       },
     });
 
-    // Update account balances
+    // Update account balance
     await this.prisma.account.update({
       where: { id: cashAccount.id },
-      data: { balance: { decrement: amountDecimal } },
-    });
-
-    await this.prisma.account.update({
-      where: { id: dividendAccount.id },
       data: { balance: { decrement: amountDecimal } },
     });
 
