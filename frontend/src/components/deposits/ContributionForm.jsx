@@ -2,7 +2,7 @@
 import { DollarSign, Calendar, User, CreditCard, FileText, Hash, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
-const ContributionForm = ({ onSuccess }) => {
+const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
@@ -26,6 +26,23 @@ const ContributionForm = ({ onSuccess }) => {
     fetchMembers();
     fetchAccounts();
   }, []);
+
+  useEffect(() => {
+    if (editingDeposit) {
+      setFormData({
+        date: editingDeposit.date ? new Date(editingDeposit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        memberId: editingDeposit.memberId || '',
+        memberName: editingDeposit.memberName || '',
+        amount: editingDeposit.amount || '',
+        contributionType: editingDeposit.category || 'Monthly Contribution',
+        paymentMethod: editingDeposit.method || 'cash',
+        accountId: editingDeposit.accountId || '',
+        reference: editingDeposit.reference || '',
+        notes: editingDeposit.description || editingDeposit.narration || '',
+      });
+      setSearchTerm(editingDeposit.memberName || '');
+    }
+  }, [editingDeposit]);
 
   const fetchMembers = async () => {
     try {
@@ -99,23 +116,33 @@ const ContributionForm = ({ onSuccess }) => {
         memberId: parseInt(formData.memberId),
         memberName: formData.memberName,
         amount: parseFloat(formData.amount),
-        paymentType: 'contribution',
-        contributionType: formData.contributionType,
-        paymentMethod: formData.paymentMethod,
+        type: 'contribution',
+        category: formData.contributionType,
+        method: formData.paymentMethod,
         accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
         reference: formData.reference,
-        notes: formData.notes,
-        description: `${formData.contributionType} from ${formData.memberName}`,
+        description: formData.notes || `${formData.contributionType} from ${formData.memberName}`,
       };
 
-      const response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payments: [payload] }),
-      });
+      let response;
+      if (editingDeposit) {
+        // Update existing deposit
+        response = await fetch(`${API_BASE}/deposits/${editingDeposit.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        // Create new deposit
+        response = await fetch(`${API_BASE}/deposits`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
 
       if (response.ok) {
-        setSuccess('Contribution recorded successfully!');
+        setSuccess(editingDeposit ? 'Contribution updated successfully!' : 'Contribution recorded successfully!');
         setFormData({
           date: new Date().toISOString().split('T')[0],
           memberId: '',
@@ -133,7 +160,7 @@ const ContributionForm = ({ onSuccess }) => {
         }, 1500);
       } else {
         const errorData = await response.json();
-        setError(errorData.message || 'Failed to record contribution');
+        setError(errorData.message || `Failed to ${editingDeposit ? 'update' : 'record'} contribution`);
       }
     } catch (error) {
       console.error('Error recording contribution:', error);
@@ -323,8 +350,13 @@ const ContributionForm = ({ onSuccess }) => {
         </div>
 
         <div className="form-actions">
+          {onCancel && (
+            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Recording...' : 'Record Contribution'}
+            {loading ? (editingDeposit ? 'Updating...' : 'Recording...') : (editingDeposit ? 'Update Contribution' : 'Record Contribution')}
           </button>
         </div>
       </form>

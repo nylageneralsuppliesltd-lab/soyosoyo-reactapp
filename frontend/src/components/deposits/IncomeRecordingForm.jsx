@@ -2,7 +2,7 @@
 import { DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, TrendingUp, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
-const IncomeRecordingForm = ({ onSuccess }) => {
+const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     amount: '',
@@ -46,6 +46,22 @@ const IncomeRecordingForm = ({ onSuccess }) => {
     fetchAccounts();
   }, []);
 
+  useEffect(() => {
+    if (editingDeposit) {
+      setFormData({
+        date: editingDeposit.date ? new Date(editingDeposit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        amount: editingDeposit.amount || '',
+        incomeCategory: editingDeposit.incomeCategory || 'interest_income',
+        source: editingDeposit.source || '',
+        description: editingDeposit.description || '',
+        paymentMethod: editingDeposit.method || 'bank',
+        accountId: editingDeposit.accountId || '',
+        reference: editingDeposit.reference || '',
+        notes: editingDeposit.notes || ''
+      });
+    }
+  }, [editingDeposit]);
+
   const fetchAccounts = async () => {
     try {
       const response = await fetch(`${API_BASE}/accounts`);
@@ -65,32 +81,41 @@ const IncomeRecordingForm = ({ onSuccess }) => {
 
     try {
       const payload = {
-        deposits: [{
-          date: formData.date,
-          amount: parseFloat(formData.amount),
-          paymentType: 'income',
-          incomeCategory: formData.incomeCategory,
-          source: formData.source,
-          description: formData.description,
-          paymentMethod: formData.paymentMethod,
-          accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
-          reference: formData.reference,
-          notes: formData.notes
-        }]
+        date: formData.date,
+        amount: parseFloat(formData.amount),
+        type: 'income',
+        paymentType: 'income',
+        incomeCategory: formData.incomeCategory,
+        source: formData.source,
+        description: formData.description,
+        method: formData.paymentMethod,
+        paymentMethod: formData.paymentMethod,
+        accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+        reference: formData.reference,
+        notes: formData.notes
       };
 
-      const response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      let response;
+      if (editingDeposit) {
+        response = await fetch(`${API_BASE}/deposits/${editingDeposit.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deposits: [payload] })
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to record income');
+        throw new Error(errorData.message || `Failed to ${editingDeposit ? 'update' : 'record'} income`);
       }
 
-      setMessage({ type: 'success', text: 'Income recorded successfully!' });
+      setMessage({ type: 'success', text: `Income ${editingDeposit ? 'updated' : 'recorded'} successfully!` });
       
       // Reset form
       setFormData({
@@ -283,8 +308,13 @@ const IncomeRecordingForm = ({ onSuccess }) => {
         </div>
 
         <div className="form-actions">
+          {onCancel && (
+            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
           <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Recording...' : 'Record Income'}
+            {loading ? (editingDeposit ? 'Updating...' : 'Recording...') : (editingDeposit ? 'Update Income' : 'Record Income')}
           </button>
         </div>
       </form>

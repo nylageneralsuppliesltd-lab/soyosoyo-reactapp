@@ -114,6 +114,12 @@ const DepositsPage = () => {
   const handleSuccess = () => {
     fetchDeposits();
     setActiveTab('list');
+    setEditingDeposit(null);
+  };
+
+  const handleCancel = () => {
+    setActiveTab('list');
+    setEditingDeposit(null);
   };
 
   const filteredDeposits = deposits.filter((deposit) => {
@@ -389,12 +395,12 @@ const DepositsPage = () => {
           </div>
         )}
 
-        {activeTab === 'contribution' && <ContributionForm onSuccess={handleSuccess} />}
-        {activeTab === 'share_capital' && <ShareCapitalForm onSuccess={handleSuccess} />}
-        {activeTab === 'fine' && <FinePaymentForm onSuccess={handleSuccess} />}
-        {activeTab === 'loan_repayment' && <LoanRepaymentForm onSuccess={handleSuccess} />}
-        {activeTab === 'income' && <IncomeRecordingForm onSuccess={handleSuccess} />}
-        {activeTab === 'miscellaneous' && <MiscellaneousPaymentForm onSuccess={handleSuccess} />}
+        {activeTab === 'contribution' && <ContributionForm onSuccess={handleSuccess} onCancel={handleCancel} editingDeposit={editingDeposit} />}
+        {activeTab === 'share_capital' && <ShareCapitalForm onSuccess={handleSuccess} onCancel={handleCancel} editingDeposit={editingDeposit} />}
+        {activeTab === 'fine' && <FinePaymentForm onSuccess={handleSuccess} onCancel={handleCancel} editingDeposit={editingDeposit} />}
+        {activeTab === 'loan_repayment' && <LoanRepaymentForm onSuccess={handleSuccess} onCancel={handleCancel} editingDeposit={editingDeposit} />}
+        {activeTab === 'income' && <IncomeRecordingForm onSuccess={handleSuccess} onCancel={handleCancel} editingDeposit={editingDeposit} />}
+        {activeTab === 'miscellaneous' && <MiscellaneousPaymentForm onSuccess={handleSuccess} onCancel={handleCancel} editingDeposit={editingDeposit} />}
         {activeTab === 'bulk' && <BulkPaymentImport onSuccess={handleSuccess} />}
       </div>
     </div>

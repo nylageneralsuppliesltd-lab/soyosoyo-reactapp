@@ -2,7 +2,7 @@
 import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
-const FinePaymentForm = ({ onSuccess }) => {
+const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
@@ -47,6 +47,24 @@ const FinePaymentForm = ({ onSuccess }) => {
     fetchMembers();
     fetchAccounts();
   }, []);
+
+  useEffect(() => {
+    if (editingDeposit) {
+      setFormData({
+        date: editingDeposit.date ? new Date(editingDeposit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        memberId: editingDeposit.memberId || '',
+        memberName: editingDeposit.memberName || '',
+        amount: editingDeposit.amount || '',
+        fineType: editingDeposit.fineType || 'late_payment',
+        reason: editingDeposit.reason || '',
+        paymentMethod: editingDeposit.method || 'cash',
+        accountId: editingDeposit.accountId || '',
+        reference: editingDeposit.reference || '',
+        notes: editingDeposit.description || editingDeposit.notes || ''
+      });
+      setMemberSearch(editingDeposit.memberName || '');
+    }
+  }, [editingDeposit]);
 
   const fetchMembers = async () => {
     try {
@@ -107,33 +125,43 @@ const FinePaymentForm = ({ onSuccess }) => {
 
     try {
       const payload = {
-        deposits: [{
-          date: formData.date,
-          memberId: parseInt(formData.memberId),
-          memberName: formData.memberName,
-          amount: parseFloat(formData.amount),
-          paymentType: 'fine',
-          fineType: formData.fineType,
-          reason: formData.reason,
-          paymentMethod: formData.paymentMethod,
-          accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
-          reference: formData.reference,
-          notes: formData.notes
-        }]
+        date: formData.date,
+        memberId: parseInt(formData.memberId),
+        memberName: formData.memberName,
+        amount: parseFloat(formData.amount),
+        type: 'fine',
+        paymentType: 'fine',
+        fineType: formData.fineType,
+        reason: formData.reason,
+        method: formData.paymentMethod,
+        paymentMethod: formData.paymentMethod,
+        accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+        reference: formData.reference,
+        description: formData.notes,
+        notes: formData.notes
       };
 
-      const response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      let response;
+      if (editingDeposit) {
+        response = await fetch(`${API_BASE}/deposits/${editingDeposit.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deposits: [payload] })
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to record fine payment');
+        throw new Error(errorData.message || `Failed to ${editingDeposit ? 'update' : 'record'} fine payment`);
       }
 
-      setMessage({ type: 'success', text: 'Fine payment recorded successfully!' });
+      setMessage({ type: 'success', text: `Fine payment ${editingDeposit ? 'updated' : 'recorded'} successfully!` });
       
       // Reset form
       setFormData({
@@ -351,8 +379,13 @@ const FinePaymentForm = ({ onSuccess }) => {
         </div>
 
         <div className="form-actions">
+          {onCancel && (
+            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
           <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Recording...' : 'Record Fine Payment'}
+            {loading ? (editingDeposit ? 'Updating...' : 'Recording...') : (editingDeposit ? 'Update Fine Payment' : 'Record Fine Payment')}
           </button>
         </div>
       </form>

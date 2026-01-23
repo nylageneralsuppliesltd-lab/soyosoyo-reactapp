@@ -2,7 +2,7 @@
 import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, Package } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
-const MiscellaneousPaymentForm = ({ onSuccess }) => {
+const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
@@ -38,6 +38,26 @@ const MiscellaneousPaymentForm = ({ onSuccess }) => {
     fetchMembers();
     fetchAccounts();
   }, []);
+
+  useEffect(() => {
+    if (editingDeposit) {
+      const hasMember = editingDeposit.memberId && editingDeposit.memberName && editingDeposit.memberName !== 'N/A';
+      setFormData({
+        date: editingDeposit.date ? new Date(editingDeposit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        memberId: editingDeposit.memberId || '',
+        memberName: editingDeposit.memberName || '',
+        amount: editingDeposit.amount || '',
+        purpose: editingDeposit.purpose || '',
+        description: editingDeposit.description || '',
+        paymentMethod: editingDeposit.method || 'cash',
+        accountId: editingDeposit.accountId || '',
+        reference: editingDeposit.reference || '',
+        notes: editingDeposit.notes || ''
+      });
+      setMemberSearch(editingDeposit.memberName && editingDeposit.memberName !== 'N/A' ? editingDeposit.memberName : '');
+      setIsMemberPayment(hasMember);
+    }
+  }, [editingDeposit]);
 
   const fetchMembers = async () => {
     try {
@@ -98,33 +118,42 @@ const MiscellaneousPaymentForm = ({ onSuccess }) => {
 
     try {
       const payload = {
-        deposits: [{
-          date: formData.date,
-          memberId: isMemberPayment && formData.memberId ? parseInt(formData.memberId) : undefined,
-          memberName: isMemberPayment ? formData.memberName : 'N/A',
-          amount: parseFloat(formData.amount),
-          paymentType: 'miscellaneous',
-          purpose: formData.purpose,
-          description: formData.description,
-          paymentMethod: formData.paymentMethod,
-          accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
-          reference: formData.reference,
-          notes: formData.notes
-        }]
+        date: formData.date,
+        memberId: isMemberPayment && formData.memberId ? parseInt(formData.memberId) : undefined,
+        memberName: isMemberPayment ? formData.memberName : 'N/A',
+        amount: parseFloat(formData.amount),
+        type: 'miscellaneous',
+        paymentType: 'miscellaneous',
+        purpose: formData.purpose,
+        description: formData.description,
+        method: formData.paymentMethod,
+        paymentMethod: formData.paymentMethod,
+        accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+        reference: formData.reference,
+        notes: formData.notes
       };
 
-      const response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      let response;
+      if (editingDeposit) {
+        response = await fetch(`${API_BASE}/deposits/${editingDeposit.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deposits: [payload] })
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to record miscellaneous payment');
+        throw new Error(errorData.message || `Failed to ${editingDeposit ? 'update' : 'record'} miscellaneous payment`);
       }
 
-      setMessage({ type: 'success', text: 'Miscellaneous payment recorded successfully!' });
+      setMessage({ type: 'success', text: `Miscellaneous payment ${editingDeposit ? 'updated' : 'recorded'} successfully!` });
       
       // Reset form
       setFormData({
@@ -355,8 +384,13 @@ const MiscellaneousPaymentForm = ({ onSuccess }) => {
         </div>
 
         <div className="form-actions">
+          {onCancel && (
+            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
           <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Recording...' : 'Record Miscellaneous Payment'}
+            {loading ? (editingDeposit ? 'Updating...' : 'Recording...') : (editingDeposit ? 'Update Miscellaneous Payment' : 'Record Miscellaneous Payment')}
           </button>
         </div>
       </form>

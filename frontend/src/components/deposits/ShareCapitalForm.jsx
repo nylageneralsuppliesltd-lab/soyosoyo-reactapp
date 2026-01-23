@@ -2,7 +2,7 @@
 import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
-const ShareCapitalForm = ({ onSuccess }) => {
+const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
@@ -39,6 +39,24 @@ const ShareCapitalForm = ({ onSuccess }) => {
     fetchAccounts();
     fetchShareValue();
   }, []);
+
+  useEffect(() => {
+    if (editingDeposit) {
+      setFormData({
+        date: editingDeposit.date ? new Date(editingDeposit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        memberId: editingDeposit.memberId || '',
+        memberName: editingDeposit.memberName || '',
+        amount: editingDeposit.amount || '',
+        certificateNumber: editingDeposit.certificateNumber || '',
+        numberOfShares: editingDeposit.numberOfShares || '',
+        paymentMethod: editingDeposit.method || 'cash',
+        accountId: editingDeposit.accountId || '',
+        reference: editingDeposit.reference || '',
+        notes: editingDeposit.description || editingDeposit.notes || ''
+      });
+      setMemberSearch(editingDeposit.memberName || '');
+    }
+  }, [editingDeposit]);
 
   useEffect(() => {
     if (formData.amount && shareValue) {
@@ -120,33 +138,43 @@ const ShareCapitalForm = ({ onSuccess }) => {
 
     try {
       const payload = {
-        deposits: [{
-          date: formData.date,
-          memberId: parseInt(formData.memberId),
-          memberName: formData.memberName,
-          amount: parseFloat(formData.amount),
-          paymentType: 'share_capital',
-          certificateNumber: formData.certificateNumber,
-          numberOfShares: parseInt(formData.numberOfShares),
-          paymentMethod: formData.paymentMethod,
-          accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
-          reference: formData.reference,
-          notes: formData.notes
-        }]
+        date: formData.date,
+        memberId: parseInt(formData.memberId),
+        memberName: formData.memberName,
+        amount: parseFloat(formData.amount),
+        type: 'share_capital',
+        paymentType: 'share_capital',
+        certificateNumber: formData.certificateNumber,
+        numberOfShares: parseInt(formData.numberOfShares),
+        method: formData.paymentMethod,
+        paymentMethod: formData.paymentMethod,
+        accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+        reference: formData.reference,
+        description: formData.notes,
+        notes: formData.notes
       };
 
-      const response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      let response;
+      if (editingDeposit) {
+        response = await fetch(`${API_BASE}/deposits/${editingDeposit.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deposits: [payload] })
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to record share capital payment');
+        throw new Error(errorData.message || `Failed to ${editingDeposit ? 'update' : 'record'} share capital payment`);
       }
 
-      setMessage({ type: 'success', text: 'Share capital payment recorded successfully!' });
+      setMessage({ type: 'success', text: `Share capital payment ${editingDeposit ? 'updated' : 'recorded'} successfully!` });
       
       // Reset form
       setFormData({
@@ -360,8 +388,13 @@ const ShareCapitalForm = ({ onSuccess }) => {
         </div>
 
         <div className="form-actions">
+          {onCancel && (
+            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
           <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Recording...' : 'Record Share Capital Payment'}
+            {loading ? (editingDeposit ? 'Updating...' : 'Recording...') : (editingDeposit ? 'Update Share Capital' : 'Record Share Capital Payment')}
           </button>
         </div>
       </form>

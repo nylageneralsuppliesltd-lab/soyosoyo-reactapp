@@ -2,7 +2,7 @@
 import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, TrendingUp } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
-const LoanRepaymentForm = ({ onSuccess }) => {
+const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
@@ -39,6 +39,25 @@ const LoanRepaymentForm = ({ onSuccess }) => {
     fetchMembers();
     fetchAccounts();
   }, []);
+
+  useEffect(() => {
+    if (editingDeposit) {
+      setFormData({
+        date: editingDeposit.date ? new Date(editingDeposit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        memberId: editingDeposit.memberId || '',
+        memberName: editingDeposit.memberName || '',
+        loanId: editingDeposit.loanId || '',
+        amount: editingDeposit.amount || '',
+        principalAmount: editingDeposit.principalAmount || '',
+        interestAmount: editingDeposit.interestAmount || '',
+        paymentMethod: editingDeposit.method || 'cash',
+        accountId: editingDeposit.accountId || '',
+        reference: editingDeposit.reference || '',
+        notes: editingDeposit.description || editingDeposit.notes || ''
+      });
+      setMemberSearch(editingDeposit.memberName || '');
+    }
+  }, [editingDeposit]);
 
   useEffect(() => {
     if (formData.memberId) {
@@ -140,34 +159,44 @@ const LoanRepaymentForm = ({ onSuccess }) => {
 
     try {
       const payload = {
-        deposits: [{
-          date: formData.date,
-          memberId: parseInt(formData.memberId),
-          memberName: formData.memberName,
-          loanId: parseInt(formData.loanId),
-          amount: parseFloat(formData.amount),
-          principalAmount: parseFloat(formData.principalAmount),
-          interestAmount: parseFloat(formData.interestAmount),
-          paymentType: 'loan_repayment',
-          paymentMethod: formData.paymentMethod,
-          accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
-          reference: formData.reference,
-          notes: formData.notes
-        }]
+        date: formData.date,
+        memberId: parseInt(formData.memberId),
+        memberName: formData.memberName,
+        loanId: parseInt(formData.loanId),
+        amount: parseFloat(formData.amount),
+        principalAmount: parseFloat(formData.principalAmount),
+        interestAmount: parseFloat(formData.interestAmount),
+        type: 'loan_repayment',
+        paymentType: 'loan_repayment',
+        method: formData.paymentMethod,
+        paymentMethod: formData.paymentMethod,
+        accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+        reference: formData.reference,
+        description: formData.notes,
+        notes: formData.notes
       };
 
-      const response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      let response;
+      if (editingDeposit) {
+        response = await fetch(`${API_BASE}/deposits/${editingDeposit.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deposits: [payload] })
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to record loan repayment');
+        throw new Error(errorData.message || `Failed to ${editingDeposit ? 'update' : 'record'} loan repayment`);
       }
 
-      setMessage({ type: 'success', text: 'Loan repayment recorded successfully!' });
+      setMessage({ type: 'success', text: `Loan repayment ${editingDeposit ? 'updated' : 'recorded'} successfully!` });
       
       // Reset form
       setFormData({
@@ -421,8 +450,13 @@ const LoanRepaymentForm = ({ onSuccess }) => {
         </div>
 
         <div className="form-actions">
+          {onCancel && (
+            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
           <button type="submit" className="btn-primary" disabled={loading || !formData.loanId}>
-            {loading ? 'Recording...' : 'Record Loan Repayment'}
+            {loading ? (editingDeposit ? 'Updating...' : 'Recording...') : (editingDeposit ? 'Update Loan Repayment' : 'Record Loan Repayment')}
           </button>
         </div>
       </form>
