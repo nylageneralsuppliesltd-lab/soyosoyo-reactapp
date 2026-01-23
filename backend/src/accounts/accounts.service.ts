@@ -5,8 +5,21 @@ import { PrismaService } from '../prisma.service';
 export class AccountsService {
   constructor(private prisma: PrismaService) {}
 
+  // GL account patterns that identify category/GL accounts (not real financial accounts)
+  private glAccountPatterns = [
+    /Received$/,           // "Share Capital Received", "Fines Collected" etc
+    /Payable$/,            // "Dividends Payable", "Refunds Payable"
+    /Expense$/,            // "Rent Expense", "Utilities Expense"
+    /Collected$/,          // "Fines Collected"
+    /Income$/,             // "Other Income", "Miscellaneous Receipts"
+  ];
+
+  private isGlAccount(accountName: string): boolean {
+    return this.glAccountPatterns.some(pattern => pattern.test(accountName));
+  }
+
   async getAllAccounts() {
-    return this.prisma.account.findMany({
+    const accounts = await this.prisma.account.findMany({
       orderBy: { type: 'asc' },
       select: {
         id: true,
@@ -21,13 +34,38 @@ export class AccountsService {
         createdAt: true,
       },
     });
+
+    // Mark accounts as GL (General Ledger) or real financial accounts
+    return accounts.map(acc => ({
+      ...acc,
+      isGlAccount: this.isGlAccount(acc.name),
+      accountCategory: this.isGlAccount(acc.name) ? 'GL' : 'Financial',
+    }));
   }
 
   async getAccountsByType(type: string) {
-    return this.prisma.account.findMany({
+    const accounts = await this.prisma.account.findMany({
       where: { type: type as any },
       orderBy: { name: 'asc' },
     });
+
+    return accounts.map(acc => ({
+      ...acc,
+      isGlAccount: this.isGlAccount(acc.name),
+      accountCategory: this.isGlAccount(acc.name) ? 'GL' : 'Financial',
+    }));
+  }
+
+  async getRealAccounts() {
+    // Return only real financial accounts (not GL accounts)
+    const accounts = await this.prisma.account.findMany({
+      where: {
+        type: { in: ['cash', 'bank', 'pettyCash', 'mobileMoney'] },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return accounts.filter(acc => !this.isGlAccount(acc.name));
   }
 
   async createAccount(data: any) {

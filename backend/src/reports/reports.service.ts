@@ -9,6 +9,18 @@ import { Response } from 'express';
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
 
+  // GL account patterns that identify category/GL accounts (not real financial accounts)
+  private glAccountPatterns = [
+    /Received$/,           // "Share Capital Received", "Fines Collected" etc
+    /Payable$/,            // "Dividends Payable", "Refunds Payable"
+    /Expense$/,            // "Rent Expense", "Utilities Expense"
+    /Collected$/,          // "Fines Collected"
+  ];
+
+  private isGlAccount(accountName: string): boolean {
+    return this.glAccountPatterns.some(pattern => pattern.test(accountName));
+  }
+
   getCatalog() {
     return [
       { key: 'contributions', name: 'Contribution Summary', filters: ['period', 'memberId'] },
@@ -261,7 +273,16 @@ export class ReportsService {
   }
 
   private async accountBalanceReport() {
-    const accounts = await this.prisma.account.findMany({ orderBy: { name: 'asc' } });
+    // Only show real financial accounts (cash, bank, mobile money)
+    // Filter out GL accounts (which are used for categorizing transactions)
+    const accounts = await this.prisma.account.findMany({
+      where: {
+        type: {
+          in: ['cash', 'bank', 'pettyCash', 'mobileMoney'],
+        },
+      },
+      orderBy: { name: 'asc' }
+    });
     
     const rows = accounts.map(a => ({
       accountName: a.name,
@@ -413,7 +434,12 @@ export class ReportsService {
   }
 
   private async balanceSheetReport(dateRange: { start: Date; end: Date }) {
-    const accounts = await this.prisma.account.findMany();
+    // Only count real financial accounts (cash, bank, etc.) - not GL accounts
+    const accounts = await this.prisma.account.findMany({
+      where: {
+        type: { in: ['cash', 'bank', 'pettyCash', 'mobileMoney'] },
+      },
+    });
     const assets = await this.prisma.asset.aggregate({ _sum: { currentValue: true } });
     const memberLoans = await this.prisma.loan.aggregate({
       where: { loanDirection: 'outward' },
@@ -437,8 +463,11 @@ export class ReportsService {
   }
 
   private async sasraReport(dateRange: { start: Date; end: Date }) {
-    const accounts = await this.prisma.account.findMany();
-    const cash = accounts.filter(a => ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(a.type as any)).reduce((s, a) => s + Number(a.balance), 0);
+    // Only count real financial accounts (cash, bank, etc.) - not GL accounts
+    const accounts = await this.prisma.account.findMany({
+      where: { type: { in: ['cash', 'pettyCash', 'mobileMoney', 'bank'] } },
+    });
+    const cash = accounts.reduce((s, a) => s + Number(a.balance), 0);
     const memberLoans = await this.prisma.loan.aggregate({ where: { loanDirection: 'outward' }, _sum: { balance: true } });
     const bankLoans = await this.prisma.loan.aggregate({ where: { loanDirection: 'inward' }, _sum: { balance: true } });
 

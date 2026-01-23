@@ -10,6 +10,11 @@ export class AccountsController {
     return this.accountsService.getAllAccounts();
   }
 
+  @Get('real/accounts')
+  async getRealAccounts() {
+    return this.accountsService.getRealAccounts();
+  }
+
   @Get('by-type/:type')
   async getAccountsByType(@Param('type') type: string) {
     return this.accountsService.getAccountsByType(type);
