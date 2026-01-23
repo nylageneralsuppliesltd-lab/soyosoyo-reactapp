@@ -20,6 +20,7 @@ const ContributionForm = ({ onSuccess }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
 
   useEffect(() => {
     fetchMembers();
@@ -64,12 +65,15 @@ const ContributionForm = ({ onSuccess }) => {
       memberName: member.name,
     });
     setSearchTerm(member.name);
+    setShowMemberDropdown(false);
   };
 
-  const filteredMembers = members.filter((m) =>
-    m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.phone.includes(searchTerm)
-  );
+  const filteredMembers = searchTerm
+    ? members.filter((m) =>
+        (m.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+        (m.phone?.includes(searchTerm) || false)
+      )
+    : members;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -204,9 +208,11 @@ const ContributionForm = ({ onSuccess }) => {
             placeholder="Search by name or phone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onFocus={() => setShowMemberDropdown(true)}
+            onBlur={() => setTimeout(() => setShowMemberDropdown(false), 200)}
             required
           />
-          {searchTerm && filteredMembers.length > 0 && (
+          {showMemberDropdown && filteredMembers.length > 0 && (
             <div className="member-dropdown">
               {filteredMembers.slice(0, 10).map((member) => (
                 <div

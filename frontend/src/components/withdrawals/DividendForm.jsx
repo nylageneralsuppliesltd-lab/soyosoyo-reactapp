@@ -66,8 +66,8 @@ const DividendForm = ({ onSuccess }) => {
   };
 
   const filteredMembers = members.filter((m) =>
-    m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.phone.includes(searchTerm)
+    (m.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+    (m.phone?.includes(searchTerm) || false)
   );
 
   const handleSubmit = async (e) => {
