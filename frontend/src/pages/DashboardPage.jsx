@@ -186,7 +186,7 @@ const DashboardPage = () => {
       <>
       {/* Key Metrics - Compact Grid */}
       <div className="metrics-grid-compact">
-        <div className="metric-card-compact member-metric" onClick={() => navigate('/members')}>
+        <div className="metric-card-compact member-metric" onClick={() => navigate('/members/list')}>
           <div className="metric-header">
             <UsersThree size={18} />
             <span className="metric-label">Total Members</span>

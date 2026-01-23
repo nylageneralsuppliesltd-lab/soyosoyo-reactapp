@@ -90,21 +90,45 @@ export const calculateDashboardStats = async () => {
       getAllLoans(),
     ]);
 
+    console.log('Dashboard Data:', { 
+      membersCount: members.length, 
+      depositsCount: deposits.length,
+      withdrawalsCount: withdrawals.length,
+      loansCount: loans.length 
+    });
+
     const totalMembers = members.length;
     const activeMembers = members.filter(m => m.active === true).length;
     const suspendedMembers = members.filter(m => m.active === false).length;
 
     // Calculate total savings (sum of all deposit amounts)
-    const totalSavings = deposits.reduce((sum, d) => sum + (d.amount || 0), 0);
+    const totalDeposits = deposits.reduce((sum, d) => {
+      const amount = typeof d.amount === 'number' ? d.amount : parseFloat(d.amount) || 0;
+      return sum + amount;
+    }, 0);
+
+    // Subtract total withdrawals for net savings
+    const totalWithdrawals = withdrawals.reduce((sum, w) => {
+      const amount = typeof w.amount === 'number' ? w.amount : parseFloat(w.amount) || 0;
+      return sum + amount;
+    }, 0);
+
+    const totalSavings = Math.max(0, totalDeposits - totalWithdrawals);
+
+    console.log('Savings Calculation:', { totalDeposits, totalWithdrawals, totalSavings });
 
     // Calculate total outstanding loans
-    const totalLoans = loans.reduce((sum, l) => sum + (l.loanAmount || 0), 0);
+    const totalLoans = loans.reduce((sum, l) => {
+      const amount = typeof l.loanAmount === 'number' ? l.loanAmount : parseFloat(l.loanAmount) || 0;
+      return sum + amount;
+    }, 0);
 
     // Calculate monthly interest (from deposits with rate)
     const monthlyInterest = deposits.reduce((sum, d) => {
       if (d.depositType === 'regular_savings' || d.depositType === 'share_capital') {
         const rate = d.rate || 2; // Default 2% if not specified
-        return sum + (d.amount * rate / 100);
+        const amount = typeof d.amount === 'number' ? d.amount : parseFloat(d.amount) || 0;
+        return sum + (amount * rate / 100);
       }
       return sum;
     }, 0);
@@ -121,8 +145,8 @@ export const calculateDashboardStats = async () => {
       totalMembers,
       activeMembers,
       suspendedMembers,
-      totalSavings,
-      totalLoans,
+      totalSavings: Math.round(totalSavings),
+      totalLoans: Math.round(totalLoans),
       monthlyInterest: Math.round(monthlyInterest),
       memberGrowth: parseFloat(memberGrowth),
     };
