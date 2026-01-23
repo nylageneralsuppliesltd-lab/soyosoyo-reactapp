@@ -276,7 +276,7 @@ const DepositsPage = () => {
                       <tr key={deposit.id}>
                         <td>{formatDate(deposit.date)}</td>
                         <td>{getTypeBadge(deposit.type)}</td>
-                        <td>{deposit.memberName || '-'}</td>
+                        <td><span style={!deposit.memberName ? {color: '#999', fontStyle: 'italic'} : {}}>{deposit.memberName || 'No Member'}</span></td>
                         <td className="description-cell">
                           {deposit.description || deposit.narration || '-'}
                           {deposit.reference && (

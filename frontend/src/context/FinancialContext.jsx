@@ -69,8 +69,12 @@ export const FinancialProvider = ({ children }) => {
 
   const addDeposit = async (payload) => {
     try {
+      const memberName = payload.member?.trim();
+      if (!memberName) {
+        throw new Error('Member name is required for deposits');
+      }
       const depositData = {
-        memberName: payload.member?.trim() || 'Unspecified',
+        memberName: memberName,
         memberId: payload.memberId || null,
         amount: payload.amount,
         method: payload.method || 'cash',
@@ -89,8 +93,12 @@ export const FinancialProvider = ({ children }) => {
 
   const addWithdrawal = async (payload) => {
     try {
+      const memberName = payload.member?.trim();
+      if (!memberName) {
+        throw new Error('Member name is required for withdrawals');
+      }
       const withdrawalData = {
-        memberName: payload.member?.trim() || 'Unspecified',
+        memberName: memberName,
         memberId: payload.memberId || null,
         amount: payload.amount,
         method: payload.method || 'cash',
@@ -109,8 +117,12 @@ export const FinancialProvider = ({ children }) => {
 
   const addLoan = async (payload) => {
     try {
+      const borrowerName = payload.borrower?.trim();
+      if (!borrowerName) {
+        throw new Error('Borrower name is required for loans');
+      }
       const loanData = {
-        borrowerName: payload.borrower?.trim() || 'Unspecified',
+        borrowerName: borrowerName,
         borrowerId: payload.borrowerId || null,
         amount: payload.amount,
         rate: payload.rate || 0,
