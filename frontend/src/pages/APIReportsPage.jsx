@@ -3,6 +3,11 @@ import { Download, Filter, Calendar, FileText, CheckCircle2, AlertCircle, FileJs
 import '../styles/reports.css';
 import { API_BASE } from '../utils/apiBase';
 
+// Helper function to convert camelCase to kebab-case for API routes
+const convertToKebabCase = (camelCase) => {
+  return camelCase.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
+};
+
 // Helper function to format column names
 const formatColumnName = (key) => {
   return key
@@ -94,6 +99,7 @@ const APIReportsPage = () => {
 
   const handleDownload = async (reportKey, format) => {
     const statusKey = `${reportKey}-${format}`;
+    const kebabKey = convertToKebabCase(reportKey);
     setDownloadingReport(statusKey);
     setDownloadStatus(prev => ({ ...prev, [statusKey]: 'downloading' }));
 
@@ -106,7 +112,7 @@ const APIReportsPage = () => {
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
 
-      const response = await fetch(`${API_BASE}/reports/${reportKey}?${params}`);
+      const response = await fetch(`${API_BASE}/reports/${kebabKey}?${params}`);
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
@@ -185,6 +191,7 @@ const APIReportsPage = () => {
   const fetchReportData = async (reportKey) => {
     setReportLoading(true);
     try {
+      const kebabKey = convertToKebabCase(reportKey);
       const params = new URLSearchParams({
         format: 'json',
         period: filters.period,
@@ -193,7 +200,7 @@ const APIReportsPage = () => {
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
 
-      const response = await fetch(`${API_BASE}/reports/${reportKey}?${params}`);
+      const response = await fetch(`${API_BASE}/reports/${kebabKey}?${params}`);
       if (!response.ok) throw new Error(`Failed to fetch report: ${response.status}`);
       
       const data = await response.json();
