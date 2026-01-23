@@ -153,6 +153,9 @@ export default function Sidebar({ isOpen, onClose }) {
                 <li>
                   <Link to="/reports" onClick={onClose}>Financial Analytics</Link>
                 </li>
+                <li>
+                  <Link to="/account-statement" onClick={onClose}>Account Statements</Link>
+                </li>
               </ul>
             )}
           </li>
