@@ -196,7 +196,7 @@ export class SettingsService {
         where: { name: '__SHARE_VALUE__' },
       });
       if (shareValueRecord) {
-        return { value: shareValueRecord.value };
+        return { value: Number(shareValueRecord.currentValue) };
       }
     } catch (error) {
       // If Asset model doesn't have these fields, return default
@@ -217,15 +217,19 @@ export class SettingsService {
       if (existing) {
         return this.prisma.asset.update({
           where: { id: existing.id },
-          data: { value: parseFloat(value) },
+          data: { currentValue: parseFloat(value) },
         });
       } else {
         return this.prisma.asset.create({
           data: {
             name: '__SHARE_VALUE__',
-            value: parseFloat(value),
             category: 'configuration',
+            description: 'Share value configuration',
+            purchasePrice: parseFloat(value),
             purchaseDate: new Date(),
+            purchaseAccountId: 1,
+            currentValue: parseFloat(value),
+            status: 'active',
           },
         });
       }

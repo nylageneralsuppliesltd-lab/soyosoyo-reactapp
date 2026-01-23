@@ -214,7 +214,7 @@ export class ReportsService {
     });
     
     const rows = loans.map(l => ({
-      memberName: l.borrowerName || l.member?.name || 'Non-member',
+      memberName: l.member?.name || 'Non-member',
       loanType: l.loanType?.name || 'Other',
       principalAmount: l.amount,
       interestRate: l.interestRate,

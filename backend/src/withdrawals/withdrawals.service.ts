@@ -174,6 +174,10 @@ export class WithdrawalsService {
     );
 
     return withdrawal;
+    } catch (error) {
+      console.error('Expense creation error:', error);
+      throw error;
+    }
   }
 
   /**
