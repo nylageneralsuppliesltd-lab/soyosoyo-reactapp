@@ -90,15 +90,38 @@ export class DepositsController {
         throw new BadRequestException('Invalid deposit ID');
       }
       
-      // Ensure amount is a number (Prisma will convert to Decimal)
-      if (data.amount !== undefined && typeof data.amount === 'string') {
-        data.amount = parseFloat(data.amount);
+      // Normalize payload types to prevent Prisma 500s
+      // amount → number
+      if (data.amount !== undefined) {
+        if (typeof data.amount === 'string') data.amount = parseFloat(data.amount);
       }
+      // date → Date
+      if (data.date) {
+        if (typeof data.date === 'string') {
+          const d = new Date(data.date);
+          if (isNaN(d.getTime())) throw new BadRequestException('Invalid date format');
+          data.date = d;
+        }
+      }
+      // memberId/accountId → number
+      if (data.memberId !== undefined) {
+        data.memberId = data.memberId === null ? null : parseInt(data.memberId);
+        if (data.memberId !== null && isNaN(data.memberId)) throw new BadRequestException('Invalid memberId');
+      }
+      if (data.accountId !== undefined) {
+        data.accountId = data.accountId === null ? null : parseInt(data.accountId);
+        if (data.accountId !== null && isNaN(data.accountId)) throw new BadRequestException('Invalid accountId');
+      }
+      // Trim strings
+      if (data.category) data.category = String(data.category).trim();
+      if (data.description) data.description = String(data.description).trim();
+      if (data.reference) data.reference = String(data.reference).trim();
+      if (data.narration) data.narration = String(data.narration).trim();
       
       const result = await this.depositsService.update(parsedId, data);
       return result;
     } catch (error) {
-      console.error(`Error updating deposit ${id}:`, error.message);
+      console.error(`Error updating deposit ${id}:`, error);
       throw error;
     }
   }
