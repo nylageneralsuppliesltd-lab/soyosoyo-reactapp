@@ -1,10 +1,14 @@
 import { Controller, Get, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { ReportsService } from './reports.service';
+import { FinancialStatementsService } from './financial-statements.service';
 
 @Controller('reports')
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) {}
+  constructor(
+    private readonly reportsService: ReportsService,
+    private readonly financialStatements: FinancialStatementsService,
+  ) {}
 
   @Get('catalog')
   catalog() {
@@ -89,5 +93,34 @@ export class ReportsController {
   @Get('account-statement')
   async accountStatement(@Query() query: any, @Res({ passthrough: true }) res: Response) {
     return this.reportsService.handleReport('accountStatement', query, res);
+  }
+
+  // New financial statements endpoints
+  @Get('comprehensive-statement')
+  async comprehensiveStatement(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1);
+    const end = endDate ? new Date(endDate) : new Date();
+    return this.financialStatements.comprehensiveStatement(start, end);
+  }
+
+  @Get('cash-flow-statement')
+  async cashFlowStatement(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1);
+    const end = endDate ? new Date(endDate) : new Date();
+    return this.financialStatements.cashFlowStatement(start, end);
+  }
+
+  @Get('trial-balance-statement')
+  async trialBalanceStatement(
+    @Query('asOf') asOf?: string,
+  ) {
+    const date = asOf ? new Date(asOf) : new Date();
+    return this.financialStatements.properTrialBalance(date);
   }
 }
