@@ -199,9 +199,9 @@ const DepositsPage = () => {
         onEdit={handleEditDeposit}
       />
 
-      <div className="page-header">
-        <h1>Deposits & Payments</h1>
-        <p>Record and manage all incoming transactions - 7 payment types available</p>
+      <div className="form-header-section">
+        <h2>Deposits & Payments</h2>
+        <p className="form-header-subtitle">Record and manage all incoming transactions</p>
       </div>
 
       <div className="deposits-menu">
@@ -299,11 +299,9 @@ const DepositsPage = () => {
                 <p>Loading deposits...</p>
               </div>
             ) : error ? (
-              <div className="alert alert-error">
-                <strong>Error:</strong> {error}
-                <button onClick={fetchDeposits} className="btn-text">
-                  Retry
-                </button>
+              <div className="form-alert error">
+                <span><strong>Error:</strong> {error}</span>
+                <button onClick={fetchDeposits} className="btn-text">Retry</button>
               </div>
             ) : filteredDeposits.length === 0 ? (
               <div className="empty-state">

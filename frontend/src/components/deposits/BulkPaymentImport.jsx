@@ -88,7 +88,7 @@ const BulkPaymentImport = ({ onSuccess, onCancel }) => {
 
   if (result) {
     return (
-      <div className="bulk-import-container">
+      <div className="form-container">
         <div className="import-result">
           <div className="result-header">
             <h3>Import Complete</h3>
@@ -138,7 +138,7 @@ const BulkPaymentImport = ({ onSuccess, onCancel }) => {
   }
 
   return (
-    <div className="bulk-import-container">
+    <div className="form-container">
       <div className="import-form">
         <div className="form-header-section">
           <h2>Bulk Import Payments</h2>
