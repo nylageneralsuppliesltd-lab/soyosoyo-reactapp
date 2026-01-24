@@ -130,6 +130,25 @@ export class SettingsService {
     return this.prisma.fineCategory.delete({ where: { id } });
   }
 
+  // ============== LOAN TYPES ==============
+  async getLoanTypes() {
+    return this.prisma.loanType.findMany({
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createLoanType(data: any) {
+    return this.prisma.loanType.create({ data });
+  }
+
+  async updateLoanType(id: number, data: any) {
+    return this.prisma.loanType.update({ where: { id }, data });
+  }
+
+  async deleteLoanType(id: number) {
+    return this.prisma.loanType.delete({ where: { id } });
+  }
+
   // ============== GROUP ROLES ==============
   async getGroupRoles() {
     return this.prisma.groupRole.findMany({

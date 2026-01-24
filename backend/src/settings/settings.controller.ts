@@ -47,6 +47,27 @@ export class SettingsController {
     return this.settingsService.deleteContributionType(+id);
   }
 
+  // ============== DEPOSIT CATEGORIES ==============
+  @Get('deposit-categories')
+  async getDepositCategories() {
+    return this.settingsService.getContributionTypes(); // Alias for contribution-types
+  }
+
+  @Post('deposit-categories')
+  async createDepositCategory(@Body() data: any) {
+    return this.settingsService.createContributionType(data);
+  }
+
+  @Patch('deposit-categories/:id')
+  async updateDepositCategory(@Param('id') id: string, @Body() data: any) {
+    return this.settingsService.updateContributionType(+id, data);
+  }
+
+  @Delete('deposit-categories/:id')
+  async deleteDepositCategory(@Param('id') id: string) {
+    return this.settingsService.deleteContributionType(+id);
+  }
+
   // ============== EXPENSE CATEGORIES ==============
   @Get('expense-categories')
   async getExpenseCategories() {
@@ -108,6 +129,27 @@ export class SettingsController {
   @Delete('fine-categories/:id')
   async deleteFineCategory(@Param('id') id: string) {
     return this.settingsService.deleteFineCategory(+id);
+  }
+
+  // ============== LOAN TYPES ==============
+  @Get('loan-types')
+  async getLoanTypes() {
+    return this.settingsService.getLoanTypes();
+  }
+
+  @Post('loan-types')
+  async createLoanType(@Body() data: any) {
+    return this.settingsService.createLoanType(data);
+  }
+
+  @Patch('loan-types/:id')
+  async updateLoanType(@Param('id') id: string, @Body() data: any) {
+    return this.settingsService.updateLoanType(+id, data);
+  }
+
+  @Delete('loan-types/:id')
+  async deleteLoanType(@Param('id') id: string) {
+    return this.settingsService.deleteLoanType(+id);
   }
 
   // ============== GROUP ROLES ==============
