@@ -207,10 +207,10 @@ const AccountStatementPage = () => {
                       <td className="col-desc">{row.description || '-'}</td>
                       <td className="col-opposite">{row.oppositeAccount || '-'}</td>
                       <td className="col-debit amount">
-                        {row.debit ? formatCurrency(row.debit) : '-'}
+                        {row.moneyOut ? formatCurrency(row.moneyOut) : '-'}
                       </td>
                       <td className="col-credit amount">
-                        {row.credit ? formatCurrency(row.credit) : '-'}
+                        {row.moneyIn ? formatCurrency(row.moneyIn) : '-'}
                       </td>
                       <td className="col-balance amount balance-cell">
                         {formatCurrency(row.runningBalance)}
@@ -232,11 +232,11 @@ const AccountStatementPage = () => {
               <div className="summary-grid">
                 <div className="summary-item">
                   <span className="label">Total Money Out:</span>
-                  <span className="value debit">{formatCurrency(statement.meta.totalDebit)}</span>
+                  <span className="value debit">{formatCurrency(statement.meta.totalMoneyOut)}</span>
                 </div>
                 <div className="summary-item">
                   <span className="label">Total Money In:</span>
-                  <span className="value credit">{formatCurrency(statement.meta.totalCredit)}</span>
+                  <span className="value credit">{formatCurrency(statement.meta.totalMoneyIn)}</span>
                 </div>
                 <div className="summary-item">
                   <span className="label">Net Change:</span>

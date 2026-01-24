@@ -77,12 +77,12 @@ const GeneralLedgerPage = () => {
 
   const getTotalDebits = () => {
     if (!ledger || !ledger.rows) return 0;
-    return ledger.rows.reduce((sum, acc) => sum + (acc.summary?.totalDebits || 0), 0);
+    return ledger.rows.reduce((sum, acc) => sum + (acc.summary?.totalMoneyOut || 0), 0);
   };
 
   const getTotalCredits = () => {
     if (!ledger || !ledger.rows) return 0;
-    return ledger.rows.reduce((sum, acc) => sum + (acc.summary?.totalCredits || 0), 0);
+    return ledger.rows.reduce((sum, acc) => sum + (acc.summary?.totalMoneyIn || 0), 0);
   };
 
   return (
@@ -202,16 +202,16 @@ const GeneralLedgerPage = () => {
                         <tbody>
                           {accountData.transactions && accountData.transactions.length > 0 ? (
                             accountData.transactions.map((txn, txnIdx) => (
-                              <tr key={txnIdx} className={txn.debit ? 'debit-row' : 'credit-row'}>
+                              <tr key={txnIdx} className={txn.moneyOut ? 'debit-row' : 'credit-row'}>
                                 <td className="col-date">{formatDate(txn.date)}</td>
                                 <td className="col-ref">{txn.reference || '-'}</td>
                                 <td className="col-desc">{txn.description || '-'}</td>
                                 <td className="col-opposite">{txn.oppositeAccount || '-'}</td>
                                 <td className="col-debit amount">
-                                  {txn.debit ? formatCurrency(txn.debit) : '-'}
+                                  {txn.moneyOut ? formatCurrency(txn.moneyOut) : '-'}
                                 </td>
                                 <td className="col-credit amount">
-                                  {txn.credit ? formatCurrency(txn.credit) : '-'}
+                                  {txn.moneyIn ? formatCurrency(txn.moneyIn) : '-'}
                                 </td>
                                 <td className="col-balance amount balance-cell">
                                   {formatCurrency(txn.runningBalance)}
@@ -231,11 +231,11 @@ const GeneralLedgerPage = () => {
                         <div className="account-summary">
                           <div className="summary-row">
                             <span className="label">Total Money Out:</span>
-                            <span className="value debit">{formatCurrency(accountData.summary.totalDebits)}</span>
+                            <span className="value debit">{formatCurrency(accountData.summary.totalMoneyOut)}</span>
                           </div>
                           <div className="summary-row">
                             <span className="label">Total Money In:</span>
-                            <span className="value credit">{formatCurrency(accountData.summary.totalCredits)}</span>
+                            <span className="value credit">{formatCurrency(accountData.summary.totalMoneyIn)}</span>
                           </div>
                           <div className="summary-row">
                             <span className="label">Net Change:</span>

@@ -336,21 +336,35 @@ export class ReportsService {
       let runningBalance = 0;
 
       const rows = entries.map(e => {
-        let debit = 0;
-        let credit = 0;
+        let moneyOut = 0;
+        let moneyIn = 0;
         let description = e.description;
         let oppositeAccount = '';
 
         if (e.debitAccountId === Number(accountId)) {
           // This account was debited
-          debit = Number(e.debitAmount);
+          if (isAssetAccount) {
+            // Money coming in
+            moneyIn = Number(e.debitAmount);
+            runningBalance += moneyIn;
+          } else {
+            // Money going out
+            moneyOut = Number(e.debitAmount);
+            runningBalance -= moneyOut;
+          }
           oppositeAccount = e.creditAccount?.name || 'Unknown';
-          runningBalance += isAssetAccount ? debit : -debit;
         } else if (e.creditAccountId === Number(accountId)) {
           // This account was credited
-          credit = Number(e.creditAmount);
+          if (isAssetAccount) {
+            // Money going out
+            moneyOut = Number(e.creditAmount);
+            runningBalance -= moneyOut;
+          } else {
+            // Money coming in
+            moneyIn = Number(e.creditAmount);
+            runningBalance += moneyIn;
+          }
           oppositeAccount = e.debitAccount?.name || 'Unknown';
-          runningBalance += isAssetAccount ? -credit : credit;
         }
 
         return {
@@ -358,22 +372,30 @@ export class ReportsService {
           reference: e.reference,
           description,
           oppositeAccount,
-          debit: debit || null,
-          credit: credit || null,
+          moneyOut: moneyOut || null,
+          moneyIn: moneyIn || null,
           runningBalance,
           category: e.category,
         };
       });
 
-      const totalDebit = entries.reduce((sum, e) => sum + (e.debitAccountId === Number(accountId) ? Number(e.debitAmount) : 0), 0);
-      const totalCredit = entries.reduce((sum, e) => sum + (e.creditAccountId === Number(accountId) ? Number(e.creditAmount) : 0), 0);
+      const totalMoneyIn = entries.reduce((sum, e) => {
+        if (e.debitAccountId === Number(accountId) && isAssetAccount) return sum + Number(e.debitAmount);
+        if (e.creditAccountId === Number(accountId) && !isAssetAccount) return sum + Number(e.creditAmount);
+        return sum;
+      }, 0);
+      const totalMoneyOut = entries.reduce((sum, e) => {
+        if (e.creditAccountId === Number(accountId) && isAssetAccount) return sum + Number(e.creditAmount);
+        if (e.debitAccountId === Number(accountId) && !isAssetAccount) return sum + Number(e.debitAmount);
+        return sum;
+      }, 0);
 
       return {
         rows,
         meta: {
-          totalDebit,
-          totalCredit,
-          netChange: totalDebit - totalCredit,
+          totalMoneyIn,
+          totalMoneyOut,
+          netChange: totalMoneyIn - totalMoneyOut,
           runningBalance,
           count: entries.length,
           account: { id: account.id, name: account.name, type: account.type },
@@ -620,18 +642,34 @@ export class ReportsService {
       let runningBalance = 0;
 
       const transactions = entries.map(e => {
-        let debit = 0;
-        let credit = 0;
+        let moneyOut = 0;
+        let moneyIn = 0;
         let oppositeAccount = '';
 
         if (e.debitAccountId === account.id) {
-          debit = Number(e.debitAmount);
+          // This account was debited
+          if (isAssetAccount) {
+            // For assets: Debit = Money In (increases balance)
+            moneyIn = Number(e.debitAmount);
+            runningBalance += moneyIn;
+          } else {
+            // For liabilities/expenses: Debit = Money Out (decreases balance)
+            moneyOut = Number(e.debitAmount);
+            runningBalance -= moneyOut;
+          }
           oppositeAccount = e.creditAccount?.name || 'Unknown';
-          runningBalance += isAssetAccount ? debit : -debit;
         } else {
-          credit = Number(e.creditAmount);
+          // This account was credited
+          if (isAssetAccount) {
+            // For assets: Credit = Money Out (decreases balance)
+            moneyOut = Number(e.creditAmount);
+            runningBalance -= moneyOut;
+          } else {
+            // For liabilities/expenses: Credit = Money In (increases balance)
+            moneyIn = Number(e.creditAmount);
+            runningBalance += moneyIn;
+          }
           oppositeAccount = e.debitAccount?.name || 'Unknown';
-          runningBalance += isAssetAccount ? -credit : credit;
         }
 
         return {
@@ -639,19 +677,27 @@ export class ReportsService {
           reference: e.reference,
           description: e.description,
           oppositeAccount,
-          debit: debit || null,
-          credit: credit || null,
+          moneyOut: moneyOut || null,
+          moneyIn: moneyIn || null,
           runningBalance,
         };
       });
 
-      const totalDebits = entries.reduce((sum, e) => sum + (e.debitAccountId === account.id ? Number(e.debitAmount) : 0), 0);
-      const totalCredits = entries.reduce((sum, e) => sum + (e.creditAccountId === account.id ? Number(e.creditAmount) : 0), 0);
+      const totalMoneyIn = entries.reduce((sum, e) => {
+        if (e.debitAccountId === account.id && isAssetAccount) return sum + Number(e.debitAmount);
+        if (e.creditAccountId === account.id && !isAssetAccount) return sum + Number(e.creditAmount);
+        return sum;
+      }, 0);
+      const totalMoneyOut = entries.reduce((sum, e) => {
+        if (e.creditAccountId === account.id && isAssetAccount) return sum + Number(e.creditAmount);
+        if (e.debitAccountId === account.id && !isAssetAccount) return sum + Number(e.debitAmount);
+        return sum;
+      }, 0);
 
       accountsData.push({
         account: { id: account.id, name: account.name, type: account.type, balance: Number(account.balance) },
         transactions,
-        summary: { totalDebits, totalCredits, netChange: totalDebits - totalCredits, closingBalance: runningBalance },
+        summary: { totalMoneyIn, totalMoneyOut, netChange: totalMoneyIn - totalMoneyOut, closingBalance: runningBalance },
       });
     }
 
