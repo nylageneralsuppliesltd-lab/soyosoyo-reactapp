@@ -85,12 +85,52 @@ export class MembersService {
         skip,
         take,
         orderBy: { createdAt: sort },
+        include: {
+          ledger: {
+            select: {
+              amount: true,
+              type: true,
+            },
+          },
+        },
       }),
       this.prisma.member.count({ where }),
     ]);
 
+    // Calculate real-time balances from ledger
+    const membersWithCalculatedBalance = members.map((member) => {
+      const calculatedBalance = member.ledger.reduce((sum, entry) => {
+        // Contributions, deposits, and income add to balance
+        // Withdrawals, expenses, and loans deduct from balance
+        if (['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'].includes(entry.type)) {
+          return sum + entry.amount;
+        } else if (['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out'].includes(entry.type)) {
+          return sum - entry.amount;
+        }
+        return sum;
+      }, 0);
+
+      // Calculate loan balance from loan-related entries
+      const calculatedLoanBalance = member.ledger.reduce((sum, entry) => {
+        if (entry.type === 'loan_disbursement') {
+          return sum + entry.amount;
+        } else if (entry.type === 'loan_repayment') {
+          return sum - entry.amount;
+        }
+        return sum;
+      }, 0);
+
+      // Return member with calculated balances (override stored values)
+      const { ledger, ...memberData } = member;
+      return {
+        ...memberData,
+        balance: Math.round(calculatedBalance * 100) / 100,
+        loanBalance: Math.round(calculatedLoanBalance * 100) / 100,
+      };
+    });
+
     return {
-      data: members,
+      data: membersWithCalculatedBalance,
       total,
       skip,
       take,
@@ -108,7 +148,31 @@ export class MembersService {
       },
     });
     if (!member) throw new NotFoundException(`Member with ID ${id} not found.`);
-    return member;
+    
+    // Calculate real-time balances from ledger
+    const calculatedBalance = member.ledger.reduce((sum, entry) => {
+      if (['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'].includes(entry.type)) {
+        return sum + entry.amount;
+      } else if (['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out'].includes(entry.type)) {
+        return sum - entry.amount;
+      }
+      return sum;
+    }, 0);
+
+    const calculatedLoanBalance = member.ledger.reduce((sum, entry) => {
+      if (entry.type === 'loan_disbursement') {
+        return sum + entry.amount;
+      } else if (entry.type === 'loan_repayment') {
+        return sum - entry.amount;
+      }
+      return sum;
+    }, 0);
+
+    return {
+      ...member,
+      balance: Math.round(calculatedBalance * 100) / 100,
+      loanBalance: Math.round(calculatedLoanBalance * 100) / 100,
+    };
   }
 
   async update(id: number, dto: any) {
@@ -229,20 +293,40 @@ export class MembersService {
   }
 
   async getStats() {
-    const [total, active, suspended, balance] = await Promise.all([
+    const [total, active, suspended, members] = await Promise.all([
       this.prisma.member.count(),
       this.prisma.member.count({ where: { active: true } }),
       this.prisma.member.count({ where: { active: false } }),
-      this.prisma.member.aggregate({
-        _sum: { balance: true },
+      this.prisma.member.findMany({
+        include: {
+          ledger: {
+            select: {
+              amount: true,
+              type: true,
+            },
+          },
+        },
       }),
     ]);
+
+    // Calculate total balance from all members' ledgers
+    const totalBalance = members.reduce((sum, member) => {
+      const memberBalance = member.ledger.reduce((memberSum, entry) => {
+        if (['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'].includes(entry.type)) {
+          return memberSum + entry.amount;
+        } else if (['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out'].includes(entry.type)) {
+          return memberSum - entry.amount;
+        }
+        return memberSum;
+      }, 0);
+      return sum + memberBalance;
+    }, 0);
 
     return {
       total,
       active,
       suspended,
-      totalBalance: balance._sum.balance || 0,
+      totalBalance: Math.round(totalBalance * 100) / 100,
     };
   }
 }
