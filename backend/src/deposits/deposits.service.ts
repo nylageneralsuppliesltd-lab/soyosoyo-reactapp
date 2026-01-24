@@ -75,21 +75,18 @@ export class DepositsService {
         ? `${depositData.category} Received` 
         : `${depositData.type} Received`;
       
-      let glAccount = await this.prisma.account.findFirst({
+      // Use upsert to avoid duplicate account names
+      const glAccount = await this.prisma.account.upsert({
         where: { name: glAccountName },
+        update: {}, // No updates needed if exists
+        create: {
+          name: glAccountName,
+          type: 'bank', // GL account type
+          description: `GL account for ${depositData.category || depositData.type}`,
+          currency: 'KES',
+          balance: new Prisma.Decimal(0),
+        },
       });
-
-      if (!glAccount) {
-        glAccount = await this.prisma.account.create({
-          data: {
-            name: glAccountName,
-            type: 'bank', // GL account type
-            description: `GL account for ${depositData.category || depositData.type}`,
-            currency: 'KES',
-            balance: new Prisma.Decimal(0),
-          },
-        });
-      }
 
       // Record proper double-entry journal entry:
       // Debit: Cash Account (asset increases)
@@ -152,11 +149,153 @@ export class DepositsService {
   }
 
   async update(id: number, data: any) {
-    return this.prisma.deposit.update({
-      where: { id },
-      data,
-      include: { member: true },
-    });
+    try {
+      // Get the existing deposit to calculate differences
+      const existingDeposit = await this.prisma.deposit.findUnique({
+        where: { id },
+        include: { member: true },
+      });
+
+      if (!existingDeposit) {
+        throw new BadRequestException('Deposit not found');
+      }
+
+      // Normalize input data
+      const depositData = {
+        memberName: data.memberName?.trim() || existingDeposit.memberName,
+        memberId: data.memberId ? parseInt(data.memberId) : existingDeposit.memberId,
+        amount: data.amount ? parseFloat(data.amount) : Number(existingDeposit.amount),
+        method: data.method || existingDeposit.method,
+        reference: data.reference?.trim() || existingDeposit.reference,
+        date: data.date ? new Date(data.date) : existingDeposit.date,
+        notes: data.notes?.trim() || existingDeposit.notes,
+        type: data.type || existingDeposit.type,
+        category: data.category?.trim() || existingDeposit.category,
+        description: data.description?.trim() || existingDeposit.description,
+        narration: data.narration?.trim() || existingDeposit.narration,
+        accountId: data.accountId ? parseInt(data.accountId) : existingDeposit.accountId,
+      };
+
+      // Calculate amount difference
+      const amountDifference = Number(depositData.amount) - Number(existingDeposit.amount);
+
+      // Update the deposit record
+      const updatedDeposit = await this.prisma.deposit.update({
+        where: { id },
+        data: depositData,
+        include: { member: true },
+      });
+
+      // If amount changed, update all related financial records
+      if (amountDifference !== 0) {
+        // Get the account used for this deposit
+        const cashAccount = depositData.accountId
+          ? await this.prisma.account.findUnique({ where: { id: depositData.accountId } })
+          : await this.prisma.account.findFirst({
+              where: { 
+                OR: [
+                  { name: 'Cashbox' },
+                  { type: 'cash' }
+                ]
+              }
+            });
+
+        if (!cashAccount) {
+          throw new Error('Cash account not found. Cannot sync journal entries.');
+        }
+
+        // Update account balance by the difference
+        await this.prisma.account.update({
+          where: { id: cashAccount.id },
+          data: { balance: { increment: amountDifference } },
+        });
+
+        // Find and update corresponding journal entry
+        const glAccountName = depositData.category 
+          ? `${depositData.category} Received` 
+          : `${depositData.type} Received`;
+        
+        // Use upsert to avoid duplicate account names
+        const glAccount = await this.prisma.account.upsert({
+          where: { name: glAccountName },
+          update: {}, // No updates needed if exists
+          create: {
+            name: glAccountName,
+            type: 'bank', // GL account type
+            description: `GL account for ${depositData.category || depositData.type}`,
+            currency: 'KES',
+            balance: new Prisma.Decimal(0),
+          },
+        });
+
+        // Delete old journal entry
+        await this.prisma.journalEntry.deleteMany({
+          where: {
+            debitAccountId: cashAccount.id,
+            creditAccountId: glAccount.id,
+            description: { contains: `Member deposit` },
+            OR: [
+              { reference: existingDeposit.reference || undefined },
+              { date: existingDeposit.date }
+            ]
+          }
+        });
+
+        // Create new journal entry with updated amount
+        const newAmount = new Prisma.Decimal(depositData.amount);
+        await this.prisma.journalEntry.create({
+          data: {
+            date: depositData.date,
+            reference: depositData.reference ?? null,
+            description: `Member deposit${depositData.memberName ? ' - ' + depositData.memberName : ''}`,
+            narration: depositData.notes ?? null,
+            debitAccountId: cashAccount.id,
+            debitAmount: newAmount,
+            creditAccountId: glAccount.id,
+            creditAmount: newAmount,
+            category: depositData.category || 'deposit',
+          },
+        });
+
+        // Update member balance if applicable
+        if (depositData.memberId) {
+          await this.prisma.member.update({
+            where: { id: depositData.memberId },
+            data: { balance: { increment: amountDifference } },
+          });
+
+          // Update or create ledger entry
+          const newBalance = (existingDeposit.member?.balance || 0) + amountDifference;
+          
+          // Delete old ledger entry for this deposit
+          await this.prisma.ledger.deleteMany({
+            where: {
+              memberId: depositData.memberId,
+              reference: existingDeposit.reference || undefined,
+              date: existingDeposit.date
+            }
+          });
+
+          // Create new ledger entry with updated balance
+          await this.prisma.ledger.create({
+            data: {
+              memberId: depositData.memberId,
+              type: depositData.type || 'Deposit',
+              amount: Number(depositData.amount),
+              description: depositData.description || depositData.narration || depositData.category || 'Deposit',
+              reference: depositData.reference,
+              balanceAfter: newBalance,
+              date: depositData.date,
+            },
+          });
+        }
+      }
+
+      return updatedDeposit;
+    } catch (error) {
+      console.error('Deposit update error:', error);
+      throw error;
+    }
   }
 
   async remove(id: number) {

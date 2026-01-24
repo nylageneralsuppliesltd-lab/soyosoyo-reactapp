@@ -314,7 +314,7 @@ export class ReportsService {
       });
 
       if (!account) {
-        return { rows: [], meta: { totalDebit: 0, totalCredit: 0, runningBalance: 0, count: 0, account: null } };
+        return { rows: [], meta: { totalMoneyIn: 0, totalMoneyOut: 0, netChange: 0, runningBalance: 0, count: 0, account: null } };
       }
 
       where.OR = [
@@ -324,34 +324,79 @@ export class ReportsService {
 
       const entries = await this.prisma.journalEntry.findMany({
         where,
-        orderBy: { date: 'asc' },
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
         include: { 
           debitAccount: { select: { name: true, type: true } }, 
           creditAccount: { select: { name: true, type: true } },
         },
       });
 
-      // Calculate running balance for this account only
-      // Asset accounts are real cash/bank accounts, NOT GL tracking accounts
-      const isGLAccount = account.name.includes('Received') || account.name.includes('Expense') || 
-                          account.name.includes('Payable') || account.name.includes('GL Account');
+      if (entries.length === 0) {
+        return { 
+          rows: [], 
+          meta: { 
+            totalMoneyIn: 0, 
+            totalMoneyOut: 0, 
+            netChange: 0,
+            runningBalance: 0, 
+            count: 0, 
+            account: { id: account.id, name: account.name, type: account.type } 
+          } 
+        };
+      }
+
+      // Determine if this is an asset account (real cash/bank, not GL tracking account)
+      const isGLAccount = this.isGlAccount(account.name);
       const isAssetAccount = ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type) && !isGLAccount;
-      let runningBalance = 0;
+      
+      // Get opening balance from account record
+      let runningBalance = Number(account.balance) || 0;
+      
+      // Calculate total debits and credits for this account up to the date range start
+      const openingEntries = await this.prisma.journalEntry.findMany({
+        where: {
+          date: { lt: dateRange.start },
+          OR: [
+            { debitAccountId: Number(accountId) },
+            { creditAccountId: Number(accountId) },
+          ],
+        },
+      });
+
+      // Recalculate running balance from beginning
+      let balanceAtStart = 0;
+      for (const e of openingEntries) {
+        if (e.debitAccountId === Number(accountId)) {
+          if (isAssetAccount) {
+            balanceAtStart += Number(e.debitAmount);
+          } else {
+            balanceAtStart -= Number(e.debitAmount);
+          }
+        } else if (e.creditAccountId === Number(accountId)) {
+          if (isAssetAccount) {
+            balanceAtStart -= Number(e.creditAmount);
+          } else {
+            balanceAtStart += Number(e.creditAmount);
+          }
+        }
+      }
+      
+      runningBalance = balanceAtStart;
 
       const rows = entries.map(e => {
         let moneyOut = 0;
         let moneyIn = 0;
-        let description = e.description;
+        let description = e.description || '';
         let oppositeAccount = '';
 
         if (e.debitAccountId === Number(accountId)) {
           // This account was debited
           if (isAssetAccount) {
-            // Money coming in
+            // Money coming in (debit to asset = increase)
             moneyIn = Number(e.debitAmount);
             runningBalance += moneyIn;
           } else {
-            // Money going out
+            // GL/expense account: debit means increase in expense/liability
             moneyOut = Number(e.debitAmount);
             runningBalance -= moneyOut;
           }
@@ -359,11 +404,11 @@ export class ReportsService {
         } else if (e.creditAccountId === Number(accountId)) {
           // This account was credited
           if (isAssetAccount) {
-            // Money going out
+            // Money going out (credit to asset = decrease)
             moneyOut = Number(e.creditAmount);
             runningBalance -= moneyOut;
           } else {
-            // Money coming in
+            // GL/income account: credit means increase
             moneyIn = Number(e.creditAmount);
             runningBalance += moneyIn;
           }
@@ -372,34 +417,28 @@ export class ReportsService {
 
         return {
           date: e.date,
-          reference: e.reference,
-          description,
+          reference: e.reference || '',
+          description: description.substring(0, 100),
           oppositeAccount,
-          moneyOut: moneyOut || null,
-          moneyIn: moneyIn || null,
-          runningBalance,
-          category: e.category,
+          moneyOut: moneyOut > 0 ? moneyOut : null,
+          moneyIn: moneyIn > 0 ? moneyIn : null,
+          runningBalance: Number(runningBalance.toFixed(2)),
+          category: e.category || '',
         };
       });
 
-      const totalMoneyIn = entries.reduce((sum, e) => {
-        if (e.debitAccountId === Number(accountId) && isAssetAccount) return sum + Number(e.debitAmount);
-        if (e.creditAccountId === Number(accountId) && !isAssetAccount) return sum + Number(e.creditAmount);
-        return sum;
-      }, 0);
-      const totalMoneyOut = entries.reduce((sum, e) => {
-        if (e.creditAccountId === Number(accountId) && isAssetAccount) return sum + Number(e.creditAmount);
-        if (e.debitAccountId === Number(accountId) && !isAssetAccount) return sum + Number(e.debitAmount);
-        return sum;
-      }, 0);
+      // Calculate totals
+      const totalMoneyIn = rows.reduce((sum, row) => sum + (row.moneyIn || 0), 0);
+      const totalMoneyOut = rows.reduce((sum, row) => sum + (row.moneyOut || 0), 0);
 
       return {
         rows,
         meta: {
-          totalMoneyIn,
-          totalMoneyOut,
-          netChange: totalMoneyIn - totalMoneyOut,
-          runningBalance,
+          totalMoneyIn: Number(totalMoneyIn.toFixed(2)),
+          totalMoneyOut: Number(totalMoneyOut.toFixed(2)),
+          netChange: Number((totalMoneyIn - totalMoneyOut).toFixed(2)),
+          openingBalance: Number(balanceAtStart.toFixed(2)),
+          closingBalance: Number(runningBalance.toFixed(2)),
           count: entries.length,
           account: { id: account.id, name: account.name, type: account.type },
         },
@@ -409,24 +448,35 @@ export class ReportsService {
     // Full transaction statement (all accounts)
     const entries = await this.prisma.journalEntry.findMany({
       where,
-      orderBy: { date: 'asc' },
-      include: { debitAccount: true, creditAccount: true },
+      orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      include: { 
+        debitAccount: { select: { name: true, type: true } }, 
+        creditAccount: { select: { name: true, type: true } } 
+      },
     });
 
     const rows = entries.map(e => ({
       date: e.date,
-      reference: e.reference,
-      description: e.description,
+      reference: e.reference || '',
+      description: (e.description || '').substring(0, 100),
       debitAccount: e.debitAccount?.name || 'Unknown',
       creditAccount: e.creditAccount?.name || 'Unknown',
-      debitAmount: e.debitAmount,
-      creditAmount: e.creditAmount,
-      category: e.category,
+      debitAmount: Number(e.debitAmount),
+      creditAmount: Number(e.creditAmount),
+      category: e.category || '',
     }));
 
-    const totalDebit = entries.reduce((sum, r) => sum + Number(r.debitAmount), 0);
-    const totalCredit = entries.reduce((sum, r) => sum + Number(r.creditAmount), 0);
-    return { rows, meta: { totalDebit, totalCredit, count: entries.length } };
+    const totalDebit = rows.reduce((sum, r) => sum + r.debitAmount, 0);
+    const totalCredit = rows.reduce((sum, r) => sum + r.creditAmount, 0);
+    
+    return { 
+      rows, 
+      meta: { 
+        totalDebit: Number(totalDebit.toFixed(2)), 
+        totalCredit: Number(totalCredit.toFixed(2)), 
+        count: entries.length 
+      } 
+    };
   }
 
   private async cashFlowReport(dateRange: { start: Date; end: Date }) {
@@ -461,51 +511,131 @@ export class ReportsService {
   }
 
   private async trialBalanceReport(dateRange: { start: Date; end: Date }) {
-    const rows = await this.prisma.journalEntry.groupBy({
-      by: ['debitAccountId', 'creditAccountId'],
-      _sum: { debitAmount: true, creditAmount: true },
+    // Get all journal entries for the date range
+    const entries = await this.prisma.journalEntry.findMany({
       where: { date: { gte: dateRange.start, lte: dateRange.end } },
-    });
-
-    // Flatten into account balances
-    const accounts = new Map<number, { accountId: number; debit: number; credit: number }>();
-    rows.forEach(r => {
-      if (r.debitAccountId) {
-        const acc = accounts.get(r.debitAccountId) || { accountId: r.debitAccountId, debit: 0, credit: 0 };
-        acc.debit += Number(r._sum.debitAmount || 0);
-        accounts.set(r.debitAccountId, acc);
-      }
-      if (r.creditAccountId) {
-        const acc = accounts.get(r.creditAccountId) || { accountId: r.creditAccountId, debit: 0, credit: 0 };
-        acc.credit += Number(r._sum.creditAmount || 0);
-        accounts.set(r.creditAccountId, acc);
+      include: {
+        debitAccount: { select: { id: true, name: true, type: true } },
+        creditAccount: { select: { id: true, name: true, type: true } }
       }
     });
 
-    const accountIds = Array.from(accounts.keys());
-    const accountData = await this.prisma.account.findMany({ where: { id: { in: accountIds } } });
-    const rowsOut = accountIds.map(id => {
-      const acc = accounts.get(id)!;
-      const acctInfo = accountData.find(a => a.id === id);
+    // Aggregate by account
+    const accountMap = new Map<number, {
+      accountId: number;
+      accountName: string;
+      accountType: string;
+      totalDebit: number;
+      totalCredit: number;
+      moneyIn: number;
+      moneyOut: number;
+    }>();
+
+    for (const entry of entries) {
+      // Process debit account
+      if (entry.debitAccountId && entry.debitAccount) {
+        let acc = accountMap.get(entry.debitAccountId);
+        if (!acc) {
+          acc = {
+            accountId: entry.debitAccountId,
+            accountName: entry.debitAccount.name,
+            accountType: entry.debitAccount.type,
+            totalDebit: 0,
+            totalCredit: 0,
+            moneyIn: 0,
+            moneyOut: 0,
+          };
+          accountMap.set(entry.debitAccountId, acc);
+        }
+        acc.totalDebit += Number(entry.debitAmount);
+        
+        // For asset accounts, debit = money in
+        if (['cash', 'bank', 'pettyCash', 'mobileMoney'].includes(entry.debitAccount.type)) {
+          acc.moneyIn += Number(entry.debitAmount);
+        } else {
+          // For expense/liability accounts
+          acc.moneyOut += Number(entry.debitAmount);
+        }
+      }
+
+      // Process credit account
+      if (entry.creditAccountId && entry.creditAccount) {
+        let acc = accountMap.get(entry.creditAccountId);
+        if (!acc) {
+          acc = {
+            accountId: entry.creditAccountId,
+            accountName: entry.creditAccount.name,
+            accountType: entry.creditAccount.type,
+            totalDebit: 0,
+            totalCredit: 0,
+            moneyIn: 0,
+            moneyOut: 0,
+          };
+          accountMap.set(entry.creditAccountId, acc);
+        }
+        acc.totalCredit += Number(entry.creditAmount);
+        
+        // For asset accounts, credit = money out
+        if (['cash', 'bank', 'pettyCash', 'mobileMoney'].includes(entry.creditAccount.type)) {
+          acc.moneyOut += Number(entry.creditAmount);
+        } else {
+          // For income/liability accounts
+          acc.moneyIn += Number(entry.creditAmount);
+        }
+      }
+    }
+
+    // Convert to rows with running balance
+    const rowsOut = Array.from(accountMap.values()).map(acc => ({
+      accountName: acc.accountName,
+      accountType: acc.accountType,
+      debitAmount: Number(acc.totalDebit.toFixed(2)),
+      creditAmount: Number(acc.totalCredit.toFixed(2)),
+      balance: Number((acc.totalDebit - acc.totalCredit).toFixed(2)),
+      moneyIn: Number(acc.moneyIn.toFixed(2)),
+      moneyOut: Number(acc.moneyOut.toFixed(2)),
+      netFlow: Number((acc.moneyIn - acc.moneyOut).toFixed(2)),
+    }));
+
+    // Sort by account name for consistency
+    rowsOut.sort((a, b) => a.accountName.localeCompare(b.accountName));
+
+    // Calculate running balances
+    let runningBalance = 0;
+    const rowsWithRunning = rowsOut.map(row => {
+      runningBalance += row.balance;
       return {
-        accountName: acctInfo?.name || `Account ${id}`,
-        accountType: acctInfo?.type || 'Unknown',
-        debitAmount: acc.debit,
-        creditAmount: acc.credit,
-        balance: acc.debit - acc.credit,
+        ...row,
+        runningBalance: Number(runningBalance.toFixed(2)),
       };
     });
 
-    const totals = rowsOut.reduce(
-      (t, r) => ({ 
-        debit: t.debit + r.debitAmount, 
+    // Calculate totals
+    const totals = rowsWithRunning.reduce(
+      (t, r) => ({
+        debit: t.debit + r.debitAmount,
         credit: t.credit + r.creditAmount,
-        count: accountIds.length
+        balance: t.balance + r.balance,
+        totalMoneyIn: t.totalMoneyIn + r.moneyIn,
+        totalMoneyOut: t.totalMoneyOut + r.moneyOut,
+        count: t.count + 1,
       }),
-      { debit: 0, credit: 0, count: 0 },
+      { debit: 0, credit: 0, balance: 0, totalMoneyIn: 0, totalMoneyOut: 0, count: 0 },
     );
 
-    return { rows: rowsOut, meta: totals };
+    return {
+      rows: rowsWithRunning,
+      meta: {
+        debit: Number(totals.debit.toFixed(2)),
+        credit: Number(totals.credit.toFixed(2)),
+        balance: Number(totals.balance.toFixed(2)),
+        totalMoneyIn: Number(totals.totalMoneyIn.toFixed(2)),
+        totalMoneyOut: Number(totals.totalMoneyOut.toFixed(2)),
+        netFlow: Number((totals.totalMoneyIn - totals.totalMoneyOut).toFixed(2)),
+        finalRunningBalance: Number(runningBalance.toFixed(2)),
+        count: totals.count,
+      },
+    };
   }
 
   private async incomeStatementReport(dateRange: { start: Date; end: Date }) {

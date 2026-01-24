@@ -241,7 +241,7 @@ model GroupRole {
 model Account {
   id             Int         @id @default(autoincrement())
   type           AccountType
-  name           String
+  name           String      @unique
   description    String?
   
   // Bank Account fields
