@@ -194,8 +194,8 @@ const GeneralLedgerPage = () => {
                             <th className="col-ref">Reference</th>
                             <th className="col-desc">Description</th>
                             <th className="col-opposite">Opposite Account</th>
-                            <th className="col-debit">Debit (KES)</th>
-                            <th className="col-credit">Credit (KES)</th>
+                            <th className="col-debit">Money Out (KES)</th>
+                            <th className="col-credit">Money In (KES)</th>
                             <th className="col-balance">Balance (KES)</th>
                           </tr>
                         </thead>
@@ -230,11 +230,11 @@ const GeneralLedgerPage = () => {
                       {accountData.summary && (
                         <div className="account-summary">
                           <div className="summary-row">
-                            <span className="label">Total Debits:</span>
+                            <span className="label">Total Money Out:</span>
                             <span className="value debit">{formatCurrency(accountData.summary.totalDebits)}</span>
                           </div>
                           <div className="summary-row">
-                            <span className="label">Total Credits:</span>
+                            <span className="label">Total Money In:</span>
                             <span className="value credit">{formatCurrency(accountData.summary.totalCredits)}</span>
                           </div>
                           <div className="summary-row">
@@ -272,11 +272,11 @@ const GeneralLedgerPage = () => {
                   <span className="value">{ledger.meta?.totalAccounts || 0}</span>
                 </div>
                 <div className="summary-card">
-                  <span className="label">Total Debits (All Accounts):</span>
+                  <span className="label">Total Money Out (All Accounts):</span>
                   <span className="value debit">{formatCurrency(getTotalDebits())}</span>
                 </div>
                 <div className="summary-card">
-                  <span className="label">Total Credits (All Accounts):</span>
+                  <span className="label">Total Money In (All Accounts):</span>
                   <span className="value credit">{formatCurrency(getTotalCredits())}</span>
                 </div>
                 <div className="summary-card">

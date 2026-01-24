@@ -387,8 +387,8 @@ const CategoryLedgerPage = () => {
                       setTransactionForm({ ...transactionForm, type: e.target.value })
                     }
                   >
-                    <option value="credit">Credit (+)</option>
-                    <option value="debit">Debit (-)</option>
+                    <option value="credit">Money In (+)</option>
+                    <option value="debit">Money Out (-)</option>
                     <option value="transfer">Transfer</option>
                   </select>
                 </div>

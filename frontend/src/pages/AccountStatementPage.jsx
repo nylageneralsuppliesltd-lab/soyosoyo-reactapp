@@ -194,8 +194,8 @@ const AccountStatementPage = () => {
                     <th className="col-ref">Reference</th>
                     <th className="col-desc">Description</th>
                     <th className="col-opposite">Opposite Account</th>
-                    <th className="col-debit">Debit (KES)</th>
-                    <th className="col-credit">Credit (KES)</th>
+                    <th className="col-debit">Money Out (KES)</th>
+                    <th className="col-credit">Money In (KES)</th>
                     <th className="col-balance">Balance (KES)</th>
                   </tr>
                 </thead>
@@ -231,11 +231,11 @@ const AccountStatementPage = () => {
             <div className="statement-summary">
               <div className="summary-grid">
                 <div className="summary-item">
-                  <span className="label">Total Debits:</span>
+                  <span className="label">Total Money Out:</span>
                   <span className="value debit">{formatCurrency(statement.meta.totalDebit)}</span>
                 </div>
                 <div className="summary-item">
-                  <span className="label">Total Credits:</span>
+                  <span className="label">Total Money In:</span>
                   <span className="value credit">{formatCurrency(statement.meta.totalCredit)}</span>
                 </div>
                 <div className="summary-item">

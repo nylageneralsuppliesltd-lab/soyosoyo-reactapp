@@ -142,32 +142,22 @@ export default function Sidebar({ isOpen, onClose }) {
               onClick={() => toggleSubmenu('reports')}
             >
               <ChartBar size={20} weight="bold" />
-              <span>Reports</span>
+              <span>Reports & Ledgers</span>
               <CaretDown size={16} className={openSubmenu === 'reports' ? 'open' : ''} />
             </button>
             {openSubmenu === 'reports' && (
               <ul className="submenu">
                 <li>
-                  <Link to="/api-reports" onClick={onClose}>Download Reports (API)</Link>
-                </li>
-                <li>
-                  <Link to="/reports" onClick={onClose}>Financial Analytics</Link>
-                </li>
-                <li>
-                  <Link to="/account-statement" onClick={onClose}>Account Statements</Link>
+                  <Link to="/api-reports" onClick={onClose}>Download Reports</Link>
                 </li>
                 <li>
                   <Link to="/general-ledger-detail" onClick={onClose}>General Ledger</Link>
                 </li>
+                <li>
+                  <Link to="/account-statement" onClick={onClose}>Account Statements</Link>
+                </li>
               </ul>
             )}
-          </li>
-
-          <li className={location.pathname === '/ledger' ? 'active' : ''}>
-            <Link to="/ledger" onClick={onClose} className="menu-item">
-              <ChartBar size={20} weight="bold" />
-              <span>General Ledger</span>
-            </Link>
           </li>
 
           <li className={location.pathname === '/settings' ? 'active' : ''}>

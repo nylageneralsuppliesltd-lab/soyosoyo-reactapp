@@ -42,8 +42,11 @@ const GeneralLedgerPage = () => {
 
   let runningBalance = 0;
   const transactionsWithBalance = transactions.map(tx => {
-    runningBalance += Number(tx.creditAmount || 0) - Number(tx.debitAmount || 0);
-    return { ...tx, runningBalance };
+    // Money In = Credits (add to balance), Money Out = Debits (subtract from balance)
+    const moneyIn = Number(tx.creditAmount || 0);
+    const moneyOut = Number(tx.debitAmount || 0);
+    runningBalance += moneyIn - moneyOut;
+    return { ...tx, moneyIn, moneyOut, runningBalance };
   });
 
   return (
@@ -54,11 +57,11 @@ const GeneralLedgerPage = () => {
       {summary && (
         <div className="summary-cards">
           <div className="card">
-            <h3>Total Debits</h3>
+            <h3>Total Money Out</h3>
             <div className="amount debit">{formatCurrency(summary.totalDebits)}</div>
           </div>
           <div className="card">
-            <h3>Total Credits</h3>
+            <h3>Total Money In</h3>
             <div className="amount credit">{formatCurrency(summary.totalCredits)}</div>
           </div>
           <div className="card">
@@ -100,8 +103,8 @@ const GeneralLedgerPage = () => {
               <th>Reference</th>
               <th>Description</th>
               <th>Category</th>
-              <th>Debit (KES)</th>
-              <th>Credit (KES)</th>
+              <th>Money Out (KES)</th>
+              <th>Money In (KES)</th>
               <th>Running Balance</th>
             </tr>
           </thead>
@@ -112,8 +115,8 @@ const GeneralLedgerPage = () => {
                 <td><small>{tx.reference || 'N/A'}</small></td>
                 <td>{tx.description}</td>
                 <td>{tx.category || 'N/A'}</td>
-                <td className="amount-debit">{tx.debitAmount > 0 ? formatCurrency(tx.debitAmount) : '-'}</td>
-                <td className="amount-credit">{tx.creditAmount > 0 ? formatCurrency(tx.creditAmount) : '-'}</td>
+                <td className="amount-debit">{tx.moneyOut > 0 ? formatCurrency(tx.moneyOut) : '-'}</td>
+                <td className="amount-credit">{tx.moneyIn > 0 ? formatCurrency(tx.moneyIn) : '-'}</td>
                 <td className="running-balance">{formatCurrency(tx.runningBalance)}</td>
               </tr>
             ))}
