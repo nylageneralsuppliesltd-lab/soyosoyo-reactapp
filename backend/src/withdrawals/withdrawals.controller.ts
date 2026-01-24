@@ -145,7 +145,23 @@ export class WithdrawalsController {
     @Param('id') id: string,
     @Body() data: any,
   ) {
-    return this.withdrawalsService.update(parseInt(id), data);
+    try {
+      const parsedId = parseInt(id);
+      if (isNaN(parsedId)) {
+        throw new BadRequestException('Invalid withdrawal ID');
+      }
+      
+      // Ensure amount is a number (Prisma will convert to Decimal)
+      if (data.amount !== undefined && typeof data.amount === 'string') {
+        data.amount = parseFloat(data.amount);
+      }
+      
+      const result = await this.withdrawalsService.update(parsedId, data);
+      return result;
+    } catch (error) {
+      console.error(`Error updating withdrawal ${id}:`, error.message);
+      throw error;
+    }
   }
 
   @Delete(':id')
