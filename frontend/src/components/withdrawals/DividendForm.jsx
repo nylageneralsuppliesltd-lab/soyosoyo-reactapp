@@ -117,9 +117,16 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
         accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
       };
 
-      const url = editingWithdrawal
-        ? `${API_BASE}/withdrawals/${editingWithdrawal.id}`
-        : `${API_BASE}/withdrawals/dividend`;
+      let url;
+      if (editingWithdrawal) {
+        const withdrawalId = parseInt(editingWithdrawal.id, 10);
+        if (isNaN(withdrawalId)) {
+          throw new Error('Invalid withdrawal ID');
+        }
+        url = `${API_BASE}/withdrawals/${withdrawalId}`;
+      } else {
+        url = `${API_BASE}/withdrawals/dividend`;
+      }
       const method = editingWithdrawal ? 'PATCH' : 'POST';
 
       const response = await fetch(url, {

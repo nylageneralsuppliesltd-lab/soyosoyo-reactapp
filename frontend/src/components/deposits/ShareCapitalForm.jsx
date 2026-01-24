@@ -173,7 +173,11 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
       let response;
       if (editingDeposit) {
-        response = await fetch(`${API_BASE}/deposits/${editingDeposit.id}`, {
+        const depositId = parseInt(editingDeposit.id, 10);
+        if (isNaN(depositId)) {
+          throw new Error('Invalid deposit ID');
+        }
+        response = await fetch(`${API_BASE}/deposits/${depositId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)

@@ -86,9 +86,16 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
         toAccountId: parseInt(formData.toAccountId),
       };
 
-      const url = editingWithdrawal
-        ? `${API_BASE}/withdrawals/${editingWithdrawal.id}`
-        : `${API_BASE}/withdrawals/transfer`;
+      let url;
+      if (editingWithdrawal) {
+        const withdrawalId = parseInt(editingWithdrawal.id, 10);
+        if (isNaN(withdrawalId)) {
+          throw new Error('Invalid withdrawal ID');
+        }
+        url = `${API_BASE}/withdrawals/${withdrawalId}`;
+      } else {
+        url = `${API_BASE}/withdrawals/transfer`;
+      }
       const method = editingWithdrawal ? 'PATCH' : 'POST';
 
       const response = await fetch(url, {
