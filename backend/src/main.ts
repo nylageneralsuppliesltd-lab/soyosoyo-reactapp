@@ -43,7 +43,8 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
+  // Bind to 0.0.0.0 to ensure local and external access
+  await app.listen(port as number, '0.0.0.0');
 
   console.log(`Backend running on port ${port}`);
 }

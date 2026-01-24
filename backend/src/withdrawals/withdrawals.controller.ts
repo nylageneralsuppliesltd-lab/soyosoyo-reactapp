@@ -151,15 +151,34 @@ export class WithdrawalsController {
         throw new BadRequestException('Invalid withdrawal ID');
       }
       
-      // Ensure amount is a number (Prisma will convert to Decimal)
-      if (data.amount !== undefined && typeof data.amount === 'string') {
-        data.amount = parseFloat(data.amount);
+      // Normalize payload types to avoid Prisma/runtime errors
+      if (data.amount !== undefined) {
+        if (typeof data.amount === 'string') data.amount = parseFloat(data.amount);
       }
+      if (data.date) {
+        if (typeof data.date === 'string') {
+          const d = new Date(data.date);
+          if (isNaN(d.getTime())) throw new BadRequestException('Invalid date format');
+          data.date = d;
+        }
+      }
+      if (data.memberId !== undefined) {
+        data.memberId = data.memberId === null ? null : parseInt(data.memberId);
+        if (data.memberId !== null && isNaN(data.memberId)) throw new BadRequestException('Invalid memberId');
+      }
+      if (data.accountId !== undefined) {
+        data.accountId = data.accountId === null ? null : parseInt(data.accountId);
+        if (data.accountId !== null && isNaN(data.accountId)) throw new BadRequestException('Invalid accountId');
+      }
+      if (data.reference) data.reference = String(data.reference).trim();
+      if (data.description) data.description = String(data.description).trim();
+      if (data.narration) data.narration = String(data.narration).trim();
+      if (data.category) data.category = String(data.category).trim();
       
       const result = await this.withdrawalsService.update(parsedId, data);
       return result;
     } catch (error) {
-      console.error(`Error updating withdrawal ${id}:`, error.message);
+      console.error(`Error updating withdrawal ${id}:`, error);
       throw error;
     }
   }
