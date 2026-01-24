@@ -1,13 +1,15 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
+import { Controller, Get, Query, Res, Param } from '@nestjs/common';
 import { Response } from 'express';
 import { ReportsService } from './reports.service';
 import { FinancialStatementsService } from './financial-statements.service';
+import { CashPositionService } from './cash-position.service';
 
 @Controller('reports')
 export class ReportsController {
   constructor(
     private readonly reportsService: ReportsService,
     private readonly financialStatements: FinancialStatementsService,
+    private readonly cashPosition: CashPositionService,
   ) {}
 
   @Get('catalog')
@@ -122,5 +124,17 @@ export class ReportsController {
   ) {
     const date = asOf ? new Date(asOf) : new Date();
     return this.financialStatements.properTrialBalance(date);
+  }
+
+  @Get('cash-position')
+  async getCashPosition() {
+    return this.cashPosition.getCashPosition();
+  }
+
+  @Get('cash-position/:accountType')
+  async getCashPositionByType(
+    @Param('accountType') accountType: 'cash' | 'bank' | 'mobileMoney' | 'pettyCash',
+  ) {
+    return this.cashPosition.getAccountTypeDetails(accountType);
   }
 }
