@@ -215,18 +215,22 @@ export class DepositsService {
           ? `${depositData.category} Received` 
           : `${depositData.type} Received`;
         
-        // Use upsert to avoid duplicate account names
-        const glAccount = await this.prisma.account.upsert({
+        // Get or create GL account
+        let glAccount = await this.prisma.account.findFirst({
           where: { name: glAccountName },
-          update: {}, // No updates needed if exists
-          create: {
-            name: glAccountName,
-            type: 'bank', // GL account type
-            description: `GL account for ${depositData.category || depositData.type}`,
-            currency: 'KES',
-            balance: new Prisma.Decimal(0),
-          },
         });
+
+        if (!glAccount) {
+          glAccount = await this.prisma.account.create({
+            data: {
+              name: glAccountName,
+              type: 'bank', // GL account type
+              description: `GL account for ${depositData.category || depositData.type}`,
+              currency: 'KES',
+              balance: new Prisma.Decimal(0),
+            },
+          });
+        }
 
         // Delete old journal entry
         await this.prisma.journalEntry.deleteMany({
