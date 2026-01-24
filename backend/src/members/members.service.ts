@@ -111,33 +111,88 @@ export class MembersService {
     return member;
   }
 
-  async update(id: number, dto: UpdateMemberDto) {
+  async update(id: number, dto: any) {
     await this.findOne(id);
 
+    const trimToUndefined = (value?: string | null) => {
+      if (value === undefined || value === null) return undefined;
+      const trimmed = String(value).trim();
+      return trimmed === '' ? undefined : trimmed;
+    };
+
+    const nullIfEmpty = (value?: string | null) => {
+      if (value === undefined) return undefined;
+      if (value === null) return null;
+      const trimmed = String(value).trim();
+      return trimmed === '' ? null : trimmed;
+    };
+
+    const sanitizedPhone = trimToUndefined(dto.phone);
+
     // Check for duplicate phone if phone is being updated
-    if (dto.phone) {
+    if (sanitizedPhone) {
       const existing = await this.prisma.member.findUnique({
-        where: { phone: dto.phone },
+        where: { phone: sanitizedPhone },
       });
       if (existing && existing.id !== id) {
         throw new BadRequestException('This phone number is already in use by another member.');
       }
     }
 
-    const { nextOfKin, ...rest } = dto;
+    const { nextOfKin, balance, loanBalance, active, ...rest } = dto;
 
-    const dataToUpdate = {
-      ...rest,
-      dob: rest.dob !== undefined ? (rest.dob && rest.dob.trim() ? rest.dob : null) : undefined,
-      email: rest.email !== undefined ? (rest.email && rest.email.trim() ? rest.email : null) : undefined,
-      idNumber: rest.idNumber !== undefined ? (rest.idNumber && rest.idNumber.trim() ? rest.idNumber : null) : undefined,
-      gender: rest.gender !== undefined ? (rest.gender && rest.gender.trim() ? rest.gender : null) : undefined,
-      employmentStatus: rest.employmentStatus !== undefined ? (rest.employmentStatus && rest.employmentStatus.trim() ? rest.employmentStatus : null) : undefined,
-      employerName: rest.employerName !== undefined ? (rest.employerName && rest.employerName.trim() ? rest.employerName : null) : undefined,
-      regNo: rest.regNo !== undefined ? (rest.regNo && rest.regNo.trim() ? rest.regNo : null) : undefined,
-      employerAddress: rest.employerAddress !== undefined ? (rest.employerAddress && rest.employerAddress.trim() ? rest.employerAddress : null) : undefined,
-      nextOfKin: nextOfKin ? JSON.parse(JSON.stringify(nextOfKin)) : undefined,
-    };
+    const dataToUpdate: any = {};
+
+    const directStrings: Array<keyof typeof rest> = [
+      'name',
+      'role',
+      'physicalAddress',
+      'town',
+      'introducerName',
+      'introducerMemberNo',
+    ];
+
+    Object.keys(rest).forEach((field) => {
+      if (directStrings.includes(field as any) && rest[field] !== undefined) {
+        const trimmed = trimToUndefined(rest[field]);
+        if (trimmed !== undefined) dataToUpdate[field] = trimmed;
+      }
+    });
+
+    if (sanitizedPhone !== undefined) dataToUpdate.phone = sanitizedPhone;
+
+    dataToUpdate.dob = nullIfEmpty(rest.dob);
+    dataToUpdate.email = nullIfEmpty(rest.email);
+    dataToUpdate.idNumber = nullIfEmpty(rest.idNumber);
+    dataToUpdate.gender = nullIfEmpty(rest.gender);
+    dataToUpdate.employmentStatus = nullIfEmpty(rest.employmentStatus);
+    dataToUpdate.employerName = nullIfEmpty(rest.employerName);
+    dataToUpdate.regNo = nullIfEmpty(rest.regNo);
+    dataToUpdate.employerAddress = nullIfEmpty(rest.employerAddress);
+
+    if (balance !== undefined) {
+      const bal = typeof balance === 'string' ? parseFloat(balance) : balance;
+      if (bal === undefined || isNaN(bal)) {
+        throw new BadRequestException('Invalid balance amount');
+      }
+      dataToUpdate.balance = bal;
+    }
+
+    if (loanBalance !== undefined) {
+      const lBal = typeof loanBalance === 'string' ? parseFloat(loanBalance) : loanBalance;
+      if (lBal === undefined || isNaN(lBal)) {
+        throw new BadRequestException('Invalid loan balance amount');
+      }
+      dataToUpdate.loanBalance = lBal;
+    }
+
+    if (active !== undefined) {
+      dataToUpdate.active = Boolean(active);
+    }
+
+    if (nextOfKin !== undefined) {
+      dataToUpdate.nextOfKin = nextOfKin ? JSON.parse(JSON.stringify(nextOfKin)) : null;
+    }
 
     delete (dataToUpdate as any).customRole;
 

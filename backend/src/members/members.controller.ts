@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, BadRequestException } from '@nestjs/common';
 import { MembersService } from './members.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
@@ -57,31 +57,106 @@ export class MembersController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.membersService.findOne(Number(id));
+    const memberId = Number(id);
+    if (!Number.isFinite(memberId)) throw new BadRequestException('Invalid member ID');
+    return this.membersService.findOne(memberId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateMemberDto) {
-    return this.membersService.update(Number(id), dto);
+  update(@Param('id') id: string, @Body() dto: any) {
+    const memberId = Number(id);
+    if (!Number.isFinite(memberId)) throw new BadRequestException('Invalid member ID');
+
+    const trimString = (value?: unknown) => {
+      if (value === undefined || value === null) return value;
+      const trimmed = String(value).trim();
+      return trimmed === '' ? undefined : trimmed;
+    };
+
+    const cleanedDto: any = { ...dto };
+
+    cleanedDto.name = trimString(dto.name);
+    cleanedDto.phone = trimString(dto.phone);
+    cleanedDto.email = trimString(dto.email);
+    cleanedDto.idNumber = trimString(dto.idNumber);
+    cleanedDto.dob = trimString(dto.dob);
+    cleanedDto.gender = trimString(dto.gender);
+    cleanedDto.physicalAddress = trimString(dto.physicalAddress);
+    cleanedDto.town = trimString(dto.town);
+    cleanedDto.employmentStatus = trimString(dto.employmentStatus);
+    cleanedDto.employerName = trimString(dto.employerName);
+    cleanedDto.regNo = trimString(dto.regNo);
+    cleanedDto.employerAddress = trimString(dto.employerAddress);
+    cleanedDto.role = trimString(dto.role);
+    cleanedDto.introducerName = trimString(dto.introducerName);
+    cleanedDto.introducerMemberNo = trimString(dto.introducerMemberNo);
+
+    if (dto.balance !== undefined) {
+      const balance = typeof dto.balance === 'string' ? parseFloat(dto.balance) : dto.balance;
+      if (balance === undefined || isNaN(balance)) throw new BadRequestException('Invalid balance amount');
+      cleanedDto.balance = balance;
+    }
+
+    if (dto.loanBalance !== undefined) {
+      const loanBalance = typeof dto.loanBalance === 'string' ? parseFloat(dto.loanBalance) : dto.loanBalance;
+      if (loanBalance === undefined || isNaN(loanBalance)) throw new BadRequestException('Invalid loan balance amount');
+      cleanedDto.loanBalance = loanBalance;
+    }
+
+    if (dto.active !== undefined) {
+      if (typeof dto.active === 'string') {
+        if (dto.active.toLowerCase() === 'true') cleanedDto.active = true;
+        else if (dto.active.toLowerCase() === 'false') cleanedDto.active = false;
+        else throw new BadRequestException('Invalid active flag - expected true or false');
+      } else {
+        cleanedDto.active = dto.active;
+      }
+    }
+
+    if (dto.nextOfKin !== undefined) {
+      if (typeof dto.nextOfKin === 'string') {
+        try {
+          cleanedDto.nextOfKin = JSON.parse(dto.nextOfKin);
+        } catch (error) {
+          throw new BadRequestException('nextOfKin must be valid JSON');
+        }
+      } else {
+        cleanedDto.nextOfKin = dto.nextOfKin;
+      }
+
+      if (cleanedDto.nextOfKin !== undefined && !Array.isArray(cleanedDto.nextOfKin)) {
+        throw new BadRequestException('nextOfKin must be an array');
+      }
+    }
+
+    return this.membersService.update(memberId, cleanedDto);
   }
 
   @Patch(':id/suspend')
   suspend(@Param('id') id: string) {
-    return this.membersService.suspend(Number(id));
+    const memberId = Number(id);
+    if (!Number.isFinite(memberId)) throw new BadRequestException('Invalid member ID');
+    return this.membersService.suspend(memberId);
   }
 
   @Patch(':id/reactivate')
   reactivate(@Param('id') id: string) {
-    return this.membersService.reactivate(Number(id));
+    const memberId = Number(id);
+    if (!Number.isFinite(memberId)) throw new BadRequestException('Invalid member ID');
+    return this.membersService.reactivate(memberId);
   }
 
   @Delete(':id')
   delete(@Param('id') id: string) {
-    return this.membersService.delete(Number(id));
+    const memberId = Number(id);
+    if (!Number.isFinite(memberId)) throw new BadRequestException('Invalid member ID');
+    return this.membersService.delete(memberId);
   }
 
   @Get(':id/ledger')
   ledger(@Param('id') id: string) {
-    return this.membersService.ledger(Number(id));
+    const memberId = Number(id);
+    if (!Number.isFinite(memberId)) throw new BadRequestException('Invalid member ID');
+    return this.membersService.ledger(memberId);
   }
 }
