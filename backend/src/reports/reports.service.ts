@@ -332,7 +332,10 @@ export class ReportsService {
       });
 
       // Calculate running balance for this account only
-      const isAssetAccount = ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type);
+      // Asset accounts are real cash/bank accounts, NOT GL tracking accounts
+      const isGLAccount = account.name.includes('Received') || account.name.includes('Expense') || 
+                          account.name.includes('Payable') || account.name.includes('GL Account');
+      const isAssetAccount = ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type) && !isGLAccount;
       let runningBalance = 0;
 
       const rows = entries.map(e => {
@@ -638,7 +641,10 @@ export class ReportsService {
       });
 
       // Calculate running balance
-      const isAssetAccount = ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type);
+      // Asset accounts are real cash/bank accounts, NOT GL tracking accounts
+      const isGLAccount = account.name.includes('Received') || account.name.includes('Expense') || 
+                          account.name.includes('Payable') || account.name.includes('GL Account');
+      const isAssetAccount = ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type) && !isGLAccount;
       let runningBalance = 0;
 
       const transactions = entries.map(e => {
