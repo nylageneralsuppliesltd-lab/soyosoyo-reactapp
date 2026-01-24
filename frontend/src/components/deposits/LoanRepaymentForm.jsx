@@ -250,7 +250,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
       )}
 
       <form onSubmit={handleSubmit} className="form-card">
-        <div className="form-grid-3">
+        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <Calendar size={18} />
@@ -301,38 +301,38 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               </div>
             )}
           </div>
-
-          <div className="form-group">
-            <label>
-              <TrendingUp size={18} />
-              Select Loan *
-            </label>
-            <select
-              value={formData.loanId}
-              onChange={(e) => setFormData({ ...formData, loanId: e.target.value })}
-              required
-              disabled={!formData.memberId}
-            >
-              <option value="">{formData.memberId ? 'Select a loan' : 'Select member first'}</option>
-              {memberLoans.map(loan => (
-                <option key={loan.id} value={loan.id}>
-                  Loan #{loan.id} - KSh {loan.principalAmount.toLocaleString()} 
-                  (Balance: KSh {(loan.principalAmount - loan.principalPaid).toLocaleString()})
-                </option>
-              ))}
-            </select>
-            {selectedLoan && (
-              <div className="loan-details">
-                <small>
-                  Principal Balance: KSh {(selectedLoan.principalAmount - selectedLoan.principalPaid).toLocaleString()} | 
-                  Interest Balance: KSh {(selectedLoan.interestAmount - selectedLoan.interestPaid).toLocaleString()}
-                </small>
-              </div>
-            )}
-          </div>
         </div>
 
-        <div className="form-grid-3">
+        <div className="form-group">
+          <label>
+            <TrendingUp size={18} />
+            Select Loan *
+          </label>
+          <select
+            value={formData.loanId}
+            onChange={(e) => setFormData({ ...formData, loanId: e.target.value })}
+            required
+            disabled={!formData.memberId}
+          >
+            <option value="">{formData.memberId ? 'Select a loan' : 'Select member first'}</option>
+            {memberLoans.map(loan => (
+              <option key={loan.id} value={loan.id}>
+                Loan #{loan.id} - KSh {loan.principalAmount.toLocaleString()} 
+                (Balance: KSh {(loan.principalAmount - loan.principalPaid).toLocaleString()})
+              </option>
+            ))}
+          </select>
+          {selectedLoan && (
+            <div className="loan-details">
+              <small>
+                Principal Balance: KSh {(selectedLoan.principalAmount - selectedLoan.principalPaid).toLocaleString()} | 
+                Interest Balance: KSh {(selectedLoan.interestAmount - selectedLoan.interestPaid).toLocaleString()}
+              </small>
+            </div>
+          )}
+        </div>
+
+        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <DollarSign size={18} />
@@ -365,7 +365,9 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               placeholder="Auto-allocated"
             />
           </div>
+        </div>
 
+        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <DollarSign size={18} />
@@ -383,9 +385,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               placeholder="Auto-allocated"
             />
           </div>
-        </div>
 
-        <div className="form-grid-3">
           <div className="form-group">
             <label>
               <CreditCard size={18} />
@@ -403,7 +403,9 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               ))}
             </select>
           </div>
+        </div>
 
+        <div className="form-grid-2">
           <div className="form-group">
             <SmartSelect
               label="Account"
@@ -442,32 +444,17 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </div>
         </div>
 
-        <div className="form-grid-2">
-          <div className="form-group">
-            <label>
-              <FileText size={18} />
-              Notes
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Additional notes about this repayment..."
-              rows="2"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>
-              <Hash size={18} />
-              Reference Number
-            </label>
-            <input
-              type="text"
-              value={formData.reference}
-              onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-              placeholder="Receipt/Transaction ref"
-            />
-          </div>
+        <div className="form-group">
+          <label>
+            <FileText size={18} />
+            Notes
+          </label>
+          <textarea
+            value={formData.notes}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            placeholder="Additional notes about this repayment..."
+            rows="2"
+          />
         </div>
 
         <div className="form-actions">

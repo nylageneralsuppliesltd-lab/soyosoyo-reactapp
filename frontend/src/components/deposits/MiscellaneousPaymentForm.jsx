@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, Package } from 'lucide-react';
+import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, Package } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 import SmartSelect from '../common/SmartSelect';
 import AddItemModal from '../common/AddItemModal';
@@ -137,7 +137,7 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
       const payload = {
         date: formData.date,
         memberId: isMemberPayment && formData.memberId ? parseInt(formData.memberId) : undefined,
-        memberName: isMemberPayment ? formData.memberName : (formData.memberName || 'N/A'),
+        memberName: isMemberPayment ? formData.memberName : 'N/A',
         amount: parseFloat(formData.amount),
         type: 'miscellaneous',
         paymentType: 'miscellaneous',
@@ -217,7 +217,7 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
       )}
 
       <form onSubmit={handleSubmit} className="form-card">
-        <div className="form-grid-3">
+        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <Calendar size={18} />
@@ -245,24 +245,6 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               required
             />
           </div>
-
-          <div className="form-group">
-            <label>
-              <CreditCard size={18} />
-              Payment Method *
-            </label>
-            <select
-              value={formData.paymentMethod}
-              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-              required
-            >
-              {paymentMethods.map(method => (
-                <option key={method.value} value={method.value}>
-                  {method.label}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
         <div className="form-group">
@@ -275,7 +257,6 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
                 if (!e.target.checked) {
                   setFormData({ ...formData, memberId: '', memberName: '' });
                   setMemberSearch('');
-                  setShowMemberDropdown(false);
                 }
               }}
             />
@@ -283,28 +264,21 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </label>
         </div>
 
-        <div className="form-grid-3">
-          <div className={`form-group${isMemberPayment ? ' member-search-group' : ''}`}>
+        {isMemberPayment && (
+          <div className="form-group member-search-group">
             <label>
               <Search size={18} />
-              {isMemberPayment ? 'Member *' : 'Payer (Optional)'}
+              Member {isMemberPayment && '*'}
             </label>
             <input
               type="text"
-              value={isMemberPayment ? memberSearch : formData.memberName}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (isMemberPayment) {
-                  handleMemberSearch(value);
-                } else {
-                  setFormData({ ...formData, memberName: value });
-                }
-              }}
-              onFocus={() => isMemberPayment && setShowMemberDropdown(true)}
-              placeholder={isMemberPayment ? 'Search by name, phone, or member number' : 'Optional payer name'}
+              value={memberSearch}
+              onChange={(e) => handleMemberSearch(e.target.value)}
+              onFocus={() => setShowMemberDropdown(true)}
+              placeholder="Search by name, phone, or member number"
               required={isMemberPayment}
             />
-            {isMemberPayment && showMemberDropdown && filteredMembers.length > 0 && (
+            {showMemberDropdown && filteredMembers.length > 0 && (
               <div className="member-dropdown">
                 {filteredMembers.slice(0, 10).map(member => (
                   <button
@@ -328,45 +302,55 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               </div>
             )}
           </div>
+        )}
 
-          <div className="form-group">
-            <SmartSelect
-              label="Purpose"
-              name="purpose"
-              value={formData.purpose}
-              onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
-              options={depositCategories.length > 0 ? depositCategories.map(cat => ({ id: cat.id || cat.name, name: cat.name })) : [
-                { id: 'welfare', name: 'Welfare' },
-                { id: 'event', name: 'Event / Project' },
-                { id: 'donation', name: 'Donation' },
-                { id: 'miscellaneous', name: 'Miscellaneous' },
-                { id: 'other', name: 'Other' }
-              ]}
-              onAddNew={() => setShowAddCategory(true)}
-              placeholder="Select purpose or create new..."
-              required={true}
-              showAddButton={true}
-              addButtonType="category"
-              icon={Package}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>
-              <FileText size={18} />
-              Description
-            </label>
-            <input
-              type="text"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Brief description of the payment"
-              required
-            />
-          </div>
+        <div className="form-group">
+          <label>
+            <FileText size={18} />
+            Purpose *
+          </label>
+          <input
+            type="text"
+            value={formData.purpose}
+            onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+            placeholder="e.g., Event sponsorship, Equipment purchase, Welfare fund"
+            required
+          />
         </div>
 
-        <div className="form-grid-3">
+        <div className="form-group">
+          <label>
+            <FileText size={18} />
+            Description *
+          </label>
+          <textarea
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="Detailed description of this miscellaneous payment..."
+            rows="3"
+            required
+          />
+        </div>
+
+        <div className="form-grid-2">
+          <div className="form-group">
+            <label>
+              <CreditCard size={18} />
+              Payment Method *
+            </label>
+            <select
+              value={formData.paymentMethod}
+              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+              required
+            >
+              {paymentMethods.map(method => (
+                <option key={method.value} value={method.value}>
+                  {method.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="form-group">
             <SmartSelect
               label="Account"
@@ -376,7 +360,6 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
               onAddNew={() => setShowAddAccount(true)}
               placeholder="Select account or create new..."
-              required={true}
               showAddButton={true}
               addButtonType="account"
               icon={CreditCard}
@@ -387,7 +370,9 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               </small>
             )}
           </div>
+        </div>
 
+        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <Hash size={18} />

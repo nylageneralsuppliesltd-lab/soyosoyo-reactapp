@@ -5,6 +5,7 @@ import {
   AlertCircle, 
   TrendingDown, 
   PiggyBank, 
+  Banknote,
   Upload,
   Briefcase,
   Plus,
@@ -198,207 +199,197 @@ const DepositsPage = () => {
         onEdit={handleEditDeposit}
       />
 
-      <div className="form-container">
-        <div className="form-header-section">
-          <h2>Deposits & Payments</h2>
-          <p className="form-header-subtitle">Record and manage all incoming transactions</p>
-        </div>
+      <div className="form-header-section">
+        <h2>Deposits & Payments</h2>
+        <p className="form-header-subtitle">Record and manage all incoming transactions</p>
+      </div>
 
-        <div className="deposits-menu">
-          <button
-            className={`menu-tab ${activeTab === 'list' ? 'active' : ''}`}
-            onClick={() => setActiveTab('list')}
-          >
-            <List size={18} />
-            List Deposits
-          </button>
-          <button
-            className={`menu-tab ${activeTab === 'contribution' ? 'active' : ''}`}
-            onClick={() => setActiveTab('contribution')}
-          >
-            <DollarSign size={18} />
-            Contribution
-          </button>
-          <button
-            className={`menu-tab ${activeTab === 'share_capital' ? 'active' : ''}`}
-            onClick={() => setActiveTab('share_capital')}
-          >
-            <Briefcase size={18} />
-            Share Capital
-          </button>
-          <button
-            className={`menu-tab ${activeTab === 'fine' ? 'active' : ''}`}
-            onClick={() => setActiveTab('fine')}
-          >
-            <AlertCircle size={18} />
-            Fine Payment
-          </button>
-          <button
-            className={`menu-tab ${activeTab === 'loan_repayment' ? 'active' : ''}`}
-            onClick={() => setActiveTab('loan_repayment')}
-          >
-            <TrendingDown size={18} />
-            Loan Repayment
-          </button>
-          <button
-            className={`menu-tab ${activeTab === 'income' ? 'active' : ''}`}
-            onClick={() => setActiveTab('income')}
-          >
-            <PiggyBank size={18} />
-            Income
-          </button>
-          <button
-            className={`menu-tab ${activeTab === 'miscellaneous' ? 'active' : ''}`}
-            onClick={() => setActiveTab('miscellaneous')}
-          >
-            <Plus size={18} />
-            Miscellaneous
-          </button>
-          <button
-            className={`menu-tab ${activeTab === 'bulk' ? 'active' : ''}`}
-            onClick={() => setActiveTab('bulk')}
-          >
-            <Upload size={18} />
-            Bulk Import
-          </button>
-        </div>
+      <div className="deposits-menu">
+        <button
+          className={`menu-tab ${activeTab === 'list' ? 'active' : ''}`}
+          onClick={() => setActiveTab('list')}
+        >
+          <List size={18} />
+          List Deposits
+        </button>
+        <button
+          className={`menu-tab ${activeTab === 'contribution' ? 'active' : ''}`}
+          onClick={() => setActiveTab('contribution')}
+        >
+          <DollarSign size={18} />
+          Contribution
+        </button>
+        <button
+          className={`menu-tab ${activeTab === 'share_capital' ? 'active' : ''}`}
+          onClick={() => setActiveTab('share_capital')}
+        >
+          <Briefcase size={18} />
+          Share Capital
+        </button>
+        <button
+          className={`menu-tab ${activeTab === 'fine' ? 'active' : ''}`}
+          onClick={() => setActiveTab('fine')}
+        >
+          <AlertCircle size={18} />
+          Fine Payment
+        </button>
+        <button
+          className={`menu-tab ${activeTab === 'loan_repayment' ? 'active' : ''}`}
+          onClick={() => setActiveTab('loan_repayment')}
+        >
+          <TrendingDown size={18} />
+          Loan Repayment
+        </button>
+        <button
+          className={`menu-tab ${activeTab === 'income' ? 'active' : ''}`}
+          onClick={() => setActiveTab('income')}
+        >
+          <PiggyBank size={18} />
+          Income
+        </button>
+        <button
+          className={`menu-tab ${activeTab === 'miscellaneous' ? 'active' : ''}`}
+          onClick={() => setActiveTab('miscellaneous')}
+        >
+          <Plus size={18} />
+          Miscellaneous
+        </button>
+        <button
+          className={`menu-tab ${activeTab === 'bulk' ? 'active' : ''}`}
+          onClick={() => setActiveTab('bulk')}
+        >
+          <Upload size={18} />
+          Bulk Import
+        </button>
       </div>
 
       <div className="deposits-content">
         {activeTab === 'list' && (
-          <div className="form-container">
-            <div className="form-card deposits-list">
-              {renderStats()}
+          <div className="deposits-list">
+            {renderStats()}
 
-              <div className="list-filters">
-                <div className="search-box">
-                  <Search size={18} />
-                  <input
-                    type="text"
-                    placeholder="Search by member, description, or reference..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className="filter-select"
-                >
-                  <option value="all">All Types</option>
-                  <option value="contribution">Contributions</option>
-                  <option value="share_capital">Share Capital</option>
-                  <option value="fine">Fines</option>
-                  <option value="loan_repayment">Loan Repayments</option>
-                  <option value="income">Income</option>
-                  <option value="miscellaneous">Miscellaneous</option>
-                </select>
+            <div className="list-filters">
+              <div className="search-box">
+                <Search size={18} />
+                <input
+                  type="text"
+                  placeholder="Search by member, description, or reference..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
-
-              {loading ? (
-                <div className="form-alert info">
-                  <div className="alert-content">
-                    <div className="spinner"></div>
-                    <span>Loading deposits...</span>
-                  </div>
-                </div>
-              ) : error ? (
-                <div className="form-alert error">
-                  <div className="alert-content">
-                    <AlertCircle size={18} />
-                    <span><strong>Could not load deposits.</strong> {error}</span>
-                  </div>
-                  <button onClick={fetchDeposits} className="btn-text">Retry</button>
-                </div>
-              ) : filteredDeposits.length === 0 ? (
-                <div className="form-alert info">
-                  <div className="alert-content">
-                    <DollarSign size={18} />
-                    <span>No deposits found. Start recording payments using the tabs above.</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="table-container">
-                  <table className="deposits-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Type</th>
-                        <th>Member</th>
-                        <th>Description</th>
-                        <th>Method</th>
-                        <th className="text-right">Amount</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredDeposits.map((deposit) => (
-                        <tr key={deposit.id}>
-                          <td>{formatDate(deposit.date)}</td>
-                          <td>{getTypeBadge(deposit.type)}</td>
-                          <td><span style={!deposit.memberName ? {color: '#999', fontStyle: 'italic'} : {}}>{deposit.memberName || 'No Member'}</span></td>
-                          <td className="description-cell">
-                            {deposit.description || deposit.narration || '-'}
-                            {deposit.reference && (
-                              <span className="reference">Ref: {deposit.reference}</span>
-                            )}
-                          </td>
-                          <td>
-                            <span className="method-badge">{deposit.method}</span>
-                          </td>
-                          <td className="text-right amount-cell income">
-                            {formatCurrency(deposit.amount)}
-                          </td>
-                          <td>
-                            <div className="action-buttons">
-                              <button
-                                className="btn-icon info"
-                                title="View Details"
-                                onClick={() => handleViewDetails(deposit)}
-                              >
-                                <Eye size={16} />
-                              </button>
-                              <button
-                                className="btn-icon"
-                                title="Edit"
-                                onClick={() => handleEditDeposit(deposit)}
-                              >
-                                <Edit size={16} />
-                              </button>
-                              <button
-                                className="btn-icon danger"
-                                title="Delete"
-                                onClick={() => handleDeleteDeposit(deposit.id)}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="totals-row">
-                        <td colSpan="6">
-                          <strong>Total ({filteredDeposits.length} transactions)</strong>
-                        </td>
-                        <td className="text-right">
-                          <strong>
-                            {formatCurrency(
-                              filteredDeposits.reduce(
-                                (sum, d) => sum + parseFloat(d.amount),
-                                0
-                              )
-                            )}
-                          </strong>
-                        </td>
-                        <td></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="filter-select"
+              >
+                <option value="all">All Types</option>
+                <option value="contribution">Contributions</option>
+                <option value="share_capital">Share Capital</option>
+                <option value="fine">Fines</option>
+                <option value="loan_repayment">Loan Repayments</option>
+                <option value="income">Income</option>
+                <option value="miscellaneous">Miscellaneous</option>
+              </select>
             </div>
+
+            {loading ? (
+              <div className="loading">
+                <div className="spinner"></div>
+                <p>Loading deposits...</p>
+              </div>
+            ) : error ? (
+              <div className="form-alert error">
+                <span><strong>Error:</strong> {error}</span>
+                <button onClick={fetchDeposits} className="btn-text">Retry</button>
+              </div>
+            ) : filteredDeposits.length === 0 ? (
+              <div className="empty-state">
+                <DollarSign size={64} />
+                <h3>No deposits found</h3>
+                <p>Start recording payments using the tabs above</p>
+              </div>
+            ) : (
+              <div className="table-container">
+                <table className="deposits-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Type</th>
+                      <th>Member</th>
+                      <th>Description</th>
+                      <th>Method</th>
+                      <th className="text-right">Amount</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredDeposits.map((deposit) => (
+                      <tr key={deposit.id}>
+                        <td>{formatDate(deposit.date)}</td>
+                        <td>{getTypeBadge(deposit.type)}</td>
+                        <td><span style={!deposit.memberName ? {color: '#999', fontStyle: 'italic'} : {}}>{deposit.memberName || 'No Member'}</span></td>
+                        <td className="description-cell">
+                          {deposit.description || deposit.narration || '-'}
+                          {deposit.reference && (
+                            <span className="reference">Ref: {deposit.reference}</span>
+                          )}
+                        </td>
+                        <td>
+                          <span className="method-badge">{deposit.method}</span>
+                        </td>
+                        <td className="text-right amount-cell income">
+                          {formatCurrency(deposit.amount)}
+                        </td>
+                        <td>
+                          <div className="action-buttons">
+                            <button
+                              className="btn-icon info"
+                              title="View Details"
+                              onClick={() => handleViewDetails(deposit)}
+                            >
+                              <Eye size={16} />
+                            </button>
+                            <button
+                              className="btn-icon"
+                              title="Edit"
+                              onClick={() => handleEditDeposit(deposit)}
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              className="btn-icon danger"
+                              title="Delete"
+                              onClick={() => handleDeleteDeposit(deposit.id)}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="totals-row">
+                      <td colSpan="6">
+                        <strong>Total ({filteredDeposits.length} transactions)</strong>
+                      </td>
+                      <td className="text-right">
+                        <strong>
+                          {formatCurrency(
+                            filteredDeposits.reduce(
+                              (sum, d) => sum + parseFloat(d.amount),
+                              0
+                            )
+                          )}
+                        </strong>
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

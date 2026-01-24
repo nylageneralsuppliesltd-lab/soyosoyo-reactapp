@@ -202,7 +202,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
       {success && <div className="form-alert success">{success}</div>}
 
       <form onSubmit={handleSubmit} className="form-card">
-        <div className="form-grid-3">
+        <div className="form-grid-2">
           <div className="form-group">
             <label htmlFor="date">
               <Calendar size={18} />
@@ -232,25 +232,6 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
               onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
               required
             />
-          </div>
-          <div className="form-group">
-            <label htmlFor="paymentMethod">
-              <CreditCard size={18} />
-              Payment Method *
-            </label>
-            <select
-              id="paymentMethod"
-              value={formData.paymentMethod}
-              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-              required
-            >
-              <option value="cash">Cash</option>
-              <option value="bank">Bank Transfer</option>
-              <option value="mpesa">M-Pesa</option>
-              <option value="check_off">Check-off</option>
-              <option value="bank_deposit">Bank Deposit</option>
-              <option value="other">Other</option>
-            </select>
           </div>
         </div>
 
@@ -315,19 +296,39 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </div>
 
           <div className="form-group">
-            <SmartSelect
-              label="Account"
-              name="accountId"
-              value={formData.accountId}
-              onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-              options={accounts.map(acc => ({ id: acc.id, name: `${acc.name} (${acc.type})` }))}
-              onAddNew={() => setShowAddAccount(true)}
-              placeholder="Select account or create new..."
-              showAddButton={true}
-              addButtonType="account"
-              icon={CreditCard}
-            />
+            <label htmlFor="paymentMethod">
+              <CreditCard size={18} />
+              Payment Method *
+            </label>
+            <select
+              id="paymentMethod"
+              value={formData.paymentMethod}
+              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+              required
+            >
+              <option value="cash">Cash</option>
+              <option value="bank">Bank Transfer</option>
+              <option value="mpesa">M-Pesa</option>
+              <option value="check_off">Check-off</option>
+              <option value="bank_deposit">Bank Deposit</option>
+              <option value="other">Other</option>
+            </select>
           </div>
+        </div>
+
+        <div className="form-group">
+          <SmartSelect
+            label="Account"
+            name="accountId"
+            value={formData.accountId}
+            onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+            options={accounts.map(acc => ({ id: acc.id, name: `${acc.name} (${acc.type})` }))}
+            onAddNew={() => setShowAddAccount(true)}
+            placeholder="Select account or create new..."
+            showAddButton={true}
+            addButtonType="account"
+            icon={CreditCard}
+          />
         </div>
 
         <div className="form-group">
