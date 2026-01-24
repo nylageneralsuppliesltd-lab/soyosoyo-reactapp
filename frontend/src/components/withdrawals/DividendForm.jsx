@@ -1,6 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { TrendingUp, Calendar, DollarSign, User, CreditCard, FileText, Hash, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import SmartSelect from '../common/SmartSelect';
+import AddItemModal from '../common/AddItemModal';
 
 const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const [formData, setFormData] = useState({
@@ -20,6 +22,7 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
+  const [showAddAccount, setShowAddAccount] = useState(false);
 
   useEffect(() => {
     fetchMembers();
@@ -266,22 +269,19 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="accountId">
-              <Tag size={18} />
-              Account (Optional)
-            </label>
-            <select
-              id="accountId"
+            <SmartSelect
+              label="Account"
+              name="accountId"
               value={formData.accountId}
-              onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-            >
-              <option value="">-- Default Cashbox --</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name} ({account.type}) - Balance: {parseFloat(account.balance).toFixed(2)}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setFormData({ ...formData, accountId: value })}
+              options={accounts.map((account) => ({
+                id: account.id,
+                name: `${account.name} (${account.type}) - Balance: ${parseFloat(account.balance).toFixed(2)}`,
+              }))}
+              placeholder="Select account or create new..."
+              onAddClick={() => setShowAddAccount(true)}
+              icon="CreditCard"
+            />
           </div>
         </div>
 
@@ -324,6 +324,24 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
           </button>
         </div>
       </form>
+
+      <AddItemModal
+        isOpen={showAddAccount}
+        onClose={() => setShowAddAccount(false)}
+        title="Add Bank Account"
+        apiEndpoint={`${API_BASE}/accounts`}
+        fields={[
+          { name: 'name', label: 'Account Name', type: 'text', required: true },
+          { name: 'type', label: 'Account Type', type: 'select', options: [{ value: 'bank', label: 'Bank' }, { value: 'cash', label: 'Cash' }], required: true },
+          { name: 'accountNumber', label: 'Account Number', type: 'text', required: true },
+          { name: 'bankName', label: 'Bank Name', type: 'text', required: true },
+        ]}
+        onSuccess={(newAccount) => {
+          setAccounts([...accounts, newAccount]);
+          setFormData({ ...formData, accountId: newAccount.id });
+          setShowAddAccount(false);
+        }}
+      />
     </div>
   );
 };

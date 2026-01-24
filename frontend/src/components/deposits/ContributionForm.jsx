@@ -1,6 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { DollarSign, Calendar, User, CreditCard, FileText, Hash, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import SmartSelect from '../common/SmartSelect';
+import AddItemModal from '../common/AddItemModal';
 
 const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [formData, setFormData] = useState({
@@ -21,10 +23,25 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
+  const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [depositCategories, setDepositCategories] = useState([]);
+
+  const fetchDepositCategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/settings/deposit-categories`);
+      const data = await response.json();
+      setDepositCategories(Array.isArray(data) ? data : (data.data || []));
+    } catch (err) {
+      console.error('Failed to fetch deposit categories:', err);
+      setDepositCategories([]);
+    }
+  };
 
   useEffect(() => {
     fetchMembers();
     fetchAccounts();
+    fetchDepositCategories();
   }, []);
 
   useEffect(() => {
@@ -262,23 +279,26 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
         <div className="form-row">
           <div className="form-group">
-            <label htmlFor="contributionType">
-              <Tag size={18} />
-              Contribution Type *
-            </label>
-            <select
-              id="contributionType"
+            <SmartSelect
+              label="Contribution Type"
+              name="contributionType"
               value={formData.contributionType}
               onChange={(e) => setFormData({ ...formData, contributionType: e.target.value })}
-              required
-            >
-              <option value="Monthly Contribution">Monthly Contribution</option>
-              <option value="Annual Contribution">Annual Contribution</option>
-              <option value="Special Levy">Special Levy</option>
-              <option value="Emergency Fund">Emergency Fund</option>
-              <option value="Development Fund">Development Fund</option>
-              <option value="Other">Other</option>
-            </select>
+              options={depositCategories.length > 0 ? depositCategories.map(cat => ({ id: cat.id || cat.name, name: cat.name })) : [
+                { id: 'Monthly Contribution', name: 'Monthly Contribution' },
+                { id: 'Annual Contribution', name: 'Annual Contribution' },
+                { id: 'Special Levy', name: 'Special Levy' },
+                { id: 'Emergency Fund', name: 'Emergency Fund' },
+                { id: 'Development Fund', name: 'Development Fund' },
+                { id: 'Other', name: 'Other' }
+              ]}
+              onAddNew={() => setShowAddCategory(true)}
+              placeholder="Select category or create new..."
+              required={true}
+              showAddButton={true}
+              addButtonType="category"
+              icon={Tag}
+            />
           </div>
 
           <div className="form-group">
@@ -303,22 +323,18 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
         </div>
 
         <div className="form-group">
-          <label htmlFor="accountId">
-            <Tag size={18} />
-            Account (Optional)
-          </label>
-          <select
-            id="accountId"
+          <SmartSelect
+            label="Account"
+            name="accountId"
             value={formData.accountId}
             onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-          >
-            <option value="">-- Default Cashbox --</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name} ({account.type}) - Balance: {parseFloat(account.balance).toFixed(2)}
-              </option>
-            ))}
-          </select>
+            options={accounts.map(acc => ({ id: acc.id, name: `${acc.name} (${acc.type})` }))}
+            onAddNew={() => setShowAddAccount(true)}
+            placeholder="Select account or create new..."
+            showAddButton={true}
+            addButtonType="account"
+            icon={CreditCard}
+          />
         </div>
 
         <div className="form-group">
@@ -360,6 +376,39 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </button>
         </div>
       </form>
+
+      <AddItemModal
+        isOpen={showAddAccount}
+        onClose={() => setShowAddAccount(false)}
+        title="Add Bank Account"
+        itemType="account"
+        apiEndpoint={`${API_BASE}/accounts`}
+        fields={[
+          { name: 'code', label: 'Account Code', type: 'text', required: true },
+          { name: 'name', label: 'Account Name', type: 'text', required: true },
+          { name: 'type', label: 'Account Type', type: 'select', required: true, options: ['ASSET', 'BANK', 'LIABILITY', 'EQUITY'] },
+        ]}
+        onSuccess={() => {
+          setShowAddAccount(false);
+          fetchAccounts();
+        }}
+      />
+
+      <AddItemModal
+        isOpen={showAddCategory}
+        onClose={() => setShowAddCategory(false)}
+        title="Add Deposit Category"
+        itemType="depositCategory"
+        apiEndpoint={`${API_BASE}/settings/deposit-categories`}
+        fields={[
+          { name: 'name', label: 'Category Name', type: 'text', required: true },
+          { name: 'description', label: 'Description', type: 'textarea', required: false },
+        ]}
+        onSuccess={() => {
+          setShowAddCategory(false);
+          fetchDepositCategories();
+        }}
+      />
     </div>
   );
 };

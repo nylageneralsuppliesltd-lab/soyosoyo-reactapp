@@ -1,6 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, TrendingUp, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import SmartSelect from '../common/SmartSelect';
+import AddItemModal from '../common/AddItemModal';
 
 const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [formData, setFormData] = useState({
@@ -18,6 +20,9 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [depositCategories, setDepositCategories] = useState([]);
 
   const incomeCategories = [
     { value: 'interest_income', label: 'Interest Income' },
@@ -34,6 +39,17 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
     { value: 'other_income', label: 'Other Income' }
   ];
 
+  const fetchDepositCategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/settings/deposit-categories`);
+      const data = await response.json();
+      setDepositCategories(Array.isArray(data) ? data : (data.data || []));
+    } catch (err) {
+      console.error('Failed to fetch deposit categories:', err);
+      setDepositCategories([]);
+    }
+  };
+
   const paymentMethods = [
     { value: 'bank', label: 'Bank Transfer' },
     { value: 'mpesa', label: 'M-Pesa' },
@@ -44,6 +60,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
   useEffect(() => {
     fetchAccounts();
+    fetchDepositCategories();
   }, []);
 
   useEffect(() => {
@@ -189,21 +206,19 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
         <div className="form-row">
           <div className="form-group">
-            <label>
-              <Tag size={18} />
-              Income Category *
-            </label>
-            <select
+            <SmartSelect
+              label="Income Category"
+              name="incomeCategory"
               value={formData.incomeCategory}
               onChange={(e) => setFormData({ ...formData, incomeCategory: e.target.value })}
-              required
-            >
-              {incomeCategories.map(category => (
-                <option key={category.value} value={category.value}>
-                  {category.label}
-                </option>
-              ))}
-            </select>
+              options={depositCategories.length > 0 ? depositCategories.map(cat => ({ id: cat.id || cat.name, name: cat.name })) : incomeCategories.map(cat => ({ id: cat.value, name: cat.label }))}
+              onAddNew={() => setShowAddCategory(true)}
+              placeholder="Select category or create new..."
+              required={true}
+              showAddButton={true}
+              addButtonType="category"
+              icon={Tag}
+            />
           </div>
 
           <div className="form-group">
@@ -255,22 +270,19 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </div>
 
           <div className="form-group">
-            <label>
-              <DollarSign size={18} />
-              Receiving Account *
-            </label>
-            <select
+            <SmartSelect
+              label="Receiving Account"
+              name="accountId"
               value={formData.accountId}
               onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-              required
-            >
-              <option value="">Select account</option>
-              {accounts.map(account => (
-                <option key={account.id} value={account.id}>
-                  {account.code} - {account.name}
-                </option>
-              ))}
-            </select>
+              options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
+              onAddNew={() => setShowAddAccount(true)}
+              placeholder="Select account or create new..."
+              required={true}
+              showAddButton={true}
+              addButtonType="account"
+              icon={CreditCard}
+            />
             {selectedAccount && (
               <small className="account-balance">
                 Balance: KSh {selectedAccount.balance?.toLocaleString() || '0.00'}
@@ -328,6 +340,39 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
           <li>Ensure bank statements match the recorded income</li>
         </ul>
       </div>
+
+      <AddItemModal
+        isOpen={showAddAccount}
+        onClose={() => setShowAddAccount(false)}
+        title="Add Bank Account"
+        itemType="account"
+        apiEndpoint={`${API_BASE}/accounts`}
+        fields={[
+          { name: 'code', label: 'Account Code', type: 'text', required: true },
+          { name: 'name', label: 'Account Name', type: 'text', required: true },
+          { name: 'type', label: 'Account Type', type: 'select', required: true, options: ['ASSET', 'BANK', 'LIABILITY', 'EQUITY'] },
+        ]}
+        onSuccess={() => {
+          setShowAddAccount(false);
+          fetchAccounts();
+        }}
+      />
+
+      <AddItemModal
+        isOpen={showAddCategory}
+        onClose={() => setShowAddCategory(false)}
+        title="Add Income Category"
+        itemType="depositCategory"
+        apiEndpoint={`${API_BASE}/settings/deposit-categories`}
+        fields={[
+          { name: 'name', label: 'Category Name', type: 'text', required: true },
+          { name: 'description', label: 'Description', type: 'textarea', required: false },
+        ]}
+        onSuccess={() => {
+          setShowAddCategory(false);
+          fetchDepositCategories();
+        }}
+      />
     </div>
   );
 };

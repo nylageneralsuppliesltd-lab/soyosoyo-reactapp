@@ -1,6 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle } from 'lucide-react';
+import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import SmartSelect from '../common/SmartSelect';
+import AddItemModal from '../common/AddItemModal';
 
 const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [formData, setFormData] = useState({
@@ -24,6 +26,9 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [shareValue, setShareValue] = useState(100); // Default share value
+  const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [depositCategories, setDepositCategories] = useState([]);
 
   const paymentMethods = [
     { value: 'cash', label: 'Cash' },
@@ -34,10 +39,22 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
     { value: 'other', label: 'Other' }
   ];
 
+  const fetchDepositCategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/settings/deposit-categories`);
+      const data = await response.json();
+      setDepositCategories(Array.isArray(data) ? data : (data.data || []));
+    } catch (err) {
+      console.error('Failed to fetch deposit categories:', err);
+      setDepositCategories([]);
+    }
+  };
+
   useEffect(() => {
     fetchMembers();
     fetchAccounts();
     fetchShareValue();
+    fetchDepositCategories();
   }, []);
 
   useEffect(() => {
@@ -338,21 +355,18 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
         <div className="form-row">
           <div className="form-group">
-            <label>
-              <DollarSign size={18} />
-              Account
-            </label>
-            <select
+            <SmartSelect
+              label="Account"
+              name="accountId"
               value={formData.accountId}
               onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-            >
-              <option value="">Select account</option>
-              {accounts.map(account => (
-                <option key={account.id} value={account.id}>
-                  {account.code} - {account.name}
-                </option>
-              ))}
-            </select>
+              options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
+              onAddNew={() => setShowAddAccount(true)}
+              placeholder="Select account or create new..."
+              showAddButton={true}
+              addButtonType="account"
+              icon={CreditCard}
+            />
             {selectedAccount && (
               <small className="account-balance">
                 Balance: KSh {selectedAccount.balance?.toLocaleString() || '0.00'}
@@ -398,6 +412,39 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </button>
         </div>
       </form>
+
+      <AddItemModal
+        isOpen={showAddAccount}
+        onClose={() => setShowAddAccount(false)}
+        title="Add Bank Account"
+        itemType="account"
+        apiEndpoint={`${API_BASE}/accounts`}
+        fields={[
+          { name: 'code', label: 'Account Code', type: 'text', required: true },
+          { name: 'name', label: 'Account Name', type: 'text', required: true },
+          { name: 'type', label: 'Account Type', type: 'select', required: true, options: ['ASSET', 'BANK', 'LIABILITY', 'EQUITY'] },
+        ]}
+        onSuccess={() => {
+          setShowAddAccount(false);
+          fetchAccounts();
+        }}
+      />
+
+      <AddItemModal
+        isOpen={showAddCategory}
+        onClose={() => setShowAddCategory(false)}
+        title="Add Deposit Category"
+        itemType="depositCategory"
+        apiEndpoint={`${API_BASE}/settings/deposit-categories`}
+        fields={[
+          { name: 'name', label: 'Category Name', type: 'text', required: true },
+          { name: 'description', label: 'Description', type: 'textarea', required: false },
+        ]}
+        onSuccess={() => {
+          setShowAddCategory(false);
+          fetchDepositCategories();
+        }}
+      />
     </div>
   );
 };

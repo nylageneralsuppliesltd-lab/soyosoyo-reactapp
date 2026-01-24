@@ -1,6 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import SmartSelect from '../common/SmartSelect';
+import AddItemModal from '../common/AddItemModal';
 
 const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [formData, setFormData] = useState({
@@ -23,6 +25,9 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [memberSearch, setMemberSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [depositFineTypes, setDepositFineTypes] = useState([]);
 
   const fineTypes = [
     { value: 'late_payment', label: 'Late Payment' },
@@ -33,6 +38,17 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
     { value: 'penalty', label: 'Penalty' },
     { value: 'other', label: 'Other' }
   ];
+
+  const fetchDepositFineTypes = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/settings/fine-types`);
+      const data = await response.json();
+      setDepositFineTypes(Array.isArray(data) ? data : (data.data || []));
+    } catch (err) {
+      console.error('Failed to fetch fine types:', err);
+      setDepositFineTypes([]);
+    }
+  };
 
   const paymentMethods = [
     { value: 'cash', label: 'Cash' },
@@ -46,6 +62,7 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   useEffect(() => {
     fetchMembers();
     fetchAccounts();
+    fetchDepositFineTypes();
   }, []);
 
   useEffect(() => {
@@ -275,21 +292,19 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </div>
 
           <div className="form-group">
-            <label>
-              <AlertCircle size={18} />
-              Fine Type *
-            </label>
-            <select
+            <SmartSelect
+              label="Fine Type"
+              name="fineType"
               value={formData.fineType}
               onChange={(e) => setFormData({ ...formData, fineType: e.target.value })}
-              required
-            >
-              {fineTypes.map(type => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+              options={depositFineTypes.length > 0 ? depositFineTypes.map(type => ({ id: type.id || type.name, name: type.name })) : fineTypes.map(type => ({ id: type.value, name: type.label }))}
+              onAddNew={() => setShowAddCategory(true)}
+              placeholder="Select fine type or create new..."
+              required={true}
+              showAddButton={true}
+              addButtonType="category"
+              icon={AlertCircle}
+            />
           </div>
         </div>
 
@@ -327,21 +342,18 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </div>
 
           <div className="form-group">
-            <label>
-              <DollarSign size={18} />
-              Account
-            </label>
-            <select
+            <SmartSelect
+              label="Account"
+              name="accountId"
               value={formData.accountId}
               onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-            >
-              <option value="">Select account</option>
-              {accounts.map(account => (
-                <option key={account.id} value={account.id}>
-                  {account.code} - {account.name}
-                </option>
-              ))}
-            </select>
+              options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
+              onAddNew={() => setShowAddAccount(true)}
+              placeholder="Select account or create new..."
+              showAddButton={true}
+              addButtonType="account"
+              icon={CreditCard}
+            />
             {selectedAccount && (
               <small className="account-balance">
                 Balance: KSh {selectedAccount.balance?.toLocaleString() || '0.00'}
@@ -389,6 +401,39 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </button>
         </div>
       </form>
+
+      <AddItemModal
+        isOpen={showAddAccount}
+        onClose={() => setShowAddAccount(false)}
+        title="Add Bank Account"
+        itemType="account"
+        apiEndpoint={`${API_BASE}/accounts`}
+        fields={[
+          { name: 'code', label: 'Account Code', type: 'text', required: true },
+          { name: 'name', label: 'Account Name', type: 'text', required: true },
+          { name: 'type', label: 'Account Type', type: 'select', required: true, options: ['ASSET', 'BANK', 'LIABILITY', 'EQUITY'] },
+        ]}
+        onSuccess={() => {
+          setShowAddAccount(false);
+          fetchAccounts();
+        }}
+      />
+
+      <AddItemModal
+        isOpen={showAddCategory}
+        onClose={() => setShowAddCategory(false)}
+        title="Add Fine Type"
+        itemType="fineType"
+        apiEndpoint={`${API_BASE}/settings/fine-types`}
+        fields={[
+          { name: 'name', label: 'Fine Type Name', type: 'text', required: true },
+          { name: 'description', label: 'Description', type: 'textarea', required: false },
+        ]}
+        onSuccess={() => {
+          setShowAddCategory(false);
+          fetchDepositFineTypes();
+        }}
+      />
     </div>
   );
 };

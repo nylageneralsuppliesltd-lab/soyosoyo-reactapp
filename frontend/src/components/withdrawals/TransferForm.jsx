@@ -1,6 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { ArrowRightLeft, Calendar, DollarSign, FileText, Hash } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import SmartSelect from '../common/SmartSelect';
+import AddItemModal from '../common/AddItemModal';
 
 const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const [formData, setFormData] = useState({
@@ -16,6 +18,7 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showAddAccount, setShowAddAccount] = useState(false);
 
   useEffect(() => {
     fetchAccounts();
@@ -181,23 +184,20 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
 
         <div className="transfer-accounts">
           <div className="form-group">
-            <label htmlFor="fromAccountId">
-              <ArrowRightLeft size={18} />
-              From Account *
-            </label>
-            <select
-              id="fromAccountId"
+            <SmartSelect
+              label="From Account"
+              name="fromAccountId"
               value={formData.fromAccountId}
-              onChange={(e) => setFormData({ ...formData, fromAccountId: e.target.value })}
+              onChange={(value) => setFormData({ ...formData, fromAccountId: value })}
+              options={accounts.map((account) => ({
+                id: account.id,
+                name: `${account.name} (${account.type}) - Balance: KES ${parseFloat(account.balance).toFixed(2)}`,
+              }))}
+              placeholder="Select account or create new..."
+              onAddClick={() => setShowAddAccount(true)}
+              icon="CreditCard"
               required
-            >
-              <option value="">-- Select Source Account --</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name} ({account.type}) - Balance: KES {parseFloat(account.balance).toFixed(2)}
-                </option>
-              ))}
-            </select>
+            />
             {fromAccount && (
               <p className="account-balance">
                 Available: <strong>KES {parseFloat(fromAccount.balance).toFixed(2)}</strong>
@@ -210,23 +210,20 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="toAccountId">
-              <ArrowRightLeft size={18} />
-              To Account *
-            </label>
-            <select
-              id="toAccountId"
+            <SmartSelect
+              label="To Account"
+              name="toAccountId"
               value={formData.toAccountId}
-              onChange={(e) => setFormData({ ...formData, toAccountId: e.target.value })}
+              onChange={(value) => setFormData({ ...formData, toAccountId: value })}
+              options={accounts.map((account) => ({
+                id: account.id,
+                name: `${account.name} (${account.type}) - Balance: KES ${parseFloat(account.balance).toFixed(2)}`,
+              }))}
+              placeholder="Select account or create new..."
+              onAddClick={() => setShowAddAccount(true)}
+              icon="CreditCard"
               required
-            >
-              <option value="">-- Select Destination Account --</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name} ({account.type}) - Balance: KES {parseFloat(account.balance).toFixed(2)}
-                </option>
-              ))}
-            </select>
+            />
             {toAccount && (
               <p className="account-balance">
                 Current: <strong>KES {parseFloat(toAccount.balance).toFixed(2)}</strong>
@@ -288,6 +285,24 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
           </button>
         </div>
       </form>
+
+      <AddItemModal
+        isOpen={showAddAccount}
+        onClose={() => setShowAddAccount(false)}
+        title="Add Bank Account"
+        apiEndpoint={`${API_BASE}/accounts`}
+        fields={[
+          { name: 'name', label: 'Account Name', type: 'text', required: true },
+          { name: 'type', label: 'Account Type', type: 'select', options: [{ value: 'bank', label: 'Bank' }, { value: 'cash', label: 'Cash' }], required: true },
+          { name: 'accountNumber', label: 'Account Number', type: 'text', required: true },
+          { name: 'bankName', label: 'Bank Name', type: 'text', required: true },
+        ]}
+        onSuccess={(newAccount) => {
+          setAccounts([...accounts, newAccount]);
+          setFormData({ ...formData, fromAccountId: newAccount.id });
+          setShowAddAccount(false);
+        }}
+      />
     </div>
   );
 };
