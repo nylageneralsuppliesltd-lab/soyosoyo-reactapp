@@ -224,7 +224,7 @@
 .btn-form-submit,
 .btn-form-cancel {
   flex: 1;
-  min-flex-basis: 120px;
+  min-width: 120px;
   padding: 10px 16px;
   font-size: 14px;
   font-weight: 600;
@@ -404,7 +404,7 @@
 
   .btn-form-submit,
   .btn-form-cancel {
-    min-flex-basis: auto;
+    min-width: auto;
     width: 100%;
   }
 }

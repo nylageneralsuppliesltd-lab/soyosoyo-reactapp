@@ -204,21 +204,20 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const selectedAccount = accounts.find(acc => acc.id === parseInt(formData.accountId));
 
   return (
-    <div className="payment-form-container">
-      <div className="form-header">
-        <Package size={24} />
+    <div className="form-container">
+      <div className="form-header-section">
         <h2>Miscellaneous Payment</h2>
+        <p className="form-header-subtitle">Record non-standard member payments</p>
       </div>
 
       {message.text && (
-        <div className={`message ${message.type}`}>
-          {message.type === 'success' ? <CheckCircle size={20} /> : <XCircle size={20} />}
+        <div className={`form-alert ${message.type}`}>
           <span>{message.text}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="payment-form">
-        <div className="form-row">
+      <form onSubmit={handleSubmit} className="form-card">
+        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <Calendar size={18} />
@@ -333,7 +332,7 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           />
         </div>
 
-        <div className="form-row">
+        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <CreditCard size={18} />
@@ -373,7 +372,7 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </div>
         </div>
 
-        <div className="form-row">
+        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <Hash size={18} />

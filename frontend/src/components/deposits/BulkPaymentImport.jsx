@@ -140,16 +140,13 @@ const BulkPaymentImport = ({ onSuccess, onCancel }) => {
   return (
     <div className="bulk-import-container">
       <div className="import-form">
-        <div className="form-header">
-          <h3>Bulk Import Payments</h3>
-          <button onClick={onCancel} className="close-btn">
-            ✕
-          </button>
+        <div className="form-header-section">
+          <h2>Bulk Import Payments</h2>
+          <p className="form-header-subtitle">Upload JSON payments list</p>
         </div>
 
         {error && (
-          <div className="alert alert-error">
-            <AlertCircle size={18} />
+          <div className="form-alert error">
             <span>{error}</span>
           </div>
         )}

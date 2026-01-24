@@ -185,29 +185,25 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
   ];
 
   return (
-    <div className="deposit-form-container">
-      <div className="form-header">
-        <h3>Record Payment</h3>
-        <button onClick={onCancel} className="close-btn">
-          ✕
-        </button>
+    <div className="form-container">
+      <div className="form-header-section">
+        <h2>Record Payment</h2>
+        <p className="form-header-subtitle">Single payment entry</p>
       </div>
 
       {error && (
-        <div className="alert alert-error">
-          <AlertCircle size={18} />
+        <div className="form-alert error">
           <span>{error}</span>
         </div>
       )}
 
       {success && (
-        <div className="alert alert-success">
-          <Check size={18} />
+        <div className="form-alert success">
           <span>Payment recorded successfully with double-entry posting</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="deposit-form">
+      <form onSubmit={handleSubmit} className="form-card">
         {/* Date */}
         <div className="form-group">
           <label>Date *</label>

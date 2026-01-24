@@ -202,7 +202,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
       {success && <div className="form-alert success">{success}</div>}
 
       <form onSubmit={handleSubmit} className="form-card">
-        <div className="form-row">
+        <div className="form-grid-2">
           <div className="form-group">
             <label htmlFor="date">
               <Calendar size={18} />
@@ -271,7 +271,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
           )}
         </div>
 
-        <div className="form-row">
+        <div className="form-grid-2">
           <div className="form-group">
             <SmartSelect
               label="Contribution Type"

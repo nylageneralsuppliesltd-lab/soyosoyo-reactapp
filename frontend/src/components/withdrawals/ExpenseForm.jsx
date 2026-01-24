@@ -153,26 +153,26 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
 
   return (
     <div className="form-container">
-      <div className="form-header">
+      <div className="form-header-section">
         <DollarSign size={32} className="form-icon" />
         <h2>Record Expense</h2>
         <p>Record a business expense or operational cost</p>
       </div>
 
       {error && (
-        <div className="alert alert-error">
+        <div className="form-alert error">
           <strong>Error:</strong> {error}
         </div>
       )}
 
       {success && (
-        <div className="alert alert-success">
+        <div className="form-alert success">
           <strong>Success!</strong> {success}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="withdrawal-form">
-        <div className="form-row">
+      <form onSubmit={handleSubmit} className="form-card">
+        <div className="form-grid-2">
           <div className="form-group">
             <label htmlFor="date">
               <Calendar size={18} />

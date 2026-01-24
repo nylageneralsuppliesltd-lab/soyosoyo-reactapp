@@ -237,21 +237,20 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const selectedLoan = memberLoans.find(loan => loan.id === parseInt(formData.loanId));
 
   return (
-    <div className="payment-form-container">
-      <div className="form-header">
-        <TrendingUp size={24} />
+    <div className="form-container">
+      <div className="form-header-section">
         <h2>Loan Repayment</h2>
+        <p className="form-header-subtitle">Record member loan repayments</p>
       </div>
 
       {message.text && (
-        <div className={`message ${message.type}`}>
-          {message.type === 'success' ? <CheckCircle size={20} /> : <XCircle size={20} />}
+        <div className={`form-alert ${message.type}`}>
           <span>{message.text}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="payment-form">
-        <div className="form-row">
+      <form onSubmit={handleSubmit} className="form-card">
+        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <Calendar size={18} />
@@ -333,7 +332,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           )}
         </div>
 
-        <div className="form-row">
+        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <DollarSign size={18} />
@@ -368,7 +367,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </div>
         </div>
 
-        <div className="form-row">
+        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <DollarSign size={18} />
@@ -406,7 +405,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </div>
         </div>
 
-        <div className="form-row">
+        <div className="form-grid-2">
           <div className="form-group">
             <SmartSelect
               label="Account"
