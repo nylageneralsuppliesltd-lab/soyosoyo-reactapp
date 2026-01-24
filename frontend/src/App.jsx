@@ -14,6 +14,7 @@ import {
 
 import './index.css'; // Tailwind + global styles
 import './App.css';   // custom styles
+import './styles/forms.css'; // Universal compact form styles
 import Sidebar from './components/Sidebar';
 
 // Pages

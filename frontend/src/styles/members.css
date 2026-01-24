@@ -27,42 +27,42 @@
 .member-form-container {
   max-width: 1000px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 16px;
   background: var(--light);
   min-height: 100vh;
   font-family: inherit;
 }
 
 .form-header {
-  margin-bottom: 32px;
+  margin-bottom: 20px;
   border-bottom: 2px solid var(--primary);
-  padding-bottom: 20px;
+  padding-bottom: 14px;
 }
 
 .form-header h1 {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
-  margin: 0 0 8px 0;
+  margin: 0 0 6px 0;
   color: var(--dark);
 }
 
 .form-subtitle {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-light);
   margin: 0;
 }
 
 .member-form {
   background: white;
-  border-radius: 12px;
-  padding: 28px;
+  border-radius: 10px;
+  padding: 18px;
   box-shadow: var(--shadow-md);
 }
 
 /* Form Sections */
 .form-section {
-  margin-bottom: 28px;
-  padding-bottom: 20px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -73,29 +73,29 @@
 }
 
 .section-title {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--dark);
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding-bottom: 10px;
+  padding-bottom: 8px;
   border-bottom: 2px solid var(--primary);
   display: inline-block;
 }
 
 .section-subtitle {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-light);
-  margin: -12px 0 12px 0;
+  margin: -8px 0 8px 0;
 }
 
 /* Form Grid - 2 columns on desktop, 1 on mobile/tablet */
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  margin-bottom: 8px;
+  gap: 12px;
+  margin-bottom: 4px;
 }
 
 .form-field {
@@ -104,13 +104,13 @@
 }
 
 .form-field label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-dark);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .required {
@@ -122,10 +122,10 @@
 .form-field input,
 .form-field select {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: 6px;
+  font-size: 13px;
   font-family: inherit;
   color: var(--text-dark);
   background: white;
@@ -137,7 +137,7 @@
 .form-field select:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
   background: #f0f7ff;
 }
 
@@ -149,13 +149,13 @@
 }
 
 .form-input.error:focus {
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
 }
 
 .field-error {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--danger);
-  margin-top: 4px;
+  margin-top: 2px;
   display: block;
 }
 
@@ -163,53 +163,58 @@
 @media (max-width: 768px) {
   .form-grid {
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 10px;
   }
 
   .member-form {
-    padding: 20px;
+    padding: 14px;
   }
 
   .member-form-container {
-    padding: 16px;
+    padding: 12px;
+  }
+
+  .section-title {
+    font-size: 13px;
   }
 }
 
 /* Nominees Section */
 .nominees-section {
   background: #f8fafc;
-  padding: 20px;
-  border-radius: 10px;
-  margin-top: 20px;
+  padding: 14px;
+  border-radius: 8px;
+  margin-top: 14px;
   border: none;
-  padding-bottom: 20px;
+  padding-bottom: 14px;
 }
 
 .nominees-container {
   background: white;
-  border-radius: 10px;
-  padding: 16px;
-  margin-top: 12px;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
 }
 
 .no-nominees {
   text-align: center;
   color: var(--text-light);
-  font-size: 14px;
-  padding: 12px 0;
+  font-size: 12px;
+  padding: 8px 0;
   font-style: italic;
+  margin: 0;
 }
 
 .nominees-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .nominee-card {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   background: white;
   transition: all 0.2s ease;
@@ -224,7 +229,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: 10px 11px;
   background: var(--light);
   cursor: pointer;
   transition: background 0.2s ease;
@@ -237,20 +242,20 @@
 .nominee-summary {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex: 1;
 }
 
 .nominee-number {
-  min-width: 28px;
-  height: 28px;
+  min-width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--primary);
   color: white;
   border-radius: 50%;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
 }
 
@@ -259,32 +264,32 @@
 }
 
 .nominee-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--dark);
   margin: 0;
 }
 
 .nominee-meta {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-light);
-  margin: 2px 0 0 0;
+  margin: 1px 0 0 0;
 }
 
 .expand-btn {
   background: none;
   border: none;
   color: var(--primary);
-  font-size: 16px;
+  font-size: 14px;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 2px 6px;
   display: flex;
   align-items: center;
   transition: transform 0.2s ease;
 }
 
 .nominee-content {
-  padding: 16px 14px;
+  padding: 12px 11px;
   background: white;
   border-top: 1px solid var(--border);
   animation: slideDown 0.2s ease;
@@ -292,8 +297,8 @@
 
 .nominee-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
 }
 
 .nominee-field {
@@ -302,18 +307,18 @@
 }
 
 .nominee-field label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-dark);
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .nominee-field input,
 .nominee-field select {
-  padding: 8px 10px;
+  padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 13px;
+  border-radius: 5px;
+  font-size: 12px;
   font-family: inherit;
   transition: all 0.2s ease;
 }
@@ -331,12 +336,12 @@
 }
 
 .btn-remove {
-  padding: 8px 12px;
+  padding: 6px 10px;
   background: var(--danger);
   color: white;
   border: none;
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: 5px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -348,31 +353,31 @@
 }
 
 .share-progress {
-  margin: 16px 0;
-  padding: 12px;
+  margin: 10px 0;
+  padding: 10px;
   background: var(--light);
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .progress-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
-  margin-bottom: 8px;
+  font-size: 11px;
+  margin-bottom: 6px;
   color: var(--text-dark);
 }
 
 .progress-info strong {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--primary);
 }
 
 .status {
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 2px 6px;
+  border-radius: 3px;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .status.valid {
@@ -386,31 +391,31 @@
 }
 
 .progress-bar {
-  height: 6px;
+  height: 5px;
   background: var(--border);
-  border-radius: 3px;
+  border-radius: 2px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--primary), var(--primary-light));
-  border-radius: 3px;
+  border-radius: 2px;
   transition: width 0.3s ease;
 }
 
 .btn-add-nominee {
   width: 100%;
-  padding: 10px 14px;
+  padding: 8px 12px;
   background: var(--info);
   color: white;
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: 6px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .btn-add-nominee:hover:not(:disabled) {
@@ -426,23 +431,23 @@
 /* Form Actions */
 .form-actions {
   display: flex;
-  gap: 12px;
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 2px solid var(--border);
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
 
 .btn-primary-large,
 .btn-secondary-large {
   flex: 1;
-  padding: 12px 20px;
-  font-size: 15px;
+  padding: 10px 16px;
+  font-size: 14px;
   font-weight: 600;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 140px;
+  min-width: 120px;
 }
 
 .btn-primary-large {
@@ -452,20 +457,20 @@
 
 .btn-primary-large:hover:not(:disabled) {
   background: var(--primary-light);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
 .btn-secondary-large {
   background: white;
   color: var(--primary);
-  border: 2px solid var(--primary);
+  border: 1.5px solid var(--primary);
 }
 
 .btn-secondary-large:hover:not(:disabled) {
   background: var(--primary);
   color: white;
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .btn-primary-large:disabled,
@@ -477,15 +482,22 @@
 @media (max-width: 480px) {
   .form-actions {
     flex-direction: column;
+    gap: 8px;
   }
 
   .btn-primary-large,
   .btn-secondary-large {
     width: 100%;
+    padding: 9px 14px;
+    font-size: 13px;
   }
 
   .form-header h1 {
-    font-size: 22px;
+    font-size: 20px;
+  }
+
+  .nominees-grid {
+    grid-template-columns: 1fr !important;
   }
 }
 

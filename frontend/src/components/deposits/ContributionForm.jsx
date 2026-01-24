@@ -193,25 +193,15 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
   return (
     <div className="form-container">
-      <div className="form-header">
-        <DollarSign size={32} className="form-icon" />
+      <div className="form-header-section">
         <h2>Record Contribution</h2>
-        <p>Record monthly or special member contributions</p>
+        <p className="form-header-subtitle">Record monthly or special member contributions</p>
       </div>
 
-      {error && (
-        <div className="alert alert-error">
-          <strong>Error:</strong> {error}
-        </div>
-      )}
+      {error && <div className="form-alert error">{error}</div>}
+      {success && <div className="form-alert success">{success}</div>}
 
-      {success && (
-        <div className="alert alert-success">
-          <strong>Success!</strong> {success}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="deposit-form">
+      <form onSubmit={handleSubmit} className="form-card">
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="date">
