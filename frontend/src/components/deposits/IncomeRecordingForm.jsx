@@ -177,7 +177,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
       )}
 
       <form onSubmit={handleSubmit} className="form-card">
-        <div className="form-grid-2">
+        <div className="form-grid-3">
           <div className="form-group">
             <label>
               <Calendar size={18} />
@@ -205,9 +205,6 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
               required
             />
           </div>
-        </div>
-
-        <div className="form-grid-2">
           <div className="form-group">
             <SmartSelect
               label="Income Category"
@@ -223,7 +220,9 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
               icon={Tag}
             />
           </div>
+        </div>
 
+        <div className="form-grid-3">
           <div className="form-group">
             <label>
               <FileText size={18} />
@@ -237,23 +236,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
               required
             />
           </div>
-        </div>
 
-        <div className="form-group">
-          <label>
-            <FileText size={18} />
-            Description *
-          </label>
-          <textarea
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="Detailed description of the income..."
-            rows="3"
-            required
-          />
-        </div>
-
-        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <CreditCard size={18} />
@@ -292,6 +275,20 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
               </small>
             )}
           </div>
+        </div>
+
+        <div className="form-group">
+          <label>
+            <FileText size={18} />
+            Description *
+          </label>
+          <input
+            type="text"
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="Brief description of the income"
+            required
+          />
         </div>
 
         <div className="form-grid-2">

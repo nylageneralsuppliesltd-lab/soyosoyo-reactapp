@@ -238,7 +238,7 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
       )}
 
       <form onSubmit={handleSubmit} className="form-card">
-        <div className="form-grid-2">
+        <div className="form-grid-3">
           <div className="form-group">
             <label>
               <Calendar size={18} />
@@ -289,9 +289,6 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
               </div>
             )}
           </div>
-        </div>
-
-        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <DollarSign size={18} />
@@ -306,7 +303,9 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
               required
             />
           </div>
+        </div>
 
+        <div className="form-grid-3">
           <div className="form-group">
             <label>
               <Hash size={18} />
@@ -321,9 +320,6 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
             />
             <small className="field-hint">Based on KSh {shareValue} per share</small>
           </div>
-        </div>
-
-        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <FileText size={18} />

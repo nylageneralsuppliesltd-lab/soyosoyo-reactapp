@@ -225,7 +225,7 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
       )}
 
       <form onSubmit={handleSubmit} className="form-card">
-        <div className="form-grid-2">
+        <div className="form-grid-3">
           <div className="form-group">
             <label>
               <Calendar size={18} />
@@ -276,9 +276,6 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               </div>
             )}
           </div>
-        </div>
-
-        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <DollarSign size={18} />
@@ -293,7 +290,9 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               required
             />
           </div>
+        </div>
 
+        <div className="form-grid-3">
           <div className="form-group">
             <SmartSelect
               label="Fine Type"
@@ -309,23 +308,7 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               icon={AlertCircle}
             />
           </div>
-        </div>
 
-        <div className="form-group">
-          <label>
-            <FileText size={18} />
-            Reason for Fine *
-          </label>
-          <textarea
-            value={formData.reason}
-            onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-            placeholder="Describe the reason for this fine..."
-            rows="2"
-            required
-          />
-        </div>
-
-        <div className="form-grid-2">
           <div className="form-group">
             <label>
               <CreditCard size={18} />
@@ -363,6 +346,19 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               </small>
             )}
           </div>
+        </div>
+
+        <div className="form-group">
+          <label>
+            <FileText size={18} />
+            Reason for Fine *
+          </label>
+          <textarea
+            value={formData.reason}
+            onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+            placeholder="Describe the reason for this fine..."
+            rows="3"
+           />
         </div>
 
         <div className="form-grid-2">
