@@ -2,8 +2,12 @@
 import { Upload, Plus, Check, AlertCircle, ChevronDown } from 'lucide-react';
 import '../../styles/deposits.css';
 import { API_BASE } from '../../utils/apiBase';
+import SmartSelect from '../common/SmartSelect';
+import AddItemModal from '../common/AddItemModal';
+import { useSmartFormAction } from '../../hooks/useSmartFormAction';
 
 const DepositPaymentForm = ({ onSuccess, onCancel }) => {
+  const { handleAddNew } = useSmartFormAction();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberName: '',
@@ -24,11 +28,26 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
   const [success, setSuccess] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
+  const [showAddAccount, setShowAddAccount] = useState(false);
+  const [depositCategories, setDepositCategories] = useState([]);
+  const [showAddCategory, setShowAddCategory] = useState(false);
 
   useEffect(() => {
     fetchMembers();
     fetchAccounts();
+    fetchDepositCategories();
   }, []);
+
+  const fetchDepositCategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/settings/deposit-categories`);
+      const data = await response.json();
+      setDepositCategories(Array.isArray(data) ? data : (data.data || []));
+    } catch (err) {
+      console.error('Failed to fetch deposit categories:', err);
+      setDepositCategories([]);
+    }
+  };
 
   const fetchMembers = async () => {
     try {
@@ -258,14 +277,22 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
         {/* Contribution Type (conditional) */}
         {formData.paymentType === 'contribution' && (
           <div className="form-group">
-            <label>Contribution Type</label>
-            <input
-              type="text"
+            <SmartSelect
+              label="Contribution Type"
               name="contributionType"
-              placeholder="e.g., Monthly Savings, Annual Fee, etc."
               value={formData.contributionType}
-              onChange={handleChange}
-              className="form-input"
+              onChange={(e) => setFormData({ ...formData, contributionType: e.target.value })}
+              options={depositCategories
+                .filter(cat => cat.type === 'contribution')
+                .map(cat => ({
+                  id: cat.name,
+                  name: cat.name,
+                }))}
+              onAddNew={() => setShowAddCategory(true)}
+              addButtonText="Add Contribution Type"
+              addButtonType="contribution_type"
+              placeholder="Select or create contribution type..."
+              showAddButton
             />
           </div>
         )}
@@ -305,20 +332,21 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
 
         {/* Account (optional) */}
         <div className="form-group">
-          <label>Account Receiving Payment</label>
-          <select
+          <SmartSelect
+            label="Account Receiving Payment"
             name="accountId"
             value={formData.accountId}
-            onChange={handleChange}
-            className="form-input"
-          >
-            <option value="">Default (Cashbox)</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name} ({account.type})
-              </option>
-            ))}
-          </select>
+            onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+            options={accounts.map(account => ({
+              id: account.id,
+              name: `${account.name} (${account.type})`,
+            }))}
+            onAddNew={() => setShowAddAccount(true)}
+            addButtonText="Add Bank Account"
+            addButtonType="bank_account"
+            placeholder="Select account or leave blank for cashbox..."
+            showAddButton
+          />
           <small className="form-hint">Leave blank for default cash account</small>
         </div>
 
@@ -358,6 +386,92 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
           </button>
         </div>
       </form>
+
+      {/* Add Bank Account Modal */}
+      <AddItemModal
+        isOpen={showAddAccount}
+        onClose={() => setShowAddAccount(false)}
+        title="Add Bank Account"
+        apiEndpoint={`${API_BASE}/accounts`}
+        fields={[
+          {
+            name: 'name',
+            label: 'Account Name',
+            type: 'text',
+            placeholder: 'e.g., Main Bank Account',
+            required: true,
+          },
+          {
+            name: 'type',
+            label: 'Account Type',
+            type: 'select',
+            options: [
+              { value: 'bank', label: 'Bank Account' },
+              { value: 'cash', label: 'Cash Box' },
+            ],
+            required: true,
+          },
+          {
+            name: 'accountNumber',
+            label: 'Account Number',
+            type: 'text',
+            placeholder: 'Account number or reference',
+            required: false,
+          },
+          {
+            name: 'bankName',
+            label: 'Bank Name',
+            type: 'text',
+            placeholder: 'Name of the bank',
+            required: false,
+          },
+        ]}
+        onSuccess={(newAccount) => {
+          setAccounts([...accounts, newAccount]);
+          setFormData({ ...formData, accountId: newAccount.id });
+          setShowAddAccount(false);
+        }}
+      />
+
+      {/* Add Deposit Category Modal */}
+      <AddItemModal
+        isOpen={showAddCategory}
+        onClose={() => setShowAddCategory(false)}
+        title="Add Contribution Type"
+        apiEndpoint={`${API_BASE}/settings/deposit-categories`}
+        fields={[
+          {
+            name: 'name',
+            label: 'Category Name',
+            type: 'text',
+            placeholder: 'e.g., Monthly Savings, Share Capital',
+            required: true,
+          },
+          {
+            name: 'type',
+            label: 'Category Type',
+            type: 'select',
+            options: [
+              { value: 'contribution', label: 'Contribution' },
+              { value: 'share_capital', label: 'Share Capital' },
+              { value: 'income', label: 'Income' },
+            ],
+            required: true,
+          },
+          {
+            name: 'description',
+            label: 'Description',
+            type: 'textarea',
+            placeholder: 'Brief description of this category',
+            required: false,
+          },
+        ]}
+        onSuccess={(newCategory) => {
+          setDepositCategories([...depositCategories, newCategory]);
+          setFormData({ ...formData, contributionType: newCategory.name });
+          setShowAddCategory(false);
+        }}
+      />
     </div>
   );
 };

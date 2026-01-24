@@ -1,8 +1,12 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { DollarSign, Calendar, Tag, CreditCard, FileText, Hash } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import SmartSelect from '../common/SmartSelect';
+import AddItemModal from '../common/AddItemModal';
+import { useSmartFormAction } from '../../hooks/useSmartFormAction';
 
 const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
+  const { handleAddNew } = useSmartFormAction();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     amount: '',
@@ -18,6 +22,8 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [showAddAccount, setShowAddAccount] = useState(false);
 
   useEffect(() => {
     fetchAccounts();
@@ -194,30 +200,22 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
 
         <div className="form-row">
           <div className="form-group">
-            <label htmlFor="category">
-              <Tag size={18} />
-              Expense Category *
-            </label>
-            <select
-              id="category"
+            <SmartSelect
+              label="Expense Category"
+              name="category"
               value={formData.category}
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              options={categories.map(cat => ({
+                id: cat.name || cat.id,
+                name: cat.name,
+              }))}
+              onAddNew={() => setShowAddCategory(true)}
+              addButtonText="Add Expense Category"
+              addButtonType="expense_category"
+              placeholder="Select category or create new..."
               required
-            >
-              <option value="">-- Select Category --</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.name}>
-                  {cat.name}
-                </option>
-              ))}
-              <option value="Utilities">Utilities</option>
-              <option value="Salaries">Salaries</option>
-              <option value="Rent">Rent</option>
-              <option value="Office Supplies">Office Supplies</option>
-              <option value="Marketing">Marketing</option>
-              <option value="Transport">Transport</option>
-              <option value="Other">Other</option>
-            </select>
+              icon={Tag}
+            />
           </div>
 
           <div className="form-group">
@@ -242,22 +240,22 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
         </div>
 
         <div className="form-group">
-          <label htmlFor="accountId">
-            <Tag size={18} />
-            Account (Optional)
-          </label>
-          <select
-            id="accountId"
+          <SmartSelect
+            label="Account (Optional)"
+            name="accountId"
             value={formData.accountId}
             onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-          >
-            <option value="">-- Default Cashbox --</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name} ({account.type}) - Balance: {parseFloat(account.balance).toFixed(2)}
-              </option>
-            ))}
-          </select>
+            options={accounts.map(account => ({
+              id: account.id,
+              name: `${account.name} (${account.type})`,
+            }))}
+            onAddNew={() => setShowAddAccount(true)}
+            addButtonText="Add Bank Account"
+            addButtonType="bank_account"
+            placeholder="Select account or create new..."
+            icon={CreditCard}
+            showAddButton
+          />
         </div>
 
         <div className="form-group">
@@ -313,6 +311,83 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
           </button>
         </div>
       </form>
+
+      {/* Add Expense Category Modal */}
+      <AddItemModal
+        isOpen={showAddCategory}
+        onClose={() => setShowAddCategory(false)}
+        title="Add Expense Category"
+        apiEndpoint={`${API_BASE}/settings/expense-categories`}
+        fields={[
+          {
+            name: 'name',
+            label: 'Category Name',
+            type: 'text',
+            placeholder: 'e.g., Utilities, Rent, Salaries',
+            required: true,
+          },
+          {
+            name: 'description',
+            label: 'Description',
+            type: 'textarea',
+            placeholder: 'Brief description of this category',
+            required: false,
+          },
+        ]}
+        onSuccess={(newCategory) => {
+          // Add new category to list
+          setCategories([...categories, newCategory]);
+          setFormData({ ...formData, category: newCategory.name });
+          setShowAddCategory(false);
+        }}
+      />
+
+      {/* Add Bank Account Modal */}
+      <AddItemModal
+        isOpen={showAddAccount}
+        onClose={() => setShowAddAccount(false)}
+        title="Add Bank Account"
+        apiEndpoint={`${API_BASE}/accounts`}
+        fields={[
+          {
+            name: 'name',
+            label: 'Account Name',
+            type: 'text',
+            placeholder: 'e.g., Main Bank Account',
+            required: true,
+          },
+          {
+            name: 'type',
+            label: 'Account Type',
+            type: 'select',
+            options: [
+              { value: 'bank', label: 'Bank Account' },
+              { value: 'cash', label: 'Cash Box' },
+            ],
+            required: true,
+          },
+          {
+            name: 'accountNumber',
+            label: 'Account Number',
+            type: 'text',
+            placeholder: 'Account number or reference',
+            required: false,
+          },
+          {
+            name: 'bankName',
+            label: 'Bank Name',
+            type: 'text',
+            placeholder: 'Name of the bank',
+            required: false,
+          },
+        ]}
+        onSuccess={(newAccount) => {
+          // Add new account to list
+          setAccounts([...accounts, newAccount]);
+          setFormData({ ...formData, accountId: newAccount.id });
+          setShowAddAccount(false);
+        }}
+      />
     </div>
   );
 };
