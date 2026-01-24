@@ -516,9 +516,13 @@ export class ReportsService {
       _sum: { paidAmount: true },
     });
 
-    const revenue = deposits
-      .filter(d => ['contribution', 'income', 'loan_repayment', 'refund', 'dividend'].includes(d.type))
-      .reduce((s, d) => s + Number(d.amount), 0) + Number(finesPaid._sum.paidAmount || 0);
+      // CRITICAL: Member contributions are LIABILITIES, not revenue!
+      // Only count actual income: fines, interest income, non-member income
+      // Exclude: contributions (liability), loan_repayments (loan reduction), refunds (return of liability), dividends (distribution)
+      const revenue = deposits
+        .filter(d => d.type === 'income') // Only 'income' type (interest, fees, other income)
+        .reduce((s, d) => s + Number(d.amount), 0) + Number(finesPaid._sum.paidAmount || 0);
+    
     const expenses = withdrawals
       .filter(w => w.type === 'expense')
       .reduce((s, w) => s + Number(w.amount), 0);

@@ -416,22 +416,32 @@ export class DepositsService {
       data: { balance: { increment: amount } },
     });
 
-    await this.prisma.account.update({
-      where: { id: creditAccountId },
-      data: { balance: { increment: amount } },
-    });
+      // DO NOT update GL account balances - they are calculated from journal entries
+      // Only real cash/bank accounts need balance tracking
+      const creditAccount = await this.prisma.account.findUnique({
+        where: { id: creditAccountId },
+        select: { name: true, type: true }
+      });
+    
+      const isGLAccount = creditAccount && (
+        creditAccount.name.includes('Received') || 
+        creditAccount.name.includes('Expense') || 
+        creditAccount.name.includes('Payable') ||
+        creditAccount.name.includes('GL Account')
+      );
+    
+      // Only update credit account balance if it's a real cash/bank account (not GL)
+      if (!isGLAccount) {
+        await this.prisma.account.update({
+          where: { id: creditAccountId },
+          data: { balance: { increment: amount } },
+        });
+      }
 
     // Update category ledger if applicable
-    if (depositType === 'contribution') {
-      await this.updateCategoryLedger(
-        'income',
-        'Contributions',
-        amount,
-        depositId,
-        'deposit',
-        description,
-      );
-    } else if (depositType === 'fine') {
+    // NOTE: Contributions are NOT income - they are liabilities (money owed to members)
+    // Only track actual income sources in the category ledger
+    if (depositType === 'fine') {
       await this.updateCategoryLedger('income', 'Fines', amount, depositId, 'deposit', description);
     } else if (depositType === 'income') {
       await this.updateCategoryLedger(
