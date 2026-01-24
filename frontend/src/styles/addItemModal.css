@@ -6,12 +6,12 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2000;
-  padding: 20px;
+  padding: 12px;
   animation: fadeIn 0.2s ease;
 }
 
@@ -26,11 +26,11 @@
 
 .add-item-modal {
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  max-width: 450px;
+  border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+  max-width: 380px;
   width: 100%;
-  max-height: 90vh;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   animation: slideUp 0.3s ease;
@@ -51,14 +51,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px;
+  padding: 12px 16px;
   border-bottom: 1px solid #e5e7eb;
   flex-shrink: 0;
 }
 
 .add-item-modal-header h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
   color: #1f2937;
 }
@@ -68,11 +68,11 @@
   border: none;
   cursor: pointer;
   color: #6b7280;
-  padding: 4px;
+  padding: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 4px;
   transition: all 0.2s ease;
 }
 
@@ -96,33 +96,35 @@
 
 .add-item-modal-error {
   display: flex;
-  gap: 10px;
+  gap: 6px;
   align-items: flex-start;
-  padding: 12px 16px;
+  padding: 10px 12px;
   background: #fee2e2;
   border: 1px solid #fca5a5;
   color: #991b1b;
-  border-radius: 8px;
-  margin: 16px 20px 0;
-  font-size: 13px;
+  border-radius: 6px;
+  margin: 8px 12px 0;
+  font-size: 12px;
 }
 
 .add-item-modal-error svg {
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 1px;
+  width: 16px;
+  height: 16px;
 }
 
 .add-item-modal-fields {
-  padding: 20px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
   flex: 1;
   overflow-y: auto;
 }
 
 .add-item-modal-fields::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .add-item-modal-fields::-webkit-scrollbar-track {
@@ -131,7 +133,7 @@
 
 .add-item-modal-fields::-webkit-scrollbar-thumb {
   background: #d1d5db;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 .add-item-modal-fields::-webkit-scrollbar-thumb:hover {
@@ -141,15 +143,15 @@
 .add-item-modal-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 
 .add-item-modal-label {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   color: #374151;
   display: flex;
-  gap: 4px;
+  gap: 3px;
 }
 
 .add-item-modal-label .required {
@@ -159,10 +161,10 @@
 .add-item-modal-field input,
 .add-item-modal-field select,
 .add-item-modal-field textarea {
-  padding: 10px 12px;
+  padding: 6px 8px;
   border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
+  border-radius: 5px;
+  font-size: 12px;
   font-family: inherit;
   transition: all 0.2s ease;
 }
@@ -172,7 +174,7 @@
 .add-item-modal-field textarea:focus {
   outline: none;
   border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.08);
 }
 
 .add-item-modal-field input:disabled,
@@ -185,25 +187,26 @@
 
 .add-item-modal-footer {
   display: flex;
-  gap: 10px;
-  padding: 16px 20px;
+  gap: 8px;
+  padding: 10px 12px;
   border-top: 1px solid #e5e7eb;
   flex-shrink: 0;
 }
 
 .add-item-modal-btn {
   flex: 1;
-  padding: 10px 16px;
+  padding: 6px 12px;
   border: none;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 5px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .add-item-modal-btn.cancel {
@@ -223,7 +226,7 @@
 
 .add-item-modal-btn.submit:hover:not(:disabled) {
   background: #2563eb;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 
 .add-item-modal-btn:disabled {
@@ -233,6 +236,8 @@
 
 .add-item-modal-btn .spinning {
   animation: spin 1s linear infinite;
+  width: 12px;
+  height: 12px;
 }
 
 @keyframes spin {
@@ -248,26 +253,26 @@
 @media (max-width: 640px) {
   .add-item-modal {
     max-width: 100%;
-    max-height: 80vh;
-    border-radius: 16px 16px 0 0;
+    max-height: 75vh;
+    border-radius: 14px 14px 0 0;
   }
 
   .add-item-modal-header {
-    padding: 16px 20px;
+    padding: 10px 12px;
   }
 
   .add-item-modal-fields {
-    padding: 16px;
-    gap: 12px;
-  }
-
-  .add-item-modal-footer {
-    padding: 12px 16px;
+    padding: 10px;
     gap: 8px;
   }
 
+  .add-item-modal-footer {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
   .add-item-modal-btn {
-    padding: 10px 12px;
-    font-size: 13px;
+    padding: 6px 10px;
+    font-size: 11px;
   }
 }

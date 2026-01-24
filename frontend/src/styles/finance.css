@@ -1,26 +1,26 @@
 .finance-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
 
 .finance-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
 }
 
 .finance-card {
   background: #fff;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
-  padding: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  padding: 12px;
 }
 
 .finance-card h3 {
-  margin: 0 0 6px 0;
-  font-size: 15px;
+  margin: 0 0 4px 0;
+  font-size: 13px;
   font-weight: 600;
   color: #111827;
 }
@@ -28,34 +28,34 @@
 .finance-card p {
   margin: 0;
   color: #4b5563;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .finance-form {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
 }
 
 .finance-form input,
 .finance-form select,
 .finance-form textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 6px 8px;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #f9fafb;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .finance-form textarea {
-  min-height: 70px;
+  min-height: 50px;
 }
 
 .finance-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
@@ -68,15 +68,15 @@
 .finance-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 800px;
+  min-width: 700px;
 }
 
 .finance-table th,
 .finance-table td {
-  padding: 10px;
+  padding: 8px;
   border-bottom: 1px solid #f3f4f6;
   text-align: left;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .finance-table th {
@@ -92,10 +92,10 @@
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 4px;
+  padding: 3px 8px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   background: #eef2ff;
   color: #4338ca;
@@ -117,20 +117,22 @@
 }
 
 .action-btn {
-  padding: 8px 14px;
+  padding: 5px 10px;
   background: #2563eb;
   color: #fff;
   border: none;
-  border-radius: 8px;
-  font-weight: 700;
+  border-radius: 6px;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.16);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12);
   transition: transform 0.15s ease, box-shadow 0.2s ease;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .action-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
 }
 
 .action-btn.secondary {
@@ -146,34 +148,35 @@
 .tag {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 4px;
+  padding: 3px 8px;
   background: #f3f4f6;
   border-radius: 999px;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 11px;
   color: #1f2937;
 }
 
 .filters-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 .filters-row input,
 .filters-row select {
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
   border: 1px solid #e5e7eb;
   background: #fff;
+  font-size: 12px;
 }
 
 .action-stack {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
 }
 

@@ -11,67 +11,70 @@
 }
 
 .dashboard {
-  padding: 20px;
+  padding: 8px;
   min-width: 0;
 }
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
   width: 100%;
 }
 
 .metric-card {
   background: #fff;
-  padding: 15px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  padding: 10px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
 }
 
 .metric-card h3 {
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   color: #666;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+  font-weight: 600;
 }
 
 .metric-card h2 {
-  font-size: 1.3rem;
+  font-size: 1.1rem;
   margin: 0;
+  font-weight: 700;
 }
 
 .balance-dist div {
-  font-size: 0.85rem;
-  margin-top: 4px;
+  font-size: 0.75rem;
+  margin-top: 3px;
 }
 
 .members-summary {
   display: flex;
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: 8px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
 }
 
 .members-summary .stat {
   background: #fff;
-  padding: 15px;
+  padding: 10px;
   flex: 1;
+  min-width: 140px;
   text-align: center;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
 }
 
 .members-summary .stat h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
 }
 
 .section-card {
   background: #fff;
-  padding: 15px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  padding: 10px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
 }
 
 .chart-container {
@@ -81,20 +84,22 @@
 
 @media (max-width: 640px) {
   .dashboard {
-    padding: 8px;
+    padding: 4px;
   }
   .metrics-grid {
-    gap: 8px;
+    gap: 4px;
+    margin-bottom: 4px;
   }
   .metric-card {
-    padding: 8px;
-    font-size: 0.95rem;
+    padding: 6px;
+    font-size: 0.9rem;
   }
   .members-summary {
-    gap: 8px;
+    gap: 4px;
+    margin-bottom: 4px;
   }
   .section-card {
-    padding: 8px;
+    padding: 6px;
   }
 }
 
