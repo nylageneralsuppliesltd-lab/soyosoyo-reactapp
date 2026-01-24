@@ -187,8 +187,13 @@ export default function MemberForm({ member = null, goBack }) {
   ];
 
   return (
-    <div className="form-card">
-      <h1>{member ? 'Edit Member' : 'Register New Member'}</h1>
+    <div className="member-form-container">
+      <div className="form-header">
+        <div>
+          <h1>{member ? 'Edit Member' : 'Register New Member'}</h1>
+          <p className="form-subtitle">{member ? 'Update member details and information' : 'Add a new member to the SACCO'}</p>
+        </div>
+      </div>
 
       {submitMessage && (
         <div className={`alert alert-${submitMessage.type}`}>{submitMessage.text}</div>
@@ -196,79 +201,75 @@ export default function MemberForm({ member = null, goBack }) {
 
       {errors.nominees && <div className="alert alert-error">{errors.nominees}</div>}
 
-      <form onSubmit={handleSubmit}>
-        {formSections.map((section) => (
-          <div key={section.title}>
-            <h3 style={{ marginTop: '20px', marginBottom: '12px', fontSize: '16px', color: '#1f2937' }}>
-              {section.title}
-            </h3>
+      <form onSubmit={handleSubmit} className="member-form">
+        {formSections.map((section, sectionIdx) => (
+          <div key={section.title} className="form-section">
+            <h2 className="section-title">{section.title}</h2>
+            <div className="form-grid">
+              {section.fields.map((fieldConfig) => (
+                <div key={fieldConfig.key} className="form-field">
+                  <label htmlFor={fieldConfig.key}>
+                    {fieldConfig.label}
+                    {fieldConfig.required && <span className="required">*</span>}
+                  </label>
 
-            {section.fields.map((fieldConfig) => (
-              <div key={fieldConfig.key} className="form-group">
-                <label>
-                  {fieldConfig.label}
-                  {fieldConfig.required && <span style={{ color: '#ef4444' }}>*</span>}
-                </label>
+                  {fieldConfig.type === 'select' ? (
+                    <select
+                      id={fieldConfig.key}
+                      className={`form-input ${errors[fieldConfig.key] ? 'error' : ''}`}
+                      value={form[fieldConfig.key]}
+                      onChange={(e) => handleChange(fieldConfig.key, e.target.value)}
+                      required={fieldConfig.required}
+                    >
+                      <option value="">Select {fieldConfig.label}</option>
+                      {fieldConfig.options.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      id={fieldConfig.key}
+                      type={fieldConfig.type}
+                      className={`form-input ${errors[fieldConfig.key] ? 'error' : ''}`}
+                      placeholder={fieldConfig.label}
+                      value={form[fieldConfig.key]}
+                      onChange={(e) => handleChange(fieldConfig.key, e.target.value)}
+                      required={fieldConfig.required}
+                    />
+                  )}
 
-                {fieldConfig.type === 'select' ? (
-                  <select
-                    className={`input ${errors[fieldConfig.key] ? 'error' : ''}`}
-                    value={form[fieldConfig.key]}
-                    onChange={(e) => handleChange(fieldConfig.key, e.target.value)}
-                    required={fieldConfig.required}
-                  >
-                    <option value="">Select {fieldConfig.label}</option>
-                    {fieldConfig.options.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type={fieldConfig.type}
-                    className={`input ${errors[fieldConfig.key] ? 'error' : ''}`}
-                    placeholder={fieldConfig.label}
-                    value={form[fieldConfig.key]}
-                    onChange={(e) => handleChange(fieldConfig.key, e.target.value)}
-                    required={fieldConfig.required}
-                  />
-                )}
-
-                {errors[fieldConfig.key] && (
-                  <small style={{ color: '#dc2626', marginTop: '4px', display: 'block' }}>
-                    {errors[fieldConfig.key]}
-                  </small>
-                )}
-              </div>
-            ))}
+                  {errors[fieldConfig.key] && (
+                    <span className="field-error">{errors[fieldConfig.key]}</span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         ))}
 
-        {/* Nominees Section */}
-        <div>
-          <h3 style={{ marginTop: '20px', marginBottom: '12px', fontSize: '16px', color: '#1f2937' }}>
-            Next of Kin (Optional)
-          </h3>
+        {/* Nominees Section - Collapsible */}
+        <div className="form-section nominees-section">
+          <h2 className="section-title">Next of Kin / Nominees (Optional)</h2>
+          <p className="section-subtitle">Add up to 3 nominees. Share percentages must total 100%</p>
           <NomineeInputs nominees={nominees} setNominees={setNominees} />
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: '12px', marginTop: '24px', flexWrap: 'wrap' }}>
+        <div className="form-actions">
           <button
             type="submit"
-            className="submit-btn"
+            className="btn-primary-large"
             disabled={loading}
-            style={{ flex: 1, minWidth: '120px', opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
           >
             {loading ? '⏳ Processing...' : member ? '✓ Update Member' : '✓ Register Member'}
           </button>
           <button
             type="button"
-            className="submit-btn"
+            className="btn-secondary-large"
             onClick={goBack}
             disabled={loading}
-            style={{ flex: 1, minWidth: '120px', background: '#6b7280', opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
           >
             ← Back
           </button>
