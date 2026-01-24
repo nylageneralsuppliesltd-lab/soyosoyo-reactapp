@@ -233,7 +233,35 @@ export class LoansController {
     @Body() data: any,
   ) {
     try {
-      const result = await this.loansService.update(parseInt(id), data);
+      const parsedId = parseInt(id);
+      if (isNaN(parsedId)) throw new BadRequestException('Invalid loan ID');
+
+      // Normalize payload
+      if (data.amount !== undefined && typeof data.amount === 'string') data.amount = parseFloat(data.amount);
+      if (data.principal !== undefined && typeof data.principal === 'string') data.principal = parseFloat(data.principal);
+      if (data.interestRate !== undefined && typeof data.interestRate === 'string') data.interestRate = parseFloat(data.interestRate);
+      if (data.tenureMonths !== undefined && typeof data.tenureMonths === 'string') data.tenureMonths = parseInt(data.tenureMonths);
+      if (data.memberId !== undefined) {
+        data.memberId = data.memberId === null ? null : parseInt(data.memberId);
+        if (data.memberId !== null && isNaN(data.memberId)) throw new BadRequestException('Invalid memberId');
+      }
+      if (data.loanTypeId !== undefined) {
+        data.loanTypeId = data.loanTypeId === null ? null : parseInt(data.loanTypeId);
+        if (data.loanTypeId !== null && isNaN(data.loanTypeId)) throw new BadRequestException('Invalid loanTypeId');
+      }
+      if (data.startDate && typeof data.startDate === 'string') {
+        const d = new Date(data.startDate); if (isNaN(d.getTime())) throw new BadRequestException('Invalid startDate');
+        data.startDate = d;
+      }
+      if (data.endDate && typeof data.endDate === 'string') {
+        const d = new Date(data.endDate); if (isNaN(d.getTime())) throw new BadRequestException('Invalid endDate');
+        data.endDate = d;
+      }
+      if (data.description) data.description = String(data.description).trim();
+      if (data.reference) data.reference = String(data.reference).trim();
+      if (data.status) data.status = String(data.status).trim();
+
+      const result = await this.loansService.update(parsedId, data);
       return { success: true, data: result };
     } catch (error) {
       throw new HttpException(

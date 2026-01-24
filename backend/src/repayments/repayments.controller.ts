@@ -9,6 +9,7 @@ import {
   Query,
   HttpException,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { RepaymentsService } from './repayments.service';
 
@@ -98,7 +99,34 @@ export class RepaymentsController {
     @Param('id') id: string,
     @Body() data: any,
   ) {
-    return this.repaymentsService.update(parseInt(id), data);
+    const parsedId = parseInt(id);
+    if (isNaN(parsedId)) throw new BadRequestException('Invalid repayment ID');
+
+    // Normalize payload
+    if (data.amount !== undefined && typeof data.amount === 'string') data.amount = parseFloat(data.amount);
+    if (data.penalty !== undefined && typeof data.penalty === 'string') data.penalty = parseFloat(data.penalty);
+    if (data.interestPortion !== undefined && typeof data.interestPortion === 'string') data.interestPortion = parseFloat(data.interestPortion);
+    if (data.principalPortion !== undefined && typeof data.principalPortion === 'string') data.principalPortion = parseFloat(data.principalPortion);
+    if (data.loanId !== undefined) {
+      data.loanId = data.loanId === null ? null : parseInt(data.loanId);
+      if (data.loanId !== null && isNaN(data.loanId)) throw new BadRequestException('Invalid loanId');
+    }
+    if (data.accountId !== undefined) {
+      data.accountId = data.accountId === null ? null : parseInt(data.accountId);
+      if (data.accountId !== null && isNaN(data.accountId)) throw new BadRequestException('Invalid accountId');
+    }
+    if (data.memberId !== undefined) {
+      data.memberId = data.memberId === null ? null : parseInt(data.memberId);
+      if (data.memberId !== null && isNaN(data.memberId)) throw new BadRequestException('Invalid memberId');
+    }
+    if (data.date && typeof data.date === 'string') {
+      const d = new Date(data.date); if (isNaN(d.getTime())) throw new BadRequestException('Invalid date');
+      data.date = d;
+    }
+    if (data.description) data.description = String(data.description).trim();
+    if (data.reference) data.reference = String(data.reference).trim();
+    if (data.narration) data.narration = String(data.narration).trim();
+    return this.repaymentsService.update(parsedId, data);
   }
 
   @Delete(':id')
