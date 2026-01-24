@@ -600,15 +600,11 @@ export class ReportsService {
     // Sort by account name for consistency
     rowsOut.sort((a, b) => a.accountName.localeCompare(b.accountName));
 
-    // Calculate running balances
-    let runningBalance = 0;
-    const rowsWithRunning = rowsOut.map(row => {
-      runningBalance += row.balance;
-      return {
-        ...row,
-        runningBalance: Number(runningBalance.toFixed(2)),
-      };
-    });
+    // Running balance per account = its own balance (not cumulative across accounts)
+    const rowsWithRunning = rowsOut.map(row => ({
+      ...row,
+      runningBalance: row.balance,
+    }));
 
     // Calculate totals
     const totals = rowsWithRunning.reduce(
@@ -632,7 +628,7 @@ export class ReportsService {
         totalMoneyIn: Number(totals.totalMoneyIn.toFixed(2)),
         totalMoneyOut: Number(totals.totalMoneyOut.toFixed(2)),
         netFlow: Number((totals.totalMoneyIn - totals.totalMoneyOut).toFixed(2)),
-        finalRunningBalance: Number(runningBalance.toFixed(2)),
+        finalRunningBalance: Number(totals.balance.toFixed(2)),
         count: totals.count,
       },
     };

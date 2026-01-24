@@ -1,9 +1,29 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class LoansService {
   constructor(private prisma: PrismaService) {}
+
+  private async ensureAccountByName(
+    name: string,
+    type: string,
+    description?: string,
+  ): Promise<{ id: number; name: string }> {
+    const existing = await this.prisma.account.findFirst({ where: { name } });
+    if (existing) return existing;
+
+    return this.prisma.account.create({
+      data: {
+        name,
+        type: type as any,
+        description: description ?? null,
+        currency: 'KES',
+        balance: new Prisma.Decimal(0),
+      },
+    });
+  }
 
   private normalizeStatus(status?: string) {
     const value = (status || '').toString().toLowerCase();
@@ -49,10 +69,61 @@ export class LoansService {
         throw new BadRequestException('Member name, bank name, or external borrower name is required');
       }
 
-      return this.prisma.loan.create({ 
+      const amountDecimal = new Prisma.Decimal(amount);
+
+      // Create the loan record
+      const loan = await this.prisma.loan.create({ 
         data: loanData as any,
         include: { member: true, loanType: true },
       });
+
+      // Sync to journal and account (only for outward loans when disbursed)
+      if (loanData.loanDirection === 'outward' && loan.status !== 'pending') {
+        // Get or create loan disbursement account
+        const loanAccount = await this.ensureAccountByName(
+          'Loans Disbursed',
+          'bank',
+          'GL account for loan disbursements'
+        );
+
+        // Get cash account
+        const cashAccount = await this.ensureAccountByName(
+          'Cashbox',
+          'cash',
+          'Default cash account'
+        );
+
+        // Create journal entry: Debit Loans Disbursed, Credit Cash
+        await this.prisma.journalEntry.create({
+          data: {
+            date: loanData.disbursementDate,
+            reference: `LOAN-${loan.id}`,
+            description: `Loan disbursement - ${loanData.memberName}`,
+            narration: loanData.purpose || null,
+            debitAccountId: loanAccount.id,
+            debitAmount: amountDecimal,
+            creditAccountId: cashAccount.id,
+            creditAmount: amountDecimal,
+            category: 'loan_disbursement',
+          },
+        });
+
+        // Update cash account balance (decrement)
+        await this.prisma.account.update({
+          where: { id: cashAccount.id },
+          data: { balance: { decrement: amountDecimal } },
+        });
+      }
+
+      // Update member loan balance if applicable
+      if (loanData.memberId) {
+        await this.prisma.member.update({
+          where: { id: loanData.memberId },
+          data: { loanBalance: { increment: amount } },
+        });
+      }
+
+      return loan;
     } catch (error) {
       console.error('Loan creation error:', error);
       throw error;
@@ -144,11 +215,55 @@ export class LoansService {
       Object.entries(updateData).filter(([, value]) => value !== undefined),
     );
 
-    return this.prisma.loan.update({
+    // Handle balance changes (if status changed or amount changed)
+    if (data.status && data.status !== loan.status) {
+      const newStatus = this.normalizeStatus(data.status);
+      const amountDecimal = new Prisma.Decimal(loan.amount);
+
+      // If transitioning to active/disbursed, sync to accounts
+      if ((newStatus === 'active' || newStatus === 'closed') && loan.status === 'pending') {
+        const loanAccount = await this.ensureAccountByName(
+          'Loans Disbursed',
+          'bank',
+          'GL account for loan disbursements'
+        );
+
+        const cashAccount = await this.ensureAccountByName(
+          'Cashbox',
+          'cash',
+          'Default cash account'
+        );
+
+        // Create journal entry
+        await this.prisma.journalEntry.create({
+          data: {
+            date: loan.disbursementDate || new Date(),
+            reference: `LOAN-${loan.id}`,
+            description: `Loan disbursement - ${loan.memberName}`,
+            narration: loan.purpose || null,
+            debitAccountId: loanAccount.id,
+            debitAmount: amountDecimal,
+            creditAccountId: cashAccount.id,
+            creditAmount: amountDecimal,
+            category: 'loan_disbursement',
+          },
+        });
+
+        // Update cash account
+        await this.prisma.account.update({
+          where: { id: cashAccount.id },
+          data: { balance: { decrement: amountDecimal } },
+        });
+      }
+    }
+
+    const updatedLoan = await this.prisma.loan.update({
       where: { id },
       data: cleanedUpdate,
       include: { member: true, repayments: true, loanType: true },
     });
+
+    return updatedLoan;
   }
 
   async remove(id: number) {

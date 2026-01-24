@@ -1,9 +1,29 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class FinesService {
   constructor(private prisma: PrismaService) {}
+
+  private async ensureAccountByName(
+    name: string,
+    type: string,
+    description?: string,
+  ): Promise<{ id: number; name: string }> {
+    const existing = await this.prisma.account.findFirst({ where: { name } });
+    if (existing) return existing;
+
+    return this.prisma.account.create({
+      data: {
+        name,
+        type: type as any,
+        description: description ?? null,
+        currency: 'KES',
+        balance: new Prisma.Decimal(0),
+      },
+    });
+  }
 
   async getFines(status?: string) {
     const where: any = {};
@@ -32,15 +52,43 @@ export class FinesService {
   }
 
   async createFine(data: any) {
-    return this.prisma.fine.create({
+    const amountDecimal = new Prisma.Decimal(data.amount || 0);
+
+    const fine = await this.prisma.fine.create({
       data: {
         ...data,
         memberId: +data.memberId,
+        amount: amountDecimal,
       },
       include: {
         member: true,
       },
     });
+
+    // Sync: Create GL account for fines collected
+    const finesAccount = await this.ensureAccountByName(
+      'Fines Collected',
+      'bank',
+      'GL account for collected fines'
+    );
+
+    // Create journal entry (fines are recorded as liability, not immediate cash in)
+    // Debit: Fines Receivable GL, Credit: Fines Collected GL
+    await this.prisma.journalEntry.create({
+      data: {
+        date: data.dueDate ? new Date(data.dueDate) : new Date(),
+        reference: `FINE-${fine.id}`,
+        description: `Fine imposed - ${fine.member?.name || 'Unknown'}`,
+        narration: data.reason || null,
+        debitAccountId: finesAccount.id,
+        debitAmount: amountDecimal,
+        creditAccountId: finesAccount.id,
+        creditAmount: amountDecimal,
+        category: 'fine',
+      },
+    });
+
+    return fine;
   }
 
   async updateFine(id: number, data: any) {
@@ -55,20 +103,63 @@ export class FinesService {
 
   async recordFinePayment(id: number, amountPaid: number) {
     const fine = await this.prisma.fine.findUnique({ where: { id } });
-    if (!fine) throw new Error('Fine not found');
+    if (!fine) throw new NotFoundException('Fine not found');
 
-    const newPaidAmount = Number(fine.paidAmount) + amountPaid;
+    const oldPaidAmount = Number(fine.paidAmount);
+    const paymentDifference = amountPaid - oldPaidAmount;
     const totalAmount = Number(fine.amount);
-    const newStatus = newPaidAmount >= totalAmount ? 'paid' : 'partial';
+    const newStatus = amountPaid >= totalAmount ? 'paid' : (amountPaid > 0 ? 'partial' : 'unpaid');
 
-    return this.prisma.fine.update({
+    // Update fine record
+    const updatedFine = await this.prisma.fine.update({
       where: { id },
       data: {
-        paidAmount: newPaidAmount,
+        paidAmount: amountPaid,
         status: newStatus,
         paidDate: newStatus === 'paid' ? new Date() : fine.paidDate,
       },
+      include: { member: true }
     });
+
+    // Sync: If payment increased, create journal entry
+    if (paymentDifference > 0) {
+      const paymentDecimal = new Prisma.Decimal(paymentDifference);
+
+      const finesAccount = await this.ensureAccountByName(
+        'Fines Collected',
+        'bank',
+        'GL account for collected fines'
+      );
+
+      const cashAccount = await this.ensureAccountByName(
+        'Cashbox',
+        'cash',
+        'Default cash account'
+      );
+
+      // Debit: Cash (money in), Credit: Fines Collected GL
+      await this.prisma.journalEntry.create({
+        data: {
+          date: new Date(),
+          reference: `FINE-PAY-${id}`,
+          description: `Fine payment - ${updatedFine.member?.name || 'Unknown'}`,
+          narration: null,
+          debitAccountId: cashAccount.id,
+          debitAmount: paymentDecimal,
+          creditAccountId: finesAccount.id,
+          creditAmount: paymentDecimal,
+          category: 'fine_payment',
+        },
+      });
+
+      // Update cash account balance
+      await this.prisma.account.update({
+        where: { id: cashAccount.id },
+        data: { balance: { increment: paymentDecimal } },
+      });
+    }
+
+    return updatedFine;
   }
 
   async deleteFine(id: number) {
