@@ -419,8 +419,8 @@ export class ReportsService {
       const rows = [];
 
       for (const entry of entries) {
-        let moneyIn = 0;
-        let moneyOut = 0;
+        let moneyIn = null;
+        let moneyOut = null;
         let fullDescription = '';
 
         // Try to enrich with deposit/withdrawal data
@@ -453,8 +453,8 @@ export class ReportsService {
           date: entry.date,
           reference: entry.reference || '-',
           description: fullDescription,
-          moneyIn: moneyIn > 0 ? moneyIn : null,
-          moneyOut: moneyOut > 0 ? moneyOut : null,
+          moneyIn: moneyIn,
+          moneyOut: moneyOut,
           runningBalance: Number(balance.toFixed(2)),
         });
       }
@@ -580,15 +580,6 @@ export class ReportsService {
         } else {
           fullDescription = `${entry.creditAccount?.name || 'Source'} - ${entry.description}`;
         }
-
-        rows.push({
-          date: entry.date,
-          reference: entry.reference || '-',
-          description: fullDescription,
-          moneyIn,
-          moneyOut: null,
-          runningBalance: Number(runningBalance.toFixed(2)),
-        });
       } else if (creditIsBankAccount && !debitIsBankAccount) {
         // Money OUT of a bank account
         moneyOut = Number(entry.creditAmount);
@@ -599,15 +590,6 @@ export class ReportsService {
         } else {
           fullDescription = `${entry.debitAccount?.name || 'Destination'} - ${entry.description}`;
         }
-
-        rows.push({
-          date: entry.date,
-          reference: entry.reference || '-',
-          description: fullDescription,
-          moneyIn: null,
-          moneyOut,
-          runningBalance: Number(runningBalance.toFixed(2)),
-        });
       } else if (debitIsBankAccount && creditIsBankAccount) {
         // Transfer between bank accounts
         moneyOut = Number(entry.creditAmount);
@@ -616,13 +598,16 @@ export class ReportsService {
         runningBalance += netTransfer;
         
         fullDescription = `Transfer: ${entry.creditAccount?.name} to ${entry.debitAccount?.name}`;
+      }
 
+      // Only add rows that have money in or money out
+      if (moneyIn !== null || moneyOut !== null) {
         rows.push({
           date: entry.date,
           reference: entry.reference || '-',
           description: fullDescription,
-          moneyIn,
-          moneyOut,
+          moneyIn: moneyIn,
+          moneyOut: moneyOut,
           runningBalance: Number(runningBalance.toFixed(2)),
         });
       }
