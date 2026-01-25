@@ -20,6 +20,12 @@ async function bootstrap() {
   // Align backend routes with frontend expectations
   app.setGlobalPrefix('api');
 
+  // Respond to root health probes that use GET/HEAD on '/'
+  const httpAdapter = app.getHttpAdapter();
+  const instance: any = httpAdapter.getInstance();
+  instance.get('/', (_req: any, res: any) => res.status(200).send({ status: 'ok' }));
+  instance.head('/', (_req: any, res: any) => res.status(200).end());
+
   // Enhanced error diagnostics for Prisma
   app.useGlobalFilters(new PrismaExceptionFilter());
 

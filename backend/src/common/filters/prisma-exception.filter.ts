@@ -2,7 +2,11 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus, Logger } from '@nest
 import { Response } from 'express';
 import { Prisma } from '@prisma/client';
 
-@Catch()
+@Catch(
+  Prisma.PrismaClientKnownRequestError,
+  Prisma.PrismaClientInitializationError,
+  Prisma.PrismaClientRustPanicError,
+)
 export class PrismaExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(PrismaExceptionFilter.name);
 
