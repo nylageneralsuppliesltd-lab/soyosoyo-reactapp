@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "prisma generate && prisma generate --config prisma.audit.config.ts && nest build",
-    "start": "prisma migrate deploy && prisma migrate deploy --config prisma.audit.config.ts && prisma generate && prisma generate --config prisma.audit.config.ts && node dist/main.js",
+    "start": "prisma migrate status && prisma migrate deploy && prisma migrate status && prisma migrate deploy --config prisma.audit.config.ts && prisma generate && prisma generate --config prisma.audit.config.ts && node dist/main.js",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "start:dev": "dotenv -e .env -- nest start --watch",
     "prisma:generate:audit": "dotenv -e .env -- prisma generate --config prisma.audit.config.ts",
