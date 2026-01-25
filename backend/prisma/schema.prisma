@@ -120,7 +120,6 @@ model Ledger {
 
   @@index([memberInvoiceId])
 }
-
 // ============== SETTINGS & CONFIGURATION ==============
 model ContributionType {
   id                  Int       @id @default(autoincrement())
