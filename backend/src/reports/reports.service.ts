@@ -118,12 +118,36 @@ export class ReportsService {
     }
 
     if (format === 'pdf') {
-      const stream = this.toPdf(key, result.rows);
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename=${key}.pdf`);
-      stream.pipe(res);
-      stream.end();
-      return;
+      return new Promise((resolve, reject) => {
+        try {
+          const doc = this.toPdf(key, result.rows);
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="${key}.pdf"`);
+          
+          // Pipe the PDF to the response
+          doc.pipe(res);
+          
+          // Handle completion
+          doc.on('end', () => {
+            res.end();
+            resolve({});
+          });
+          
+          // Handle errors
+          doc.on('error', (err) => {
+            reject(err);
+          });
+          
+          res.on('error', (err) => {
+            reject(err);
+          });
+          
+          // Finalize the PDF
+          doc.end();
+        } catch (error) {
+          reject(error);
+        }
+      });
     }
 
     throw new BadRequestException('Unsupported format');
@@ -1469,20 +1493,54 @@ export class ReportsService {
 
   private toPdf(title: string, rows: any[]) {
     const doc = new PDFDocument({ margin: 40, size: 'A4' });
-    doc.fontSize(14).text(title, { underline: true });
-    doc.moveDown();
+    
+    // Add title
+    doc.fontSize(16).font('Helvetica-Bold').text(title, { align: 'center' });
+    doc.moveDown(0.5);
+    
+    // Add metadata
+    doc.fontSize(10).font('Helvetica').text(`Generated: ${new Date().toLocaleString()}`, { align: 'left' });
+    doc.moveDown(1);
+    
     if (!rows || rows.length === 0) {
-      doc.text('No data');
+      doc.fontSize(12).text('No data available', { align: 'center' });
       return doc;
     }
+    
+    // Get headers and determine column widths
     const headers = Object.keys(rows[0]);
-    doc.fontSize(10);
-    doc.text(headers.join(' | '));
-    doc.moveDown(0.5);
-    rows.forEach(r => {
-      const line = headers.map(h => (r[h] === null || r[h] === undefined ? '' : String(r[h]))).join(' | ');
-      doc.text(line);
+    const pageWidth = doc.page.width - 80; // Account for margins
+    const columnWidth = pageWidth / headers.length;
+    
+    // Draw header row
+    doc.fontSize(9).font('Helvetica-Bold');
+    let x = 40;
+    headers.forEach(header => {
+      doc.text(header.toUpperCase(), x, doc.y, { width: columnWidth, align: 'left' });
+      x += columnWidth;
     });
+    
+    doc.moveDown();
+    doc.moveTo(40, doc.y).lineTo(doc.page.width - 40, doc.y).stroke();
+    doc.moveDown(0.3);
+    
+    // Draw data rows
+    doc.fontSize(8).font('Helvetica');
+    rows.forEach(r => {
+      let x = 40;
+      headers.forEach(h => {
+        const value = r[h] === null || r[h] === undefined ? '-' : String(r[h]);
+        doc.text(value, x, doc.y, { width: columnWidth, align: 'left' });
+        x += columnWidth;
+      });
+      doc.moveDown();
+      
+      // Check if we need a new page
+      if (doc.y > doc.page.height - 50) {
+        doc.addPage();
+      }
+    });
+    
     return doc;
   }
 }
