@@ -16,8 +16,12 @@ const AccountStatementPage = () => {
 
   useEffect(() => {
     fetchAccounts();
-    fetchStatement(''); // Show all accounts by default
   }, []);
+
+  useEffect(() => {
+    // Fetch statement whenever account, date range changes
+    fetchStatement(selectedAccount);
+  }, [selectedAccount, startDate, endDate]);
 
   const fetchAccounts = async () => {
     try {
@@ -140,12 +144,12 @@ const AccountStatementPage = () => {
               value={selectedAccount}
               onChange={(e) => {
                 const value = e.target.value;
-                setSelectedAccount(value === '' ? '' : value);
+                setSelectedAccount(value);
               }}
             >
               <option value="">All Bank Accounts (Combined)</option>
               {accounts.map(acc => (
-                <option key={acc.id} value={acc.id}>
+                <option key={acc.id} value={String(acc.id)}>
                   {acc.name} ({acc.type})
                 </option>
               ))}
