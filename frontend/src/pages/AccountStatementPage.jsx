@@ -25,9 +25,13 @@ const AccountStatementPage = () => {
       if (response.ok) {
         const data = await response.json();
         const accountsList = Array.isArray(data) ? data : (data.data || []);
-        // Filter to only real accounts (not GL accounts)
-        const realAccounts = accountsList.filter(a => !a.isGlAccount);
-        setAccounts(realAccounts);
+        // Filter to only BANK accounts (cash, bank, mobile money, petty cash - not GL accounts)
+        const bankAccounts = accountsList.filter(a => 
+          ['cash', 'bank', 'mobileMoney', 'pettyCash'].includes(a.type) && 
+          !a.name.includes('GL:') && 
+          !a.name.includes('General Ledger')
+        );
+        setAccounts(bankAccounts);
         setSelectedAccount('');
       }
     } catch (err) {
@@ -101,14 +105,14 @@ const AccountStatementPage = () => {
   return (
     <div className="account-statement-page">
       <ReportHeader
-        title="Account Statement"
-        subtitle={selectedAccount ? `Account: ${selectedAccount} • ${startDate} to ${endDate}` : `${startDate} to ${endDate}`}
+        title="Bank Account Statement"
+        subtitle={selectedAccount ? `Account: ${selectedAccountData?.name} • ${startDate} to ${endDate}` : `All Bank Accounts • ${startDate} to ${endDate}`}
       />
       <div className="statement-header-section">
         <div className="header-top">
           <div>
-            <h1>Account Statement</h1>
-            <p>View detailed transaction history with running balances</p>
+            <h1>Bank Account Statement</h1>
+            <p>View bank transactions with debits, credits, and running balances</p>
           </div>
           <div className="header-actions">
             <button className="btn-action" onClick={handlePrint} title="Print Statement">
@@ -131,15 +135,15 @@ const AccountStatementPage = () => {
 
         <div className="filters-section">
           <div className="filter-group">
-            <label>Account</label>
+            <label>Bank Account</label>
             <select
               value={selectedAccount}
               onChange={(e) => {
                 const value = e.target.value;
-                setSelectedAccount(value === '' ? '' : Number(value));
+                setSelectedAccount(value === '' ? '' : value);
               }}
             >
-              <option value="">All Accounts</option>
+              <option value="">All Bank Accounts (Combined)</option>
               {accounts.map(acc => (
                 <option key={acc.id} value={acc.id}>
                   {acc.name} ({acc.type})
@@ -216,26 +220,26 @@ const AccountStatementPage = () => {
                       <th className="col-ref">Reference</th>
                       <th className="col-desc">Description</th>
                       <th className="col-opposite">Opposite Account</th>
-                      <th className="col-debit">Money Out (KES)</th>
-                      <th className="col-credit">Money In (KES)</th>
+                      <th className="col-debit">Debit (KES)</th>
+                      <th className="col-credit">Credit (KES)</th>
                       <th className="col-balance">Balance (KES)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {statement.rows.map((row, idx) => (
-                      <tr key={idx} className={row.debit ? 'debit-row' : 'credit-row'}>
+                      <tr key={idx} className={row.credit ? 'credit-row' : 'debit-row'}>
                         <td className="col-date">{formatDate(row.date)}</td>
                         <td className="col-ref">{row.reference || '-'}</td>
                         <td className="col-desc">{row.description || '-'}</td>
                         <td className="col-opposite">{row.oppositeAccount || '-'}</td>
                         <td className="col-debit amount">
-                          {row.moneyOut ? formatCurrency(row.moneyOut) : '-'}
+                          {row.debit ? formatCurrency(row.debit) : '-'}
                         </td>
                         <td className="col-credit amount">
-                          {row.moneyIn ? formatCurrency(row.moneyIn) : '-'}
+                          {row.credit ? formatCurrency(row.credit) : '-'}
                         </td>
                         <td className="col-balance amount balance-cell">
-                          {formatCurrency(row.runningBalance)}
+                          {formatCurrency(row.balance)}
                         </td>
                       </tr>
                     ))}
@@ -248,24 +252,22 @@ const AccountStatementPage = () => {
                       <th className="col-date">Date</th>
                       <th className="col-ref">Reference</th>
                       <th className="col-desc">Description</th>
-                      <th className="col-opposite">Debit Account</th>
-                      <th className="col-opposite">Credit Account</th>
+                      <th className="col-opposite">Bank Account</th>
+                      <th className="col-opposite">Opposite Account</th>
                       <th className="col-debit">Debit (KES)</th>
                       <th className="col-credit">Credit (KES)</th>
-                      <th className="col-desc">Category</th>
                     </tr>
                   </thead>
                   <tbody>
                     {statement.rows.map((row, idx) => (
-                      <tr key={idx}>
+                      <tr key={idx} className={row.credit ? 'credit-row' : 'debit-row'}>
                         <td className="col-date">{formatDate(row.date)}</td>
                         <td className="col-ref">{row.reference || '-'}</td>
                         <td className="col-desc">{row.description || '-'}</td>
-                        <td className="col-opposite">{row.debitAccount || '-'}</td>
-                        <td className="col-opposite">{row.creditAccount || '-'}</td>
-                        <td className="col-debit amount">{formatCurrency(row.debitAmount)}</td>
-                        <td className="col-credit amount">{formatCurrency(row.creditAmount)}</td>
-                        <td className="col-desc">{row.category || '-'}</td>
+                        <td className="col-opposite">{row.bankAccount || '-'}</td>
+                        <td className="col-opposite">{row.oppositeAccount || '-'}</td>
+                        <td className="col-debit amount">{row.debit ? formatCurrency(row.debit) : '-'}</td>
+                        <td className="col-credit amount">{row.credit ? formatCurrency(row.credit) : '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -285,12 +287,18 @@ const AccountStatementPage = () => {
                 {isSingleAccount ? (
                   <>
                     <div className="summary-item">
-                      <span className="label">Total Money Out:</span>
-                      <span className="value debit">{formatCurrency(statement.meta.totalMoneyOut)}</span>
+                      <span className="label">Opening Balance:</span>
+                      <span className={`value ${statement.meta.openingBalance >= 0 ? 'positive' : 'negative'}`}>
+                        {formatCurrency(statement.meta.openingBalance)}
+                      </span>
                     </div>
                     <div className="summary-item">
-                      <span className="label">Total Money In:</span>
-                      <span className="value credit">{formatCurrency(statement.meta.totalMoneyIn)}</span>
+                      <span className="label">Total Debit (Money In):</span>
+                      <span className="value debit">{formatCurrency(statement.meta.totalDebit)}</span>
+                    </div>
+                    <div className="summary-item">
+                      <span className="label">Total Credit (Money Out):</span>
+                      <span className="value credit">{formatCurrency(statement.meta.totalCredit)}</span>
                     </div>
                     <div className="summary-item">
                       <span className="label">Net Change:</span>
@@ -300,23 +308,29 @@ const AccountStatementPage = () => {
                     </div>
                     <div className="summary-item highlight">
                       <span className="label">Closing Balance:</span>
-                      <span className={`value balance ${(statement.meta.closingBalance ?? statement.meta.runningBalance ?? 0) >= 0 ? 'positive' : 'negative'}`}>
-                        {formatCurrency(statement.meta.closingBalance ?? statement.meta.runningBalance)}
+                      <span className={`value balance ${statement.meta.closingBalance >= 0 ? 'positive' : 'negative'}`}>
+                        {formatCurrency(statement.meta.closingBalance)}
                       </span>
                     </div>
                   </>
                 ) : (
                   <>
                     <div className="summary-item">
-                      <span className="label">Total Debit:</span>
+                      <span className="label">Total Debit (Money In):</span>
                       <span className="value debit">{formatCurrency(statement.meta.totalDebit)}</span>
                     </div>
                     <div className="summary-item">
-                      <span className="label">Total Credit:</span>
+                      <span className="label">Total Credit (Money Out):</span>
                       <span className="value credit">{formatCurrency(statement.meta.totalCredit)}</span>
                     </div>
+                    <div className="summary-item">
+                      <span className="label">Net Change:</span>
+                      <span className={`value ${statement.meta.netChange >= 0 ? 'positive' : 'negative'}`}>
+                        {formatCurrency(statement.meta.netChange)}
+                      </span>
+                    </div>
                     <div className="summary-item highlight">
-                      <span className="label">Entries:</span>
+                      <span className="label">Transaction Count:</span>
                       <span className="value balance">{statement.meta.count || statement.rows.length}</span>
                     </div>
                   </>

@@ -321,24 +321,47 @@ export class ReportsService {
   }
 
   private async transactionStatement(dateRange: { start: Date; end: Date }, accountId?: string) {
-    let where: Prisma.JournalEntryWhereInput = {
-      date: { gte: dateRange.start, lte: dateRange.end },
-    };
+    // This method now focuses on BANK ACCOUNTS only (not general ledger)
+    // Get all bank accounts (cash, bank, mobile money, petty cash)
+    const bankAccountTypes = ['cash', 'bank', 'mobileMoney', 'pettyCash'] as const;
+    
+    // Get bank accounts (excluding GL accounts)
+    const allBankAccounts = await this.prisma.account.findMany({
+      where: {
+        type: { in: bankAccountTypes as any },
+      },
+      orderBy: { name: 'asc' },
+    });
 
-    // If specific account requested, filter to only that account's transactions
+    // Filter out GL tracking accounts
+    const bankAccounts = allBankAccounts.filter(acc => !this.isGlAccount(acc.name));
+
+    // If specific account requested, validate it's a bank account
     if (accountId) {
-      const account = await this.prisma.account.findUnique({
-        where: { id: Number(accountId) },
-      });
+      const account = bankAccounts.find(acc => acc.id === Number(accountId));
 
       if (!account) {
-        return { rows: [], meta: { totalMoneyIn: 0, totalMoneyOut: 0, netChange: 0, runningBalance: 0, count: 0, account: null } };
+        return { 
+          rows: [], 
+          meta: { 
+            totalDebit: 0, 
+            totalCredit: 0, 
+            netChange: 0, 
+            count: 0, 
+            account: null,
+            availableAccounts: bankAccounts.map(a => ({ id: a.id, name: a.name, type: a.type }))
+          } 
+        };
       }
 
-      where.OR = [
-        { debitAccountId: Number(accountId) },
-        { creditAccountId: Number(accountId) },
-      ];
+      // Get transactions for this specific bank account
+      const where: Prisma.JournalEntryWhereInput = {
+        date: { gte: dateRange.start, lte: dateRange.end },
+        OR: [
+          { debitAccountId: Number(accountId) },
+          { creditAccountId: Number(accountId) },
+        ],
+      };
 
       const entries = await this.prisma.journalEntry.findMany({
         where,
@@ -353,24 +376,19 @@ export class ReportsService {
         return { 
           rows: [], 
           meta: { 
-            totalMoneyIn: 0, 
-            totalMoneyOut: 0, 
+            totalDebit: 0, 
+            totalCredit: 0, 
             netChange: 0,
-            runningBalance: 0, 
+            openingBalance: Number(account.balance) || 0,
+            closingBalance: Number(account.balance) || 0, 
             count: 0, 
-            account: { id: account.id, name: account.name, type: account.type } 
+            account: { id: account.id, name: account.name, type: account.type },
+            availableAccounts: bankAccounts.map(a => ({ id: a.id, name: a.name, type: a.type }))
           } 
         };
       }
 
-      // Determine if this is an asset account (real cash/bank, not GL tracking account)
-      const isGLAccount = this.isGlAccount(account.name);
-      const isAssetAccount = ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type) && !isGLAccount;
-      
-      // Get opening balance from account record
-      let runningBalance = Number(account.balance) || 0;
-      
-      // Calculate total debits and credits for this account up to the date range start
+      // Calculate opening balance (transactions before date range)
       const openingEntries = await this.prisma.journalEntry.findMany({
         where: {
           date: { lt: dateRange.start },
@@ -381,89 +399,90 @@ export class ReportsService {
         },
       });
 
-      // Recalculate running balance from beginning
       let balanceAtStart = 0;
       for (const e of openingEntries) {
         if (e.debitAccountId === Number(accountId)) {
-          if (isAssetAccount) {
-            balanceAtStart += Number(e.debitAmount);
-          } else {
-            balanceAtStart -= Number(e.debitAmount);
-          }
+          balanceAtStart += Number(e.debitAmount); // Money in
         } else if (e.creditAccountId === Number(accountId)) {
-          if (isAssetAccount) {
-            balanceAtStart -= Number(e.creditAmount);
-          } else {
-            balanceAtStart += Number(e.creditAmount);
-          }
+          balanceAtStart -= Number(e.creditAmount); // Money out
         }
       }
       
-      runningBalance = balanceAtStart;
+      let runningBalance = balanceAtStart;
 
       const rows = entries.map(e => {
-        let moneyOut = 0;
-        let moneyIn = 0;
+        let debit = 0;
+        let credit = 0;
         let description = e.description || '';
         let oppositeAccount = '';
 
         if (e.debitAccountId === Number(accountId)) {
-          // This account was debited
-          if (isAssetAccount) {
-            // Money coming in (debit to asset = increase)
-            moneyIn = Number(e.debitAmount);
-            runningBalance += moneyIn;
-          } else {
-            // GL/expense account: debit means increase in expense/liability
-            moneyOut = Number(e.debitAmount);
-            runningBalance -= moneyOut;
-          }
+          // Money coming IN to this bank account (debit = increase for asset)
+          debit = Number(e.debitAmount);
+          runningBalance += debit;
           oppositeAccount = e.creditAccount?.name || 'Unknown';
         } else if (e.creditAccountId === Number(accountId)) {
-          // This account was credited
-          if (isAssetAccount) {
-            // Money going out (credit to asset = decrease)
-            moneyOut = Number(e.creditAmount);
-            runningBalance -= moneyOut;
-          } else {
-            // GL/income account: credit means increase
-            moneyIn = Number(e.creditAmount);
-            runningBalance += moneyIn;
-          }
+          // Money going OUT of this bank account (credit = decrease for asset)
+          credit = Number(e.creditAmount);
+          runningBalance -= credit;
           oppositeAccount = e.debitAccount?.name || 'Unknown';
         }
 
         return {
           date: e.date,
           reference: e.reference || '',
-          description: description.substring(0, 100),
+          description: description.substring(0, 150),
           oppositeAccount,
-          moneyOut: moneyOut > 0 ? moneyOut : null,
-          moneyIn: moneyIn > 0 ? moneyIn : null,
-          runningBalance: Number(runningBalance.toFixed(2)),
+          debit: debit > 0 ? debit : null,
+          credit: credit > 0 ? credit : null,
+          balance: Number(runningBalance.toFixed(2)),
           category: e.category || '',
         };
       });
 
       // Calculate totals
-      const totalMoneyIn = rows.reduce((sum, row) => sum + (row.moneyIn || 0), 0);
-      const totalMoneyOut = rows.reduce((sum, row) => sum + (row.moneyOut || 0), 0);
+      const totalDebit = rows.reduce((sum, row) => sum + (row.debit || 0), 0);
+      const totalCredit = rows.reduce((sum, row) => sum + (row.credit || 0), 0);
 
       return {
         rows,
         meta: {
-          totalMoneyIn: Number(totalMoneyIn.toFixed(2)),
-          totalMoneyOut: Number(totalMoneyOut.toFixed(2)),
-          netChange: Number((totalMoneyIn - totalMoneyOut).toFixed(2)),
+          totalDebit: Number(totalDebit.toFixed(2)),
+          totalCredit: Number(totalCredit.toFixed(2)),
+          netChange: Number((totalDebit - totalCredit).toFixed(2)),
           openingBalance: Number(balanceAtStart.toFixed(2)),
           closingBalance: Number(runningBalance.toFixed(2)),
           count: entries.length,
           account: { id: account.id, name: account.name, type: account.type },
+          availableAccounts: bankAccounts.map(a => ({ id: a.id, name: a.name, type: a.type }))
         },
       };
     }
 
-    // Full transaction statement (all accounts)
+    // Combined statement: All bank account transactions
+    const bankAccountIds = bankAccounts.map(acc => acc.id);
+    
+    if (bankAccountIds.length === 0) {
+      return { 
+        rows: [], 
+        meta: { 
+          totalDebit: 0, 
+          totalCredit: 0, 
+          netChange: 0, 
+          count: 0,
+          availableAccounts: []
+        } 
+      };
+    }
+
+    const where: Prisma.JournalEntryWhereInput = {
+      date: { gte: dateRange.start, lte: dateRange.end },
+      OR: [
+        { debitAccountId: { in: bankAccountIds } },
+        { creditAccountId: { in: bankAccountIds } },
+      ],
+    };
+
     const entries = await this.prisma.journalEntry.findMany({
       where,
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
@@ -473,27 +492,58 @@ export class ReportsService {
       },
     });
 
-    const rows = entries.map(e => ({
-      date: e.date,
-      reference: e.reference || '',
-      description: (e.description || '').substring(0, 100),
-      debitAccount: e.debitAccount?.name || 'Unknown',
-      creditAccount: e.creditAccount?.name || 'Unknown',
-      debitAmount: Number(e.debitAmount),
-      creditAmount: Number(e.creditAmount),
-      category: e.category || '',
-    }));
+    const rows = entries.map(e => {
+      // Determine which account is the bank account
+      const debitIsBankAccount = bankAccountIds.includes(e.debitAccountId);
+      const creditIsBankAccount = bankAccountIds.includes(e.creditAccountId);
+      
+      let debit = 0;
+      let credit = 0;
+      let bankAccount = '';
+      let oppositeAccount = '';
 
-    const totalDebit = rows.reduce((sum, r) => sum + r.debitAmount, 0);
-    const totalCredit = rows.reduce((sum, r) => sum + r.creditAmount, 0);
-    
-    return { 
-      rows, 
-      meta: { 
-        totalDebit: Number(totalDebit.toFixed(2)), 
-        totalCredit: Number(totalCredit.toFixed(2)), 
-        count: entries.length 
-      } 
+      if (debitIsBankAccount && !creditIsBankAccount) {
+        // Money coming IN to a bank account
+        debit = Number(e.debitAmount);
+        bankAccount = e.debitAccount?.name || 'Unknown';
+        oppositeAccount = e.creditAccount?.name || 'Unknown';
+      } else if (creditIsBankAccount && !debitIsBankAccount) {
+        // Money going OUT of a bank account
+        credit = Number(e.creditAmount);
+        bankAccount = e.creditAccount?.name || 'Unknown';
+        oppositeAccount = e.debitAccount?.name || 'Unknown';
+      } else if (debitIsBankAccount && creditIsBankAccount) {
+        // Transfer between bank accounts - show both sides
+        debit = Number(e.debitAmount);
+        credit = Number(e.creditAmount);
+        bankAccount = `${e.debitAccount?.name || 'Unknown'} → ${e.creditAccount?.name || 'Unknown'}`;
+        oppositeAccount = 'Internal Transfer';
+      }
+
+      return {
+        date: e.date,
+        reference: e.reference || '',
+        description: (e.description || '').substring(0, 150),
+        bankAccount,
+        oppositeAccount,
+        debit: debit > 0 ? debit : null,
+        credit: credit > 0 ? credit : null,
+        category: e.category || '',
+      };
+    });
+
+    const totalDebit = rows.reduce((sum, row) => sum + (row.debit || 0), 0);
+    const totalCredit = rows.reduce((sum, row) => sum + (row.credit || 0), 0);
+
+    return {
+      rows,
+      meta: {
+        totalDebit: Number(totalDebit.toFixed(2)),
+        totalCredit: Number(totalCredit.toFixed(2)),
+        netChange: Number((totalDebit - totalCredit).toFixed(2)),
+        count: entries.length,
+        availableAccounts: bankAccounts.map(a => ({ id: a.id, name: a.name, type: a.type }))
+      },
     };
   }
 
