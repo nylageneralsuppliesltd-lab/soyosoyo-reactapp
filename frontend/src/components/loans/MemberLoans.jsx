@@ -39,11 +39,24 @@ const MemberLoans = ({ onError, onLoading }) => {
       const membersData = await membersRes.json();
       const typesData = await typesRes.json();
 
-      setLoans(loansData.data || []);
-      setMembers(membersData.data || []);
-      setLoanTypes(typesData.data || []);
+      // Handle both array and wrapped responses
+      const loansArray = Array.isArray(loansData) ? loansData : (loansData.data || []);
+      const membersArray = Array.isArray(membersData) ? membersData : (membersData.data || []);
+      const typesArray = Array.isArray(typesData) ? typesData : (typesData.data || []);
+
+      setLoans(loansArray);
+      setMembers(membersArray);
+      setLoanTypes(typesArray);
+      
+      // Debug log
+      if (import.meta.env.DEV) {
+        console.log('Members loaded:', membersArray.length, membersArray.slice(0, 2));
+      }
     } catch (err) {
       onError?.(err.message);
+      if (import.meta.env.DEV) {
+        console.error('Fetch error:', err);
+      }
     } finally {
       setLoading(false);
     }
@@ -134,18 +147,22 @@ const MemberLoans = ({ onError, onLoading }) => {
           <form onSubmit={handleSubmit} className="member-loan-form">
             <div className="form-row">
               <div className="form-group">
-                <label className="required">Member</label>
+                <label className="required">Member {members.length > 0 && `(${members.length})`}</label>
                 <select
                   value={formData.memberId}
                   onChange={e => setFormData({ ...formData, memberId: e.target.value })}
                   className={formErrors.memberId ? 'error' : ''}
                 >
                   <option value="">-- Select Member --</option>
-                  {members.map(m => (
-                    <option key={m.id} value={String(m.id)}>
-                      {m.firstName} {m.lastName}
-                    </option>
-                  ))}
+                  {members && members.length > 0 ? (
+                    members.map(m => (
+                      <option key={m.id} value={String(m.id)}>
+                        {m.firstName && m.lastName ? `${m.firstName} ${m.lastName}` : m.name || `Member ${m.id}`}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>No members available</option>
+                  )}
                 </select>
                 {formErrors.memberId && <span className="error-text">{formErrors.memberId}</span>}
               </div>

@@ -40,10 +40,22 @@ const ExternalLoans = ({ onError }) => {
       const loansData = await loansRes.json();
       const typesData = await typesRes.json();
 
-      setLoans(loansData.data || []);
-      setLoanTypes(typesData.data || []);
+      // Handle both array and wrapped responses
+      const loansArray = Array.isArray(loansData) ? loansData : (loansData.data || []);
+      const typesArray = Array.isArray(typesData) ? typesData : (typesData.data || []);
+
+      setLoans(loansArray);
+      setLoanTypes(typesArray);
+      
+      // Debug log
+      if (import.meta.env.DEV) {
+        console.log('Loan types loaded:', typesArray.length);
+      }
     } catch (err) {
       onError?.(err.message);
+      if (import.meta.env.DEV) {
+        console.error('Fetch error:', err);
+      }
     } finally {
       setLoading(false);
     }
