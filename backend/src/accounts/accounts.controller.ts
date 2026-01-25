@@ -15,6 +15,11 @@ export class AccountsController {
     return this.accountsService.getRealAccounts();
   }
 
+  @Get('balance-summary')
+  async getBalanceSummary() {
+    return this.accountsService.getBalanceSummary();
+  }
+
   @Get('by-type/:type')
   async getAccountsByType(@Param('type') type: string) {
     return this.accountsService.getAccountsByType(type);

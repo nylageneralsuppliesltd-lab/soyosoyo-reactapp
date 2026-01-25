@@ -32,6 +32,7 @@ import AccountStatementPage from './pages/AccountStatementPage';
 import GeneralLedgerDetailPage from './pages/GeneralLedgerDetailPage';
 import SettingsPage from './pages/SettingsPage';
 import GeneralLedgerPage from './pages/GeneralLedgerPage';
+import AccountBalanceReportPage from './pages/AccountBalanceReportPage';
 
 const NotFound = () => (
   <div className="flex flex-col items-center justify-center h-full text-center p-6">
@@ -101,6 +102,7 @@ function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/ledger" element={<GeneralLedgerPage />} />
           <Route path="/sacco-settings" element={<SaccoSettingsPage />} />
+          <Route path="/reports/account-balance" element={<AccountBalanceReportPage />} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>

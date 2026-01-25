@@ -107,4 +107,77 @@ export class AccountsService {
       },
     });
   }
+
+  async getBalanceSummary() {
+    // Get all real cash/bank accounts (excluding GL accounts)
+    const accounts = await this.prisma.account.findMany({
+      where: {
+        type: { in: ['cash', 'bank', 'pettyCash', 'mobileMoney'] },
+      },
+      orderBy: { type: 'asc' },
+      select: {
+        id: true,
+        type: true,
+        name: true,
+        bankName: true,
+        provider: true,
+        balance: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // Filter out any GL-like accounts
+    const realAccounts = accounts.filter(acc => !this.isGlAccount(acc.name, acc.type));
+
+    // Categorize by account type and calculate summary
+    const summary = {
+      totalBalance: 0,
+      byType: {
+        cash: { total: 0, accounts: [] },
+        bank: { total: 0, accounts: [] },
+        mobileMoney: { total: 0, accounts: [] },
+        pettyCash: { total: 0, accounts: [] },
+      },
+      accounts: realAccounts.map(acc => ({
+        ...acc,
+        balance: Number(acc.balance),
+      })),
+    };
+
+    // Aggregate by type
+    realAccounts.forEach(acc => {
+      const balance = Number(acc.balance);
+      summary.totalBalance += balance;
+
+      if (acc.type === 'cash') {
+        summary.byType.cash.total += balance;
+        summary.byType.cash.accounts.push({
+          ...acc,
+          balance,
+        });
+      } else if (acc.type === 'bank') {
+        summary.byType.bank.total += balance;
+        summary.byType.bank.accounts.push({
+          ...acc,
+          balance,
+        });
+      } else if (acc.type === 'mobileMoney') {
+        summary.byType.mobileMoney.total += balance;
+        summary.byType.mobileMoney.accounts.push({
+          ...acc,
+          balance,
+        });
+      } else if (acc.type === 'pettyCash') {
+        summary.byType.pettyCash.total += balance;
+        summary.byType.pettyCash.accounts.push({
+          ...acc,
+          balance,
+        });
+      }
+    });
+
+    return summary;
+  }
 }

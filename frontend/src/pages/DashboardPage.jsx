@@ -17,6 +17,7 @@ import {
 } from 'chart.js';
 import { UsersThree, PiggyBank, ArrowDownLeft, Money, TrendUp, Calendar, ArrowRight, Spinner } from '@phosphor-icons/react';
 import '../styles/dashboard-premium.css';
+import AccountBalanceCard from '../components/AccountBalanceCard';
 import {
   calculateDashboardStats,
   getMonthlyTrendData,
@@ -186,6 +187,8 @@ const DashboardPage = () => {
       <>
       {/* Key Metrics - Compact Grid */}
       <div className="metrics-grid-compact">
+        <AccountBalanceCard />
+
         <div className="metric-card-compact member-metric" onClick={() => navigate('/members/list')}>
           <div className="metric-header">
             <UsersThree size={18} />
