@@ -1,8 +1,10 @@
 // src/components/AccountBalanceCard.jsx - Dashboard quick view of SACCO cash position
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bank, ArrowRight } from '@phosphor-icons/react';
 import '../styles/cards.css';
+import { API_BASE } from '../utils/apiBase';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 
 const AccountBalanceCard = () => {
   const navigate = useNavigate();
@@ -10,21 +12,12 @@ const AccountBalanceCard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Allow overriding API base (useful for production frontends hitting a remote backend)
-  const apiBase = useMemo(
-    () => (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, ''),
-    []
-  );
 
   const loadBalance = async () => {
     try {
       setError(null);
-      const url = apiBase
-        ? `${apiBase}/api/accounts/balance-summary`
-        : '/api/accounts/balance-summary';
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
+      const url = `${API_BASE}/accounts/balance-summary`;
+      const response = await fetchWithRetry(url, { timeout: 10000, maxRetries: 3 });
       if (!response.ok) throw new Error('Failed to load account balance');
 
       const data = await response.json();

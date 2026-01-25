@@ -198,6 +198,16 @@ See REPORTS_GUIDE.md → "For Developers" section for:
 
 ## 🛠 Technical Stack
 
+---
+
+## 🧾 Report Headers in PDFs
+
+- Server-generated PDFs (via `pdfkit`) currently output tabular data without the premium `ReportHeader` component.
+- For board-ready PDFs with SACCO header, logo, and contact details, use the client-side Print option:
+    - Open the desired report or financial statement page, then click "Print PDF".
+    - The page renders `ReportHeader` and compact premium styles, producing a consistent one-page print.
+- Future enhancement: Embed `ReportHeader` into server-generated PDFs or switch to a templating PDF engine to match the client layout.
+
 **Backend:**
 - NestJS 10.3 (REST API framework)
 - Prisma 7.2 (ORM with real data queries)

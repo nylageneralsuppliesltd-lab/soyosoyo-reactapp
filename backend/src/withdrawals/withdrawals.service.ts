@@ -311,18 +311,19 @@ export class WithdrawalsService {
       },
     });
 
-    // Get or create GL refund liability account
-    const refundGLAccountName = `${contributionType} Refunds Payable`;
-    let refundGLAccount = await this.prisma.account.findFirst({
-      where: { name: refundGLAccountName },
+    // Get or create GL contribution liability account to reverse
+    // Refund should reduce group savings (liability): debit the "{Type} Received" GL
+    const contributionGLName = contributionType ? `${contributionType} Received` : 'Contributions Received';
+    let contributionGLAccount = await this.prisma.account.findFirst({
+      where: { name: contributionGLName },
     });
 
-    if (!refundGLAccount) {
-      refundGLAccount = await this.prisma.account.create({
+    if (!contributionGLAccount) {
+      contributionGLAccount = await this.prisma.account.create({
         data: {
-          name: refundGLAccountName,
+          name: contributionGLName,
           type: 'gl', // GL account type (non-cash)
-          description: `GL account for ${contributionType} refunds payable`,
+          description: `GL account for ${contributionType || 'Contributions'} liability`,
           currency: 'KES',
           balance: new Prisma.Decimal(0),
         },
@@ -330,15 +331,15 @@ export class WithdrawalsService {
     }
 
     // Proper double-entry journal entry:
-    // Debit: Refund Payable GL Account (liability decreases)
-    // Credit: Cash Account (asset decreases)
+    // Debit: Contributions Received GL (liability decreases)
+    // Credit: Cash/Bank Account (asset decreases)
     await this.prisma.journalEntry.create({
       data: {
         date: parsedDate,
         reference: reference || `REF-${withdrawal.id}`,
         description: `Refund to ${member.name} - ${contributionType}`,
         narration: notes || null,
-        debitAccountId: refundGLAccount.id,
+        debitAccountId: contributionGLAccount.id,
         debitAmount: amountDecimal,
         creditAccountId: cashAccount.id,
         creditAmount: amountDecimal,
