@@ -392,7 +392,7 @@ export class ReportsService {
         }
       }
 
-      // Fetch deposits and withdrawals to get member names
+      // Fetch deposits and withdrawals to get member names and transaction types
       const deposits = await this.prisma.deposit.findMany({
         where: { date: { gte: dateRange.start, lte: dateRange.end } },
         include: { member: { select: { id: true, name: true } } },
@@ -427,6 +427,14 @@ export class ReportsService {
         const deposit = depositsByRef.get(entry.reference);
         const withdrawal = withdrawalsByRef.get(entry.reference);
 
+        // Helper function to format transaction type
+        const formatTransactionType = (type: string) => {
+          return type
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+        };
+
         if (entry.debitAccountId === Number(accountId)) {
           // Money coming INTO this account
           moneyIn = Number(entry.debitAmount);
@@ -434,9 +442,10 @@ export class ReportsService {
 
           const bankAccount = entry.debitAccount;
           const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - #${bankAccount.id})` : '(Bank)';
-
+          
           if (deposit && deposit.member) {
-            fullDescription = `${deposit.member.name} - ${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
+            const txType = deposit.type ? formatTransactionType(deposit.type) : 'Deposit';
+            fullDescription = `${deposit.member.name} - ${txType} - ${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
           } else {
             fullDescription = `${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
           }
@@ -449,7 +458,8 @@ export class ReportsService {
           const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - #${bankAccount.id})` : '(Bank)';
 
           if (withdrawal && withdrawal.member) {
-            fullDescription = `${withdrawal.member.name} - ${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
+            const txType = withdrawal.type ? formatTransactionType(withdrawal.type) : 'Withdrawal';
+            fullDescription = `${withdrawal.member.name} - ${txType} - ${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
           } else {
             fullDescription = `${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
           }
@@ -539,7 +549,7 @@ export class ReportsService {
       }
     }
 
-    // Fetch deposits and withdrawals to get member names
+    // Fetch deposits and withdrawals to get member names and transaction types
     const deposits = await this.prisma.deposit.findMany({
       where: { date: { gte: dateRange.start, lte: dateRange.end } },
       include: { member: { select: { id: true, name: true } } },
@@ -565,6 +575,14 @@ export class ReportsService {
     const rows = [];
     let runningBalance = openingBalance;
 
+    // Helper function to format transaction type
+    const formatTransactionType = (type: string) => {
+      return type
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    };
+
     for (const entry of entries) {
       const debitIsBankAccount = bankAccountIds.includes(entry.debitAccountId);
       const creditIsBankAccount = bankAccountIds.includes(entry.creditAccountId);
@@ -585,7 +603,8 @@ export class ReportsService {
         const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - #${bankAccount.id})` : '(Bank)';
         
         if (deposit && deposit.member) {
-          fullDescription = `${deposit.member.name} - ${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
+          const txType = deposit.type ? formatTransactionType(deposit.type) : 'Deposit';
+          fullDescription = `${deposit.member.name} - ${txType} - ${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
         } else {
           fullDescription = `${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
         }
@@ -598,7 +617,8 @@ export class ReportsService {
         const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - #${bankAccount.id})` : '(Bank)';
 
         if (withdrawal && withdrawal.member) {
-          fullDescription = `${withdrawal.member.name} - ${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
+          const txType = withdrawal.type ? formatTransactionType(withdrawal.type) : 'Withdrawal';
+          fullDescription = `${withdrawal.member.name} - ${txType} - ${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
         } else {
           fullDescription = `${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
         }
