@@ -1,6 +1,7 @@
 
 
 import { Module } from '@nestjs/common';
+import { PrismaModule } from './prisma.module';
 import { AuditModule } from './audit/audit.module';
 import { HealthModule } from './health/health.module';
 import { DashboardModule } from './dashboard/dashboard.module';
@@ -23,6 +24,7 @@ import { DiagnosticsModule } from './diagnostics/diagnostics.module';
 
 @Module({
   imports: [
+    PrismaModule,
     AuditModule,
     HealthModule,
     DashboardModule,
