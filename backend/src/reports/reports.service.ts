@@ -367,8 +367,8 @@ export class ReportsService {
         },
         orderBy: [{ date: 'asc' }, { id: 'asc' }],
         include: {
-          debitAccount: { select: { id: true, name: true, type: true } },
-          creditAccount: { select: { id: true, name: true, type: true } },
+          debitAccount: { select: { id: true, name: true, type: true, accountNumber: true } },
+          creditAccount: { select: { id: true, name: true, type: true, accountNumber: true } },
         },
       });
 
@@ -441,7 +441,7 @@ export class ReportsService {
           balance += moneyIn;
 
           const bankAccount = entry.debitAccount;
-          const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - #${bankAccount.id})` : '(Bank)';
+          const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - ${bankAccount.accountNumber || bankAccount.id})` : '(Bank)';
           
           if (deposit && deposit.member) {
             const txType = deposit.type ? formatTransactionType(deposit.type) : 'Deposit';
@@ -455,7 +455,7 @@ export class ReportsService {
           balance -= moneyOut;
 
           const bankAccount = entry.creditAccount;
-          const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - #${bankAccount.id})` : '(Bank)';
+          const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - ${bankAccount.accountNumber || bankAccount.id})` : '(Bank)';
 
           if (withdrawal && withdrawal.member) {
             const txType = withdrawal.type ? formatTransactionType(withdrawal.type) : 'Withdrawal';
@@ -519,8 +519,8 @@ export class ReportsService {
       },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
       include: {
-        debitAccount: { select: { id: true, name: true, type: true } },
-        creditAccount: { select: { id: true, name: true, type: true } },
+        debitAccount: { select: { id: true, name: true, type: true, accountNumber: true } },
+        creditAccount: { select: { id: true, name: true, type: true, accountNumber: true } },
       },
     });
 
@@ -600,7 +600,7 @@ export class ReportsService {
         runningBalance += moneyIn;
         
         const bankAccount = entry.debitAccount;
-        const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - #${bankAccount.id})` : '(Bank)';
+        const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - ${bankAccount.accountNumber || bankAccount.id})` : '(Bank)';
         
         if (deposit && deposit.member) {
           const txType = deposit.type ? formatTransactionType(deposit.type) : 'Deposit';
@@ -614,7 +614,7 @@ export class ReportsService {
         runningBalance -= moneyOut;
 
         const bankAccount = entry.creditAccount;
-        const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - #${bankAccount.id})` : '(Bank)';
+        const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - ${bankAccount.accountNumber || bankAccount.id})` : '(Bank)';
 
         if (withdrawal && withdrawal.member) {
           const txType = withdrawal.type ? formatTransactionType(withdrawal.type) : 'Withdrawal';
@@ -629,8 +629,8 @@ export class ReportsService {
         const netTransfer = moneyIn - moneyOut;
         runningBalance += netTransfer;
         
-        const debitAccountInfo = entry.debitAccount ? `(${entry.debitAccount.type.toUpperCase()} - #${entry.debitAccount.id})` : '(Bank)';
-        const creditAccountInfo = entry.creditAccount ? `(${entry.creditAccount.type.toUpperCase()} - #${entry.creditAccount.id})` : '(Bank)';
+        const debitAccountInfo = entry.debitAccount ? `(${entry.debitAccount.type.toUpperCase()} - ${entry.debitAccount.accountNumber || entry.debitAccount.id})` : '(Bank)';
+        const creditAccountInfo = entry.creditAccount ? `(${entry.creditAccount.type.toUpperCase()} - ${entry.creditAccount.accountNumber || entry.creditAccount.id})` : '(Bank)';
         fullDescription = `Transfer: ${entry.creditAccount?.name} ${creditAccountInfo} → ${entry.debitAccount?.name} ${debitAccountInfo}`;
       }
 
