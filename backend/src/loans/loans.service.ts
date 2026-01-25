@@ -35,9 +35,8 @@ export class LoansService {
   async create(data: any) {
     try {
       const amount = data.amount ? parseFloat(data.amount) : 0;
-      const loanData = {
+      const loanData: any = {
         memberName: data.memberName?.trim() || data.borrower?.trim() || 'Unspecified',
-        memberId: data.memberId ? parseInt(data.memberId) : null,
         externalName: data.externalName?.trim() || null,
         bankName: data.bankName?.trim() || null,
         contactPerson: data.contactPerson?.trim() || null,
@@ -56,10 +55,20 @@ export class LoansService {
         terms: data.terms?.trim() || null,
         collateral: data.collateral?.trim() || null,
         disbursementDate: data.disbursementDate ? new Date(data.disbursementDate) : (data.startDate ? new Date(data.startDate) : new Date()),
-        loanTypeId: data.typeId ? parseInt(data.typeId) : null,
         typeName: data.typeName?.trim() || null,
         disbursementAccount: data.disbursementAccount?.trim() || null,
       };
+
+      // Attach relations with nested connect to satisfy Prisma create input
+      const memberId = data.memberId ? parseInt(data.memberId) : null;
+      if (memberId) {
+        loanData.member = { connect: { id: memberId } };
+      }
+
+      const loanTypeId = data.typeId ? parseInt(data.typeId) : null;
+      if (loanTypeId) {
+        loanData.loanType = { connect: { id: loanTypeId } };
+      }
 
       if (!loanData.amount || loanData.amount <= 0) {
         throw new BadRequestException('Valid loan amount is required');
@@ -116,9 +125,9 @@ export class LoansService {
       }
 
       // Update member loan balance if applicable
-      if (loanData.memberId) {
+      if (memberId) {
         await this.prisma.member.update({
-          where: { id: loanData.memberId },
+          where: { id: memberId },
           data: { loanBalance: { increment: amount } },
         });
       }
