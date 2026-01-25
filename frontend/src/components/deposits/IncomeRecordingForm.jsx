@@ -1,10 +1,11 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, TrendingUp, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 import SmartSelect from '../common/SmartSelect';
-import AddItemModal from '../common/AddItemModal';
 
 const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     amount: '',
@@ -20,8 +21,6 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [showAddAccount, setShowAddAccount] = useState(false);
-  const [showAddCategory, setShowAddCategory] = useState(false);
   const [depositCategories, setDepositCategories] = useState([]);
 
   const incomeCategories = [
@@ -220,7 +219,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
               value={formData.incomeCategory}
               onChange={handleSmartSelectChange('incomeCategory')}
               options={depositCategories.length > 0 ? depositCategories.map(cat => ({ id: cat.id || cat.name, name: cat.name })) : incomeCategories.map(cat => ({ id: cat.value, name: cat.label }))}
-              onAddNew={() => setShowAddCategory(true)}
+              onAddNew={() => navigate('/settings?tab=categories')}
               placeholder="Select category or create new..."
               required={true}
               showAddButton={true}
@@ -284,7 +283,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
               value={formData.accountId}
               onChange={handleSmartSelectChange('accountId')}
               options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
-              onAddNew={() => setShowAddAccount(true)}
+              onAddNew={() => navigate('/settings?tab=accounts')}
               placeholder="Select account or create new..."
               required={true}
               showAddButton={true}
@@ -349,38 +348,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
         </ul>
       </div>
 
-      <AddItemModal
-        isOpen={showAddAccount}
-        onClose={() => setShowAddAccount(false)}
-        title="Add Bank Account"
-        itemType="account"
-        apiEndpoint={`${API_BASE}/accounts`}
-        fields={[
-          { name: 'code', label: 'Account Code', type: 'text', required: true },
-          { name: 'name', label: 'Account Name', type: 'text', required: true },
-          { name: 'type', label: 'Account Type', type: 'select', required: true, options: ['ASSET', 'BANK', 'LIABILITY', 'EQUITY'] },
-        ]}
-        onSuccess={() => {
-          setShowAddAccount(false);
-          fetchAccounts();
-        }}
-      />
 
-      <AddItemModal
-        isOpen={showAddCategory}
-        onClose={() => setShowAddCategory(false)}
-        title="Add Income Category"
-        itemType="depositCategory"
-        apiEndpoint={`${API_BASE}/settings/deposit-categories`}
-        fields={[
-          { name: 'name', label: 'Category Name', type: 'text', required: true },
-          { name: 'description', label: 'Description', type: 'textarea', required: false },
-        ]}
-        onSuccess={() => {
-          setShowAddCategory(false);
-          fetchDepositCategories();
-        }}
-      />
     </div>
   );
 };

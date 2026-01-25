@@ -1,10 +1,11 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, TrendingUp } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 import SmartSelect from '../common/SmartSelect';
-import AddItemModal from '../common/AddItemModal';
 
 const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
@@ -27,8 +28,6 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [memberSearch, setMemberSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [showAddAccount, setShowAddAccount] = useState(false);
-  const [showAddLoan, setShowAddLoan] = useState(false);
 
   const paymentMethods = [
     { value: 'cash', label: 'Cash' },
@@ -421,7 +420,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
                 id: account.id,
                 name: `${account.code} - ${account.name}`,
               }))}
-              onAddNew={() => setShowAddAccount(true)}
+              onAddNew={() => navigate('/settings?tab=accounts')}
               addButtonText="Add Bank Account"
               addButtonType="bank_account"
               placeholder="Select account or create new..."
@@ -474,79 +473,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
         </div>
       </form>
 
-      {/* Add Bank Account Modal */}
-      <AddItemModal
-        isOpen={showAddAccount}
-        onClose={() => setShowAddAccount(false)}
-        title="Add Bank Account"
-        apiEndpoint={`${API_BASE}/accounts`}
-        fields={[
-          {
-            name: 'name',
-            label: 'Account Name',
-            type: 'text',
-            placeholder: 'e.g., Main Bank Account',
-            required: true,
-          },
-          {
-            name: 'type',
-            label: 'Account Type',
-            type: 'select',
-            options: [
-              { value: 'BANK', label: 'Bank Account' },
-              { value: 'ASSET', label: 'Asset' },
-            ],
-            required: true,
-          },
-          {
-            name: 'code',
-            label: 'Account Code',
-            type: 'text',
-            placeholder: 'e.g., BA001',
-            required: false,
-          },
-        ]}
-        onSuccess={(newAccount) => {
-          setAccounts([...accounts, newAccount]);
-          setFormData({ ...formData, accountId: newAccount.id });
-          setShowAddAccount(false);
-        }}
-      />
 
-      {/* Add Loan Type Modal - For future loan creation */}
-      <AddItemModal
-        isOpen={showAddLoan}
-        onClose={() => setShowAddLoan(false)}
-        title="Add Loan Type"
-        apiEndpoint={`${API_BASE}/settings/loan-types`}
-        fields={[
-          {
-            name: 'name',
-            label: 'Loan Type Name',
-            type: 'text',
-            placeholder: 'e.g., Personal Loan, Educational Loan',
-            required: true,
-          },
-          {
-            name: 'interestRate',
-            label: 'Interest Rate (%)',
-            type: 'number',
-            placeholder: '10',
-            required: true,
-          },
-          {
-            name: 'maxAmount',
-            label: 'Maximum Loan Amount',
-            type: 'number',
-            placeholder: '100000',
-            required: false,
-          },
-        ]}
-        onSuccess={() => {
-          setShowAddLoan(false);
-          // Optionally refresh loans list
-        }}
-      />
     </div>
   );
 };

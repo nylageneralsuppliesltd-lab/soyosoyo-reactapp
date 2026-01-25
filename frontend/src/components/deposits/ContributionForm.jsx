@@ -1,10 +1,11 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DollarSign, Calendar, User, CreditCard, FileText, Hash, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 import SmartSelect from '../common/SmartSelect';
-import AddItemModal from '../common/AddItemModal';
 
 const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
@@ -23,8 +24,6 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
-  const [showAddAccount, setShowAddAccount] = useState(false);
-  const [showAddCategory, setShowAddCategory] = useState(false);
   const [depositCategories, setDepositCategories] = useState([]);
 
   const fetchDepositCategories = async () => {
@@ -286,7 +285,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
                 { id: 'Development Fund', name: 'Development Fund' },
                 { id: 'Other', name: 'Other' }
               ]}
-              onAddNew={() => setShowAddCategory(true)}
+              onAddNew={() => navigate('/settings?tab=categories')}
               placeholder="Select category or create new..."
               required={true}
               showAddButton={true}
@@ -323,7 +322,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
             value={formData.accountId}
             onChange={handleSmartSelectChange('accountId')}
             options={accounts.map(acc => ({ id: acc.id, name: `${acc.name} (${acc.type})` }))}
-            onAddNew={() => setShowAddAccount(true)}
+            onAddNew={() => navigate('/settings?tab=accounts')}
             placeholder="Select account or create new..."
             showAddButton={true}
             addButtonType="account"
@@ -371,38 +370,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
         </div>
       </form>
 
-      <AddItemModal
-        isOpen={showAddAccount}
-        onClose={() => setShowAddAccount(false)}
-        title="Add Bank Account"
-        itemType="account"
-        apiEndpoint={`${API_BASE}/accounts`}
-        fields={[
-          { name: 'code', label: 'Account Code', type: 'text', required: true },
-          { name: 'name', label: 'Account Name', type: 'text', required: true },
-          { name: 'type', label: 'Account Type', type: 'select', required: true, options: ['ASSET', 'BANK', 'LIABILITY', 'EQUITY'] },
-        ]}
-        onSuccess={() => {
-          setShowAddAccount(false);
-          fetchAccounts();
-        }}
-      />
 
-      <AddItemModal
-        isOpen={showAddCategory}
-        onClose={() => setShowAddCategory(false)}
-        title="Add Deposit Category"
-        itemType="depositCategory"
-        apiEndpoint={`${API_BASE}/settings/deposit-categories`}
-        fields={[
-          { name: 'name', label: 'Category Name', type: 'text', required: true },
-          { name: 'description', label: 'Description', type: 'textarea', required: false },
-        ]}
-        onSuccess={() => {
-          setShowAddCategory(false);
-          fetchDepositCategories();
-        }}
-      />
     </div>
   );
 };

@@ -1,10 +1,11 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { TrendingUp, Calendar, DollarSign, User, CreditCard, FileText, Hash, Tag } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../../utils/apiBase';
 import SmartSelect from '../common/SmartSelect';
-import AddItemModal from '../common/AddItemModal';
 
 const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
@@ -22,7 +23,6 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
-  const [showAddAccount, setShowAddAccount] = useState(false);
 
   useEffect(() => {
     fetchMembers();
@@ -292,7 +292,7 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
                 name: `${account.name} (${account.type}) - Balance: ${parseFloat(account.balance).toFixed(2)}`,
               }))}
               placeholder="Select account or create new..."
-              onAddClick={() => setShowAddAccount(true)}
+              onAddClick={() => navigate('/settings?tab=accounts')}
               icon="CreditCard"
             />
           </div>
@@ -338,30 +338,7 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
         </div>
       </form>
 
-      <AddItemModal
-        isOpen={showAddAccount}
-        onClose={() => setShowAddAccount(false)}
-        title="Add Account"
-        apiEndpoint={`${API_BASE}/accounts`}
-        fields={[
-          { name: 'name', label: 'Account Name', type: 'text', required: true },
-          { name: 'type', label: 'Account Type', type: 'select', options: [
-            { value: 'cash', label: 'Cash' },
-            { value: 'bank', label: 'Bank' },
-            { value: 'mobileMoney', label: 'Mobile Money / Mpesa' },
-            { value: 'pettyCash', label: 'Petty Cash' },
-          ], required: true },
-          { name: 'provider', label: 'Provider (for mobile money)', type: 'text', required: false },
-          { name: 'number', label: 'Account / Phone Number', type: 'text', required: false },
-          { name: 'accountNumber', label: 'Bank Account Number', type: 'text', required: false },
-          { name: 'bankName', label: 'Bank Name', type: 'text', required: false },
-        ]}
-        onSuccess={(newAccount) => {
-          setAccounts([...accounts, newAccount]);
-          setFormData({ ...formData, accountId: newAccount.id });
-          setShowAddAccount(false);
-        }}
-      />
+
     </div>
   );
 };

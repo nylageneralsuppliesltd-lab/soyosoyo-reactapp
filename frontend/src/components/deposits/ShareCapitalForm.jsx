@@ -1,10 +1,11 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 import SmartSelect from '../common/SmartSelect';
-import AddItemModal from '../common/AddItemModal';
 
 const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
@@ -26,8 +27,6 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [shareValue, setShareValue] = useState(100); // Default share value
-  const [showAddAccount, setShowAddAccount] = useState(false);
-  const [showAddCategory, setShowAddCategory] = useState(false);
   const [depositCategories, setDepositCategories] = useState([]);
 
   const paymentMethods = [
@@ -369,7 +368,7 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
               value={formData.accountId}
               onChange={handleSmartSelectChange('accountId')}
               options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
-              onAddNew={() => setShowAddAccount(true)}
+              onAddNew={() => navigate('/settings?tab=accounts')}
               placeholder="Select account or create new..."
               showAddButton={true}
               addButtonType="account"
@@ -421,38 +420,7 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
         </div>
       </form>
 
-      <AddItemModal
-        isOpen={showAddAccount}
-        onClose={() => setShowAddAccount(false)}
-        title="Add Bank Account"
-        itemType="account"
-        apiEndpoint={`${API_BASE}/accounts`}
-        fields={[
-          { name: 'code', label: 'Account Code', type: 'text', required: true },
-          { name: 'name', label: 'Account Name', type: 'text', required: true },
-          { name: 'type', label: 'Account Type', type: 'select', required: true, options: ['ASSET', 'BANK', 'LIABILITY', 'EQUITY'] },
-        ]}
-        onSuccess={() => {
-          setShowAddAccount(false);
-          fetchAccounts();
-        }}
-      />
 
-      <AddItemModal
-        isOpen={showAddCategory}
-        onClose={() => setShowAddCategory(false)}
-        title="Add Deposit Category"
-        itemType="depositCategory"
-        apiEndpoint={`${API_BASE}/settings/deposit-categories`}
-        fields={[
-          { name: 'name', label: 'Category Name', type: 'text', required: true },
-          { name: 'description', label: 'Description', type: 'textarea', required: false },
-        ]}
-        onSuccess={() => {
-          setShowAddCategory(false);
-          fetchDepositCategories();
-        }}
-      />
     </div>
   );
 };

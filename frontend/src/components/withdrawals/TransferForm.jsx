@@ -1,10 +1,11 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { ArrowRightLeft, Calendar, DollarSign, FileText, Hash } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../../utils/apiBase';
 import SmartSelect from '../common/SmartSelect';
-import AddItemModal from '../common/AddItemModal';
 
 const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     amount: '',
@@ -18,7 +19,6 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showAddAccount, setShowAddAccount] = useState(false);
 
   useEffect(() => {
     fetchAccounts();
@@ -207,7 +207,7 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
                 name: `${account.name} (${account.type}) - Balance: KES ${parseFloat(account.balance).toFixed(2)}`,
               }))}
               placeholder="Select account or create new..."
-              onAddClick={() => setShowAddAccount(true)}
+              onAddClick={() => navigate('/settings?tab=accounts')}
               icon="CreditCard"
               required
             />
@@ -233,7 +233,7 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
                 name: `${account.name} (${account.type}) - Balance: KES ${parseFloat(account.balance).toFixed(2)}`,
               }))}
               placeholder="Select account or create new..."
-              onAddClick={() => setShowAddAccount(true)}
+              onAddClick={() => navigate('/settings?tab=accounts')}
               icon="CreditCard"
               required
             />
@@ -299,30 +299,7 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
         </div>
       </form>
 
-      <AddItemModal
-        isOpen={showAddAccount}
-        onClose={() => setShowAddAccount(false)}
-        title="Add Account"
-        apiEndpoint={`${API_BASE}/accounts`}
-        fields={[
-          { name: 'name', label: 'Account Name', type: 'text', required: true },
-          { name: 'type', label: 'Account Type', type: 'select', options: [
-            { value: 'cash', label: 'Cash' },
-            { value: 'bank', label: 'Bank' },
-            { value: 'mobileMoney', label: 'Mobile Money / Mpesa' },
-            { value: 'pettyCash', label: 'Petty Cash' },
-          ], required: true },
-          { name: 'provider', label: 'Provider (for mobile money)', type: 'text', required: false },
-          { name: 'number', label: 'Account / Phone Number', type: 'text', required: false },
-          { name: 'accountNumber', label: 'Bank Account Number', type: 'text', required: false },
-          { name: 'bankName', label: 'Bank Name', type: 'text', required: false },
-        ]}
-        onSuccess={(newAccount) => {
-          setAccounts([...accounts, newAccount]);
-          setFormData({ ...formData, fromAccountId: newAccount.id });
-          setShowAddAccount(false);
-        }}
-      />
+
     </div>
   );
 };
