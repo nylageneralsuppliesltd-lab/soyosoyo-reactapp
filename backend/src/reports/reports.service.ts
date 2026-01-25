@@ -432,20 +432,26 @@ export class ReportsService {
           moneyIn = Number(entry.debitAmount);
           balance += moneyIn;
 
+          const bankAccount = entry.debitAccount;
+          const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - #${bankAccount.id})` : '(Bank)';
+
           if (deposit && deposit.member) {
-            fullDescription = `${deposit.member.name} - ${entry.creditAccount?.name || 'Income'} - ${entry.description}`;
+            fullDescription = `${deposit.member.name} - ${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
           } else {
-            fullDescription = `${entry.creditAccount?.name || 'Source'} - ${entry.description}`;
+            fullDescription = `${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
           }
         } else {
           // Money going OUT of this account
           moneyOut = Number(entry.creditAmount);
           balance -= moneyOut;
 
+          const bankAccount = entry.creditAccount;
+          const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - #${bankAccount.id})` : '(Bank)';
+
           if (withdrawal && withdrawal.member) {
-            fullDescription = `${withdrawal.member.name} - ${entry.debitAccount?.name || 'Expense'} - ${entry.description}`;
+            fullDescription = `${withdrawal.member.name} - ${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
           } else {
-            fullDescription = `${entry.debitAccount?.name || 'Destination'} - ${entry.description}`;
+            fullDescription = `${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
           }
         }
 
@@ -575,20 +581,26 @@ export class ReportsService {
         moneyIn = Number(entry.debitAmount);
         runningBalance += moneyIn;
         
+        const bankAccount = entry.debitAccount;
+        const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - #${bankAccount.id})` : '(Bank)';
+        
         if (deposit && deposit.member) {
-          fullDescription = `${deposit.member.name} - ${entry.creditAccount?.name || 'Income'} - ${entry.description}`;
+          fullDescription = `${deposit.member.name} - ${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
         } else {
-          fullDescription = `${entry.creditAccount?.name || 'Source'} - ${entry.description}`;
+          fullDescription = `${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
         }
       } else if (creditIsBankAccount && !debitIsBankAccount) {
         // Money OUT of a bank account
         moneyOut = Number(entry.creditAmount);
         runningBalance -= moneyOut;
 
+        const bankAccount = entry.creditAccount;
+        const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - #${bankAccount.id})` : '(Bank)';
+
         if (withdrawal && withdrawal.member) {
-          fullDescription = `${withdrawal.member.name} - ${entry.debitAccount?.name || 'Expense'} - ${entry.description}`;
+          fullDescription = `${withdrawal.member.name} - ${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
         } else {
-          fullDescription = `${entry.debitAccount?.name || 'Destination'} - ${entry.description}`;
+          fullDescription = `${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
         }
       } else if (debitIsBankAccount && creditIsBankAccount) {
         // Transfer between bank accounts
@@ -597,7 +609,9 @@ export class ReportsService {
         const netTransfer = moneyIn - moneyOut;
         runningBalance += netTransfer;
         
-        fullDescription = `Transfer: ${entry.creditAccount?.name} to ${entry.debitAccount?.name}`;
+        const debitAccountInfo = entry.debitAccount ? `(${entry.debitAccount.type.toUpperCase()} - #${entry.debitAccount.id})` : '(Bank)';
+        const creditAccountInfo = entry.creditAccount ? `(${entry.creditAccount.type.toUpperCase()} - #${entry.creditAccount.id})` : '(Bank)';
+        fullDescription = `Transfer: ${entry.creditAccount?.name} ${creditAccountInfo} → ${entry.debitAccount?.name} ${debitAccountInfo}`;
       }
 
       // Only add rows that have money in or money out
