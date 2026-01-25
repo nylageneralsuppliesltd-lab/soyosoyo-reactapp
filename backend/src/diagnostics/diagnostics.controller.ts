@@ -17,8 +17,9 @@ export class DiagnosticsController {
     const list = (tables || '').split(',').map((t) => t.trim()).filter(Boolean);
     const result: Record<string, any[]> = {};
     for (const tableName of list) {
+      // Cast name types to text for Neon compatibility
       const rows = await this.prisma.$queryRaw<any[]>`
-        SELECT column_name, data_type, is_nullable
+        SELECT column_name::text, data_type::text, is_nullable::text
         FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = ${tableName}
         ORDER BY ordinal_position
