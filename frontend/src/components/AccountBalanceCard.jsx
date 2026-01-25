@@ -12,7 +12,7 @@ const AccountBalanceCard = () => {
 
   // Allow overriding API base (useful for production frontends hitting a remote backend)
   const apiBase = useMemo(
-    () => (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''),
+    () => (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, ''),
     []
   );
 

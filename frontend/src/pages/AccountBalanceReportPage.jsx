@@ -9,7 +9,7 @@ const AccountBalanceReportPage = () => {
   const [error, setError] = useState(null);
 
   const apiBase = useMemo(
-    () => (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''),
+    () => (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, ''),
     []
   );
 
@@ -24,7 +24,10 @@ const AccountBalanceReportPage = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`${apiBase}/api/accounts/balance-summary`, {
+      const url = apiBase
+        ? `${apiBase}/api/accounts/balance-summary`
+        : '/api/accounts/balance-summary';
+      const response = await fetch(url, {
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to load balance summary');

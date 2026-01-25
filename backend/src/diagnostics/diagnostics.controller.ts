@@ -270,4 +270,116 @@ export class DiagnosticsController {
       },
     });
   }
+
+  // Ledger integrity: check journal balance, duplicates, and account mismatches
+  @Get('ledger-integrity')
+  async ledgerIntegrity() {
+    this.ensureEnabled();
+
+    // Financial account types
+    const financialTypes = ['cash', 'bank', 'mobileMoney', 'pettyCash'];
+
+    // Sum debits/credits across all journals
+    const journals = await this.prisma.journalEntry.findMany({
+      select: {
+        debitAmount: true,
+        creditAmount: true,
+        debitAccountId: true,
+        creditAccountId: true,
+        reference: true,
+      },
+    });
+
+    let sumDebits = 0;
+    let sumCredits = 0;
+    const byReference: Record<string, number> = {};
+    for (const j of journals) {
+      sumDebits += Number(j.debitAmount ?? 0);
+      sumCredits += Number(j.creditAmount ?? 0);
+      const ref = (j.reference || '').trim();
+      if (ref) byReference[ref] = (byReference[ref] || 0) + 1;
+    }
+
+    // Detect duplicate references (count > 1)
+    const duplicateReferences = Object.entries(byReference)
+      .filter(([_, count]) => count > 1)
+      .map(([reference, count]) => ({ reference, count }));
+
+    // Compute Money In/Out across financial accounts
+    // Money In: sum of debits posted to financial accounts
+    // Money Out: sum of credits posted from financial accounts
+    const accounts = await this.prisma.account.findMany({
+      where: { type: { in: financialTypes as any } },
+      select: { id: true, name: true, type: true, balance: true },
+    });
+
+    const accountIndex = new Map<number, { id: number; name: string; type: string; balance: number }>();
+    for (const a of accounts) {
+      accountIndex.set(a.id, { id: a.id, name: a.name, type: a.type as any, balance: Number(a.balance) });
+    }
+
+    let moneyIn = 0;
+    let moneyOut = 0;
+    for (const j of journals) {
+      const debitAcc = j.debitAccountId ? accountIndex.get(j.debitAccountId) : undefined;
+      const creditAcc = j.creditAccountId ? accountIndex.get(j.creditAccountId!) : undefined;
+      if (debitAcc && financialTypes.includes(debitAcc.type)) moneyIn += Number(j.debitAmount || 0);
+      if (creditAcc && financialTypes.includes(creditAcc.type)) moneyOut += Number(j.creditAmount || 0);
+    }
+
+    // Recompute expected balances from journals: debits - credits per account
+    const recomputed: Record<number, { debit: number; credit: number }> = {};
+    for (const j of journals) {
+      if (j.debitAccountId) {
+        const bucket = (recomputed[j.debitAccountId] ||= { debit: 0, credit: 0 });
+        bucket.debit += Number(j.debitAmount || 0);
+      }
+      if (j.creditAccountId) {
+        const bucket = (recomputed[j.creditAccountId] ||= { debit: 0, credit: 0 });
+        bucket.credit += Number(j.creditAmount || 0);
+      }
+    }
+
+    const accountMismatches: Array<{ id: number; name: string; type: string; storedBalance: number; computedBalance: number; diff: number }> = [];
+    for (const a of accounts) {
+      const bucket = recomputed[a.id] || { debit: 0, credit: 0 };
+      const computed = bucket.debit - bucket.credit;
+      const diff = Math.round((computed - Number(a.balance)) * 100) / 100;
+      if (Math.abs(diff) >= 0.01) {
+        accountMismatches.push({ id: a.id, name: a.name, type: a.type as any, storedBalance: Number(a.balance), computedBalance: computed, diff });
+      }
+    }
+
+    // Detect potential duplicate CategoryLedger entries by identical sourceType+sourceId+type+amount+ledger
+    const cle = await this.prisma.categoryLedgerEntry.findMany({
+      select: {
+        id: true,
+        categoryLedgerId: true,
+        sourceType: true,
+        sourceId: true,
+        type: true,
+        amount: true,
+        reference: true,
+      },
+    });
+
+    const cleKeyCounts: Record<string, { count: number; sampleId: number; reference?: string }> = {};
+    for (const e of cle) {
+      const key = [e.sourceType || 'n/a', e.sourceId || 'n/a', e.type || 'n/a', Number(e.amount || 0), e.categoryLedgerId].join('|');
+      const entry = (cleKeyCounts[key] ||= { count: 0, sampleId: e.id, reference: e.reference || undefined });
+      entry.count++;
+    }
+    const categoryDuplicates = Object.entries(cleKeyCounts)
+      .filter(([, v]) => v.count > 1)
+      .map(([key, v]) => ({ key, count: v.count, sampleId: v.sampleId, reference: v.reference }));
+
+    const isBalanced = Math.round((sumDebits - sumCredits) * 100) / 100 === 0;
+    return {
+      enabled: true,
+      journalTotals: { sumDebits, sumCredits, isBalanced },
+      totals: { totalAccounts: accounts.length, moneyIn, moneyOut },
+      duplicates: { journalReferences: duplicateReferences, categoryLedger: categoryDuplicates },
+      accountMismatches,
+    };
+  }
 }

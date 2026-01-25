@@ -844,7 +844,45 @@ export class ReportsService {
       });
     }
 
-    return { rows: accountsData, meta: { totalAccounts: accounts.length } };
+    // Compute ledger-wide totals for accuracy and parity with diagnostics
+    const financialTypes = ['cash', 'bank', 'mobileMoney', 'pettyCash'];
+    const allEntries = await this.prisma.journalEntry.findMany({
+      where: { date: { gte: dateRange.start, lte: dateRange.end } },
+      select: {
+        debitAmount: true,
+        creditAmount: true,
+        debitAccount: { select: { type: true } },
+        creditAccount: { select: { type: true } },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    let sumDebits = 0;
+    let sumCredits = 0;
+    let moneyIn = 0;
+    let moneyOut = 0;
+    for (const e of allEntries) {
+      const dAmt = Number(e.debitAmount || 0);
+      const cAmt = Number(e.creditAmount || 0);
+      sumDebits += dAmt;
+      sumCredits += cAmt;
+      if (e.debitAccount?.type && financialTypes.includes(e.debitAccount.type as any)) moneyIn += dAmt;
+      if (e.creditAccount?.type && financialTypes.includes(e.creditAccount.type as any)) moneyOut += cAmt;
+    }
+
+    const isBalanced = Number((sumDebits - sumCredits).toFixed(2)) === 0;
+
+    return {
+      rows: accountsData,
+      meta: {
+        totalAccounts: accounts.length,
+        totalDebit: Number(sumDebits.toFixed(2)),
+        totalCredit: Number(sumCredits.toFixed(2)),
+        isBalanced,
+        moneyIn: Number(moneyIn.toFixed(2)),
+        moneyOut: Number(moneyOut.toFixed(2)),
+      },
+    };
   }
 
   private toCsv(rows: any[]) {
