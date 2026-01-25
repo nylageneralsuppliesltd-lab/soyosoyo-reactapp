@@ -362,6 +362,9 @@ const APIReportsPage = () => {
                   <div className="report-content-area">
                     {/* Premium printable header for the expanded report */}
                     <ReportHeader title={report.name} subtitle={`Period: ${getPeriodLabel()}`} />
+                    <div className="report-actions">
+                      <button className="btn btn-primary" onClick={() => window.print()}>Print PDF</button>
+                    </div>
                     {/* Report Loading State */}
                     {reportLoading && (
                       <div className="flex items-center justify-center py-12">
