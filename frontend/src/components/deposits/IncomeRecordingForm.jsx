@@ -91,6 +91,11 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
     }
   };
 
+  const handleSmartSelectChange = (field) => (valueOrEvent) => {
+    const value = valueOrEvent?.target ? valueOrEvent.target.value : valueOrEvent;
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -213,7 +218,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
               label="Income Category"
               name="incomeCategory"
               value={formData.incomeCategory}
-              onChange={(e) => setFormData({ ...formData, incomeCategory: e.target.value })}
+              onChange={handleSmartSelectChange('incomeCategory')}
               options={depositCategories.length > 0 ? depositCategories.map(cat => ({ id: cat.id || cat.name, name: cat.name })) : incomeCategories.map(cat => ({ id: cat.value, name: cat.label }))}
               onAddNew={() => setShowAddCategory(true)}
               placeholder="Select category or create new..."
@@ -277,7 +282,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
               label="Receiving Account"
               name="accountId"
               value={formData.accountId}
-              onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+              onChange={handleSmartSelectChange('accountId')}
               options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
               onAddNew={() => setShowAddAccount(true)}
               placeholder="Select account or create new..."

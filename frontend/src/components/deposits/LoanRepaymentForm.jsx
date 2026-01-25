@@ -156,6 +156,11 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
     setShowMemberDropdown(false);
   };
 
+  const handleSmartSelectChange = (field) => (valueOrEvent) => {
+    const value = valueOrEvent?.target ? valueOrEvent.target.value : valueOrEvent;
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -411,7 +416,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               label="Account"
               name="accountId"
               value={formData.accountId}
-              onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+              onChange={handleSmartSelectChange('accountId')}
               options={accounts.map(account => ({
                 id: account.id,
                 name: `${account.code} - ${account.name}`,

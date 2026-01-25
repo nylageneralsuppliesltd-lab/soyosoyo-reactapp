@@ -277,7 +277,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
               label="Contribution Type"
               name="contributionType"
               value={formData.contributionType}
-              onChange={(e) => setFormData({ ...formData, contributionType: e.target.value })}
+              onChange={handleSmartSelectChange('contributionType')}
               options={depositCategories.length > 0 ? depositCategories.map(cat => ({ id: cat.id || cat.name, name: cat.name })) : [
                 { id: 'Monthly Contribution', name: 'Monthly Contribution' },
                 { id: 'Annual Contribution', name: 'Annual Contribution' },
@@ -321,7 +321,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
             label="Account"
             name="accountId"
             value={formData.accountId}
-            onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+            onChange={handleSmartSelectChange('accountId')}
             options={accounts.map(acc => ({ id: acc.id, name: `${acc.name} (${acc.type})` }))}
             onAddNew={() => setShowAddAccount(true)}
             placeholder="Select account or create new..."

@@ -106,13 +106,13 @@ export class WithdrawalsService {
         });
       }
 
-      // Get accounts
-      const cashAccount = accountId
-        ? await this.prisma.account.findUnique({ where: { id: accountId } })
-        : await this.ensureAccountByName('Cashbox', 'cash', 'Default cash account');
+      if (!accountId) {
+        throw new BadRequestException('Account is required');
+      }
 
+      const cashAccount = await this.prisma.account.findUnique({ where: { id: accountId } });
       if (!cashAccount) {
-        throw new NotFoundException('Cash account not found');
+        throw new NotFoundException('Account not found');
       }
 
       // Create withdrawal record
@@ -285,13 +285,14 @@ export class WithdrawalsService {
       throw new NotFoundException('Member not found');
     }
 
-    // Get accounts
-    const cashAccount = accountId
-      ? await this.prisma.account.findUnique({ where: { id: accountId } })
-      : await this.ensureAccountByName('Cashbox', 'cash', 'Default cash account');
+    if (!accountId) {
+      throw new BadRequestException('Account is required');
+    }
 
+    // Get accounts
+    const cashAccount = await this.prisma.account.findUnique({ where: { id: accountId } });
     if (!cashAccount) {
-      throw new NotFoundException('Cash account not found');
+      throw new NotFoundException('Account not found');
     }
 
     // Create withdrawal record
@@ -363,7 +364,8 @@ export class WithdrawalsService {
       data: {
         memberId,
         type: 'refund',
-        amount: -Number(amount),
+        // Store positive amount; downstream balance math treats refunds as debits
+        amount: Number(amount),
         description: `Refund - ${contributionType}`,
         reference: reference || null,
         balanceAfter: Number(updatedMember.balance),
@@ -397,13 +399,15 @@ export class WithdrawalsService {
       throw new NotFoundException('Member not found');
     }
 
+    if (!accountId) {
+      throw new BadRequestException('Account is required');
+    }
+
     // Get accounts
-    const cashAccount = accountId
-      ? await this.prisma.account.findUnique({ where: { id: accountId } })
-      : await this.ensureAccountByName('Cashbox', 'cash', 'Default cash account');
+    const cashAccount = await this.prisma.account.findUnique({ where: { id: accountId } });
 
     if (!cashAccount) {
-      throw new NotFoundException('Cash account not found');
+      throw new NotFoundException('Account not found');
     }
 
     // Create withdrawal record

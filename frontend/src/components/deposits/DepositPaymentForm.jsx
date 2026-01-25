@@ -277,7 +277,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
               label="Contribution Type"
               name="contributionType"
               value={formData.contributionType}
-              onChange={(e) => setFormData({ ...formData, contributionType: e.target.value })}
+              onChange={handleSmartSelectChange('contributionType')}
               options={depositCategories
                 .filter(cat => cat.type === 'contribution')
                 .map(cat => ({
@@ -332,7 +332,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
             label="Account Receiving Payment"
             name="accountId"
             value={formData.accountId}
-            onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+            onChange={handleSmartSelectChange('accountId')}
             options={accounts.map(account => ({
               id: account.id,
               name: `${account.name} (${account.type})`,

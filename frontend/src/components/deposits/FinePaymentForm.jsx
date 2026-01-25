@@ -135,6 +135,11 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
     setShowMemberDropdown(false);
   };
 
+  const handleSmartSelectChange = (field) => (valueOrEvent) => {
+    const value = valueOrEvent?.target ? valueOrEvent.target.value : valueOrEvent;
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -299,7 +304,7 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               label="Fine Type"
               name="fineType"
               value={formData.fineType}
-              onChange={(e) => setFormData({ ...formData, fineType: e.target.value })}
+              onChange={handleSmartSelectChange('fineType')}
               options={depositFineTypes.length > 0 ? depositFineTypes.map(type => ({ id: type.id || type.name, name: type.name })) : fineTypes.map(type => ({ id: type.value, name: type.label }))}
               onAddNew={() => setShowAddCategory(true)}
               placeholder="Select fine type or create new..."
@@ -349,7 +354,7 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               label="Account"
               name="accountId"
               value={formData.accountId}
-              onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+              onChange={handleSmartSelectChange('accountId')}
               options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
               onAddNew={() => setShowAddAccount(true)}
               placeholder="Select account or create new..."

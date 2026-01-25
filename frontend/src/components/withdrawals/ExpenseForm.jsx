@@ -51,7 +51,8 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
       if (response.ok) {
         const data = await response.json();
         const accountsArray = Array.isArray(data) ? data : (data.data || []);
-        setAccounts(accountsArray.filter((a) => a.type === 'cash' || a.type === 'bank'));
+        const allowedTypes = ['cash', 'bank', 'mobileMoney', 'pettyCash'];
+        setAccounts(accountsArray.filter((a) => allowedTypes.includes(a.type) && !a.isGlAccount));
       } else {
         setAccounts([]);
       }
@@ -71,6 +72,11 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
     } catch (error) {
       console.error('Error fetching categories:', error);
     }
+  };
+
+  const handleSmartSelectChange = (field) => (valueOrEvent) => {
+    const value = valueOrEvent?.target ? valueOrEvent.target.value : valueOrEvent;
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -139,7 +145,7 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
           const errorData = await response.json();
           errorMsg = errorData.message || errorMsg;
         } catch {
-          // If response body is not JSON, use default message
+          // Non-JSON response
         }
         setError(errorMsg);
       }
@@ -211,7 +217,7 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
               label="Expense Category"
               name="category"
               value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              onChange={handleSmartSelectChange('category')}
               options={categories.map(cat => ({
                 id: cat.name || cat.id,
                 name: cat.name,
@@ -251,14 +257,14 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
             label="Account (Optional)"
             name="accountId"
             value={formData.accountId}
-            onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+            onChange={handleSmartSelectChange('accountId')}
             options={accounts.map(account => ({
               id: account.id,
-              name: `${account.name} (${account.type})`,
+              name: `${account.name} (${account.type})${account.balance !== undefined ? ` - ${Number(account.balance).toFixed(2)}` : ''}`,
             }))}
             onAddNew={() => setShowAddAccount(true)}
-            addButtonText="Add Bank Account"
-            addButtonType="bank_account"
+            addButtonText="Add Account"
+            addButtonType="account"
             placeholder="Select account or create new..."
             icon={CreditCard}
             showAddButton
@@ -349,47 +355,26 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
         }}
       />
 
-      {/* Add Bank Account Modal */}
+      {/* Add Account Modal */}
       <AddItemModal
         isOpen={showAddAccount}
         onClose={() => setShowAddAccount(false)}
-        title="Add Bank Account"
+        title="Add Account"
         apiEndpoint={`${API_BASE}/accounts`}
         fields={[
-          {
-            name: 'name',
-            label: 'Account Name',
-            type: 'text',
-            placeholder: 'e.g., Main Bank Account',
-            required: true,
-          },
-          {
-            name: 'type',
-            label: 'Account Type',
-            type: 'select',
-            options: [
-              { value: 'bank', label: 'Bank Account' },
-              { value: 'cash', label: 'Cash Box' },
-            ],
-            required: true,
-          },
-          {
-            name: 'accountNumber',
-            label: 'Account Number',
-            type: 'text',
-            placeholder: 'Account number or reference',
-            required: false,
-          },
-          {
-            name: 'bankName',
-            label: 'Bank Name',
-            type: 'text',
-            placeholder: 'Name of the bank',
-            required: false,
-          },
+          { name: 'name', label: 'Account Name', type: 'text', placeholder: 'e.g., Main Account', required: true },
+          { name: 'type', label: 'Account Type', type: 'select', options: [
+            { value: 'cash', label: 'Cash' },
+            { value: 'bank', label: 'Bank' },
+            { value: 'mobileMoney', label: 'Mobile Money / Mpesa' },
+            { value: 'pettyCash', label: 'Petty Cash' },
+          ], required: true },
+          { name: 'provider', label: 'Provider (for mobile money)', type: 'text', required: false },
+          { name: 'number', label: 'Account / Phone Number', type: 'text', required: false },
+          { name: 'accountNumber', label: 'Bank Account Number', type: 'text', placeholder: 'Account number or reference', required: false },
+          { name: 'bankName', label: 'Bank Name', type: 'text', placeholder: 'Name of the bank', required: false },
         ]}
         onSuccess={(newAccount) => {
-          // Add new account to list
           setAccounts([...accounts, newAccount]);
           setFormData({ ...formData, accountId: newAccount.id });
           setShowAddAccount(false);

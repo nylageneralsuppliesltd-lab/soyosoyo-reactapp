@@ -80,23 +80,28 @@ export class DiagnosticsController {
       for (const m of members) {
         const ledger = m.ledger || [];
         const computed = ledger.reduce((sum, e) => {
-          if ([
+          const amount = Number(e.amount);
+          const credits = [
             'contribution',
             'deposit',
             'income',
             'loan_repayment',
             'fine_payment',
-          ].includes(e.type)) {
-            return sum + e.amount;
-          }
-          if ([
+          ];
+          const debits = [
             'withdrawal',
             'expense',
             'loan_disbursement',
             'fine',
             'transfer_out',
-          ].includes(e.type)) {
-            return sum - e.amount;
+            'refund',
+          ];
+
+          if (credits.includes(e.type)) {
+            return sum + amount;
+          }
+          if (debits.includes(e.type)) {
+            return sum - Math.abs(amount);
           }
           return sum;
         }, 0);

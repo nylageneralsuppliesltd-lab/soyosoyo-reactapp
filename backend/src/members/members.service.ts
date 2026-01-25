@@ -100,14 +100,17 @@ export class MembersService {
     // Calculate real-time balances from ledger
     const membersWithCalculatedBalance = members.map((member) => {
       const ledgerEntries = member.ledger || [];
-      
+
       const calculatedBalance = ledgerEntries.reduce((sum, entry) => {
-        // Contributions, deposits, and income add to balance
-        // Withdrawals, expenses, and loans deduct from balance
-        if (['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'].includes(entry.type)) {
-          return sum + entry.amount;
-        } else if (['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out'].includes(entry.type)) {
-          return sum - entry.amount;
+        const amount = Number(entry.amount);
+        const credits = ['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'];
+        const debits = ['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out', 'refund'];
+
+        if (credits.includes(entry.type)) {
+          return sum + amount;
+        }
+        if (debits.includes(entry.type)) {
+          return sum - Math.abs(amount);
         }
         return sum;
       }, 0);
@@ -155,10 +158,15 @@ export class MembersService {
     const ledgerEntries = member.ledger || [];
     
     const calculatedBalance = ledgerEntries.reduce((sum, entry) => {
-      if (['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'].includes(entry.type)) {
-        return sum + entry.amount;
-      } else if (['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out'].includes(entry.type)) {
-        return sum - entry.amount;
+      const amount = Number(entry.amount);
+      const credits = ['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'];
+      const debits = ['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out', 'refund'];
+
+      if (credits.includes(entry.type)) {
+        return sum + amount;
+      }
+      if (debits.includes(entry.type)) {
+        return sum - Math.abs(amount);
       }
       return sum;
     }, 0);
@@ -316,10 +324,15 @@ export class MembersService {
     // Calculate total balance from all members' ledgers
     const totalBalance = members.reduce((sum, member) => {
       const memberBalance = member.ledger.reduce((memberSum, entry) => {
-        if (['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'].includes(entry.type)) {
-          return memberSum + entry.amount;
-        } else if (['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out'].includes(entry.type)) {
-          return memberSum - entry.amount;
+        const amount = Number(entry.amount);
+        const credits = ['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'];
+        const debits = ['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out', 'refund'];
+
+        if (credits.includes(entry.type)) {
+          return memberSum + amount;
+        }
+        if (debits.includes(entry.type)) {
+          return memberSum - Math.abs(amount);
         }
         return memberSum;
       }, 0);

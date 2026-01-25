@@ -66,7 +66,8 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
       if (response.ok) {
         const data = await response.json();
         const accountsArray = Array.isArray(data) ? data : (data.data || []);
-        setAccounts(accountsArray.filter((a) => a.type === 'cash' || a.type === 'bank'));
+        const allowedTypes = ['cash', 'bank', 'mobileMoney', 'pettyCash'];
+        setAccounts(accountsArray.filter((a) => allowedTypes.includes(a.type) && !a.isGlAccount));
       } else {
         setAccounts([]);
       }
@@ -90,6 +91,11 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
     (m.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
     (m.phone?.includes(searchTerm) || false)
   );
+
+  const handleSmartSelectChange = (field) => (valueOrEvent) => {
+    const value = valueOrEvent?.target ? valueOrEvent.target.value : valueOrEvent;
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -280,7 +286,7 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
               label="Account"
               name="accountId"
               value={formData.accountId}
-              onChange={(value) => setFormData({ ...formData, accountId: value })}
+              onChange={handleSmartSelectChange('accountId')}
               options={accounts.map((account) => ({
                 id: account.id,
                 name: `${account.name} (${account.type}) - Balance: ${parseFloat(account.balance).toFixed(2)}`,
@@ -335,13 +341,20 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
       <AddItemModal
         isOpen={showAddAccount}
         onClose={() => setShowAddAccount(false)}
-        title="Add Bank Account"
+        title="Add Account"
         apiEndpoint={`${API_BASE}/accounts`}
         fields={[
           { name: 'name', label: 'Account Name', type: 'text', required: true },
-          { name: 'type', label: 'Account Type', type: 'select', options: [{ value: 'bank', label: 'Bank' }, { value: 'cash', label: 'Cash' }], required: true },
-          { name: 'accountNumber', label: 'Account Number', type: 'text', required: true },
-          { name: 'bankName', label: 'Bank Name', type: 'text', required: true },
+          { name: 'type', label: 'Account Type', type: 'select', options: [
+            { value: 'cash', label: 'Cash' },
+            { value: 'bank', label: 'Bank' },
+            { value: 'mobileMoney', label: 'Mobile Money / Mpesa' },
+            { value: 'pettyCash', label: 'Petty Cash' },
+          ], required: true },
+          { name: 'provider', label: 'Provider (for mobile money)', type: 'text', required: false },
+          { name: 'number', label: 'Account / Phone Number', type: 'text', required: false },
+          { name: 'accountNumber', label: 'Bank Account Number', type: 'text', required: false },
+          { name: 'bankName', label: 'Bank Name', type: 'text', required: false },
         ]}
         onSuccess={(newAccount) => {
           setAccounts([...accounts, newAccount]);

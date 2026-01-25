@@ -44,7 +44,8 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
       if (response.ok) {
         const data = await response.json();
         const accountsArray = Array.isArray(data) ? data : (data.data || []);
-        setAccounts(accountsArray);
+        const allowedTypes = ['cash', 'bank', 'mobileMoney', 'pettyCash'];
+        setAccounts(accountsArray.filter((a) => allowedTypes.includes(a.type) && !a.isGlAccount));
       } else {
         setAccounts([]);
       }
@@ -135,6 +136,11 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const fromAccount = accounts.find((a) => a.id === parseInt(formData.fromAccountId));
   const toAccount = accounts.find((a) => a.id === parseInt(formData.toAccountId));
 
+  const handleSmartSelectChange = (field) => (valueOrEvent) => {
+    const value = valueOrEvent?.target ? valueOrEvent.target.value : valueOrEvent;
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
   return (
     <div className="form-container">
       <div className="form-header-section">
@@ -195,7 +201,7 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
               label="From Account"
               name="fromAccountId"
               value={formData.fromAccountId}
-              onChange={(value) => setFormData({ ...formData, fromAccountId: value })}
+              onChange={handleSmartSelectChange('fromAccountId')}
               options={accounts.map((account) => ({
                 id: account.id,
                 name: `${account.name} (${account.type}) - Balance: KES ${parseFloat(account.balance).toFixed(2)}`,
@@ -221,7 +227,7 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
               label="To Account"
               name="toAccountId"
               value={formData.toAccountId}
-              onChange={(value) => setFormData({ ...formData, toAccountId: value })}
+              onChange={handleSmartSelectChange('toAccountId')}
               options={accounts.map((account) => ({
                 id: account.id,
                 name: `${account.name} (${account.type}) - Balance: KES ${parseFloat(account.balance).toFixed(2)}`,
@@ -296,13 +302,20 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
       <AddItemModal
         isOpen={showAddAccount}
         onClose={() => setShowAddAccount(false)}
-        title="Add Bank Account"
+        title="Add Account"
         apiEndpoint={`${API_BASE}/accounts`}
         fields={[
           { name: 'name', label: 'Account Name', type: 'text', required: true },
-          { name: 'type', label: 'Account Type', type: 'select', options: [{ value: 'bank', label: 'Bank' }, { value: 'cash', label: 'Cash' }], required: true },
-          { name: 'accountNumber', label: 'Account Number', type: 'text', required: true },
-          { name: 'bankName', label: 'Bank Name', type: 'text', required: true },
+          { name: 'type', label: 'Account Type', type: 'select', options: [
+            { value: 'cash', label: 'Cash' },
+            { value: 'bank', label: 'Bank' },
+            { value: 'mobileMoney', label: 'Mobile Money / Mpesa' },
+            { value: 'pettyCash', label: 'Petty Cash' },
+          ], required: true },
+          { name: 'provider', label: 'Provider (for mobile money)', type: 'text', required: false },
+          { name: 'number', label: 'Account / Phone Number', type: 'text', required: false },
+          { name: 'accountNumber', label: 'Bank Account Number', type: 'text', required: false },
+          { name: 'bankName', label: 'Bank Name', type: 'text', required: false },
         ]}
         onSuccess={(newAccount) => {
           setAccounts([...accounts, newAccount]);
