@@ -68,12 +68,17 @@ const AccountBalanceCard = () => {
         <span className="metric-label">Account Balance</span>
         <ArrowRight size={16} className="metric-arrow" />
       </div>
-
-      <div className="metric-value-compact balance-value">
-        {loading ? 'Loading...' : formatCurrency(balance)}
+      <div className="metric-value-container">
+        {loading ? (
+          <p className="metric-value">Loading...</p>
+        ) : error ? (
+          <p className="metric-value error">{error}</p>
+        ) : (
+          <p className="metric-value">{formatCurrency(balance)}</p>
+        )}
       </div>
-      <p className="metric-subtext-compact balance-subtext">
-        {error ? 'Tap to retry or open report' : 'Click to view details'}
+      <p className="metric-subtext-compact balance-subtext metric-subtext-link">
+        {error ? 'Tap to retry or open report' : 'View details'}
       </p>
     </div>
   );

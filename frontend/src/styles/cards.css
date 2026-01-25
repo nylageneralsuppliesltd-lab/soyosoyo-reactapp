@@ -40,11 +40,43 @@
   margin: 6px 0;
 }
 
+.metric-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--dark, #1f2937);
+  margin: 6px 0;
+}
+
+.metric-value.error {
+  font-size: 0.85rem;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.metric-value-container {
+  margin: 6px 0;
+}
+
 .metric-subtext-compact {
   font-size: 0.75rem;
   color: #6b7280;
   margin: 0;
   line-height: 1.4;
+}
+
+.metric-subtext-link {
+  font-size: 0.75rem;
+  color: #3b82f6;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.metric-subtext-link:hover {
+  color: #2563eb;
+  text-decoration: underline;
 }
 
 .metric-link {
