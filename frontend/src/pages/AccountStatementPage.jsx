@@ -13,6 +13,7 @@ const AccountStatementPage = () => {
   const [statement, setStatement] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
 
   useEffect(() => {
     fetchAccounts();
@@ -77,7 +78,7 @@ const AccountStatementPage = () => {
     window.print();
   };
 
-  const handleExport = async (format) => {
+  const handleExportClick = (format) => {
     const params = new URLSearchParams({ startDate, endDate, format });
     if (selectedAccount) {
       params.append('accountId', selectedAccount);
@@ -85,6 +86,7 @@ const AccountStatementPage = () => {
 
     const url = `${API_BASE}/reports/account-statement?${params.toString()}`;
     window.open(url);
+    setExportDropdownOpen(false);
   };
 
   const formatCurrency = (amount) => {
@@ -124,15 +126,21 @@ const AccountStatementPage = () => {
               Print
             </button>
             <div className="dropdown">
-              <button className="btn-action">
+              <button 
+                className="btn-action" 
+                onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+                title="Export Statement"
+              >
                 <Download size={20} />
                 Export
               </button>
-              <div className="dropdown-menu">
-                <button onClick={() => handleExport('csv')}>CSV</button>
-                <button onClick={() => handleExport('xlsx')}>Excel</button>
-                <button onClick={() => handleExport('pdf')}>PDF</button>
-              </div>
+              {exportDropdownOpen && (
+                <div className="dropdown-menu">
+                  <button onClick={() => handleExportClick('csv')}>CSV</button>
+                  <button onClick={() => handleExportClick('xlsx')}>Excel</button>
+                  <button onClick={() => handleExportClick('pdf')}>PDF</button>
+                </div>
+              )}
             </div>
           </div>
         </div>
