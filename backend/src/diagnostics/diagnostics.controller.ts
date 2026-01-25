@@ -1,4 +1,5 @@
-import { Controller, Get, Query, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Query, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
 @Controller('diagnostics')
@@ -150,55 +151,110 @@ export class DiagnosticsController {
 
   // Backfill general ledger from personal ledger totals
   @Get('backfill-gl-from-personal')
-  async backfillGLFromPersonal() {
+  async backfillGLFromPersonal(@Query('mode') mode: 'net' | 'per-member' = 'net') {
     this.ensureEnabled();
 
-    // Aggregate net personal ledger across all members
+    if (!['net', 'per-member'].includes(mode)) {
+      throw new BadRequestException('Invalid mode. Use "net" or "per-member".');
+    }
+
+    // Ensure base accounts exist before posting
+    const cash = await this.ensureAccountByName('Cashbox', 'cash', 'Default cash account');
+    const contributionsPayable = await this.ensureAccountByName(
+      'Members Contributions Payable',
+      'liability',
+      'Liability for member contributions',
+    );
+
+    if (mode === 'net') {
+      // Prevent duplicate postings for idempotency
+      const existing = await this.prisma.journalEntry.findFirst({
+        where: { reference: 'diag-backfill-personal-net' },
+      });
+      if (existing) {
+        return { success: true, posted: false, message: 'Net backfill already posted', reference: existing.reference };
+      }
+
+      // Aggregate net personal ledger across all members
+      const members = await this.prisma.member.findMany({
+        include: { ledger: { select: { amount: true } } },
+      });
+
+      const netTotal = members.reduce(
+        (sum, m) => sum + (m.ledger || []).reduce((s, e) => s + Number(e.amount), 0),
+        0,
+      );
+      const rounded = Math.round(netTotal * 100) / 100;
+      if (rounded === 0) {
+        return { success: true, message: 'No net balance to post', posted: false };
+      }
+
+      const abs = Math.abs(rounded);
+      const isDebitCash = rounded > 0;
+
+      await this.prisma.journalEntry.create({
+        data: {
+          date: new Date(),
+          reference: 'diag-backfill-personal-net',
+          description: 'Backfill net personal ledger to GL',
+          debitAccountId: isDebitCash ? cash.id : contributionsPayable.id,
+          debitAmount: new Prisma.Decimal(abs),
+          creditAccountId: isDebitCash ? contributionsPayable.id : cash.id,
+          creditAmount: new Prisma.Decimal(abs),
+          category: 'backfill',
+        },
+      });
+
+      return { success: true, posted: true, mode, netTotal: rounded };
+    }
+
+    // mode === 'per-member'
     const members = await this.prisma.member.findMany({
-      include: { ledger: { select: { amount: true } } },
+      select: { id: true, name: true, phone: true, ledger: { select: { amount: true } } },
     });
 
-    const netTotal = members.reduce((sum, m) => sum + (m.ledger || []).reduce((s, e) => s + Number(e.amount), 0), 0);
-    const rounded = Math.round(netTotal * 100) / 100;
-    if (rounded === 0) {
-      return { success: true, message: 'No net balance to post', posted: false };
-    }
+    const postings: Array<{ memberId: number; amount: number; direction: 'debit-cash' | 'credit-cash' }> = [];
+    for (const m of members) {
+      const net = (m.ledger || []).reduce((s, e) => s + Number(e.amount), 0);
+      const rounded = Math.round(net * 100) / 100;
+      if (rounded === 0) continue;
 
-    // Ensure base accounts
-    const cash = await this.ensureAccountByName('Cashbox', 'cash', 'Default cash account');
-    const contributionsPayable = await this.ensureAccountByName('Members Contributions Payable', 'liability', 'Liability for member contributions');
+      const reference = `diag-backfill-member-${m.id}`;
+      const exists = await this.prisma.journalEntry.findFirst({ where: { reference } });
+      if (exists) continue; // Skip duplicates for idempotency
 
-    // Post a single journal entry to align GL with personal net position
-    if (rounded > 0) {
-      await this.prisma.journalEntry.create({
-        data: {
-          date: new Date(),
-          reference: 'diag-backfill-personal-net',
-          description: 'Backfill net personal ledger to GL',
-          debitAccountId: cash.id,
-          debitAmount: new (require('@prisma/client').Prisma.Decimal)(rounded),
-          creditAccountId: contributionsPayable.id,
-          creditAmount: new (require('@prisma/client').Prisma.Decimal)(rounded),
-          category: 'backfill',
-        },
-      });
-    } else {
       const abs = Math.abs(rounded);
+      const isDebitCash = rounded > 0;
+
       await this.prisma.journalEntry.create({
         data: {
           date: new Date(),
-          reference: 'diag-backfill-personal-net',
-          description: 'Backfill net personal ledger to GL',
-          debitAccountId: contributionsPayable.id,
-          debitAmount: new (require('@prisma/client').Prisma.Decimal)(abs),
-          creditAccountId: cash.id,
-          creditAmount: new (require('@prisma/client').Prisma.Decimal)(abs),
-          category: 'backfill',
+          reference,
+          description: `Backfill member ${m.name ?? 'Member'} (${m.phone ?? 'n/a'}) to GL`,
+          debitAccountId: isDebitCash ? cash.id : contributionsPayable.id,
+          debitAmount: new Prisma.Decimal(abs),
+          creditAccountId: isDebitCash ? contributionsPayable.id : cash.id,
+          creditAmount: new Prisma.Decimal(abs),
+          category: 'backfill-member',
+          memo: `MemberId=${m.id}`,
         },
+      });
+
+      postings.push({
+        memberId: m.id,
+        amount: rounded,
+        direction: isDebitCash ? 'debit-cash' : 'credit-cash',
       });
     }
 
-    return { success: true, posted: true, netTotal: rounded };
+    const totalPosted = postings.reduce((s, p) => s + p.amount, 0);
+    return {
+      success: true,
+      mode,
+      postedMembers: postings.length,
+      netTotal: Math.round(totalPosted * 100) / 100,
+      details: postings,
+    };
   }
 
   private async ensureAccountByName(name: string, type: string, description?: string) {

@@ -6,9 +6,40 @@ export class DashboardService {
   constructor(private prisma: PrismaService) {}
 
   async getSummary(year: number = new Date().getFullYear()) {
-    // TODO: Replace with real aggregation once schema is updated
-    const members = await this.prisma.member.findMany({
-      select: { id: true, name: true, balance: true, active: true },
+    // Compute balances from ledger entries to avoid stale stored balances
+    const rawMembers = await this.prisma.member.findMany({
+      include: {
+        ledger: {
+          select: { amount: true, type: true },
+        },
+      },
+    });
+
+    const members = rawMembers.map((m) => {
+      const ledger = m.ledger || [];
+      const computed = ledger.reduce((sum, e) => {
+        if ([
+          'contribution',
+          'deposit',
+          'income',
+          'loan_repayment',
+          'fine_payment',
+        ].includes(e.type)) {
+          return sum + e.amount;
+        }
+        if ([
+          'withdrawal',
+          'expense',
+          'loan_disbursement',
+          'fine',
+          'transfer_out',
+        ].includes(e.type)) {
+          return sum - e.amount;
+        }
+        return sum;
+      }, 0);
+      const rounded = Math.round(computed * 100) / 100;
+      return { id: m.id, name: m.name, active: m.active, balance: rounded };
     });
 
     // Placeholder: No deposit/withdrawal/loan/repayment models yet
