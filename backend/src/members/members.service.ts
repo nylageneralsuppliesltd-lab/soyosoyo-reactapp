@@ -99,7 +99,9 @@ export class MembersService {
 
     // Calculate real-time balances from ledger
     const membersWithCalculatedBalance = members.map((member) => {
-      const calculatedBalance = member.ledger.reduce((sum, entry) => {
+      const ledgerEntries = member.ledger || [];
+      
+      const calculatedBalance = ledgerEntries.reduce((sum, entry) => {
         // Contributions, deposits, and income add to balance
         // Withdrawals, expenses, and loans deduct from balance
         if (['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'].includes(entry.type)) {
@@ -111,7 +113,7 @@ export class MembersService {
       }, 0);
 
       // Calculate loan balance from loan-related entries
-      const calculatedLoanBalance = member.ledger.reduce((sum, entry) => {
+      const calculatedLoanBalance = ledgerEntries.reduce((sum, entry) => {
         if (entry.type === 'loan_disbursement') {
           return sum + entry.amount;
         } else if (entry.type === 'loan_repayment') {
@@ -150,7 +152,9 @@ export class MembersService {
     if (!member) throw new NotFoundException(`Member with ID ${id} not found.`);
     
     // Calculate real-time balances from ledger
-    const calculatedBalance = member.ledger.reduce((sum, entry) => {
+    const ledgerEntries = member.ledger || [];
+    
+    const calculatedBalance = ledgerEntries.reduce((sum, entry) => {
       if (['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'].includes(entry.type)) {
         return sum + entry.amount;
       } else if (['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out'].includes(entry.type)) {
@@ -159,7 +163,7 @@ export class MembersService {
       return sum;
     }, 0);
 
-    const calculatedLoanBalance = member.ledger.reduce((sum, entry) => {
+    const calculatedLoanBalance = ledgerEntries.reduce((sum, entry) => {
       if (entry.type === 'loan_disbursement') {
         return sum + entry.amount;
       } else if (entry.type === 'loan_repayment') {
