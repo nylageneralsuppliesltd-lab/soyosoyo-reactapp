@@ -236,9 +236,9 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
               onFocus={() => setShowMemberDropdown(true)}
               className="form-input"
             />
-            {showMemberDropdown && filteredMembers.length > 0 && (
+            {showMemberDropdown && (
               <div className="member-dropdown">
-                {filteredMembers.slice(0, 10).map((member) => (
+                {filteredMembers.length > 0 && filteredMembers.slice(0, 10).map((member) => (
                   <button
                     key={member.id}
                     type="button"
@@ -249,6 +249,14 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
                     <span className="member-phone">{member.phone}</span>
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className="dropdown-item add-member-option"
+                  onClick={() => navigate('/members')}
+                >
+                  <span className="member-name">+ Add New Member</span>
+                  <span className="member-phone">Register a new member</span>
+                </button>
               </div>
             )}
           </div>

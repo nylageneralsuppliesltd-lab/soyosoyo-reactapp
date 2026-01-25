@@ -248,9 +248,9 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
             onFocus={() => setShowMemberDropdown(true)}
             required
           />
-          {showMemberDropdown && filteredMembers.length > 0 && (
+          {showMemberDropdown && (
             <div className="member-dropdown">
-              {filteredMembers.slice(0, 10).map((member) => (
+              {filteredMembers.length > 0 && filteredMembers.slice(0, 10).map((member) => (
                 <button
                   key={member.id}
                   type="button"
@@ -266,6 +266,17 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
                   <span className="balance">Balance: KES {member.balance?.toFixed(2) || '0.00'}</span>
                 </button>
               ))}
+              <button
+                type="button"
+                className="member-option add-member-option"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate('/members');
+                }}
+              >
+                <strong>+ Add New Member</strong>
+                <span>Register a new member</span>
+              </button>
             </div>
           )}
         </div>

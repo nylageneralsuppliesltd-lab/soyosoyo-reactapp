@@ -281,9 +281,9 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               placeholder="Search by name, phone, or member number"
               required
             />
-            {showMemberDropdown && filteredMembers.length > 0 && (
+            {showMemberDropdown && (
               <div className="member-dropdown">
-                {filteredMembers.slice(0, 10).map(member => (
+                {filteredMembers.length > 0 && filteredMembers.slice(0, 10).map(member => (
                   <button
                     key={member.id}
                     type="button"
@@ -302,6 +302,21 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
                     </div>
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className="member-option add-member-option"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/members');
+                  }}
+                >
+                  <div className="member-info">
+                    <span className="member-name">+ Add New Member</span>
+                  </div>
+                  <div className="member-details">
+                    <span className="member-phone">Register a new member</span>
+                  </div>
+                </button>
               </div>
             )}
           </div>
