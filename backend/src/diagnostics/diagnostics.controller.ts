@@ -31,8 +31,9 @@ export class DiagnosticsController {
   @Get('migrations')
   async migrations() {
     this.ensureEnabled();
+    // Some Neon instances may not have rolled_back_steps_count; select stable columns only.
     const rows = await this.prisma.$queryRaw<any[]>`
-      SELECT migration_name, applied_steps_count, rolled_back_steps_count, finished_at
+      SELECT migration_name, applied_steps_count, checksum, finished_at
       FROM "_prisma_migrations"
       ORDER BY finished_at DESC NULLS LAST
     `;
