@@ -552,8 +552,8 @@ export class ReportsService {
         // For asset accounts, debit = money in
         if (['cash', 'bank', 'pettyCash', 'mobileMoney'].includes(entry.debitAccount.type)) {
           acc.moneyIn += Number(entry.debitAmount);
-        } else {
-          // For expense/liability accounts
+        } else if (entry.debitAccount.type !== 'gl') {
+          // For expense/liability accounts (but not GL)
           acc.moneyOut += Number(entry.debitAmount);
         }
       }
@@ -578,15 +578,20 @@ export class ReportsService {
         // For asset accounts, credit = money out
         if (['cash', 'bank', 'pettyCash', 'mobileMoney'].includes(entry.creditAccount.type)) {
           acc.moneyOut += Number(entry.creditAmount);
-        } else {
-          // For income/liability accounts
+        } else if (entry.creditAccount.type !== 'gl') {
+          // For income/liability accounts (but not GL)
           acc.moneyIn += Number(entry.creditAmount);
         }
       }
     }
 
+    // CRITICAL FIX: Filter out GL accounts from balance calculations
+    // GL accounts are used ONLY for transaction categorization, not for balance calculation
+    // They create duplicate values in the master summary if included
+    const realAccounts = Array.from(accountMap.values()).filter(acc => acc.accountType !== 'gl');
+
     // Convert to rows with running balance
-    const rowsOut = Array.from(accountMap.values()).map(acc => ({
+    const rowsOut = realAccounts.map(acc => ({
       accountName: acc.accountName,
       accountType: acc.accountType,
       debitAmount: Number(acc.totalDebit.toFixed(2)),
@@ -606,7 +611,7 @@ export class ReportsService {
       runningBalance: row.balance,
     }));
 
-    // Calculate totals
+    // Calculate totals - now only from REAL accounts (not GL)
     const totals = rowsWithRunning.reduce(
       (t, r) => ({
         debit: t.debit + r.debitAmount,
@@ -665,7 +670,9 @@ export class ReportsService {
   }
 
   private async balanceSheetReport(dateRange: { start: Date; end: Date }) {
-    // Only count real financial accounts (cash, bank, etc.) - not GL accounts
+    // CRITICAL FIX: Only count real financial accounts (cash, bank, etc.) - EXCLUDE GL accounts
+    // GL accounts are placeholder accounts used for transaction categorization only
+    // They do not represent actual financial position
     const accounts = await this.prisma.account.findMany({
       where: {
         type: { in: ['cash', 'bank', 'pettyCash', 'mobileMoney'] },

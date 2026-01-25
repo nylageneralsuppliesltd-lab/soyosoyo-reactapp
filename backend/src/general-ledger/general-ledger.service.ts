@@ -65,10 +65,13 @@ export class GeneralLedgerService {
       orderBy: { name: 'asc' },
     });
 
+    // CRITICAL FIX: Only sum REAL financial accounts, exclude GL placeholder accounts
     const totalAssets = accounts.reduce((sum, acc) => {
       // Assets (cash, bank accounts) have positive balances when debited
+      // BUT only count REAL accounts, not GL accounts used for categorization
       if (
         ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(acc.type) &&
+        acc.type !== 'gl' &&
         !this.isGlAccount(acc.name, acc.type)
       ) {
         return sum + Number(acc.balance);
