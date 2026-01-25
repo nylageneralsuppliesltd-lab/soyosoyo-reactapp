@@ -6,6 +6,21 @@ import { Prisma } from '@prisma/client';
 export class GeneralLedgerService {
   constructor(private prisma: PrismaService) {}
 
+  // Identify non-cash GL placeholder accounts so they don't distort asset balances
+  private glAccountPatterns = [
+    /Received$/,
+    /Payable$/,
+    /Expense$/,
+    /Collected$/,
+    /Income$/,
+    /GL Account$/,
+  ];
+
+  private isGlAccount(name: string | undefined, type: string | undefined): boolean {
+    if (!name) return false;
+    return type === 'gl' || this.glAccountPatterns.some(pattern => pattern.test(name));
+  }
+
   async getTransactions(startDate?: string, endDate?: string, category?: string) {
     const where: any = {};
 
@@ -52,7 +67,10 @@ export class GeneralLedgerService {
 
     const totalAssets = accounts.reduce((sum, acc) => {
       // Assets (cash, bank accounts) have positive balances when debited
-      if (['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(acc.type)) {
+      if (
+        ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(acc.type) &&
+        !this.isGlAccount(acc.name, acc.type)
+      ) {
         return sum + Number(acc.balance);
       }
       return sum;
@@ -123,7 +141,9 @@ export class GeneralLedgerService {
     // For asset accounts (cash, bank): Debit increases, Credit decreases
     // For liability/equity accounts: Debit decreases, Credit increases
     let runningBalance = 0;
-    const isAssetAccount = ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type);
+    const isAssetAccount =
+      ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type) &&
+      !this.isGlAccount(account.name, account.type);
 
     const transactions = entries.map(entry => {
       let amount = 0;

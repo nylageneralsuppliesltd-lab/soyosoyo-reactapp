@@ -12,10 +12,11 @@ export class AccountsService {
     /Expense$/,            // "Rent Expense", "Utilities Expense"
     /Collected$/,          // "Fines Collected"
     /Income$/,             // "Other Income", "Miscellaneous Receipts"
+    /GL Account$/,         // Generic GL placeholders
   ];
 
-  private isGlAccount(accountName: string): boolean {
-    return this.glAccountPatterns.some(pattern => pattern.test(accountName));
+  private isGlAccount(accountName: string, accountType?: string): boolean {
+    return accountType === 'gl' || this.glAccountPatterns.some(pattern => pattern.test(accountName));
   }
 
   async getAllAccounts() {
@@ -38,8 +39,8 @@ export class AccountsService {
     // Mark accounts as GL (General Ledger) or real financial accounts
     return accounts.map(acc => ({
       ...acc,
-      isGlAccount: this.isGlAccount(acc.name),
-      accountCategory: this.isGlAccount(acc.name) ? 'GL' : 'Financial',
+      isGlAccount: this.isGlAccount(acc.name, acc.type),
+      accountCategory: this.isGlAccount(acc.name, acc.type) ? 'GL' : 'Financial',
     }));
   }
 
@@ -51,8 +52,8 @@ export class AccountsService {
 
     return accounts.map(acc => ({
       ...acc,
-      isGlAccount: this.isGlAccount(acc.name),
-      accountCategory: this.isGlAccount(acc.name) ? 'GL' : 'Financial',
+      isGlAccount: this.isGlAccount(acc.name, acc.type),
+      accountCategory: this.isGlAccount(acc.name, acc.type) ? 'GL' : 'Financial',
     }));
   }
 
@@ -65,7 +66,7 @@ export class AccountsService {
       orderBy: { name: 'asc' },
     });
 
-    return accounts.filter(acc => !this.isGlAccount(acc.name));
+    return accounts.filter(acc => !this.isGlAccount(acc.name, acc.type));
   }
 
   async createAccount(data: any) {

@@ -140,7 +140,7 @@ export class WithdrawalsService {
       expenseGLAccount = await this.prisma.account.create({
         data: {
           name: expenseGLAccountName,
-          type: 'bank', // GL account type
+          type: 'gl', // GL account type (non-cash)
           description: `GL account for ${category} expense`,
           currency: 'KES',
           balance: new Prisma.Decimal(0),
@@ -321,7 +321,7 @@ export class WithdrawalsService {
       refundGLAccount = await this.prisma.account.create({
         data: {
           name: refundGLAccountName,
-          type: 'bank', // GL account type
+          type: 'gl', // GL account type (non-cash)
           description: `GL account for ${contributionType} refunds payable`,
           currency: 'KES',
           balance: new Prisma.Decimal(0),
@@ -432,7 +432,7 @@ export class WithdrawalsService {
       dividendGLAccount = await this.prisma.account.create({
         data: {
           name: dividendGLAccountName,
-          type: 'bank', // GL account type
+          type: 'gl', // GL account type (non-cash)
           description: 'GL account for dividends payable',
           currency: 'KES',
           balance: new Prisma.Decimal(0),

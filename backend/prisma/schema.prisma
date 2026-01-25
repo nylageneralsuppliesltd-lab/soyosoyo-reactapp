@@ -46,6 +46,7 @@ enum AccountType {
   pettyCash
   mobileMoney
   bank
+  gl
 }
 
 enum FineType {

@@ -81,7 +81,7 @@ export class DepositsService {
         update: {}, // No updates needed if exists
         create: {
           name: glAccountName,
-          type: 'bank', // GL account type
+          type: 'gl', // Dedicated GL account type (not a real cash/bank account)
           description: `GL account for ${depositData.category || depositData.type}`,
           currency: 'KES',
           balance: new Prisma.Decimal(0),
@@ -224,7 +224,7 @@ export class DepositsService {
           glAccount = await this.prisma.account.create({
             data: {
               name: glAccountName,
-              type: 'bank', // GL account type
+              type: 'gl', // Dedicated GL account type (not a real cash/bank account)
               description: `GL account for ${depositData.category || depositData.type}`,
               currency: 'KES',
               balance: new Prisma.Decimal(0),
@@ -447,7 +447,7 @@ export class DepositsService {
         }
 
         creditAccountName = description ? `${description} Received` : 'Contributions Received';
-        const creditAccount = await this.ensureAccountByName(creditAccountName, 'bank', creditAccountName);
+        const creditAccount = await this.ensureAccountByName(creditAccountName, 'gl', creditAccountName);
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -467,7 +467,7 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.ensureAccountByName('Fines Collected', 'bank', 'Fines Collected GL Account');
+        const creditAccount = await this.ensureAccountByName('Fines Collected', 'gl', 'Fines Collected GL Account');
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -487,7 +487,7 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.ensureAccountByName('Loan Repayments Received', 'bank', 'Loan Repayments GL Account');
+        const creditAccount = await this.ensureAccountByName('Loan Repayments Received', 'gl', 'Loan Repayments GL Account');
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -507,7 +507,7 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.ensureAccountByName('Other Income', 'bank', 'Other Income GL Account');
+        const creditAccount = await this.ensureAccountByName('Other Income', 'gl', 'Other Income GL Account');
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -528,7 +528,7 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.ensureAccountByName('Miscellaneous Receipts', 'bank', 'Miscellaneous GL Account');
+        const creditAccount = await this.ensureAccountByName('Miscellaneous Receipts', 'gl', 'Miscellaneous GL Account');
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -566,10 +566,13 @@ export class DepositsService {
         select: { name: true, type: true }
       });
     
-      const isGLAccount = creditAccount && (
+      const isGLAccount = !!creditAccount && (
+        creditAccount.type === 'gl' ||
         creditAccount.name.includes('Received') || 
         creditAccount.name.includes('Expense') || 
         creditAccount.name.includes('Payable') ||
+        creditAccount.name.includes('Collected') ||
+        creditAccount.name.includes('Income') ||
         creditAccount.name.includes('GL Account')
       );
     
