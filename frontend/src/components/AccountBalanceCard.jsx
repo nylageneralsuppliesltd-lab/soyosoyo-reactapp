@@ -19,7 +19,10 @@ const AccountBalanceCard = () => {
   const loadBalance = async () => {
     try {
       setError(null);
-      const response = await fetch(`${apiBase}/api/accounts/balance-summary`, {
+      const url = apiBase
+        ? `${apiBase}/api/accounts/balance-summary`
+        : '/api/accounts/balance-summary';
+      const response = await fetch(url, {
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to load account balance');
