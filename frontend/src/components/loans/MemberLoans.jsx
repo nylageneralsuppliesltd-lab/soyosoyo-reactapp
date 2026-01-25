@@ -7,12 +7,14 @@ const MemberLoans = ({ onError, onLoading }) => {
   const [loans, setLoans] = useState([]);
   const [members, setMembers] = useState([]);
   const [loanTypes, setLoanTypes] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [formData, setFormData] = useState({
     memberId: '',
     typeId: '',
+    accountId: '',
     amount: '',
     periodMonths: '',
     disbursementDate: new Date().toISOString().split('T')[0],
@@ -27,30 +29,41 @@ const MemberLoans = ({ onError, onLoading }) => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [loansRes, membersRes, typesRes] = await Promise.all([
+      const [loansRes, membersRes, typesRes, accountsRes] = await Promise.all([
         fetch(`${API_BASE}/loans?direction=outward`),
         fetch(`${API_BASE}/members`),
         fetch(`${API_BASE}/loan-types`),
+        fetch(`${API_BASE}/accounts`),
       ]);
 
-      if (!loansRes.ok || !membersRes.ok || !typesRes.ok) throw new Error('Failed to fetch data');
+      if (!loansRes.ok || !membersRes.ok || !typesRes.ok || !accountsRes.ok) throw new Error('Failed to fetch data');
 
       const loansData = await loansRes.json();
       const membersData = await membersRes.json();
       const typesData = await typesRes.json();
+      const accountsData = await accountsRes.json();
 
       // Handle both array and wrapped responses
       const loansArray = Array.isArray(loansData) ? loansData : (loansData.data || []);
       const membersArray = Array.isArray(membersData) ? membersData : (membersData.data || []);
       const typesArray = Array.isArray(typesData) ? typesData : (typesData.data || []);
+      const accountsArray = Array.isArray(accountsData) ? accountsData : (accountsData.data || []);
+      // Filter to only bank/cash/mobile accounts (exclude GL accounts)
+      const bankAccounts = accountsArray.filter(a => 
+        ['cash', 'bank', 'mobileMoney', 'pettyCash'].includes(a.type) && 
+        !a.name.includes('GL:') && 
+        !a.name.includes('General Ledger')
+      );
 
       setLoans(loansArray);
       setMembers(membersArray);
       setLoanTypes(typesArray);
+      setAccounts(bankAccounts);
       
       // Debug log
       if (import.meta.env.DEV) {
-        console.log('Members loaded:', membersArray.length, membersArray.slice(0, 2));
+        console.log('Members loaded:', membersArray.length);
+        console.log('Accounts loaded:', bankAccounts.length);
       }
     } catch (err) {
       onError?.(err.message);
@@ -66,6 +79,7 @@ const MemberLoans = ({ onError, onLoading }) => {
     const errors = {};
     if (!formData.memberId) errors.memberId = 'Member is required';
     if (!formData.typeId) errors.typeId = 'Loan type is required';
+    if (!formData.accountId) errors.accountId = 'Disbursement account is required';
     if (!formData.amount || parseFloat(formData.amount) <= 0) errors.amount = 'Valid amount is required';
     if (!formData.periodMonths || parseInt(formData.periodMonths) < 1) errors.periodMonths = 'Valid period is required';
     setFormErrors(errors);
@@ -87,6 +101,7 @@ const MemberLoans = ({ onError, onLoading }) => {
           periodMonths: parseInt(formData.periodMonths),
           memberId: parseInt(formData.memberId),
           typeId: parseInt(formData.typeId),
+          accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
         }),
       });
 
@@ -108,6 +123,7 @@ const MemberLoans = ({ onError, onLoading }) => {
       setFormData({
         memberId: '',
         typeId: '',
+        accountId: '',
         amount: '',
         periodMonths: '',
         disbursementDate: new Date().toISOString().split('T')[0],
@@ -188,6 +204,26 @@ const MemberLoans = ({ onError, onLoading }) => {
                   ))}
                 </select>
                 {formErrors.typeId && <span className="error-text">{formErrors.typeId}</span>}
+              </div>
+              <div className="form-group">
+                <label className="required">Disbursement Account</label>
+                <select
+                  value={formData.accountId}
+                  onChange={e => setFormData({ ...formData, accountId: e.target.value })}
+                  className={formErrors.accountId ? 'error' : ''}
+                >
+                  <option value="">-- Select Account --</option>
+                  {accounts && accounts.length > 0 ? (
+                    accounts.map(acc => (
+                      <option key={acc.id} value={String(acc.id)}>
+                        {acc.name} ({acc.type.toUpperCase()})
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>No accounts available</option>
+                  )}
+                </select>
+                {formErrors.accountId && <span className="error-text">{formErrors.accountId}</span>}
               </div>
             </div>
 
