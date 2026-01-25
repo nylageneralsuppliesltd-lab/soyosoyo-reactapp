@@ -11,11 +11,12 @@ export class InvoicingService {
   /**
    * Run daily at 2:00 AM to check for invoices that need to be generated and sent.
    * Triggered by invoiceDate on ContributionType.
+   * Wrapped in error handling to prevent cron job crashes from stopping the server.
    */
   @Cron(CronExpression.EVERY_DAY_AT_2AM)
   async generateAndSendInvoices(): Promise<void> {
-    this.logger.log('🔔 Starting invoice generation and sending process...');
     try {
+      this.logger.log('🔔 Starting invoice generation and sending process...');
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -32,12 +33,18 @@ export class InvoicingService {
       this.logger.log(`Found ${activeContributions.length} active contribution type(s) with invoicing scheduled for today`);
 
       for (const contribution of activeContributions) {
-        await this.processContributionInvoicing(contribution);
+        try {
+          await this.processContributionInvoicing(contribution);
+        } catch (contribError) {
+          this.logger.error(`❌ Error processing contribution ${contribution.id}:`, contribError);
+          // Continue with next contribution instead of crashing
+        }
       }
 
       this.logger.log('✅ Invoice generation process completed');
     } catch (error) {
       this.logger.error('❌ Error in invoice generation process:', error);
+      // Do NOT rethrow - cron errors should not crash the server
     }
   }
 

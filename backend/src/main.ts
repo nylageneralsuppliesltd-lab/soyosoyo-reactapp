@@ -54,10 +54,27 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
   // Bind to 0.0.0.0 to ensure local and external access
-  await app.listen(port as number, '0.0.0.0');
-
+  const httpServer = await app.listen(port as number, '0.0.0.0');
+  
+  // Add explicit error handler to the HTTP server
+  httpServer.on('error', (err) => {
+    console.error('HTTP Server error:', err);
+    process.exit(1);
+  });
+  
   console.log(`Backend running on port ${port}`);
+  console.log('Server is ready to accept requests');
 }
+
+// Catch unhandled rejections that occur after bootstrap
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
 
 bootstrap().catch((err) => {
   console.error('Fatal error during bootstrap:', err);

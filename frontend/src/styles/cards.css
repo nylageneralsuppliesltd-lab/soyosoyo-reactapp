@@ -1,19 +1,80 @@
 /* src/styles/cards.css - Compact dashboard cards */
 
-.account-balance-card {
+/* Base compact metric card styles */
+.metric-card-compact {
   background: #fff;
   border-radius: 10px;
   padding: 12px;
-  box-shadow: var(--shadow);
-  border-left: 3px solid var(--primary);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   min-height: 110px;
 }
 
-.account-balance-card:hover {
+.metric-card-compact:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.metric-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #666;
+}
+
+.metric-label {
+  flex: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric-value-compact {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--dark, #1f2937);
+  margin: 6px 0;
+}
+
+.metric-subtext-compact {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.metric-link {
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--primary, #3b82f6);
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.metric-link:hover {
+  color: var(--primary-dark, #2563eb);
+}
+
+/* Account balance card specific */
+.account-balance-card {
+  border-left: 3px solid var(--primary, #3b82f6);
+}
+
+
+/* Account balance card specific */
+.account-balance-card {
+  border-left: 3px solid var(--primary, #3b82f6);
 }
 
 .account-balance-card .balance-header {
@@ -22,14 +83,14 @@
 }
 
 .metric-warning {
-  color: var(--danger);
+  color: var(--danger, #ef4444);
   margin-left: auto;
 }
 
 .balance-value {
   font-size: 1.4rem;
   line-height: 1.1;
-  color: var(--dark);
+  color: var(--dark, #1f2937);
 }
 
 .balance-subtext {
@@ -46,6 +107,29 @@
 
 .balance-link:hover {
   text-decoration: underline;
+}
+
+/* Loading skeleton */
+.balance-skeleton {
+  height: 28px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: 4px;
+  margin: 6px 0;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.error-text {
+  color: var(--danger, #ef4444);
 }
 
 .balance-skeleton {
