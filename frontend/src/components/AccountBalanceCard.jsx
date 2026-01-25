@@ -6,13 +6,13 @@ import '../styles/cards.css';
 
 const AccountBalanceCard = () => {
   const navigate = useNavigate();
-  const [balance, setBalance] = useState(0);
+  const [balance, setBalance] = useState(null);
+  const [accountCount, setAccountCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     loadBalance();
-    // Refresh every 60 seconds
     const interval = setInterval(loadBalance, 60000);
     return () => clearInterval(interval);
   }, []);
@@ -23,7 +23,8 @@ const AccountBalanceCard = () => {
       const response = await fetch('/api/accounts/balance-summary');
       if (!response.ok) throw new Error('Failed to load balance');
       const data = await response.json();
-      setBalance(data.totalBalance);
+      setBalance(data.totalBalance || 0);
+      setAccountCount(data.accounts?.length || 0);
     } catch (err) {
       console.error('Error loading account balance:', err);
       setError(true);
@@ -32,58 +33,60 @@ const AccountBalanceCard = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-KE', {
+  const formatCurrency = (amount) =>
+    new Intl.NumberFormat('en-KE', {
       style: 'currency',
       currency: 'KES',
       notation: amount > 999999 ? 'compact' : 'standard',
       minimumFractionDigits: 0,
     }).format(amount);
+
+  const handleClick = () => {
+    if (error) {
+      loadBalance();
+      return;
+    }
+    navigate('/reports/account-balance');
   };
 
   return (
-    <div className="dashboard-card account-balance-card">
-      <div className="card-header">
-        <div className="card-title-group">
-          <Bank size={24} weight="bold" className="card-icon text-blue-600" />
-          <h3 className="card-title">Account Balance</h3>
-        </div>
-        {error && <Warning size={20} className="text-red-500" />}
+    <div className="metric-card-compact account-balance-card" onClick={handleClick}>
+      <div className="metric-header balance-header">
+        <Bank size={18} />
+        <span className="metric-label">Account Balance</span>
+        {error && <Warning size={16} className="metric-warning" />}
       </div>
 
-      <div className="card-content">
-        {loading ? (
-          <div className="loading-skeleton">
-            <div className="skeleton-line short"></div>
-          </div>
-        ) : error ? (
-          <div className="error-mini">
-            <p>Unable to load</p>
-            <button onClick={loadBalance} className="btn-tiny">
-              Retry
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="balance-display">
-              <div className="balance-value">
-                {formatCurrency(balance)}
-              </div>
-              <p className="balance-label">Real money held</p>
-            </div>
-          </>
-        )}
-      </div>
+      {loading ? (
+        <div className="balance-skeleton" aria-label="Loading balance" />
+      ) : error ? (
+        <>
+          <div className="metric-value-compact error-text">Error</div>
+          <p className="metric-subtext-compact error-text">Tap to retry</p>
+        </>
+      ) : balance === null ? (
+        <>
+          <div className="metric-value-compact">-</div>
+          <p className="metric-subtext-compact">No data available</p>
+        </>
+      ) : (
+        <>
+          <div className="metric-value-compact balance-value">{formatCurrency(balance)}</div>
+          <p className="metric-subtext-compact balance-subtext">
+            {accountCount > 0 ? `${accountCount} account${accountCount !== 1 ? 's' : ''}` : 'Real money held'}
+          </p>
+        </>
+      )}
 
-      <div className="card-footer">
-        <button
-          onClick={() => navigate('/reports/account-balance')}
-          className="btn-view-all"
-        >
-          <span>View Breakdown</span>
-          <ArrowRight size={16} />
-        </button>
-      </div>
+      <button
+        className="metric-link balance-link"
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate('/reports/account-balance');
+        }}
+      >
+        View breakdown <ArrowRight size={12} />
+      </button>
     </div>
   );
 };
