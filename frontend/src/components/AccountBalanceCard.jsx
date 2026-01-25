@@ -28,6 +28,9 @@ const AccountBalanceCard = () => {
     } catch (err) {
       console.error('Error loading account balance:', err);
       setError(true);
+      // Show zero with error state while waiting for backend
+      setBalance(0);
+      setAccountCount(0);
     } finally {
       setLoading(false);
     }
