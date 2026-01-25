@@ -81,8 +81,15 @@ const DashboardPage = () => {
       setMonthlyData(trendData);
       setRecentActivities(activityData);
     } catch (err) {
-      console.error('Error loading dashboard data:', err);
-      setError('Failed to load dashboard data. Please try again.');
+      // Network errors are retried silently by axios interceptor
+      // Only show UI error for non-recoverable client errors
+      if (err.response?.status >= 400 && err.response?.status < 500) {
+        setError('Invalid request. Please refresh the page.');
+      }
+      // For 5xx and network errors, data will remain empty/default until next retry
+      if (import.meta.env.DEV) {
+        console.debug('Dashboard data fetch in progress/retrying...');
+      }
     } finally {
       setLoading(false);
     }

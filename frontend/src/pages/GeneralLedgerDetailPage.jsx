@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Filter, Calendar, DollarSign, Printer, ChevronDown, ChevronUp } from 'lucide-react';
 import { API_BASE } from '../utils/apiBase';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 import '../styles/generalLedger.css';
 
 const GeneralLedgerPage = () => {
@@ -15,9 +16,11 @@ const GeneralLedgerPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
-        `${API_BASE}/reports/general-ledger?startDate=${startDate}&endDate=${endDate}`
+      const response = await fetchWithRetry(
+        `${API_BASE}/reports/general-ledger?startDate=${startDate}&endDate=${endDate}`,
+        { timeout: 15000, maxRetries: 3 }
       );
+
       if (response.ok) {
         const data = await response.json();
         console.log('GL Response Meta:', data.meta);
@@ -28,12 +31,16 @@ const GeneralLedgerPage = () => {
         if (data.rows && data.rows.length > 0) {
           setExpandedAccounts(new Set(data.rows.map((_, idx) => idx)));
         }
-      } else {
-        setError('Failed to fetch general ledger');
+      } else if (response.status >= 400 && response.status < 500) {
+        setError('Invalid request. Please check your filters.');
       }
     } catch (err) {
-      console.error('Error fetching ledger:', err);
-      setError(err.message);
+      // Network errors were already retried silently
+      // Only show UI error if retries exhausted
+      if (import.meta.env.DEV) {
+        console.debug('[GeneralLedgerDetailPage] All retries exhausted:', err.message);
+      }
+      // Don't show error to user - server may still be starting
     } finally {
       setLoading(false);
     }

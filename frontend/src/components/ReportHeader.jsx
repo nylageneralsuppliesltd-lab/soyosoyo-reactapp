@@ -14,7 +14,12 @@ export default function ReportHeader({ title = 'Member Report', subtitle = null 
     website: 'www.soyosoyosacco.com',
     address: 'P.O. Box 12345, Nairobi, Kenya',
     regNumber: 'REG/SACCO/2010/001',
+    logo: '/logo.png',
   };
+
+  // Allow white-label tenant logo; falls back to the default SACCO logo
+  const tenantLogo = '/tenant-logos/client-logo.png';
+  const fallbackLogo = saccoInfo.logo;
 
   return (
     <div className="report-header">
@@ -22,7 +27,14 @@ export default function ReportHeader({ title = 'Member Report', subtitle = null 
         {/* Logo and Org Info */}
         <div className="report-logo-section">
           <div className="report-logo">
-            <div className="report-logo-circle">SS</div>
+            <img
+              src={tenantLogo}
+              alt={`${saccoInfo.name} logo`}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = fallbackLogo;
+              }}
+            />
           </div>
           <div className="report-org-info">
             <h1 className="report-org-name">{saccoInfo.name}</h1>
@@ -68,6 +80,7 @@ export default function ReportHeader({ title = 'Member Report', subtitle = null 
             minute: '2-digit',
           })}
         </p>
+        <p className="report-powered-by">Product of Soyosoyo (white-label ready)</p>
       </div>
 
       {/* Divider */}

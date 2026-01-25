@@ -4,9 +4,9 @@
 
 .report-header {
   background: white;
-  padding: 24px;
+  padding: 16px;
   border-bottom: 2px solid #e5e7eb;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
 }
@@ -14,8 +14,8 @@
 .report-header-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 32px;
-  margin-bottom: 24px;
+  gap: 16px;
+  margin-bottom: 16px;
   align-items: start;
 }
 
@@ -30,16 +30,26 @@
   flex-shrink: 0;
 }
 
+.report-logo img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  padding: 4px;
+}
+
 .report-logo-circle {
-  width: 60px;
-  height: 60px;
+  width: 48px;
+  height: 48px;
   background: linear-gradient(135deg, #2563eb 0%, #10b981 100%);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 24px;
+  font-size: 18px;
   color: white;
   border: 2px solid #2563eb;
 }
@@ -50,21 +60,21 @@
 
 .report-org-name {
   margin: 0;
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 700;
   color: #1f2937;
 }
 
 .report-org-slogan {
   margin: 4px 0;
-  font-size: 13px;
+  font-size: 12px;
   color: #6b7280;
   font-style: italic;
 }
 
 .report-org-reg {
   margin: 4px 0;
-  font-size: 12px;
+  font-size: 11px;
   color: #9ca3af;
   font-family: 'Courier New', monospace;
 }
@@ -73,13 +83,13 @@
 .report-contact-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .contact-item {
   display: flex;
-  gap: 8px;
-  font-size: 12px;
+  gap: 6px;
+  font-size: 11px;
 }
 
 .contact-label {
@@ -97,26 +107,34 @@
 /* Title Section */
 .report-title-section {
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .report-title {
   margin: 0 0 8px 0;
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
   color: #1f2937;
 }
 
 .report-subtitle {
   margin: 0 0 8px 0;
-  font-size: 14px;
+  font-size: 12px;
   color: #6b7280;
 }
 
 .report-date {
   margin: 0;
-  font-size: 12px;
+  font-size: 11px;
   color: #9ca3af;
+}
+
+.report-powered-by {
+  margin: 4px 0 0 0;
+  font-size: 10px;
+  color: #6b7280;
+  font-weight: 600;
+  letter-spacing: 0.2px;
 }
 
 /* Divider */

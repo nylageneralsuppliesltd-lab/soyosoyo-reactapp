@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { createRetryInterceptor } from '../../utils/retryFetch';
 
 let API_BASE = import.meta.env.VITE_API_URL;
 
@@ -24,10 +25,14 @@ if (API_BASE) {
 const API = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
+  timeout: 15000, // 15 second timeout to allow for slow server startups
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Add retry interceptor with exponential backoff (silent retries)
+createRetryInterceptor(API, { maxRetries: 3 });
 
 API.interceptors.request.use(
   (config) => {
@@ -41,6 +46,10 @@ API.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       console.warn('Unauthorized - possibly session expired');
+    }
+    // Log errors silently (only in development, to console not UI)
+    if (import.meta.env.DEV && error.response?.status >= 500) {
+      console.debug(`API Error [${error.config?.method?.toUpperCase()}] ${error.config?.url}:`, error.response?.status);
     }
     return Promise.reject(error);
   }

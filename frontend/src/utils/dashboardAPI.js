@@ -1,26 +1,32 @@
 import axios from 'axios';
+import { createRetryInterceptor } from './retryFetch';
 
-// Smart API base URL logic
-let API_BASE = import.meta.env.VITE_API_URL;
+// Centralized API base URL with local-first, proxy-friendly resolution
+let API_BASE = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
+
+// Prefer local proxy during dev to avoid CORS/latency; fall back to remote only when not local
+const isLocal = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+);
+
 if (!API_BASE) {
-  const isLocal = typeof window !== 'undefined' && (
-    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  );
-  API_BASE = isLocal
-    ? 'http://localhost:3000/api'
-    : 'https://soyosoyo-reactapp-0twy.onrender.com/api';
+  API_BASE = isLocal ? '/api' : 'https://soyosoyo-reactapp-0twy.onrender.com/api';
 }
 
-// Normalize to ensure /api suffix even if env is missing it
-if (API_BASE) {
-  const trimmed = API_BASE.replace(/\/+$/, '');
-  API_BASE = trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+// Normalize trailing slash and ensure /api suffix for full URLs
+API_BASE = API_BASE.replace(/\/+$/, '');
+if (API_BASE.startsWith('http')) {
+  API_BASE = API_BASE.endsWith('/api') ? API_BASE : `${API_BASE}/api`;
 }
 
 const API = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
+  timeout: 15000, // Increased to allow for slow server startups
 });
+
+// Add automatic retry logic with exponential backoff for network failures
+createRetryInterceptor(API, { maxRetries: 3 });
 
 /**
  * Fetch all members for total count and status breakdown

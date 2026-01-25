@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Filter, Calendar, DollarSign, TrendingUp, TrendingDown, Printer } from 'lucide-react';
 import { API_BASE } from '../utils/apiBase';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 import '../styles/accountStatement.css';
 
 const AccountStatementPage = () => {
   const [accounts, setAccounts] = useState([]);
-  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [selectedAccount, setSelectedAccount] = useState(''); // '' = all accounts
   const [startDate, setStartDate] = useState(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [statement, setStatement] = useState(null);
@@ -14,47 +15,50 @@ const AccountStatementPage = () => {
 
   useEffect(() => {
     fetchAccounts();
+    fetchStatement(''); // Show all accounts by default
   }, []);
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(`${API_BASE}/accounts`);
+      const response = await fetchWithRetry(`${API_BASE}/accounts`, { timeout: 15000, maxRetries: 3 });
       if (response.ok) {
         const data = await response.json();
         const accountsList = Array.isArray(data) ? data : (data.data || []);
         // Filter to only real accounts (not GL accounts)
         const realAccounts = accountsList.filter(a => !a.isGlAccount);
         setAccounts(realAccounts);
-        if (realAccounts.length > 0) {
-          setSelectedAccount(realAccounts[0].id);
-        }
+        setSelectedAccount('');
       }
     } catch (err) {
-      console.error('Error fetching accounts:', err);
+      // Network errors retry silently
+      if (import.meta.env.DEV) {
+        console.debug('Accounts fetch in progress...');
+      }
     }
   };
 
-  const fetchStatement = async () => {
-    if (!selectedAccount) {
-      setError('Please select an account');
-      return;
-    }
-
+  const fetchStatement = async (accountId = selectedAccount) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
-        `${API_BASE}/reports/account-statement?accountId=${selectedAccount}&startDate=${startDate}&endDate=${endDate}`
-      );
+      const params = new URLSearchParams({ startDate, endDate });
+      if (accountId) {
+        params.append('accountId', accountId);
+      }
+
+      const response = await fetchWithRetry(`${API_BASE}/reports/account-statement?${params.toString()}`, { timeout: 15000, maxRetries: 3 });
       if (response.ok) {
         const data = await response.json();
         setStatement(data);
-      } else {
-        setError('Failed to fetch statement');
+      } else if (response.status >= 400 && response.status < 500) {
+        setError('Invalid request. Please check your filters.');
       }
+      // 5xx errors retry silently
     } catch (err) {
-      console.error('Error fetching statement:', err);
-      setError(err.message);
+      // Network errors already retried silently
+      if (import.meta.env.DEV) {
+        console.debug('Statement fetch in progress...');
+      }
     } finally {
       setLoading(false);
     }
@@ -65,7 +69,12 @@ const AccountStatementPage = () => {
   };
 
   const handleExport = async (format) => {
-    const url = `${API_BASE}/reports/account-statement?accountId=${selectedAccount}&startDate=${startDate}&endDate=${endDate}&format=${format}`;
+    const params = new URLSearchParams({ startDate, endDate, format });
+    if (selectedAccount) {
+      params.append('accountId', selectedAccount);
+    }
+
+    const url = `${API_BASE}/reports/account-statement?${params.toString()}`;
     window.open(url);
   };
 
@@ -85,7 +94,8 @@ const AccountStatementPage = () => {
     });
   };
 
-  const selectedAccountData = accounts.find(a => a.id === selectedAccount);
+  const selectedAccountData = accounts.find(a => a.id === Number(selectedAccount));
+  const isSingleAccount = Boolean(statement?.meta?.account);
 
   return (
     <div className="account-statement-page">
@@ -117,8 +127,14 @@ const AccountStatementPage = () => {
         <div className="filters-section">
           <div className="filter-group">
             <label>Account</label>
-            <select value={selectedAccount || ''} onChange={(e) => setSelectedAccount(Number(e.target.value))}>
-              <option value="">Select Account</option>
+            <select
+              value={selectedAccount}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSelectedAccount(value === '' ? '' : Number(value));
+              }}
+            >
+              <option value="">All Accounts</option>
               {accounts.map(acc => (
                 <option key={acc.id} value={acc.id}>
                   {acc.name} ({acc.type})
@@ -187,38 +203,69 @@ const AccountStatementPage = () => {
           {/* Transactions Table */}
           {statement.rows && statement.rows.length > 0 ? (
             <div className="transactions-section">
-              <table className="statement-table">
-                <thead>
-                  <tr className="table-header">
-                    <th className="col-date">Date</th>
-                    <th className="col-ref">Reference</th>
-                    <th className="col-desc">Description</th>
-                    <th className="col-opposite">Opposite Account</th>
-                    <th className="col-debit">Money Out (KES)</th>
-                    <th className="col-credit">Money In (KES)</th>
-                    <th className="col-balance">Balance (KES)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {statement.rows.map((row, idx) => (
-                    <tr key={idx} className={row.debit ? 'debit-row' : 'credit-row'}>
-                      <td className="col-date">{formatDate(row.date)}</td>
-                      <td className="col-ref">{row.reference || '-'}</td>
-                      <td className="col-desc">{row.description || '-'}</td>
-                      <td className="col-opposite">{row.oppositeAccount || '-'}</td>
-                      <td className="col-debit amount">
-                        {row.moneyOut ? formatCurrency(row.moneyOut) : '-'}
-                      </td>
-                      <td className="col-credit amount">
-                        {row.moneyIn ? formatCurrency(row.moneyIn) : '-'}
-                      </td>
-                      <td className="col-balance amount balance-cell">
-                        {formatCurrency(row.runningBalance)}
-                      </td>
+              {isSingleAccount ? (
+                <table className="statement-table">
+                  <thead>
+                    <tr className="table-header">
+                      <th className="col-date">Date</th>
+                      <th className="col-ref">Reference</th>
+                      <th className="col-desc">Description</th>
+                      <th className="col-opposite">Opposite Account</th>
+                      <th className="col-debit">Money Out (KES)</th>
+                      <th className="col-credit">Money In (KES)</th>
+                      <th className="col-balance">Balance (KES)</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {statement.rows.map((row, idx) => (
+                      <tr key={idx} className={row.debit ? 'debit-row' : 'credit-row'}>
+                        <td className="col-date">{formatDate(row.date)}</td>
+                        <td className="col-ref">{row.reference || '-'}</td>
+                        <td className="col-desc">{row.description || '-'}</td>
+                        <td className="col-opposite">{row.oppositeAccount || '-'}</td>
+                        <td className="col-debit amount">
+                          {row.moneyOut ? formatCurrency(row.moneyOut) : '-'}
+                        </td>
+                        <td className="col-credit amount">
+                          {row.moneyIn ? formatCurrency(row.moneyIn) : '-'}
+                        </td>
+                        <td className="col-balance amount balance-cell">
+                          {formatCurrency(row.runningBalance)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="statement-table">
+                  <thead>
+                    <tr className="table-header">
+                      <th className="col-date">Date</th>
+                      <th className="col-ref">Reference</th>
+                      <th className="col-desc">Description</th>
+                      <th className="col-opposite">Debit Account</th>
+                      <th className="col-opposite">Credit Account</th>
+                      <th className="col-debit">Debit (KES)</th>
+                      <th className="col-credit">Credit (KES)</th>
+                      <th className="col-desc">Category</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statement.rows.map((row, idx) => (
+                      <tr key={idx}>
+                        <td className="col-date">{formatDate(row.date)}</td>
+                        <td className="col-ref">{row.reference || '-'}</td>
+                        <td className="col-desc">{row.description || '-'}</td>
+                        <td className="col-opposite">{row.debitAccount || '-'}</td>
+                        <td className="col-opposite">{row.creditAccount || '-'}</td>
+                        <td className="col-debit amount">{formatCurrency(row.debitAmount)}</td>
+                        <td className="col-credit amount">{formatCurrency(row.creditAmount)}</td>
+                        <td className="col-desc">{row.category || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           ) : (
             <div className="no-data">
@@ -230,26 +277,45 @@ const AccountStatementPage = () => {
           {statement.meta && (
             <div className="statement-summary">
               <div className="summary-grid">
-                <div className="summary-item">
-                  <span className="label">Total Money Out:</span>
-                  <span className="value debit">{formatCurrency(statement.meta.totalMoneyOut)}</span>
-                </div>
-                <div className="summary-item">
-                  <span className="label">Total Money In:</span>
-                  <span className="value credit">{formatCurrency(statement.meta.totalMoneyIn)}</span>
-                </div>
-                <div className="summary-item">
-                  <span className="label">Net Change:</span>
-                  <span className={`value ${statement.meta.netChange >= 0 ? 'positive' : 'negative'}`}>
-                    {formatCurrency(statement.meta.netChange)}
-                  </span>
-                </div>
-                <div className="summary-item highlight">
-                  <span className="label">Closing Balance:</span>
-                  <span className={`value balance ${statement.meta.runningBalance >= 0 ? 'positive' : 'negative'}`}>
-                    {formatCurrency(statement.meta.runningBalance)}
-                  </span>
-                </div>
+                {isSingleAccount ? (
+                  <>
+                    <div className="summary-item">
+                      <span className="label">Total Money Out:</span>
+                      <span className="value debit">{formatCurrency(statement.meta.totalMoneyOut)}</span>
+                    </div>
+                    <div className="summary-item">
+                      <span className="label">Total Money In:</span>
+                      <span className="value credit">{formatCurrency(statement.meta.totalMoneyIn)}</span>
+                    </div>
+                    <div className="summary-item">
+                      <span className="label">Net Change:</span>
+                      <span className={`value ${statement.meta.netChange >= 0 ? 'positive' : 'negative'}`}>
+                        {formatCurrency(statement.meta.netChange)}
+                      </span>
+                    </div>
+                    <div className="summary-item highlight">
+                      <span className="label">Closing Balance:</span>
+                      <span className={`value balance ${(statement.meta.closingBalance ?? statement.meta.runningBalance ?? 0) >= 0 ? 'positive' : 'negative'}`}>
+                        {formatCurrency(statement.meta.closingBalance ?? statement.meta.runningBalance)}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="summary-item">
+                      <span className="label">Total Debit:</span>
+                      <span className="value debit">{formatCurrency(statement.meta.totalDebit)}</span>
+                    </div>
+                    <div className="summary-item">
+                      <span className="label">Total Credit:</span>
+                      <span className="value credit">{formatCurrency(statement.meta.totalCredit)}</span>
+                    </div>
+                    <div className="summary-item highlight">
+                      <span className="label">Entries:</span>
+                      <span className="value balance">{statement.meta.count || statement.rows.length}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

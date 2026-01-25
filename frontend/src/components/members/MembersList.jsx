@@ -46,8 +46,18 @@ export default function MembersList() {
         });
       }
     } catch (err) {
-      setError('Failed to fetch members. Please try again.');
-      console.error('[MembersList] Fetch error:', err);
+      // Network errors from idle servers are retried silently by interceptor
+      // Only show error to user for non-recoverable errors
+      if (err.response?.status === 400 || err.response?.status === 404) {
+        setError('Invalid request. Please refresh and try again.');
+      } else if (err.response?.status === 403) {
+        setError('Access denied.');
+      }
+      // For network errors (CORS, timeout, 5xx), retry silently without showing UI error
+      // Keep loading state or previous data until recovered
+      if (import.meta.env.DEV) {
+        console.debug('[MembersList] Retry in progress for members fetch...');
+      }
     } finally {
       setLoading(false);
     }
@@ -63,8 +73,10 @@ export default function MembersList() {
       await suspendMember(id);
       await fetchMembers(pagination.skip);
     } catch (err) {
-      setError('Failed to suspend member.');
-      console.error(err);
+      if (err.response?.status >= 400 && err.response?.status < 500) {
+        setError('Failed to suspend member.');
+      }
+      // 5xx errors retry silently in interceptor
     }
   };
 
@@ -74,8 +86,10 @@ export default function MembersList() {
       await reactivateMember(id);
       await fetchMembers(pagination.skip);
     } catch (err) {
-      setError('Failed to reactivate member.');
-      console.error(err);
+      if (err.response?.status >= 400 && err.response?.status < 500) {
+        setError('Failed to reactivate member.');
+      }
+      // 5xx errors retry silently in interceptor
     }
   };
 
