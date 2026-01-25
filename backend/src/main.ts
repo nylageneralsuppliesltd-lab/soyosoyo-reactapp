@@ -1,6 +1,7 @@
 // main.ts
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
@@ -18,6 +19,9 @@ async function bootstrap() {
 
   // Align backend routes with frontend expectations
   app.setGlobalPrefix('api');
+
+  // Enhanced error diagnostics for Prisma
+  app.useGlobalFilters(new PrismaExceptionFilter());
 
   // CORS - allow specific domains and support credentials
   const allowedOrigins = [

@@ -17,19 +17,27 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       adapter: new PrismaNeon({
         connectionString: process.env.DATABASE_URL!,
       }),
-      // Optional: more granular logging (useful in dev)
-      log: process.env.NODE_ENV === 'development'
-        ? [
-            { emit: 'event', level: 'query' },
-            { emit: 'event', level: 'info' },
-            { emit: 'event', level: 'warn' },
-            { emit: 'event', level: 'error' },
-          ]
-        : ['error'],
+      // Configurable logging via env for production debugging
+      log:
+        process.env.PRISMA_LOG_QUERY === 'true'
+          ? [
+              { emit: 'event', level: 'query' },
+              { emit: 'event', level: 'info' },
+              { emit: 'event', level: 'warn' },
+              { emit: 'event', level: 'error' },
+            ]
+          : process.env.NODE_ENV === 'development'
+          ? [
+              { emit: 'event', level: 'query' },
+              { emit: 'event', level: 'info' },
+              { emit: 'event', level: 'warn' },
+              { emit: 'event', level: 'error' },
+            ]
+          : ['error'],
     });
 
     // Optional: listen to query events for detailed logging
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'development' || process.env.PRISMA_LOG_QUERY === 'true') {
       this.$on('query', (e) => {
         this.logger.debug(`Query: ${e.query} - Duration: ${e.duration}ms - Params: ${e.params}`);
       });
