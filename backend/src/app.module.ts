@@ -19,6 +19,7 @@ import { AssetsModule } from './assets/assets.module';
 import { ReportsModule } from './reports/reports.module';
 import { AppController } from './app.controller';
 import { LoanTypesModule } from './loan-types/loan-types.module';
+import { DiagnosticsModule } from './diagnostics/diagnostics.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { LoanTypesModule } from './loan-types/loan-types.module';
     CategoryLedgerModule,
     AssetsModule,
     ReportsModule,
+    DiagnosticsModule,
   ],
   controllers: [AppController],
 })
