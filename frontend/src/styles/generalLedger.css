@@ -359,6 +359,14 @@
   font-family: 'Courier New', monospace;
 }
 
+.ledger-table td.col-debit.amount {
+  color: #dc2626;
+}
+
+.ledger-table td.col-credit.amount {
+  color: #059669;
+}
+
 .ledger-table td.no-data {
   text-align: center;
   color: #718096;
@@ -411,11 +419,11 @@
 }
 
 .summary-row .value.debit {
-  color: #059669;
+  color: #dc2626;
 }
 
 .summary-row .value.credit {
-  color: #dc2626;
+  color: #059669;
 }
 
 .summary-row .value.positive {
@@ -475,11 +483,11 @@
 }
 
 .summary-card .value.debit {
-  color: #059669;
+  color: #dc2626;
 }
 
 .summary-card .value.credit {
-  color: #dc2626;
+  color: #059669;
 }
 
 .summary-card .value.balanced {
