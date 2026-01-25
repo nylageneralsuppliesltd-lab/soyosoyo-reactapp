@@ -1,5 +1,5 @@
 // src/pages/AccountBalanceReportPage.jsx - Real-time Account Balance Summary Report
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Bank, Phone, Money, ArrowLeft, Download } from '@phosphor-icons/react';
 import '../styles/reports.css';
 
@@ -7,6 +7,11 @@ const AccountBalanceReportPage = () => {
   const [balanceSummary, setBalanceSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const apiBase = useMemo(
+    () => (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''),
+    []
+  );
 
   useEffect(() => {
     loadBalanceSummary();
@@ -17,8 +22,11 @@ const AccountBalanceReportPage = () => {
 
   const loadBalanceSummary = async () => {
     try {
+      setLoading(true);
       setError(null);
-      const response = await fetch('/api/accounts/balance-summary');
+      const response = await fetch(`${apiBase}/api/accounts/balance-summary`, {
+        credentials: 'include',
+      });
       if (!response.ok) throw new Error('Failed to load balance summary');
       const data = await response.json();
       setBalanceSummary(data);
