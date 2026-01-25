@@ -25,12 +25,13 @@ const AccountBalanceCard = () => {
     loadBalance();
   }, []);
 
+  // Always show absolute figures (no K/M compaction) so small numbers are visible
   const formatCurrency = (amount) =>
     new Intl.NumberFormat('en-KE', {
       style: 'currency',
       currency: 'KES',
-      notation: amount > 999999 ? 'compact' : 'standard',
       minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
     }).format(amount);
 
   return (

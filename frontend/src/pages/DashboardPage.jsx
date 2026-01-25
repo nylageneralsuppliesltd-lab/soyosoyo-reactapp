@@ -48,6 +48,15 @@ const DashboardPage = () => {
   const lineChartRef = useRef(null);
   const barChartRef = useRef(null);
 
+  // Always show absolute figures (no K/M compaction) to keep small amounts visible
+  const formatCurrency = (amount) =>
+    new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(Number(amount) || 0);
+
   useEffect(() => {
     loadDashboardData();
     return () => {
@@ -204,7 +213,7 @@ const DashboardPage = () => {
             <PiggyBank size={18} />
             <span className="metric-label">Total Savings</span>
           </div>
-          <h3 className="metric-value-compact">KES {(displayStats.totalSavings / 1000000).toFixed(1)}M</h3>
+          <h3 className="metric-value-compact">{formatCurrency(displayStats.totalSavings)}</h3>
           <p className="metric-subtext-compact">Across all accounts</p>
           <p className="metric-link">View deposits <ArrowRight size={12} /></p>
         </div>
@@ -214,7 +223,7 @@ const DashboardPage = () => {
             <Money size={18} />
             <span className="metric-label">Outstanding Loans</span>
           </div>
-          <h3 className="metric-value-compact">KES {(displayStats.totalLoans / 1000000).toFixed(1)}M</h3>
+          <h3 className="metric-value-compact">{formatCurrency(displayStats.totalLoans)}</h3>
           <p className="metric-subtext-compact">Active portfolio</p>
           <p className="metric-link">View loans <ArrowRight size={12} /></p>
         </div>
@@ -224,7 +233,7 @@ const DashboardPage = () => {
             <TrendUp size={18} />
             <span className="metric-label">Monthly Interest</span>
           </div>
-          <h3 className="metric-value-compact">KES {(displayStats.monthlyInterest / 1000).toFixed(0)}K</h3>
+          <h3 className="metric-value-compact">{formatCurrency(displayStats.monthlyInterest)}</h3>
           <p className="metric-subtext-compact">This month</p>
           <p className="metric-link">View reports <ArrowRight size={12} /></p>
         </div>
