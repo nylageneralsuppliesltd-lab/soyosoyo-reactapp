@@ -2,11 +2,11 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { InvoicingService } from './invoicing.service';
 import { InvoicingController } from './invoicing.controller';
-import { PrismaService } from '../prisma.service';
+import { PrismaModule } from '../prisma.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot()],
-  providers: [InvoicingService, PrismaService],
+  imports: [ScheduleModule.forRoot(), PrismaModule],
+  providers: [InvoicingService],
   controllers: [InvoicingController],
   exports: [InvoicingService],
 })

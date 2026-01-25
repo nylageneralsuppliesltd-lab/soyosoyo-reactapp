@@ -1,18 +1,14 @@
 // src/pages/AccountBalanceReportPage.jsx - Real-time Account Balance Summary Report
-import { useState, useEffect, useMemo } from 'react';
-import { Bank, Phone, Money, ArrowLeft, Download } from '@phosphor-icons/react';
+import { useState, useEffect } from 'react';
+import { Bank, Phone, Money, ArrowLeft, Download, Printer } from '@phosphor-icons/react';
 import '../styles/reports.css';
 import ReportHeader from '../components/ReportHeader';
+import { API_BASE } from '../utils/apiBase';
 
 const AccountBalanceReportPage = () => {
   const [balanceSummary, setBalanceSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const apiBase = useMemo(
-    () => (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, ''),
-    []
-  );
 
   useEffect(() => {
     loadBalanceSummary();
@@ -25,13 +21,9 @@ const AccountBalanceReportPage = () => {
     try {
       setLoading(true);
       setError(null);
-      const url = apiBase
-        ? `${apiBase}/api/accounts/balance-summary`
-        : '/api/accounts/balance-summary';
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to load balance summary');
+      const url = `${API_BASE}/accounts/balance-summary`;
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error(`Failed to load balance summary (status ${response.status})`);
       const data = await response.json();
       setBalanceSummary(data);
     } catch (err) {

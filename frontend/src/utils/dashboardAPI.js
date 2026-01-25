@@ -107,21 +107,14 @@ export const calculateDashboardStats = async () => {
     const activeMembers = members.filter(m => m.active === true).length;
     const suspendedMembers = members.filter(m => m.active === false).length;
 
-    // Calculate total savings (sum of all deposit amounts)
-    const totalDeposits = deposits.reduce((sum, d) => {
-      const amount = typeof d.amount === 'number' ? d.amount : parseFloat(d.amount) || 0;
-      return sum + amount;
+    // Robust total savings: sum of member balances from API (already computed server-side)
+    // This avoids counting internal transfers or non-savings withdrawals.
+    const totalSavings = members.reduce((sum, m) => {
+      const bal = typeof m.balance === 'number' ? m.balance : parseFloat(m.balance) || 0;
+      return sum + bal;
     }, 0);
 
-    // Subtract total withdrawals for net savings
-    const totalWithdrawals = withdrawals.reduce((sum, w) => {
-      const amount = typeof w.amount === 'number' ? w.amount : parseFloat(w.amount) || 0;
-      return sum + amount;
-    }, 0);
-
-    const totalSavings = Math.max(0, totalDeposits - totalWithdrawals);
-
-    console.log('Savings Calculation:', { totalDeposits, totalWithdrawals, totalSavings });
+    console.log('Savings Calculation (members sum):', { totalSavings });
 
     // Calculate total outstanding loans
     const totalLoans = loans.reduce((sum, l) => {

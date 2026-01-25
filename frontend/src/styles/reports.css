@@ -657,7 +657,7 @@
 .report-card-header-dashboard {
   width: 100%;
   text-align: left;
-  padding: 1rem;
+  padding: 0.85rem;
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
@@ -665,23 +665,23 @@
 }
 
 .report-card-header-dashboard:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(59, 130, 246, 0.02) 100%);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.04) 0%, rgba(59, 130, 246, 0.01) 100%);
 }
 
 .report-content-area {
   border-top: 1px solid #e5e7eb;
   background: #f9fafb;
-  padding: 1rem;
+  padding: 0.75rem;
 }
 
-/* Report Table Styling - Dashboard Style */
+/* Report Table Styling - Compact Premium Design */
 
 .report-table-container {
   background: white;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid #e5e7eb;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .report-table {
@@ -694,24 +694,24 @@
 }
 
 .report-table thead th {
-  padding: 0.65rem 0.85rem;
+  padding: 0.4rem 0.65rem;
   text-align: left;
-  font-weight: 700;
-  font-size: 0.8rem;
+  font-weight: 600;
+  font-size: 0.72rem;
   color: white;
   text-transform: uppercase;
-  letter-spacing: 0.35px;
+  letter-spacing: 0.3px;
   white-space: nowrap;
-  border-bottom: 2px solid #1e40af;
+  border-bottom: 1px solid #1e40af;
 }
 
 .report-table tbody tr {
-  transition: background-color 0.15s ease;
-  border-bottom: 1px solid #e5e7eb;
+  transition: background-color 0.1s ease;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .report-table tbody tr:hover {
-  background: linear-gradient(90deg, rgba(239,246,255,0.9) 0%, rgba(243,244,246,0.9) 100%);
+  background: linear-gradient(90deg, rgba(239,246,255,0.6) 0%, rgba(243,244,246,0.6) 100%);
 }
 
 .report-table tbody tr:last-child {
@@ -719,54 +719,56 @@
 }
 
 .report-table tbody td {
-  padding: 0.55rem 0.75rem;
-  font-size: 0.78rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
   color: #1f2937;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 220px;
+  max-width: 200px;
+  line-height: 1.4;
 }
 
 /* Alternating row gradient for readability */
 .report-table tbody tr:nth-child(odd) {
-  background: linear-gradient(90deg, rgba(250,251,255,0.85) 0%, rgba(245,247,255,0.85) 100%);
+  background: linear-gradient(90deg, rgba(250,251,255,0.5) 0%, rgba(245,247,255,0.5) 100%);
 }
 .report-table tbody tr:nth-child(even) {
-  background: linear-gradient(90deg, rgba(248,250,252,0.85) 0%, rgba(243,244,246,0.85) 100%);
+  background: linear-gradient(90deg, rgba(248,250,252,0.5) 0%, rgba(243,244,246,0.5) 100%);
 }
 
-/* Financial statement layout */
+/* Financial statement layout - Compact */
 .financial-statement {
   background: white;
-  border-radius: 8px;
-  padding: 0.9rem;
+  border-radius: 6px;
+  padding: 0.65rem;
   border: 1px solid #e5e7eb;
 }
 .statement-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 .statement-section {
   background: white;
   border: 1px dashed #e5e7eb;
-  border-radius: 8px;
-  padding: 0.75rem;
+  border-radius: 6px;
+  padding: 0.6rem;
 }
 .statement-subheading {
-  font-size: 0.78rem;
+  font-size: 0.7rem;
   font-weight: 700;
   color: #374151;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
-  margin: 0 0 0.4rem 0;
+  letter-spacing: 0.3px;
+  margin: 0 0 0.35rem 0;
 }
 .statement-row {
   display: grid;
   grid-template-columns: 2fr 1fr;
-  padding: 0.45rem 0.6rem;
+  padding: 0.3rem 0.5rem;
   border-bottom: 1px solid #f3f4f6;
+  font-size: 0.75rem;
 }
 .statement-row .label {
   color: #4b5563;
@@ -793,47 +795,49 @@
 .report-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 8px 0 12px 0;
+  gap: 6px;
+  margin: 6px 0 10px 0;
 }
 
-/* Summary Metrics - Dashboard Style */
+/* Summary Metrics - Compact Dashboard Style */
 
 .summary-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.65rem;
 }
 
 .summary-metric-card {
   background: white;
-  border-radius: 8px;
-  padding: 0.9rem;
+  border-radius: 6px;
+  padding: 0.7rem;
   border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   transition: all 0.2s ease;
 }
 
 .summary-metric-card:hover {
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.12);
   border-color: #3b82f6;
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .summary-metric-label {
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   font-weight: 700;
   color: #6b7280;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 0.5rem;
+  letter-spacing: 0.4px;
+  margin-bottom: 0.4rem;
+  line-height: 1.2;
 }
 
 .summary-metric-value {
-  font-size: 1.35rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: #2563eb;
   margin: 0;
+  line-height: 1.2;
 }
 
 /* Account Balance Report Specific Styles */
@@ -1115,42 +1119,61 @@
   min-height: 300px;
 }
 
-/* Download Section */
+/* Download Section - Compact */
 
 .download-section {
-  padding-top: 1.5rem;
+  padding-top: 1.2rem;
   border-top: 2px solid #e5e7eb;
-  margin-top: 1.5rem;
+  margin-top: 1.2rem;
 }
 
 .download-section-title {
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: #1f2937;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 1rem;
+  letter-spacing: 0.4px;
+  margin-bottom: 0.8rem;
 }
 
 .download-buttons-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.65rem;
 }
 
 @media (max-width: 640px) {
   .report-table thead th,
   .report-table tbody td {
-    padding: 0.75rem 1rem;
-    font-size: 0.8125rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.72rem;
   }
   
   .summary-metrics-grid {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.6rem;
+  }
+  
+  .summary-metric-card {
+    padding: 0.6rem;
+  }
+
+  .summary-metric-label {
+    font-size: 0.65rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .summary-metric-value {
+    font-size: 1.1rem;
   }
   
   .download-buttons-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+
+  .report-content-area {
+    padding: 0.65rem;
   }
 
   .balance-grid {

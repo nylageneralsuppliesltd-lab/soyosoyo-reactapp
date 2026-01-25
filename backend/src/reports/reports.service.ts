@@ -165,22 +165,40 @@ export class ReportsService {
     };
     const deposits = await this.prisma.deposit.findMany({ 
       where, 
-      orderBy: { date: 'asc' },
+      orderBy: [{ date: 'asc' }, { memberId: 'asc' }],
       include: { member: true }
     });
     
+    // ITEMIZED: Show every contribution transaction with full detail
     const rows = deposits.map(d => ({
       date: d.date,
       memberName: d.memberName || d.member?.name || 'Unknown',
-      type: d.type,
-      category: d.category,
-      amount: d.amount,
-      paymentMethod: d.method,
-      description: d.description,
+      memberId: d.memberId,
+      category: d.category || 'General Contribution',
+      amount: Number(d.amount),
+      paymentMethod: d.method || 'Unspecified',
+      description: d.description || 'Member Contribution',
+      reference: d.reference,
+      depositId: d.id,
     }));
     
+    // Group by category for meta summary
+    const byCategory = {};
+    deposits.forEach(d => {
+      const cat = d.category || 'General Contribution';
+      if (!byCategory[cat]) byCategory[cat] = 0;
+      byCategory[cat] += Number(d.amount);
+    });
+    
     const total = deposits.reduce((sum, r) => sum + Number(r.amount), 0);
-    return { rows, meta: { total, count: deposits.length } };
+    return { 
+      rows, 
+      meta: { 
+        total, 
+        count: deposits.length,
+        byCategory,
+      } 
+    };
   }
 
   private async finesReport(dateRange: { start: Date; end: Date }, status?: string, memberId?: string) {
@@ -480,34 +498,140 @@ export class ReportsService {
   }
 
   private async cashFlowReport(dateRange: { start: Date; end: Date }) {
-    const deposits = await this.prisma.deposit.findMany({ where: { date: { gte: dateRange.start, lte: dateRange.end } } });
-    const withdrawals = await this.prisma.withdrawal.findMany({ where: { date: { gte: dateRange.start, lte: dateRange.end } } });
-
-    const operatingIn = deposits
-      .filter(d => ['contribution', 'income', 'loan_repayment', 'refund'].includes(d.type))
-      .reduce((s, d) => s + Number(d.amount), 0);
-    const operatingOut = withdrawals
-      .filter(w => ['expense', 'transfer'].includes(w.type))
-      .reduce((s, w) => s + Number(w.amount), 0);
-
-    const investingOut = withdrawals
-      .filter(w => w.category?.toLowerCase().includes('asset'))
-      .reduce((s, w) => s + Number(w.amount), 0);
-    const financingIn = deposits
-      .filter(d => d.type === 'income' && (d.category || '').toLowerCase().includes('loan'))
-      .reduce((s, d) => s + Number(d.amount), 0);
-
-    const net = operatingIn - operatingOut + financingIn - investingOut;
-    return {
-      rows: [
-        { section: 'Operating Inflows', amount: operatingIn },
-        { section: 'Operating Outflows', amount: -operatingOut },
-        { section: 'Financing Inflows', amount: financingIn },
-        { section: 'Investing Outflows', amount: -investingOut },
-        { section: 'Net Cash Flow', amount: net },
-      ],
-      meta: { net },
+    // ITEMIZED cash flow report: List every inflow and outflow transaction separately
+    // Do not summarize - show complete line-item detail for each transaction
+    
+    const rows = [];
+    
+    // ===== OPERATING INFLOWS =====
+    let totalOperatingIn = 0;
+    
+    const deposits = await this.prisma.deposit.findMany({ 
+      where: { 
+        date: { gte: dateRange.start, lte: dateRange.end },
+        type: { in: ['contribution', 'income', 'loan_repayment', 'refund'] }
+      },
+      include: { member: true },
+      orderBy: { date: 'asc' },
+    });
+    
+    for (const deposit of deposits) {
+      const amount = Number(deposit.amount);
+      rows.push({
+        section: 'Operating Inflows',
+        type: deposit.type,
+        category: deposit.category || 'General',
+        source: deposit.memberName || deposit.member?.name || 'External Source',
+        date: deposit.date,
+        amount: amount,
+        description: `${deposit.type}: ${deposit.description || deposit.reference || ''}`,
+        depositId: deposit.id,
+      });
+      totalOperatingIn += amount;
+    }
+    
+    // ===== OPERATING OUTFLOWS =====
+    let totalOperatingOut = 0;
+    
+    const operatingOutflows = await this.prisma.withdrawal.findMany({ 
+      where: { 
+        date: { gte: dateRange.start, lte: dateRange.end },
+        type: 'expense', // Only expenses are operating outflows
+      },
+      include: { account: true },
+      orderBy: { date: 'asc' },
+    });
+    
+    for (const withdrawal of operatingOutflows) {
+      const amount = Number(withdrawal.amount);
+      rows.push({
+        section: 'Operating Outflows',
+        type: 'expense',
+        category: withdrawal.category || 'General Expense',
+        source: withdrawal.account?.name || 'Unspecified Account',
+        date: withdrawal.date,
+        amount: -amount, // Show as negative
+        description: `${withdrawal.category || 'Expense'}: ${withdrawal.description || withdrawal.method || ''}`,
+        withdrawalId: withdrawal.id,
+      });
+      totalOperatingOut += amount;
+    }
+    
+    // ===== INVESTING OUTFLOWS =====
+    let totalInvestingOut = 0;
+    
+    const investingOutflows = await this.prisma.withdrawal.findMany({ 
+      where: { 
+        date: { gte: dateRange.start, lte: dateRange.end },
+        category: { contains: 'asset', mode: 'insensitive' },
+      },
+      include: { account: true },
+      orderBy: { date: 'asc' },
+    });
+    
+    for (const withdrawal of investingOutflows) {
+      const amount = Number(withdrawal.amount);
+      rows.push({
+        section: 'Investing Outflows',
+        type: 'asset-purchase',
+        category: withdrawal.category || 'Asset',
+        source: withdrawal.account?.name || 'Unspecified Account',
+        date: withdrawal.date,
+        amount: -amount, // Show as negative
+        description: `Asset Purchase: ${withdrawal.description || withdrawal.method || ''}`,
+        withdrawalId: withdrawal.id,
+      });
+      totalInvestingOut += amount;
+    }
+    
+    // ===== FINANCING INFLOWS =====
+    let totalFinancingIn = 0;
+    
+    const financingInflows = await this.prisma.deposit.findMany({ 
+      where: { 
+        date: { gte: dateRange.start, lte: dateRange.end },
+        type: 'income',
+        category: { contains: 'loan', mode: 'insensitive' },
+      },
+      include: { member: true },
+      orderBy: { date: 'asc' },
+    });
+    
+    for (const deposit of financingInflows) {
+      const amount = Number(deposit.amount);
+      rows.push({
+        section: 'Financing Inflows',
+        type: 'loan',
+        category: deposit.category || 'Loan',
+        source: deposit.memberName || deposit.member?.name || 'Loan Source',
+        date: deposit.date,
+        amount: amount,
+        description: `Loan: ${deposit.description || deposit.reference || ''}`,
+        depositId: deposit.id,
+      });
+      totalFinancingIn += amount;
+    }
+    
+    // ===== SUMMARY =====
+    const netCashFlow = totalOperatingIn - totalOperatingOut - totalInvestingOut + totalFinancingIn;
+    rows.push({
+      section: 'Summary',
+      type: 'summary',
+      category: 'Net Cash Flow',
+      amount: netCashFlow,
+      description: 'Total inflows minus total outflows',
+    });
+    
+    const meta = {
+      operatingInflows: totalOperatingIn,
+      operatingOutflows: totalOperatingOut,
+      investingOutflows: totalInvestingOut,
+      financingInflows: totalFinancingIn,
+      netCashFlow,
+      lineItemCount: rows.length - 1, // Exclude summary row
     };
+    
+    return { rows, meta };
   }
 
   private async trialBalanceReport(dateRange: { start: Date; end: Date }) {
@@ -640,89 +764,347 @@ export class ReportsService {
   }
 
   private async incomeStatementReport(dateRange: { start: Date; end: Date }) {
-    const deposits = await this.prisma.deposit.findMany({ where: { date: { gte: dateRange.start, lte: dateRange.end } } });
-    const withdrawals = await this.prisma.withdrawal.findMany({ where: { date: { gte: dateRange.start, lte: dateRange.end } } });
-    const finesPaid = await this.prisma.fine.aggregate({
-      where: { paidDate: { gte: dateRange.start, lte: dateRange.end } },
-      _sum: { paidAmount: true },
-    });
-
-      // CRITICAL: Member contributions are LIABILITIES, not revenue!
-      // Only count actual income: fines, interest income, non-member income
-      // Exclude: contributions (liability), loan_repayments (loan reduction), refunds (return of liability), dividends (distribution)
-      const revenue = deposits
-        .filter(d => d.type === 'income') // Only 'income' type (interest, fees, other income)
-        .reduce((s, d) => s + Number(d.amount), 0) + Number(finesPaid._sum.paidAmount || 0);
+    // ITEMIZED income statement: List every income and expense transaction separately
+    // Do not aggregate - show complete transaction detail for every income type and expense category
     
-    const expenses = withdrawals
-      .filter(w => w.type === 'expense')
-      .reduce((s, w) => s + Number(w.amount), 0);
-
-    const surplus = revenue - expenses;
-    return {
-      rows: [
-        { section: 'Revenue', amount: revenue },
-        { section: 'Expenses', amount: -expenses },
-        { section: 'Surplus / (Deficit)', amount: surplus },
-      ],
-      meta: { revenue, expenses, surplus },
+    const rows = [];
+    
+    // ===== INCOME SECTION =====
+    let totalIncome = 0;
+    
+    // 1. Income deposits (itemized by transaction)
+    const incomeDeposits = await this.prisma.deposit.findMany({
+      where: { 
+        type: 'income',
+        date: { gte: dateRange.start, lte: dateRange.end } 
+      },
+      include: { member: true },
+      orderBy: { date: 'asc' },
+    });
+    
+    for (const deposit of incomeDeposits) {
+      const amount = Number(deposit.amount);
+      rows.push({
+        section: 'Income',
+        type: 'income',
+        category: deposit.category || 'Other Income',
+        source: deposit.memberName || 'External Income',
+        date: deposit.date,
+        amount: amount,
+        description: deposit.description || 'Income',
+        depositId: deposit.id,
+      });
+      totalIncome += amount;
+    }
+    
+    // 2. Fines (itemized by transaction)
+    const fines = await this.prisma.fine.findMany({
+      where: { paidDate: { gte: dateRange.start, lte: dateRange.end } },
+      include: { member: true },
+      orderBy: { paidDate: 'asc' },
+    });
+    
+    for (const fine of fines) {
+      const amount = Number(fine.paidAmount);
+      rows.push({
+        section: 'Income',
+        type: 'income',
+        category: 'Fines Income',
+        source: fine.member?.name || 'Unknown Member',
+        date: fine.paidDate,
+        amount: amount,
+        description: `Fine: ${fine.reason || 'Membership fine'}`,
+        fineId: fine.id,
+      });
+      totalIncome += amount;
+    }
+    
+    // ===== EXPENSES SECTION =====
+    // Itemize all expenses by category and transaction
+    const expenses = await this.prisma.withdrawal.findMany({
+      where: {
+        type: 'expense',
+        date: { gte: dateRange.start, lte: dateRange.end },
+      },
+      include: { account: true },
+      orderBy: [{ date: 'asc' }, { category: 'asc' }],
+    });
+    
+    let totalExpenses = 0;
+    
+    for (const expense of expenses) {
+      const amount = Number(expense.amount);
+      rows.push({
+        section: 'Expenses',
+        type: 'expense',
+        category: expense.category || 'General Expense',
+        source: expense.account?.name || 'Unspecified Account',
+        date: expense.date,
+        amount: -amount, // Show as negative
+        description: expense.description || expense.method || 'Expense',
+        withdrawalId: expense.id,
+      });
+      totalExpenses += amount;
+    }
+    
+    // ===== NET INCOME =====
+    const netSurplus = totalIncome - totalExpenses;
+    rows.push({
+      section: 'Summary',
+      type: 'summary',
+      category: 'Net Surplus / (Deficit)',
+      amount: netSurplus,
+      description: 'Total Income minus Total Expenses',
+    });
+    
+    const meta = {
+      totalIncome,
+      totalExpenses,
+      netSurplus,
+      incomeTransactions: incomeDeposits.length + fines.length,
+      expenseTransactions: expenses.length,
+      totalTransactions: incomeDeposits.length + fines.length + expenses.length,
     };
+    
+    return { rows, meta };
   }
 
   private async balanceSheetReport(dateRange: { start: Date; end: Date }) {
-    // CRITICAL FIX: Only count real financial accounts (cash, bank, etc.) - EXCLUDE GL accounts
-    // GL accounts are placeholder accounts used for transaction categorization only
-    // They do not represent actual financial position
+    // ITEMIZED balance sheet: List every asset, liability, and equity account/item individually
+    // Do not summarize - show complete line-item detail
+    
+    const rows = [];
+    
+    // ===== ASSETS SECTION =====
+    // 1. Liquid assets (cash, bank accounts)
     const accounts = await this.prisma.account.findMany({
       where: {
         type: { in: ['cash', 'bank', 'pettyCash', 'mobileMoney'] },
       },
+      orderBy: { name: 'asc' },
     });
-    const assets = await this.prisma.asset.aggregate({ _sum: { currentValue: true } });
-    const memberLoans = await this.prisma.loan.aggregate({
+    
+    let totalAssets = 0;
+    
+    // Add each cash/bank account as individual line item
+    for (const account of accounts) {
+      const amount = Number(account.balance);
+      rows.push({
+        category: 'Assets',
+        section: account.type === 'cash' ? 'Cash' : account.type === 'pettyCash' ? 'Petty Cash' : account.type === 'mobileMoney' ? 'Mobile Money' : 'Bank Account',
+        account: account.name,
+        amount: amount,
+        accountType: account.type,
+      });
+      totalAssets += amount;
+    }
+    
+    // 2. Fixed assets (itemized)
+    const fixedAssets = await this.prisma.asset.findMany({
+      orderBy: { description: 'asc' },
+    });
+    
+    for (const asset of fixedAssets) {
+      const amount = Number(asset.currentValue);
+      rows.push({
+        category: 'Assets',
+        section: 'Fixed Assets',
+        account: asset.description || 'Asset',
+        amount: amount,
+        accountType: 'asset',
+      });
+      totalAssets += amount;
+    }
+    
+    // 3. Member loans (itemized by member, not aggregated)
+    const memberLoans = await this.prisma.loan.findMany({
       where: { loanDirection: 'outward' },
-      _sum: { balance: true },
+      include: { member: true },
+      orderBy: { createdAt: 'asc' },
     });
-    const bankLoans = await this.prisma.loan.aggregate({
+    
+    for (const loan of memberLoans) {
+      const amount = Number(loan.balance);
+      rows.push({
+        category: 'Assets',
+        section: 'Member Loans Receivable',
+        account: loan.member?.name || loan.memberId?.toString() || 'Unknown Member',
+        amount: amount,
+        loanId: loan.id,
+        accountType: 'loan',
+      });
+      totalAssets += amount;
+    }
+    
+    // ===== LIABILITIES SECTION =====
+    let totalLiabilities = 0;
+    
+    // 1. Bank loans (itemized by loan, not aggregated)
+    const bankLoans = await this.prisma.loan.findMany({
       where: { loanDirection: 'inward' },
-      _sum: { balance: true },
+      orderBy: { createdAt: 'asc' },
     });
-
-    const assetTotal = accounts.reduce((s, a) => s + Number(a.balance), 0) + Number(assets._sum.currentValue || 0) + Number(memberLoans._sum.balance || 0);
-    const liabilities = Number(bankLoans._sum.balance || 0);
-    const equity = assetTotal - liabilities;
-
-    const rows = [
-      { section: 'Assets', amount: assetTotal },
-      { section: 'Liabilities', amount: -liabilities },
-      { section: 'Equity', amount: equity },
-    ];
-    return { rows, meta: { assetTotal, liabilities, equity } };
+    
+    for (const loan of bankLoans) {
+      const amount = Number(loan.balance);
+      rows.push({
+        category: 'Liabilities',
+        section: 'Bank Loans Payable',
+        account: loan.bankName || 'Bank Loan',
+        amount: -amount, // Show as negative for liabilities
+        loanId: loan.id,
+        accountType: 'liability',
+      });
+      totalLiabilities += amount;
+    }
+    
+    // 2. Member savings/contributions (member equity in the SACCO)
+    const members = await this.prisma.member.findMany({
+      orderBy: { name: 'asc' },
+    });
+    
+    let totalMemberEquity = 0;
+    for (const member of members) {
+      const amount = Number(member.balance || 0);
+      if (amount > 0) {
+        rows.push({
+          category: 'Liabilities',
+          section: 'Member Savings/Contributions',
+          account: member.name,
+          amount: -amount, // Show as negative (member liability/equity)
+          memberId: member.id,
+          accountType: 'member-savings',
+        });
+        totalMemberEquity += amount;
+      }
+    }
+    
+    // ===== EQUITY SECTION =====
+    const equity = totalAssets - totalLiabilities - totalMemberEquity;
+    rows.push({
+      category: 'Equity',
+      section: 'Retained Earnings / Surplus',
+      account: 'Net Equity',
+      amount: equity,
+      accountType: 'equity',
+    });
+    
+    // Summary totals
+    const meta = {
+      totalAssets,
+      totalLiabilities,
+      totalMemberSavings: totalMemberEquity,
+      totalEquity: equity,
+      totalLiabilitiesAndEquity: totalLiabilities + totalMemberEquity + equity,
+      lineItemCount: rows.length,
+    };
+    
+    return { rows, meta };
   }
 
   private async sasraReport(dateRange: { start: Date; end: Date }) {
-    // Only count real financial accounts (cash, bank, etc.) - not GL accounts
+    // ITEMIZED SASRA report: Show all components with detailed breakdown
+    // List each cash account, each loan, and calculate ratios from itemized data
+    
+    const rows = [];
+    
+    // 1. Cash & Equivalents (itemized by account)
     const accounts = await this.prisma.account.findMany({
       where: { type: { in: ['cash', 'pettyCash', 'mobileMoney', 'bank'] } },
+      orderBy: { name: 'asc' },
     });
-    const cash = accounts.reduce((s, a) => s + Number(a.balance), 0);
-    const memberLoans = await this.prisma.loan.aggregate({ where: { loanDirection: 'outward' }, _sum: { balance: true } });
-    const bankLoans = await this.prisma.loan.aggregate({ where: { loanDirection: 'inward' }, _sum: { balance: true } });
-
-    // Simplified ratios
-    const liquidityRatio = bankLoans._sum.balance && Number(bankLoans._sum.balance) > 0 ? cash / Number(bankLoans._sum.balance) : 0;
+    
+    let totalCash = 0;
+    for (const account of accounts) {
+      const amount = Number(account.balance);
+      rows.push({
+        category: 'Assets',
+        metric: `Cash: ${account.name}`,
+        value: amount,
+        accountName: account.name,
+        accountType: account.type,
+      });
+      totalCash += amount;
+    }
+    
+    // 2. Member Loans (itemized by member)
+    const memberLoans = await this.prisma.loan.findMany({
+      where: { loanDirection: 'outward' },
+      include: { member: true },
+      orderBy: { memberId: 'asc' },
+    });
+    
+    let totalMemberLoans = 0;
+    for (const loan of memberLoans) {
+      const amount = Number(loan.balance);
+      rows.push({
+        category: 'Assets',
+        metric: `Member Loan: ${loan.member?.name || 'Unknown'}`,
+        value: amount,
+        loanId: loan.id,
+        memberId: loan.memberId,
+      });
+      totalMemberLoans += amount;
+    }
+    
+    // 3. Bank Loans (itemized)
+    const bankLoans = await this.prisma.loan.findMany({
+      where: { loanDirection: 'inward' },
+      orderBy: { createdAt: 'asc' },
+    });
+    
+    let totalBankLoans = 0;
+    for (const loan of bankLoans) {
+      const amount = Number(loan.balance);
+      rows.push({
+        category: 'Liabilities',
+        metric: `Bank Loan: ${loan.bankName || 'Loan'}`,
+        value: amount,
+        loanId: loan.id,
+      });
+      totalBankLoans += amount;
+    }
+    
+    // 4. Summary metrics and ratios
+    const liquidityRatio = totalBankLoans && totalBankLoans > 0 ? totalCash / totalBankLoans : 0;
     const portfolioAtRisk = 0; // placeholder until arrears data exists
-
-    return {
-      rows: [
-        { metric: 'Cash & Equivalents', value: cash },
-        { metric: 'Member Loans (Net)', value: Number(memberLoans._sum.balance || 0) },
-        { metric: 'Bank Loans (Liabilities)', value: Number(bankLoans._sum.balance || 0) },
-        { metric: 'Liquidity Ratio (cash/liabilities)', value: liquidityRatio },
-        { metric: 'Portfolio at Risk (30+ days)', value: portfolioAtRisk },
-      ],
-      meta: { liquidityRatio, portfolioAtRisk },
+    
+    rows.push({
+      category: 'Summary',
+      metric: 'Total Cash & Equivalents',
+      value: totalCash,
+    });
+    rows.push({
+      category: 'Summary',
+      metric: 'Total Member Loans',
+      value: totalMemberLoans,
+    });
+    rows.push({
+      category: 'Summary',
+      metric: 'Total Bank Loans (Liabilities)',
+      value: totalBankLoans,
+    });
+    rows.push({
+      category: 'Summary',
+      metric: 'Liquidity Ratio (Cash / Bank Loans)',
+      value: Number(liquidityRatio.toFixed(4)),
+    });
+    rows.push({
+      category: 'Summary',
+      metric: 'Portfolio at Risk (30+ days)',
+      value: portfolioAtRisk,
+    });
+    
+    const meta = {
+      totalCash,
+      totalMemberLoans,
+      totalBankLoans,
+      liquidityRatio: Number(liquidityRatio.toFixed(4)),
+      portfolioAtRisk,
+      lineItemCount: rows.length - 5, // Exclude summary rows
     };
+    
+    return { rows, meta };
   }
 
   private async dividendReport(dateRange: { start: Date; end: Date }) {

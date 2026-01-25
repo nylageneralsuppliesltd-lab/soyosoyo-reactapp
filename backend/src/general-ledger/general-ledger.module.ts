@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
+import { PrismaModule } from '../prisma.module';
 import { GeneralLedgerController } from './general-ledger.controller';
 import { GeneralLedgerService } from './general-ledger.service';
 
 @Module({
+  imports: [PrismaModule],
   controllers: [GeneralLedgerController],
-  providers: [GeneralLedgerService, PrismaService],
+  providers: [GeneralLedgerService],
   exports: [GeneralLedgerService],
 })
 export class GeneralLedgerModule {}
