@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Filter, Calendar, DollarSign, TrendingUp, TrendingDown, Printer } from 'lucide-react';
 import { API_BASE } from '../utils/apiBase';
+import ReportHeader from '../components/ReportHeader';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import '../styles/accountStatement.css';
 
@@ -99,6 +100,10 @@ const AccountStatementPage = () => {
 
   return (
     <div className="account-statement-page">
+      <ReportHeader
+        title="Account Statement"
+        subtitle={selectedAccount ? `Account: ${selectedAccount} • ${startDate} to ${endDate}` : `${startDate} to ${endDate}`}
+      />
       <div className="statement-header-section">
         <div className="header-top">
           <div>

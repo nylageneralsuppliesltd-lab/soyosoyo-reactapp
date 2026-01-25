@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Bank, Phone, Money, ArrowLeft, Download } from '@phosphor-icons/react';
 import '../styles/reports.css';
+import ReportHeader from '../components/ReportHeader';
 
 const AccountBalanceReportPage = () => {
   const [balanceSummary, setBalanceSummary] = useState(null);
@@ -145,12 +146,19 @@ const AccountBalanceReportPage = () => {
 
   return (
     <div className="report-container">
-      <div className="report-header">
+      {/* Centralized report header */}
+      <ReportHeader title="Account Balance Summary" subtitle={`Generated across ${balanceSummary.accounts.length} accounts`} />
+
+      {/* Local actions */}
+      <div className="report-actions">
         <button onClick={() => window.history.back()} className="btn-back">
           <ArrowLeft size={20} />
         </button>
-        <h1>Account Balance Summary</h1>
-        <button onClick={handleExport} className="btn btn-outline">
+        <button onClick={() => window.print()} className="btn btn-outline" style={{ marginLeft: '8px' }}>
+          <Printer size={20} />
+          Print PDF
+        </button>
+        <button onClick={handleExport} className="btn btn-outline" style={{ marginLeft: '8px' }}>
           <Download size={20} />
           Export CSV
         </button>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { financeAPI } from '../components/members/financeAPI';
 import '../styles/ledger.css';
+import ReportHeader from '../components/ReportHeader';
 
 const GeneralLedgerPage = () => {
   const [transactions, setTransactions] = useState([]);
@@ -51,8 +52,7 @@ const GeneralLedgerPage = () => {
 
   return (
     <div className="ledger-page">
-      <h1>General Ledger</h1>
-      <p className="subtitle">Complete financial transaction history</p>
+      <ReportHeader title="General Ledger" subtitle="Complete financial transaction history" />
 
       {summary && (
         <div className="summary-cards">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import categoryLedgerAPI from '../utils/categoryLedgerAPI';
 import '../styles/category-ledger.css';
+import ReportHeader from '../components/ReportHeader';
 
 const CategoryLedgerPage = () => {
   const [ledgers, setLedgers] = useState([]);
@@ -137,6 +138,7 @@ const CategoryLedgerPage = () => {
 
   return (
     <div className="category-ledger-page">
+      <ReportHeader title="Category Ledgers" subtitle={selectedType ? `Type: ${selectedType}` : 'All Types'} />
       <div className="ledger-header">
         <h2>Category Ledgers & SACCO Financials</h2>
         <p>Track income and expense categories with automatic ledger posting</p>

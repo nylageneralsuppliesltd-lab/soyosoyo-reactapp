@@ -706,12 +706,12 @@
 }
 
 .report-table tbody tr {
-  transition: background-color 0.2s ease;
+  transition: background-color 0.15s ease;
   border-bottom: 1px solid #e5e7eb;
 }
 
 .report-table tbody tr:hover {
-  background-color: #eff6ff;
+  background: linear-gradient(90deg, rgba(239,246,255,0.9) 0%, rgba(243,244,246,0.9) 100%);
 }
 
 .report-table tbody tr:last-child {
@@ -719,13 +719,82 @@
 }
 
 .report-table tbody td {
-  padding: 0.65rem 0.85rem;
-  font-size: 0.8rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.78rem;
   color: #1f2937;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 220px;
+}
+
+/* Alternating row gradient for readability */
+.report-table tbody tr:nth-child(odd) {
+  background: linear-gradient(90deg, rgba(250,251,255,0.85) 0%, rgba(245,247,255,0.85) 100%);
+}
+.report-table tbody tr:nth-child(even) {
+  background: linear-gradient(90deg, rgba(248,250,252,0.85) 0%, rgba(243,244,246,0.85) 100%);
+}
+
+/* Financial statement layout */
+.financial-statement {
+  background: white;
+  border-radius: 8px;
+  padding: 0.9rem;
+  border: 1px solid #e5e7eb;
+}
+.statement-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.statement-section {
+  background: white;
+  border: 1px dashed #e5e7eb;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+.statement-subheading {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 0 0 0.4rem 0;
+}
+.statement-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+.statement-row .label {
+  color: #4b5563;
+}
+.statement-row .amount {
+  text-align: right;
+  color: #111827;
+}
+.subtotal-row .amount {
+  text-align: center;
+  font-weight: 600;
+  color: #2563eb;
+}
+.total-row {
+  border-top: 2px solid #e5e7eb;
+}
+.total-row .amount {
+  text-align: right;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* Compact header actions bar under ReportHeader */
+.report-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 12px 0;
 }
 
 /* Summary Metrics - Dashboard Style */

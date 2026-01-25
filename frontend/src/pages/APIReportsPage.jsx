@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Filter, Calendar, FileText, CheckCircle2, AlertCircle, FileJson, Table, FileSpreadsheet } from 'lucide-react';
 import '../styles/reports.css';
+import ReportHeader from '../components/ReportHeader';
 import { API_BASE } from '../utils/apiBase';
 
 // Helper function to convert camelCase to kebab-case for API routes
@@ -236,16 +237,10 @@ const APIReportsPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Header */}
+      {/* Central Report Header */}
       <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">Reports</h1>
-              <p className="text-gray-600 mt-1 sm:mt-2">Download financial reports in multiple formats</p>
-            </div>
-            <FileText className="hidden sm:block text-blue-600" size={40} strokeWidth={1.5} />
-          </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-4">
+          <ReportHeader title="Reports" subtitle="Download financial reports in multiple formats" />
         </div>
       </div>
 
@@ -365,6 +360,8 @@ const APIReportsPage = () => {
                 {/* Card Content - Report Data */}
                 {expandedReport === report.key && (
                   <div className="report-content-area">
+                    {/* Premium printable header for the expanded report */}
+                    <ReportHeader title={report.name} subtitle={`Period: ${getPeriodLabel()}`} />
                     {/* Report Loading State */}
                     {reportLoading && (
                       <div className="flex items-center justify-center py-12">

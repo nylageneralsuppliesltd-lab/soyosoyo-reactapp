@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Filter, Calendar, DollarSign, Printer, ChevronDown, ChevronUp } from 'lucide-react';
 import { API_BASE } from '../utils/apiBase';
+import ReportHeader from '../components/ReportHeader';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import '../styles/generalLedger.css';
 
@@ -97,6 +98,10 @@ const GeneralLedgerPage = () => {
 
   return (
     <div className="general-ledger-page">
+      <ReportHeader
+        title="General Ledger"
+        subtitle={`${startDate} to ${endDate}`}
+      />
       <div className="ledger-header-section">
         <div className="header-top">
           <div>
