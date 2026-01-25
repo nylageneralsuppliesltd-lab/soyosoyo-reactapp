@@ -219,24 +219,22 @@ const AccountStatementPage = () => {
                       <th className="col-date">Date</th>
                       <th className="col-ref">Reference</th>
                       <th className="col-desc">Description</th>
-                      <th className="col-opposite">Opposite Account</th>
-                      <th className="col-debit">Debit (KES)</th>
-                      <th className="col-credit">Credit (KES)</th>
+                      <th className="col-credit">Money In (KES)</th>
+                      <th className="col-debit">Money Out (KES)</th>
                       <th className="col-balance">Balance (KES)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {statement.rows.map((row, idx) => (
-                      <tr key={idx} className={row.credit ? 'credit-row' : 'debit-row'}>
+                      <tr key={idx} className={row.moneyIn ? 'credit-row' : 'debit-row'}>
                         <td className="col-date">{formatDate(row.date)}</td>
                         <td className="col-ref">{row.reference || '-'}</td>
                         <td className="col-desc">{row.description || '-'}</td>
-                        <td className="col-opposite">{row.oppositeAccount || '-'}</td>
-                        <td className="col-debit amount">
-                          {row.debit ? formatCurrency(row.debit) : '-'}
-                        </td>
                         <td className="col-credit amount">
-                          {row.credit ? formatCurrency(row.credit) : '-'}
+                          {row.moneyIn ? formatCurrency(row.moneyIn) : '-'}
+                        </td>
+                        <td className="col-debit amount">
+                          {row.moneyOut ? formatCurrency(row.moneyOut) : '-'}
                         </td>
                         <td className="col-balance amount balance-cell">
                           {formatCurrency(row.balance)}
@@ -253,21 +251,19 @@ const AccountStatementPage = () => {
                       <th className="col-ref">Reference</th>
                       <th className="col-desc">Description</th>
                       <th className="col-opposite">Bank Account</th>
-                      <th className="col-opposite">Opposite Account</th>
-                      <th className="col-debit">Debit (KES)</th>
-                      <th className="col-credit">Credit (KES)</th>
+                      <th className="col-credit">Money In (KES)</th>
+                      <th className="col-debit">Money Out (KES)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {statement.rows.map((row, idx) => (
-                      <tr key={idx} className={row.credit ? 'credit-row' : 'debit-row'}>
+                      <tr key={idx} className={row.moneyIn ? 'credit-row' : 'debit-row'}>
                         <td className="col-date">{formatDate(row.date)}</td>
                         <td className="col-ref">{row.reference || '-'}</td>
                         <td className="col-desc">{row.description || '-'}</td>
                         <td className="col-opposite">{row.bankAccount || '-'}</td>
-                        <td className="col-opposite">{row.oppositeAccount || '-'}</td>
-                        <td className="col-debit amount">{row.debit ? formatCurrency(row.debit) : '-'}</td>
-                        <td className="col-credit amount">{row.credit ? formatCurrency(row.credit) : '-'}</td>
+                        <td className="col-credit amount">{row.moneyIn ? formatCurrency(row.moneyIn) : '-'}</td>
+                        <td className="col-debit amount">{row.moneyOut ? formatCurrency(row.moneyOut) : '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -293,12 +289,12 @@ const AccountStatementPage = () => {
                       </span>
                     </div>
                     <div className="summary-item">
-                      <span className="label">Total Debit (Money In):</span>
-                      <span className="value debit">{formatCurrency(statement.meta.totalDebit)}</span>
+                      <span className="label">Total Money In:</span>
+                      <span className="value credit">{formatCurrency(statement.meta.totalMoneyIn)}</span>
                     </div>
                     <div className="summary-item">
-                      <span className="label">Total Credit (Money Out):</span>
-                      <span className="value credit">{formatCurrency(statement.meta.totalCredit)}</span>
+                      <span className="label">Total Money Out:</span>
+                      <span className="value debit">{formatCurrency(statement.meta.totalMoneyOut)}</span>
                     </div>
                     <div className="summary-item">
                       <span className="label">Net Change:</span>
@@ -316,12 +312,12 @@ const AccountStatementPage = () => {
                 ) : (
                   <>
                     <div className="summary-item">
-                      <span className="label">Total Debit (Money In):</span>
-                      <span className="value debit">{formatCurrency(statement.meta.totalDebit)}</span>
+                      <span className="label">Total Money In:</span>
+                      <span className="value credit">{formatCurrency(statement.meta.totalMoneyIn)}</span>
                     </div>
                     <div className="summary-item">
-                      <span className="label">Total Credit (Money Out):</span>
-                      <span className="value credit">{formatCurrency(statement.meta.totalCredit)}</span>
+                      <span className="label">Total Money Out:</span>
+                      <span className="value debit">{formatCurrency(statement.meta.totalMoneyOut)}</span>
                     </div>
                     <div className="summary-item">
                       <span className="label">Net Change:</span>
