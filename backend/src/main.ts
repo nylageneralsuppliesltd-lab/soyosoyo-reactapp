@@ -64,6 +64,19 @@ async function bootstrap() {
   
   console.log(`Backend running on port ${port}`);
   console.log('Server is ready to accept requests');
+  
+  // Keep the process alive
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, gracefully shutting down...');
+    await app.close();
+    process.exit(0);
+  });
+  
+  process.on('SIGINT', async () => {
+    console.log('SIGINT received, gracefully shutting down...');
+    await app.close();
+    process.exit(0);
+  });
 }
 
 // Catch unhandled rejections that occur after bootstrap
