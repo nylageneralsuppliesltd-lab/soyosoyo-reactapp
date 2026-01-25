@@ -291,7 +291,7 @@
 }
 
 .statement-table th.col-desc {
-  width: 20%;
+  width: 35%;
 }
 
 .statement-table th.col-opposite {
@@ -311,6 +311,11 @@
 .statement-table th.col-balance {
   width: 15%;
   text-align: right;
+}
+
+.statement-table th.col-narration {
+  width: 25%;
+  text-align: left;
 }
 
 .statement-table tbody tr {
@@ -363,6 +368,12 @@
 .statement-table td.col-opposite {
   color: #4a5568;
   font-size: 0.85rem;
+}
+
+.statement-table td.col-narration {
+  color: #4a5568;
+  font-size: 0.85rem;
+  font-style: italic;
 }
 
 .statement-table td.balance-cell {

@@ -366,6 +366,10 @@ export class ReportsService {
           ],
         },
         orderBy: [{ date: 'asc' }, { id: 'asc' }],
+        include: {
+          debitAccount: { select: { id: true, name: true, type: true } },
+          creditAccount: { select: { id: true, name: true, type: true } },
+        },
       });
 
       // Calculate opening balance
@@ -388,30 +392,70 @@ export class ReportsService {
         }
       }
 
+      // Fetch deposits and withdrawals to get member names
+      const deposits = await this.prisma.deposit.findMany({
+        where: { date: { gte: dateRange.start, lte: dateRange.end } },
+        include: { member: { select: { id: true, name: true } } },
+      });
+
+      const withdrawals = await this.prisma.withdrawal.findMany({
+        where: { date: { gte: dateRange.start, lte: dateRange.end } },
+        include: { member: { select: { id: true, name: true } } },
+      });
+
+      // Create lookup maps
+      const depositsByRef = new Map();
+      const withdrawalsByRef = new Map();
+
+      deposits.forEach(d => {
+        if (d.reference) depositsByRef.set(d.reference, d);
+      });
+
+      withdrawals.forEach(w => {
+        if (w.reference) withdrawalsByRef.set(w.reference, w);
+      });
+
       let balance = openingBalance;
       const rows = [];
 
       for (const entry of entries) {
         let moneyIn = 0;
         let moneyOut = 0;
+        let fullDescription = '';
+
+        // Try to enrich with deposit/withdrawal data
+        const deposit = depositsByRef.get(entry.reference);
+        const withdrawal = withdrawalsByRef.get(entry.reference);
 
         if (entry.debitAccountId === Number(accountId)) {
           // Money coming INTO this account
           moneyIn = Number(entry.debitAmount);
           balance += moneyIn;
+
+          if (deposit && deposit.member) {
+            fullDescription = `${deposit.member.name} - ${entry.creditAccount?.name || 'Income'} - ${entry.description}`;
+          } else {
+            fullDescription = `${entry.creditAccount?.name || 'Source'} - ${entry.description}`;
+          }
         } else {
           // Money going OUT of this account
           moneyOut = Number(entry.creditAmount);
           balance -= moneyOut;
+
+          if (withdrawal && withdrawal.member) {
+            fullDescription = `${withdrawal.member.name} - ${entry.debitAccount?.name || 'Expense'} - ${entry.description}`;
+          } else {
+            fullDescription = `${entry.debitAccount?.name || 'Destination'} - ${entry.description}`;
+          }
         }
 
         rows.push({
           date: entry.date,
           reference: entry.reference || '-',
-          description: entry.description || '-',
+          description: fullDescription,
           moneyIn: moneyIn > 0 ? moneyIn : null,
           moneyOut: moneyOut > 0 ? moneyOut : null,
-          balance: Number(balance.toFixed(2)),
+          runningBalance: Number(balance.toFixed(2)),
         });
       }
 
@@ -459,45 +503,127 @@ export class ReportsService {
       },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
       include: {
-        debitAccount: { select: { name: true } },
-        creditAccount: { select: { name: true } },
+        debitAccount: { select: { id: true, name: true, type: true } },
+        creditAccount: { select: { id: true, name: true, type: true } },
       },
     });
 
-    const rows = [];
-    for (const entry of entries) {
+    // Get opening balance for running balance calculation
+    const openingEntries = await this.prisma.journalEntry.findMany({
+      where: {
+        date: { lt: dateRange.start },
+        OR: [
+          { debitAccountId: { in: bankAccountIds } },
+          { creditAccountId: { in: bankAccountIds } },
+        ],
+      },
+    });
+
+    let openingBalance = 0;
+    for (const entry of openingEntries) {
       const debitIsBankAccount = bankAccountIds.includes(entry.debitAccountId);
       const creditIsBankAccount = bankAccountIds.includes(entry.creditAccountId);
 
       if (debitIsBankAccount && !creditIsBankAccount) {
+        openingBalance += Number(entry.debitAmount);
+      } else if (creditIsBankAccount && !debitIsBankAccount) {
+        openingBalance -= Number(entry.creditAmount);
+      } else if (debitIsBankAccount && creditIsBankAccount) {
+        openingBalance += (Number(entry.debitAmount) - Number(entry.creditAmount));
+      }
+    }
+
+    // Fetch deposits and withdrawals to get member names
+    const deposits = await this.prisma.deposit.findMany({
+      where: { date: { gte: dateRange.start, lte: dateRange.end } },
+      include: { member: { select: { id: true, name: true } } },
+    });
+
+    const withdrawals = await this.prisma.withdrawal.findMany({
+      where: { date: { gte: dateRange.start, lte: dateRange.end } },
+      include: { member: { select: { id: true, name: true } } },
+    });
+
+    // Create lookup maps
+    const depositsByRef = new Map();
+    const withdrawalsByRef = new Map();
+
+    deposits.forEach(d => {
+      if (d.reference) depositsByRef.set(d.reference, d);
+    });
+
+    withdrawals.forEach(w => {
+      if (w.reference) withdrawalsByRef.set(w.reference, w);
+    });
+
+    const rows = [];
+    let runningBalance = openingBalance;
+
+    for (const entry of entries) {
+      const debitIsBankAccount = bankAccountIds.includes(entry.debitAccountId);
+      const creditIsBankAccount = bankAccountIds.includes(entry.creditAccountId);
+      let moneyIn = null;
+      let moneyOut = null;
+      let fullDescription = '';
+
+      // Try to enrich with deposit/withdrawal data
+      const deposit = depositsByRef.get(entry.reference);
+      const withdrawal = withdrawalsByRef.get(entry.reference);
+
+      if (debitIsBankAccount && !creditIsBankAccount) {
         // Money IN to a bank account
+        moneyIn = Number(entry.debitAmount);
+        runningBalance += moneyIn;
+        
+        if (deposit && deposit.member) {
+          fullDescription = `${deposit.member.name} - ${entry.creditAccount?.name || 'Income'} - ${entry.description}`;
+        } else {
+          fullDescription = `${entry.creditAccount?.name || 'Source'} - ${entry.description}`;
+        }
+
         rows.push({
           date: entry.date,
           reference: entry.reference || '-',
-          description: entry.description || '-',
-          bankAccount: entry.debitAccount?.name || 'Unknown',
-          moneyIn: Number(entry.debitAmount),
+          description: fullDescription,
+          moneyIn,
           moneyOut: null,
+          runningBalance: Number(runningBalance.toFixed(2)),
         });
       } else if (creditIsBankAccount && !debitIsBankAccount) {
         // Money OUT of a bank account
+        moneyOut = Number(entry.creditAmount);
+        runningBalance -= moneyOut;
+
+        if (withdrawal && withdrawal.member) {
+          fullDescription = `${withdrawal.member.name} - ${entry.debitAccount?.name || 'Expense'} - ${entry.description}`;
+        } else {
+          fullDescription = `${entry.debitAccount?.name || 'Destination'} - ${entry.description}`;
+        }
+
         rows.push({
           date: entry.date,
           reference: entry.reference || '-',
-          description: entry.description || '-',
-          bankAccount: entry.creditAccount?.name || 'Unknown',
+          description: fullDescription,
           moneyIn: null,
-          moneyOut: Number(entry.creditAmount),
+          moneyOut,
+          runningBalance: Number(runningBalance.toFixed(2)),
         });
       } else if (debitIsBankAccount && creditIsBankAccount) {
-        // Transfer between bank accounts - show as one transaction
+        // Transfer between bank accounts
+        moneyOut = Number(entry.creditAmount);
+        moneyIn = Number(entry.debitAmount);
+        const netTransfer = moneyIn - moneyOut;
+        runningBalance += netTransfer;
+        
+        fullDescription = `Transfer: ${entry.creditAccount?.name} to ${entry.debitAccount?.name}`;
+
         rows.push({
           date: entry.date,
           reference: entry.reference || '-',
-          description: `Transfer: ${entry.creditAccount?.name} → ${entry.debitAccount?.name}`,
-          bankAccount: 'Internal Transfer',
-          moneyIn: Number(entry.debitAmount),
-          moneyOut: Number(entry.creditAmount),
+          description: fullDescription,
+          moneyIn,
+          moneyOut,
+          runningBalance: Number(runningBalance.toFixed(2)),
         });
       }
     }
@@ -511,6 +637,8 @@ export class ReportsService {
         totalMoneyIn: Number(totalMoneyIn.toFixed(2)),
         totalMoneyOut: Number(totalMoneyOut.toFixed(2)),
         netChange: Number((totalMoneyIn - totalMoneyOut).toFixed(2)),
+        openingBalance: Number(openingBalance.toFixed(2)),
+        closingBalance: Number(runningBalance.toFixed(2)),
         count: rows.length,
         availableAccounts: bankAccounts.map(a => ({ id: a.id, name: a.name, type: a.type }))
       },
