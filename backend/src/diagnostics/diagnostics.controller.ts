@@ -40,4 +40,20 @@ export class DiagnosticsController {
     `;
     return { enabled: true, migrations: rows };
   }
+
+  @Get('fix-member-columns')
+  async fixMemberColumns() {
+    this.ensureEnabled();
+    // Directly add missing columns to Member table
+    try {
+      await this.prisma.$executeRaw`
+        ALTER TABLE "Member" 
+        ADD COLUMN IF NOT EXISTS "balance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS "loanBalance" DOUBLE PRECISION NOT NULL DEFAULT 0;
+      `;
+      return { success: true, message: 'Member columns added/verified' };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
 }
