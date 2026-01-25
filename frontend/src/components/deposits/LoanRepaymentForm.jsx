@@ -335,7 +335,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           >
             <option value="">{formData.memberId ? 'Select a loan' : 'Select member first'}</option>
             {memberLoans.map(loan => (
-              <option key={loan.id} value={loan.id}>
+              <option key={loan.id} value={String(loan.id)}>
                 Loan #{loan.id} - KSh {loan.principalAmount.toLocaleString()} 
                 (Balance: KSh {(loan.principalAmount - loan.principalPaid).toLocaleString()})
               </option>

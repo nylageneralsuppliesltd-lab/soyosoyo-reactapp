@@ -202,7 +202,7 @@ const ExternalLoans = ({ onError }) => {
                 >
                   <option value="">-- Select Type --</option>
                   {loanTypes.map(t => (
-                    <option key={t.id} value={t.id}>
+                    <option key={t.id} value={String(t.id)}>
                       {t.name} ({t.interestRate}%)
                     </option>
                   ))}

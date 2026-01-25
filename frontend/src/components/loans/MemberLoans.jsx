@@ -142,7 +142,7 @@ const MemberLoans = ({ onError, onLoading }) => {
                 >
                   <option value="">-- Select Member --</option>
                   {members.map(m => (
-                    <option key={m.id} value={m.id}>
+                    <option key={m.id} value={String(m.id)}>
                       {m.firstName} {m.lastName}
                     </option>
                   ))}
@@ -165,7 +165,7 @@ const MemberLoans = ({ onError, onLoading }) => {
                 >
                   <option value="">-- Select Type --</option>
                   {loanTypes.map(t => (
-                    <option key={t.id} value={t.id}>
+                    <option key={t.id} value={String(t.id)}>
                       {t.name} ({t.interestRate}%)
                     </option>
                   ))}
