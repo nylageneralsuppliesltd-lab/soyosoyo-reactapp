@@ -82,6 +82,22 @@ export class LoansService {
         throw new BadRequestException('Member name, bank name, or external borrower name is required');
       }
 
+      // Require a real, existing bank account for disbursement
+      const disbursementAccountId = data.disbursementAccountId ? parseInt(data.disbursementAccountId) : null;
+      if (!disbursementAccountId || isNaN(disbursementAccountId)) {
+        throw new BadRequestException('A valid disbursement bank account ID is required');
+      }
+      const disbursementAccount = await this.prisma.account.findUnique({ where: { id: disbursementAccountId } });
+      if (!disbursementAccount || disbursementAccount.type !== 'bank') {
+        throw new BadRequestException('Disbursement account must be an existing bank account');
+      }
+
+      // Use a dedicated loan ledger account (must exist)
+      const loanLedgerAccount = await this.prisma.account.findFirst({ where: { name: 'Loans Ledger', type: 'ledger' } });
+      if (!loanLedgerAccount) {
+        throw new BadRequestException('Loan ledger account ("Loans Ledger") does not exist');
+      }
+
       const amountDecimal = new Prisma.Decimal(amount);
 
       // Create the loan record
@@ -92,38 +108,24 @@ export class LoansService {
 
       // Sync to journal and account (only for outward loans when disbursed)
       if (loanData.loanDirection === 'outward' && loan.status !== 'pending') {
-        // Get or create loan disbursement account
-        const loanAccount = await this.ensureAccountByName(
-          'Loans Disbursed',
-          'bank',
-          'GL account for loan disbursements'
-        );
-
-        // Get cash account
-        const cashAccount = await this.ensureAccountByName(
-          'Cashbox',
-          'cash',
-          'Default cash account'
-        );
-
-        // Create journal entry: Debit Loans Disbursed, Credit Cash
+        // Create journal entry: Debit Loans Ledger, Credit Disbursement Bank Account
         await this.prisma.journalEntry.create({
           data: {
             date: loanData.disbursementDate,
             reference: `LOAN-${loan.id}`,
             description: `Loan disbursement - ${loanData.memberName}`,
             narration: loanData.purpose || null,
-            debitAccountId: loanAccount.id,
+            debitAccountId: loanLedgerAccount.id,
             debitAmount: amountDecimal,
-            creditAccountId: cashAccount.id,
+            creditAccountId: disbursementAccount.id,
             creditAmount: amountDecimal,
             category: 'loan_disbursement',
           },
         });
 
-        // Update cash account balance (decrement)
+        // Update disbursement bank account balance (decrement)
         await this.prisma.account.update({
-          where: { id: cashAccount.id },
+          where: { id: disbursementAccount.id },
           data: { balance: { decrement: amountDecimal } },
         });
       }
