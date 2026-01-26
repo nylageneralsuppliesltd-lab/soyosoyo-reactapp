@@ -138,8 +138,8 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
       } else {
         await financeAPI.post(`/settings/${endpoint}`, formData);
       }
-      setShowForm(false);
       loadData();
+      setShowForm(false); // Collapse the form after successful save
       alert('Saved successfully');
     } catch (err) {
       console.error('Failed to save:', err);

@@ -100,7 +100,7 @@ const ExternalLoans = ({ onError }) => {
           amount: parseFloat(formData.amount),
           periodMonths: parseInt(formData.periodMonths),
           typeId: parseInt(formData.typeId),
-          accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+          disbursementAccountId: formData.accountId ? parseInt(formData.accountId) : undefined,
         }),
       });
 

@@ -101,7 +101,7 @@ const MemberLoans = ({ onError, onLoading }) => {
           periodMonths: parseInt(formData.periodMonths),
           memberId: parseInt(formData.memberId),
           typeId: parseInt(formData.typeId),
-          accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+          disbursementAccountId: formData.accountId ? parseInt(formData.accountId) : undefined,
         }),
       });
 
