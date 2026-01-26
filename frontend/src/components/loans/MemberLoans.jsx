@@ -1,6 +1,56 @@
 ﻿// MemberLoans.jsx - Outward Loans to Members
 import React, { useState, useEffect } from 'react';
-import { Plus, Eye, Loader, AlertCircle } from 'lucide-react';
+import { Plus, Eye, Loader, AlertCircle, Edit, Trash2 } from 'lucide-react';
+import { API_BASE } from '../../utils/apiBase';
+
+const MemberLoans = ({ onError, onLoading }) => {
+  const [editingLoan, setEditingLoan] = useState(null);
+  const [loans, setLoans] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [loanTypes, setLoanTypes] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState(null);
+  const [formData, setFormData] = useState({
+    memberId: '',
+    typeId: '',
+    accountId: '',
+    amount: '',
+    periodMonths: '',
+    disbursementDate: new Date().toISOString().split('T')[0],
+    purpose: '',
+  });
+  const [formErrors, setFormErrors] = useState({});
+
+  // Delete loan handler
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this loan?')) return;
+    try {
+      const response = await fetch(`${API_BASE}/loans/${id}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to delete loan');
+      onError?.('Loan deleted successfully!');
+      setTimeout(() => onError?.(null), 3000);
+      fetchData();
+    } catch (err) {
+      onError?.(err.message);
+    }
+  };
+
+  // Edit loan handler (opens form pre-filled)
+  const handleEdit = (loan) => {
+    setEditingLoan(loan);
+    setShowForm(true);
+    setFormData({
+      memberId: String(loan.memberId || ''),
+      typeId: String(loan.loanTypeId || ''),
+      accountId: String(loan.disbursementAccount || ''),
+      amount: String(loan.amount || ''),
+      periodMonths: String(loan.periodMonths || ''),
+      disbursementDate: loan.disbursementDate ? new Date(loan.disbursementDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      purpose: loan.purpose || '',
+    });
+  };
 import { API_BASE } from '../../utils/apiBase';
 
 const MemberLoans = ({ onError, onLoading }) => {
@@ -91,22 +141,41 @@ const MemberLoans = ({ onError, onLoading }) => {
     if (!validateForm()) return;
 
     try {
-      const response = await fetch(`${API_BASE}/loans`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          loanDirection: 'outward',
-          amount: parseFloat(formData.amount),
-          periodMonths: parseInt(formData.periodMonths),
-          memberId: parseInt(formData.memberId),
-          typeId: parseInt(formData.typeId),
-          disbursementAccountId: formData.accountId ? parseInt(formData.accountId) : undefined,
-        }),
-      });
+      let response;
+      if (editingLoan) {
+        // PATCH update
+        response = await fetch(`${API_BASE}/loans/${editingLoan.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...formData,
+            loanDirection: 'outward',
+            amount: parseFloat(formData.amount),
+            periodMonths: parseInt(formData.periodMonths),
+            memberId: parseInt(formData.memberId),
+            typeId: parseInt(formData.typeId),
+            disbursementAccountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+          }),
+        });
+      } else {
+        // POST create
+        response = await fetch(`${API_BASE}/loans`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...formData,
+            loanDirection: 'outward',
+            amount: parseFloat(formData.amount),
+            periodMonths: parseInt(formData.periodMonths),
+            memberId: parseInt(formData.memberId),
+            typeId: parseInt(formData.typeId),
+            disbursementAccountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+          }),
+        });
+      }
 
       if (!response.ok) {
-        let errorMsg = 'Failed to create loan';
+        let errorMsg = editingLoan ? 'Failed to update loan' : 'Failed to create loan';
         try {
           const errorData = await response.json();
           errorMsg = errorData.message || errorMsg;
@@ -116,10 +185,10 @@ const MemberLoans = ({ onError, onLoading }) => {
         throw new Error(errorMsg);
       }
 
-      onError?.('Member loan created successfully!');
+      onError?.(editingLoan ? 'Member loan updated successfully!' : 'Member loan created successfully!');
       setTimeout(() => onError?.(null), 3000);
-      
       setShowForm(false);
+      setEditingLoan(null);
       setFormData({
         memberId: '',
         typeId: '',
@@ -318,6 +387,20 @@ const MemberLoans = ({ onError, onLoading }) => {
                       title="View Details"
                     >
                       <Eye size={16} />
+                    </button>
+                    <button
+                      className="btn-icon"
+                      onClick={() => handleEdit(loan)}
+                      title="Edit"
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button
+                      className="btn-icon delete"
+                      onClick={() => handleDelete(loan.id)}
+                      title="Delete"
+                    >
+                      <Trash2 size={16} />
                     </button>
                   </td>
                 </tr>
