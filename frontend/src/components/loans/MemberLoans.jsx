@@ -51,13 +51,6 @@ const MemberLoans = ({ onError, onLoading }) => {
       purpose: loan.purpose || '',
     });
   };
-import { API_BASE } from '../../utils/apiBase';
-
-const MemberLoans = ({ onError, onLoading }) => {
-  const [loans, setLoans] = useState([]);
-  const [members, setMembers] = useState([]);
-  const [loanTypes, setLoanTypes] = useState([]);
-  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState(null);
