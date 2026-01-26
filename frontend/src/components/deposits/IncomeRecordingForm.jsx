@@ -156,6 +156,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
       });
 
       if (onSuccess) onSuccess();
+      if (onCancel) onCancel();
       
       setTimeout(() => setMessage({ type: '', text: '' }), 5000);
     } catch (error) {

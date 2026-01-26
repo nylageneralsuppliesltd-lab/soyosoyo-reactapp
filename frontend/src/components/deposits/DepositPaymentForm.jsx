@@ -162,6 +162,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
       });
 
       if (onSuccess) onSuccess(result);
+      if (onCancel) onCancel();
 
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {

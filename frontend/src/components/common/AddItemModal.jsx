@@ -70,6 +70,7 @@ const AddItemModal = ({
       // Call success callback with new item
       if (onSuccess) {
         onSuccess(newItem);
+        if (onCancel) onCancel();
       }
 
       // Reset and close

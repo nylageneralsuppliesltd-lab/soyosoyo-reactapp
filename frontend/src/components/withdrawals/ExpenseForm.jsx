@@ -137,6 +137,7 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
         }
         setTimeout(() => {
           if (onSuccess) onSuccess();
+          if (onCancel) onCancel();
         }, 1500);
       } else {
         let errorMsg = 'Failed to record expense';

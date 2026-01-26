@@ -204,6 +204,7 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
       setMemberSearch('');
 
       if (onSuccess) onSuccess();
+      if (onCancel) onCancel();
       
       setTimeout(() => setMessage({ type: '', text: '' }), 5000);
     } catch (error) {

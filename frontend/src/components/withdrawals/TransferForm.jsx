@@ -120,6 +120,7 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
         }
         setTimeout(() => {
           if (onSuccess) onSuccess();
+          if (onCancel) onCancel();
         }, 1500);
       } else {
         const errorData = await response.json();
