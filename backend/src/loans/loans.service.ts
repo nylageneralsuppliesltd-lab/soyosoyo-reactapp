@@ -36,7 +36,6 @@ export class LoansService {
     try {
       const amount = data.amount ? parseFloat(data.amount) : 0;
       const loanData: any = {
-        memberName: data.memberName?.trim() || data.borrower?.trim() || 'Unspecified',
         externalName: data.externalName?.trim() || null,
         bankName: data.bankName?.trim() || null,
         contactPerson: data.contactPerson?.trim() || null,
@@ -56,15 +55,36 @@ export class LoansService {
         collateral: data.collateral?.trim() || null,
         disbursementDate: data.disbursementDate ? new Date(data.disbursementDate) : (data.startDate ? new Date(data.startDate) : new Date()),
         typeName: data.typeName?.trim() || null,
-        disbursementAccount: data.disbursementAccount?.trim() || null,
       };
 
-      // Attach relations with nested connect to satisfy Prisma create input
+      // Set memberName from memberId if not provided
       const memberId = data.memberId ? parseInt(data.memberId) : null;
       if (memberId) {
         loanData.member = { connect: { id: memberId } };
+        if (!data.memberName) {
+          const member = await this.prisma.member.findUnique({ where: { id: memberId } });
+          loanData.memberName = member ? (member.name || `Member ${member.id}`) : 'Unspecified';
+        } else {
+          loanData.memberName = data.memberName?.trim();
+        }
+      } else {
+        loanData.memberName = data.memberName?.trim() || data.borrower?.trim() || 'Unspecified';
       }
 
+      // Set disbursementAccount from disbursementAccountId if not provided
+      const disbursementAccountId = data.disbursementAccountId ? parseInt(data.disbursementAccountId) : null;
+      if (disbursementAccountId) {
+        if (!data.disbursementAccount) {
+          const account = await this.prisma.account.findUnique({ where: { id: disbursementAccountId } });
+          loanData.disbursementAccount = account ? account.name : null;
+        } else {
+          loanData.disbursementAccount = data.disbursementAccount?.trim();
+        }
+      } else {
+        loanData.disbursementAccount = data.disbursementAccount?.trim() || null;
+      }
+
+      // Attach relations with nested connect to satisfy Prisma create input
       const loanTypeId = data.typeId ? parseInt(data.typeId) : null;
       if (loanTypeId) {
         loanData.loanType = { connect: { id: loanTypeId } };
@@ -83,7 +103,6 @@ export class LoansService {
       }
 
       // Require a real, existing bank account for disbursement
-      const disbursementAccountId = data.disbursementAccountId ? parseInt(data.disbursementAccountId) : null;
       if (!disbursementAccountId || isNaN(disbursementAccountId)) {
         throw new BadRequestException('A valid disbursement bank account ID is required');
       }
@@ -92,11 +111,8 @@ export class LoansService {
         throw new BadRequestException('Disbursement account must be an existing bank account');
       }
 
-      // Use a dedicated loan ledger account (must exist)
-      const loanLedgerAccount = await this.prisma.account.findFirst({ where: { name: 'Loans Ledger', type: 'gl' } });
-      if (!loanLedgerAccount) {
-        throw new BadRequestException('Loan ledger account ("Loans Ledger") does not exist');
-      }
+      // Use or create a dedicated loan ledger account (self-healing)
+      const loanLedgerAccount = await this.ensureAccountByName('Loans Ledger', 'gl', 'System GL account for loans');
 
       const amountDecimal = new Prisma.Decimal(amount);
 
@@ -329,11 +345,8 @@ export class LoansService {
       if (!disbursementAccount || disbursementAccount.type !== 'bank') {
         throw new BadRequestException('Disbursement account must be an existing bank account');
       }
-      // Use the correct enum for account type: 'gl' for general ledger
-      const loanLedgerAccount = await this.prisma.account.findFirst({ where: { name: 'Loans Ledger', type: 'gl' } });
-      if (!loanLedgerAccount) {
-        throw new BadRequestException('Loan ledger account ("Loans Ledger") does not exist');
-      }
+      // Use or create the correct enum for account type: 'gl' for general ledger
+      const loanLedgerAccount = await this.ensureAccountByName('Loans Ledger', 'gl', 'System GL account for loans');
       // Check if a journal entry for this loan already exists
       const existingJournal = await this.prisma.journalEntry.findFirst({ where: { reference: `LOAN-${loan.id}` } });
       if (!existingJournal) {

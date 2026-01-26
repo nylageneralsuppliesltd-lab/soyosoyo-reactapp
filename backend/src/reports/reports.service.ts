@@ -15,6 +15,7 @@ export class ReportsService {
     /Payable$/,            // "Dividends Payable", "Refunds Payable"
     /Expense$/,            // "Rent Expense", "Utilities Expense"
     /Collected$/,          // "Fines Collected"
+    /Ledger$/,             // "Loans Ledger", "General Ledger" etc
   ];
 
   private isGlAccount(accountName: string): boolean {
@@ -331,17 +332,17 @@ export class ReportsService {
       },
       orderBy: { name: 'asc' }
     });
-    
-    const rows = accounts.map(a => ({
+    // Filter out GL accounts (including any with 'Ledger' in name)
+    const realAccounts = accounts.filter(a => !this.isGlAccount(a.name));
+    const rows = realAccounts.map(a => ({
       accountName: a.name,
       accountType: a.type,
       balance: a.balance,
       currency: a.currency || 'KES',
       isActive: a.isActive !== false ? 'Active' : 'Inactive',
     }));
-    
-    const total = accounts.reduce((sum, r) => sum + Number(r.balance), 0);
-    return { rows, meta: { total, count: accounts.length } };
+    const total = realAccounts.reduce((sum, r) => sum + Number(r.balance), 0);
+    return { rows, meta: { total, count: realAccounts.length } };
   }
 
   private async transactionStatement(dateRange: { start: Date; end: Date }, accountId?: string) {
@@ -356,8 +357,7 @@ export class ReportsService {
       },
       orderBy: { name: 'asc' },
     });
-
-    // Filter out GL tracking accounts
+    // Filter out GL tracking accounts (including any with 'Ledger' in name)
     const bankAccounts = allBankAccounts.filter(acc => !this.isGlAccount(acc.name));
 
     // If specific account requested, validate it's a bank account
