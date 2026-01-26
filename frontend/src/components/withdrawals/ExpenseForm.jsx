@@ -221,7 +221,7 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
                 id: cat.name || cat.id,
                 name: cat.name,
               }))}
-              onAddNew={() => navigate('/settings/categories/create')}
+              onAddNew={() => navigate('/settings/expenses/create')}
               addButtonText="Add Expense Category"
               addButtonType="expense_category"
               placeholder="Select category or create new..."

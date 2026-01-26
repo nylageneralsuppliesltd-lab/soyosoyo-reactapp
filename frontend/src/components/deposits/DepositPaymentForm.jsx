@@ -296,7 +296,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
                   id: cat.name,
                   name: cat.name,
                 }))}
-              onAddNew={() => navigate('/settings/categories/create')}
+              onAddNew={() => navigate('/settings/contributions/create')}
               addButtonText="Add Contribution Type"
               addButtonType="contribution_type"
               placeholder="Select or create contribution type..."

@@ -219,7 +219,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
               value={formData.incomeCategory}
               onChange={handleSmartSelectChange('incomeCategory')}
               options={depositCategories.length > 0 ? depositCategories.map(cat => ({ id: cat.id || cat.name, name: cat.name })) : incomeCategories.map(cat => ({ id: cat.value, name: cat.label }))}
-              onAddNew={() => navigate('/settings/categories/create')}
+              onAddNew={() => navigate('/settings/income/create')}
               placeholder="Select category or create new..."
               required={true}
               showAddButton={true}

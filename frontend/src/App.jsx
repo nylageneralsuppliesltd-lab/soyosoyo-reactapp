@@ -104,7 +104,13 @@ function App() {
           <Route path="/general-ledger-detail" element={<GeneralLedgerDetailPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/accounts/create" element={<SettingsPage initialTab="accounts" initialShowForm={true} />} />
-          <Route path="/settings/categories/create" element={<SettingsPage initialTab="contributions" initialShowForm={true} />} />
+          <Route path="/settings/contributions/create" element={<SettingsPage initialTab="contributions" initialShowForm={true} />} />
+          <Route path="/settings/income/create" element={<SettingsPage initialTab="income" initialShowForm={true} />} />
+          <Route path="/settings/expenses/create" element={<SettingsPage initialTab="expenses" initialShowForm={true} />} />
+          <Route path="/settings/fines/create" element={<SettingsPage initialTab="fines" initialShowForm={true} />} />
+          <Route path="/settings/roles/create" element={<SettingsPage initialTab="roles" initialShowForm={true} />} />
+          <Route path="/settings/invoices/create" element={<SettingsPage initialTab="invoices" initialShowForm={true} />} />
+          <Route path="/settings/assets/create" element={<SettingsPage initialTab="assets" initialShowForm={true} />} />
           <Route path="/ledger" element={<GeneralLedgerPage />} />
           <Route path="/sacco-settings" element={<SaccoSettingsPage />} />
           <Route path="/reports/account-balance" element={<AccountBalanceReportPage />} />

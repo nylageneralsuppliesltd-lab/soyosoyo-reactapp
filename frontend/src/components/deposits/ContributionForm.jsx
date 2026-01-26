@@ -304,7 +304,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
                 { id: 'Development Fund', name: 'Development Fund' },
                 { id: 'Other', name: 'Other' }
               ]}
-              onAddNew={() => navigate('/settings/categories/create')}
+              onAddNew={() => navigate('/settings/contributions/create')}
               placeholder="Select category or create new..."
               required={true}
               showAddButton={true}
