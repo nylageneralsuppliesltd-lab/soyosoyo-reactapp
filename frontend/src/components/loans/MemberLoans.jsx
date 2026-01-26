@@ -1,16 +1,4 @@
-﻿  // Approve loan handler
-  const handleApprove = async (id) => {
-    if (!window.confirm('Approve this loan?')) return;
-    try {
-      const response = await fetch(`${API_BASE}/loans/${id}/approve`, { method: 'PATCH' });
-      if (!response.ok) throw new Error('Failed to approve loan');
-      onError?.('Loan approved successfully!');
-      setTimeout(() => onError?.(null), 3000);
-      fetchData();
-    } catch (err) {
-      onError?.(err.message);
-    }
-  };
+﻿// ...existing code...
 // MemberLoans.jsx - Outward Loans to Members
 import React, { useState, useEffect } from 'react';
 import { Plus, Eye, Loader, AlertCircle, Edit, Trash2 } from 'lucide-react';
@@ -57,7 +45,7 @@ const MemberLoans = ({ onError, onLoading }) => {
     setFormData({
       memberId: String(loan.memberId || ''),
       typeId: String(loan.typeId || loan.loanTypeId || ''),
-      accountId: String(loan.disbursementAccountId || loan.disbursementAccount || ''),
+      disbursementAccountId: String(loan.disbursementAccountId || ''),
       amount: String(loan.amount || ''),
       periodMonths: String(loan.periodMonths || ''),
       disbursementDate: loan.disbursementDate ? new Date(loan.disbursementDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -122,7 +110,7 @@ const MemberLoans = ({ onError, onLoading }) => {
     const errors = {};
     if (!formData.memberId) errors.memberId = 'Member is required';
     if (!formData.typeId) errors.typeId = 'Loan type is required';
-    if (!formData.accountId) errors.accountId = 'Disbursement account is required';
+    if (!formData.disbursementAccountId) errors.disbursementAccountId = 'Disbursement account is required';
     if (!formData.amount || parseFloat(formData.amount) <= 0) errors.amount = 'Valid amount is required';
     if (!formData.periodMonths || parseInt(formData.periodMonths) < 1) errors.periodMonths = 'Valid period is required';
     setFormErrors(errors);
@@ -147,7 +135,7 @@ const MemberLoans = ({ onError, onLoading }) => {
             periodMonths: parseInt(formData.periodMonths),
             memberId: parseInt(formData.memberId),
             typeId: parseInt(formData.typeId),
-            disbursementAccountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+            disbursementAccountId: formData.disbursementAccountId ? parseInt(formData.disbursementAccountId) : undefined,
           }),
         });
       } else {
@@ -162,7 +150,7 @@ const MemberLoans = ({ onError, onLoading }) => {
             periodMonths: parseInt(formData.periodMonths),
             memberId: parseInt(formData.memberId),
             typeId: parseInt(formData.typeId),
-            disbursementAccountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+            disbursementAccountId: formData.disbursementAccountId ? parseInt(formData.disbursementAccountId) : undefined,
           }),
         });
       }
@@ -185,7 +173,7 @@ const MemberLoans = ({ onError, onLoading }) => {
       setFormData({
         memberId: '',
         typeId: '',
-        accountId: '',
+        disbursementAccountId: '',
         amount: '',
         periodMonths: '',
         disbursementDate: new Date().toISOString().split('T')[0],
@@ -270,9 +258,9 @@ const MemberLoans = ({ onError, onLoading }) => {
               <div className="form-group">
                 <label className="required">Disbursement Account</label>
                 <select
-                  value={formData.accountId}
-                  onChange={e => setFormData({ ...formData, accountId: e.target.value })}
-                  className={formErrors.accountId ? 'error' : ''}
+                  value={formData.disbursementAccountId}
+                  onChange={e => setFormData({ ...formData, disbursementAccountId: e.target.value })}
+                  className={formErrors.disbursementAccountId ? 'error' : ''}
                 >
                   <option value="">-- Select Account --</option>
                   {accounts && accounts.length > 0 ? (
@@ -461,7 +449,15 @@ const MemberLoans = ({ onError, onLoading }) => {
                   </div>
                 )}
               </div>
+              {/* Amortization Table */}
+              <div className="amortization-table-section">
+                <h4>Amortization Table</h4>
+                <AmortizationTable loan={selectedLoan} />
+              </div>
             </div>
+
+
+
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setSelectedLoan(null)}>Close</button>
             </div>
@@ -470,6 +466,70 @@ const MemberLoans = ({ onError, onLoading }) => {
       )}
     </div>
   );
-};
+}
+
+// AmortizationTable component
+function AmortizationTable({ loan }) {
+  if (!loan || !loan.amount || !loan.periodMonths || !loan.interestRate) return null;
+  const principal = Number(loan.amount);
+  const months = Number(loan.periodMonths);
+  const rate = Number(loan.interestRate) / 100 / 12;
+  let rows = [];
+  let monthlyPayment = 0;
+  if (loan.interestType === 'flat' || !loan.interestType) {
+    // Flat interest
+    const totalInterest = principal * (Number(loan.interestRate) / 100) * (months / 12);
+    monthlyPayment = (principal + totalInterest) / months;
+    for (let i = 1; i <= months; i++) {
+      rows.push({
+        month: i,
+        principal: (principal / months),
+        interest: (totalInterest / months),
+        payment: monthlyPayment,
+        balance: principal - (principal / months) * i
+      });
+    }
+  } else {
+    // Reducing balance (annuity)
+    monthlyPayment = rate === 0 ? principal / months : (principal * rate) / (1 - Math.pow(1 + rate, -months));
+    let balance = principal;
+    for (let i = 1; i <= months; i++) {
+      const interest = balance * rate;
+      const principalPaid = monthlyPayment - interest;
+      balance -= principalPaid;
+      rows.push({
+        month: i,
+        principal: principalPaid,
+        interest: interest,
+        payment: monthlyPayment,
+        balance: balance > 0 ? balance : 0
+      });
+    }
+  }
+  return (
+    <table className="amortization-table">
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Principal</th>
+          <th>Interest</th>
+          <th>Payment</th>
+          <th>Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(row => (
+          <tr key={row.month}>
+            <td>{row.month}</td>
+            <td>KES {row.principal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+            <td>KES {row.interest.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+            <td>KES {row.payment.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+            <td>KES {row.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
 
 export default MemberLoans;
