@@ -103,6 +103,8 @@ function App() {
           <Route path="/account-statement" element={<AccountStatementPage />} />
           <Route path="/general-ledger-detail" element={<GeneralLedgerDetailPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/accounts/create" element={<SettingsPage initialTab="accounts" initialShowForm={true} />} />
+          <Route path="/settings/categories/create" element={<SettingsPage initialTab="contributions" initialShowForm={true} />} />
           <Route path="/ledger" element={<GeneralLedgerPage />} />
           <Route path="/sacco-settings" element={<SaccoSettingsPage />} />
           <Route path="/reports/account-balance" element={<AccountBalanceReportPage />} />
