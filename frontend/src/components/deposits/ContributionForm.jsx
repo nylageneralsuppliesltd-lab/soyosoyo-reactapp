@@ -5,6 +5,14 @@ import { API_BASE } from '../../utils/apiBase';
 import SmartSelect from '../common/SmartSelect';
 
 const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
+    // Handles SmartSelect changes for fields like contributionType and accountId
+    const handleSmartSelectChange = (field) => (valueOrEvent) => {
+      const value = valueOrEvent?.target ? valueOrEvent.target.value : valueOrEvent;
+      setFormData((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+    };
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
