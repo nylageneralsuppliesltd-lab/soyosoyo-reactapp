@@ -8,6 +8,7 @@ dotenv.config();
 async function bootstrap() {
   // Debug: print DATABASE_URL (mask password in logs!)
   const dbUrl = process.env.DATABASE_URL || 'not set';
+  console.log('--- BOOTSTRAP START ---');
   console.log(
     'DATABASE_URL:',
     dbUrl.includes('@')
@@ -16,6 +17,7 @@ async function bootstrap() {
   );
 
   const app = await NestFactory.create(AppModule);
+  console.log('Nest app created');
 
   // Align backend routes with frontend expectations
   app.setGlobalPrefix('api');
@@ -55,23 +57,23 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
   // Bind to 0.0.0.0 to ensure local and external access
   const httpServer = await app.listen(port as number, '0.0.0.0');
-  
+  console.log('App.listen resolved');
   // Add explicit error handler to the HTTP server
   httpServer.on('error', (err) => {
     console.error('HTTP Server error:', err);
     process.exit(1);
   });
-  
   console.log(`Backend running on port ${port}`);
   console.log('Server is ready to accept requests');
-  
-  // Keep the process alive
+  // Keep the process alive for diagnosis
+  setInterval(() => {
+    console.log('Keep-alive: process is still running');
+  }, 10000);
   process.on('SIGTERM', async () => {
     console.log('SIGTERM received, gracefully shutting down...');
     await app.close();
     process.exit(0);
   });
-  
   process.on('SIGINT', async () => {
     console.log('SIGINT received, gracefully shutting down...');
     await app.close();
