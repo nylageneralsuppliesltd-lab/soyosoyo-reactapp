@@ -1,4 +1,17 @@
-﻿// MemberLoans.jsx - Outward Loans to Members
+﻿  // Approve loan handler
+  const handleApprove = async (id) => {
+    if (!window.confirm('Approve this loan?')) return;
+    try {
+      const response = await fetch(`${API_BASE}/loans/${id}/approve`, { method: 'PATCH' });
+      if (!response.ok) throw new Error('Failed to approve loan');
+      onError?.('Loan approved successfully!');
+      setTimeout(() => onError?.(null), 3000);
+      fetchData();
+    } catch (err) {
+      onError?.(err.message);
+    }
+  };
+// MemberLoans.jsx - Outward Loans to Members
 import React, { useState, useEffect } from 'react';
 import { Plus, Eye, Loader, AlertCircle, Edit, Trash2 } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
@@ -43,8 +56,8 @@ const MemberLoans = ({ onError, onLoading }) => {
     setShowForm(true);
     setFormData({
       memberId: String(loan.memberId || ''),
-      typeId: String(loan.loanTypeId || ''),
-      accountId: String(loan.disbursementAccount || ''),
+      typeId: String(loan.typeId || loan.loanTypeId || ''),
+      accountId: String(loan.disbursementAccountId || loan.disbursementAccount || ''),
       amount: String(loan.amount || ''),
       periodMonths: String(loan.periodMonths || ''),
       disbursementDate: loan.disbursementDate ? new Date(loan.disbursementDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -368,6 +381,15 @@ const MemberLoans = ({ onError, onLoading }) => {
                     >
                       <Eye size={16} />
                     </button>
+                    {loan.status === 'pending' && (
+                      <button
+                        className="btn-icon approve"
+                        onClick={() => handleApprove(loan.id)}
+                        title="Approve"
+                      >
+                        <span role="img" aria-label="Approve">✔️</span>
+                      </button>
+                    )}
                     <button
                       className="btn-icon"
                       onClick={() => handleEdit(loan)}
