@@ -70,6 +70,10 @@ export class LoansService {
         loanData.loanType = { connect: { id: loanTypeId } };
       }
 
+      // Remove forbidden relation IDs from loanData before Prisma create
+      delete loanData.memberId;
+      delete loanData.loanTypeId;
+
       if (!loanData.amount || loanData.amount <= 0) {
         throw new BadRequestException('Valid loan amount is required');
       }
