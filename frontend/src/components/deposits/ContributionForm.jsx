@@ -279,7 +279,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
                 className="member-option add-member-option"
                 onClick={(e) => {
                   e.preventDefault();
-                  navigate('/members');
+                  navigate('/members/create');
                 }}
               >
                 <strong>+ Add New Member</strong>
