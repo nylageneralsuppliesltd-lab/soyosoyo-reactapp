@@ -11,7 +11,9 @@ import '../../styles/report.css';
 export default function MembersList() {
   const [members, setMembers] = useState([]);
   const [view, setView] = useState('list'); // list | form | ledger
-  const [viewType, setViewType] = useState('table'); // table | card
+  // Detect mobile and default to card view on mobile
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const [viewType, setViewType] = useState(isMobile ? 'card' : 'table'); // table | card
   const [selectedMember, setSelectedMember] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -66,6 +68,22 @@ export default function MembersList() {
   useEffect(() => {
     fetchMembers(0);
   }, [search, roleFilter, statusFilter]);
+
+  // On mount, auto-switch to card view if on mobile
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const handleResize = () => {
+        if (window.innerWidth < 768) {
+          setViewType('card');
+        } else {
+          setViewType('table');
+        }
+      };
+      handleResize();
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
 
   const handleSuspend = async (id) => {
     if (!window.confirm('Suspend this member?')) return;
