@@ -308,7 +308,7 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
                   className="member-option add-member-option"
                   onClick={(e) => {
                     e.preventDefault();
-                    navigate('/members');
+                    navigate('/members/create');
                   }}
                 >
                   <div className="member-info">

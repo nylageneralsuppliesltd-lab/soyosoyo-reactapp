@@ -252,7 +252,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
                 <button
                   type="button"
                   className="dropdown-item add-member-option"
-                  onClick={() => navigate('/members')}
+                  onClick={() => navigate('/members/create')}
                 >
                   <span className="member-name">+ Add New Member</span>
                   <span className="member-phone">Register a new member</span>
