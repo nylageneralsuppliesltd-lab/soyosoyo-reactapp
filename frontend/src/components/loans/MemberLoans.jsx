@@ -51,19 +51,6 @@ const MemberLoans = ({ onError, onLoading }) => {
       purpose: loan.purpose || '',
     });
   };
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [selectedLoan, setSelectedLoan] = useState(null);
-  const [formData, setFormData] = useState({
-    memberId: '',
-    typeId: '',
-    accountId: '',
-    amount: '',
-    periodMonths: '',
-    disbursementDate: new Date().toISOString().split('T')[0],
-    purpose: '',
-  });
-  const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
     fetchData();
