@@ -93,7 +93,7 @@ export class LoansService {
       }
 
       // Use a dedicated loan ledger account (must exist)
-      const loanLedgerAccount = await this.prisma.account.findFirst({ where: { name: 'Loans Ledger', type: 'ledger' } });
+      const loanLedgerAccount = await this.prisma.account.findFirst({ where: { name: 'Loans Ledger', type: 'gl' } });
       if (!loanLedgerAccount) {
         throw new BadRequestException('Loan ledger account ("Loans Ledger") does not exist');
       }
@@ -318,6 +318,55 @@ export class LoansService {
 
     if (loan.status !== 'pending') {
       throw new BadRequestException('Only pending loans can be approved');
+    }
+
+    // Perform disbursement, journal, and account updates on approval (if not already done)
+    // Only for outward loans
+    if (loan.loanDirection === 'outward') {
+      // Use disbursementAccount as the ID (string or number)
+      const disbursementAccountId = loan.disbursementAccount ? Number(loan.disbursementAccount) : undefined;
+      if (!disbursementAccountId) {
+        throw new BadRequestException('Disbursement account is missing for this loan.');
+      }
+      const disbursementAccount = await this.prisma.account.findUnique({ where: { id: disbursementAccountId } });
+      if (!disbursementAccount || disbursementAccount.type !== 'bank') {
+        throw new BadRequestException('Disbursement account must be an existing bank account');
+      }
+      // Use the correct enum for account type: 'gl' for general ledger
+      const loanLedgerAccount = await this.prisma.account.findFirst({ where: { name: 'Loans Ledger', type: 'gl' } });
+      if (!loanLedgerAccount) {
+        throw new BadRequestException('Loan ledger account ("Loans Ledger") does not exist');
+      }
+      // Check if a journal entry for this loan already exists
+      const existingJournal = await this.prisma.journalEntry.findFirst({ where: { reference: `LOAN-${loan.id}` } });
+      if (!existingJournal) {
+        const amountDecimal = new Prisma.Decimal(loan.amount);
+        await this.prisma.journalEntry.create({
+          data: {
+            date: loan.disbursementDate || new Date(),
+            reference: `LOAN-${loan.id}`,
+            description: `Loan disbursement - ${loan.memberName}`,
+            narration: loan.purpose || null,
+            debitAccountId: loanLedgerAccount.id,
+            debitAmount: amountDecimal,
+            creditAccountId: disbursementAccount.id,
+            creditAmount: amountDecimal,
+            category: 'loan_disbursement',
+          },
+        });
+        // Update disbursement account balance
+        await this.prisma.account.update({
+          where: { id: disbursementAccount.id },
+          data: { balance: { decrement: amountDecimal } },
+        });
+        // Update member loan balance if applicable
+        if (loan.memberId) {
+          await this.prisma.member.update({
+            where: { id: loan.memberId },
+            data: { loanBalance: { increment: typeof loan.amount === 'object' && 'toNumber' in loan.amount ? loan.amount.toNumber() : Number(loan.amount) } },
+          });
+        }
+      }
     }
 
     return this.prisma.loan.update({
