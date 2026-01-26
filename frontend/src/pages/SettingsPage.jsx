@@ -4,7 +4,8 @@ import AccountsSettings from '../components/settings/AccountsSettings';
 import AssetsSettings from '../components/settings/AssetsSettings';
 import '../styles/settings.css';
 
-const SettingsPage = () => {
+import { useEffect as useReactEffect } from 'react';
+const SettingsPage = ({ initialTab, initialShowForm }) => {
   const [activeTab, setActiveTab] = useState('system');
   const [contributionTypes, setContributionTypes] = useState([]);
   const [expenseCategories, setExpenseCategories] = useState([]);
@@ -18,6 +19,19 @@ const SettingsPage = () => {
   const [formData, setFormData] = useState({});
   const [activeTab2, setActiveTab2] = useState('contributions');
   const [invoiceDateManuallySet, setInvoiceDateManuallySet] = useState(false);
+
+  // Respond to initialTab and initialShowForm props (for /settings/accounts/create, /settings/categories/create)
+  useReactEffect(() => {
+    if (initialTab) {
+      setActiveTab('financial');
+      setActiveTab2(initialTab);
+    }
+    if (initialShowForm) {
+      setShowForm(true);
+      setEditingId(null);
+      setFormData({});
+    }
+  }, [initialTab, initialShowForm]);
 
   // System Settings
   const [systemSettings, setSystemSettings] = useState({
