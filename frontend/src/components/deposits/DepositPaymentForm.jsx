@@ -296,7 +296,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
                   id: cat.name,
                   name: cat.name,
                 }))}
-              onAddNew={() => navigate('/settings?tab=categories')}
+              onAddNew={() => navigate('/settings/categories/create')}
               addButtonText="Add Contribution Type"
               addButtonType="contribution_type"
               placeholder="Select or create contribution type..."
@@ -349,7 +349,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
               id: account.id,
               name: `${account.name} (${account.type})`,
             }))}
-            onAddNew={() => navigate('/settings?tab=accounts')}
+            onAddNew={() => navigate('/settings/accounts/create')}
             addButtonText="Add Bank Account"
             addButtonType="bank_account"
             placeholder="Select account or leave blank for cashbox..."

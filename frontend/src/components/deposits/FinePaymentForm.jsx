@@ -320,7 +320,7 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               value={formData.fineType}
               onChange={handleSmartSelectChange('fineType')}
               options={depositFineTypes.length > 0 ? depositFineTypes.map(type => ({ id: type.id || type.name, name: type.name })) : fineTypes.map(type => ({ id: type.value, name: type.label }))}
-              onAddNew={() => navigate('/settings?tab=categories')}
+              onAddNew={() => navigate('/settings/categories/create')}
               placeholder="Select fine type or create new..."
               required={true}
               showAddButton={true}
@@ -370,7 +370,7 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               value={formData.accountId}
               onChange={handleSmartSelectChange('accountId')}
               options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
-              onAddNew={() => navigate('/settings?tab=accounts')}
+              onAddNew={() => navigate('/settings/accounts/create')}
               placeholder="Select account or create new..."
               showAddButton={true}
               addButtonType="account"

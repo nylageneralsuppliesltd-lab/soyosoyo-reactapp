@@ -304,7 +304,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
                 { id: 'Development Fund', name: 'Development Fund' },
                 { id: 'Other', name: 'Other' }
               ]}
-              onAddNew={() => navigate('/settings?tab=categories')}
+              onAddNew={() => navigate('/settings/categories/create')}
               placeholder="Select category or create new..."
               required={true}
               showAddButton={true}
@@ -341,7 +341,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
             value={formData.accountId}
             onChange={handleSmartSelectChange('accountId')}
             options={accounts.map(acc => ({ id: acc.id, name: `${acc.name} (${acc.type})` }))}
-            onAddNew={() => navigate('/settings?tab=accounts')}
+            onAddNew={() => navigate('/settings/accounts/create')}
             placeholder="Select account or create new..."
             showAddButton={true}
             addButtonType="account"

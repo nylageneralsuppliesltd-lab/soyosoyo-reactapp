@@ -207,7 +207,7 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
                 name: `${account.name} (${account.type}) - Balance: KES ${parseFloat(account.balance).toFixed(2)}`,
               }))}
               placeholder="Select account or create new..."
-              onAddClick={() => navigate('/settings?tab=accounts')}
+              onAddClick={() => navigate('/settings/accounts/create')}
               icon="CreditCard"
               required
             />
@@ -233,7 +233,7 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
                 name: `${account.name} (${account.type}) - Balance: KES ${parseFloat(account.balance).toFixed(2)}`,
               }))}
               placeholder="Select account or create new..."
-              onAddClick={() => navigate('/settings?tab=accounts')}
+              onAddClick={() => navigate('/settings/accounts/create')}
               icon="CreditCard"
               required
             />

@@ -435,7 +435,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
                 id: account.id,
                 name: `${account.code} - ${account.name}`,
               }))}
-              onAddNew={() => navigate('/settings?tab=accounts')}
+              onAddNew={() => navigate('/settings/accounts/create')}
               addButtonText="Add Bank Account"
               addButtonType="bank_account"
               placeholder="Select account or create new..."

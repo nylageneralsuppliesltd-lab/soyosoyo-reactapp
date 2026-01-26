@@ -221,7 +221,7 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
                 id: cat.name || cat.id,
                 name: cat.name,
               }))}
-              onAddNew={() => navigate('/settings?tab=categories')}
+              onAddNew={() => navigate('/settings/categories/create')}
               addButtonText="Add Expense Category"
               addButtonType="expense_category"
               placeholder="Select category or create new..."
@@ -261,7 +261,7 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
               id: account.id,
               name: `${account.name} (${account.type})${account.balance !== undefined ? ` - ${Number(account.balance).toFixed(2)}` : ''}`,
             }))}
-            onAddNew={() => navigate('/settings?tab=accounts')}
+            onAddNew={() => navigate('/settings/accounts/create')}
             addButtonText="Add Account"
             addButtonType="account"
             placeholder="Select account or create new..."

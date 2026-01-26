@@ -377,7 +377,7 @@ const MiscellaneousPaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               value={formData.accountId}
               onChange={handleSmartSelectChange('accountId')}
               options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
-              onAddNew={() => navigate('/settings?tab=accounts')}
+              onAddNew={() => navigate('/settings/accounts/create')}
               placeholder="Select account or create new..."
               showAddButton={true}
               addButtonType="account"

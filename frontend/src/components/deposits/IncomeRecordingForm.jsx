@@ -219,7 +219,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
               value={formData.incomeCategory}
               onChange={handleSmartSelectChange('incomeCategory')}
               options={depositCategories.length > 0 ? depositCategories.map(cat => ({ id: cat.id || cat.name, name: cat.name })) : incomeCategories.map(cat => ({ id: cat.value, name: cat.label }))}
-              onAddNew={() => navigate('/settings?tab=categories')}
+              onAddNew={() => navigate('/settings/categories/create')}
               placeholder="Select category or create new..."
               required={true}
               showAddButton={true}
@@ -283,7 +283,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
               value={formData.accountId}
               onChange={handleSmartSelectChange('accountId')}
               options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
-              onAddNew={() => navigate('/settings?tab=accounts')}
+              onAddNew={() => navigate('/settings/accounts/create')}
               placeholder="Select account or create new..."
               required={true}
               showAddButton={true}
