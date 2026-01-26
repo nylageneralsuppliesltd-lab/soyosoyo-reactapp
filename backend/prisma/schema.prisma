@@ -349,7 +349,13 @@ model Loan {
   member            Member?         @relation(fields: [memberId], references: [id], onDelete: SetNull)
   memberId          Int?
   memberName        String?
+  externalName      String?
   bankName          String?         // For inward loans
+  contactPerson     String?
+  email             String?
+  phone             String?
+  idNumber          String?
+  accountNumber     String?
   loanType          LoanType?       @relation(fields: [loanTypeId], references: [id], onDelete: SetNull)
   loanTypeId        Int?
   typeName          String?
@@ -369,6 +375,8 @@ model Loan {
   startDate         DateTime?       @db.Date
   dueDate           DateTime?       @db.Date
   purpose           String?
+  terms             String?
+  collateral        String?
   
   repayments        Repayment[]
   fines             Fine[]
