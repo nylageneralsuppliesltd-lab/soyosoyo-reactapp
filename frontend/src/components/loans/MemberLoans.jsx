@@ -16,13 +16,38 @@ const MemberLoans = ({ onError, onLoading }) => {
   const [formData, setFormData] = useState({
     memberId: '',
     typeId: '',
-    accountId: '',
+    disbursementAccountId: '',
     amount: '',
     periodMonths: '',
     disbursementDate: new Date().toISOString().split('T')[0],
     purpose: '',
   });
   const [formErrors, setFormErrors] = useState({});
+  const [approvingLoanId, setApprovingLoanId] = useState(null);
+  // Approve loan handler
+  const handleApprove = async (id) => {
+    if (!id) return;
+    if (!window.confirm('Approve this loan? This will disburse funds and activate the loan.')) return;
+    setApprovingLoanId(id);
+    try {
+      const response = await fetch(`${API_BASE}/loans/${id}/approve`, { method: 'PATCH' });
+      if (!response.ok) {
+        let errorMsg = 'Failed to approve loan';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorMsg;
+        } catch {}
+        throw new Error(errorMsg);
+      }
+      onError?.('Loan approved successfully!');
+      setTimeout(() => onError?.(null), 3000);
+      fetchData();
+    } catch (err) {
+      onError?.(err.message);
+    } finally {
+      setApprovingLoanId(null);
+    }
+  };
 
   // Delete loan handler
   const handleDelete = async (id) => {
@@ -81,9 +106,9 @@ const MemberLoans = ({ onError, onLoading }) => {
       const accountsArray = Array.isArray(accountsData) ? accountsData : (accountsData.data || []);
       // Filter to only bank/cash/mobile accounts (exclude GL accounts)
       const bankAccounts = accountsArray.filter(a => 
-        ['cash', 'bank', 'mobileMoney', 'pettyCash'].includes(a.type) && 
-        !a.name.includes('GL:') && 
-        !a.name.includes('General Ledger')
+        ['cash', 'bank', 'mobileMoney', 'pettyCash'].includes(a.type) &&
+        a.type !== 'gl' &&
+        !/ledger/i.test(a.name)
       );
 
       setLoans(loansArray);
@@ -255,6 +280,7 @@ const MemberLoans = ({ onError, onLoading }) => {
                 </select>
                 {formErrors.typeId && <span className="error-text">{formErrors.typeId}</span>}
               </div>
+
               <div className="form-group">
                 <label className="required">Disbursement Account</label>
                 <select
@@ -273,26 +299,11 @@ const MemberLoans = ({ onError, onLoading }) => {
                     <option value="" disabled>No accounts available</option>
                   )}
                 </select>
-                {formErrors.accountId && <span className="error-text">{formErrors.accountId}</span>}
+                {formErrors.disbursementAccountId && <span className="error-text">{formErrors.disbursementAccountId}</span>}
               </div>
-            </div>
 
-            <div className="form-row">
               <div className="form-group">
-                <label className="required">Amount (KES)</label>
-                <input
-                  type="number"
-                  step="100"
-                  min="0"
-                  value={formData.amount}
-                  onChange={e => setFormData({ ...formData, amount: e.target.value })}
-                  placeholder="e.g., 50000"
-                  className={formErrors.amount ? 'error' : ''}
-                />
-                {formErrors.amount && <span className="error-text">{formErrors.amount}</span>}
-              </div>
-              <div className="form-group">
-                <label className="required">Period (Months)</label>
+                <label className="required">Period (months)</label>
                 <input
                   type="number"
                   min="1"
@@ -302,6 +313,7 @@ const MemberLoans = ({ onError, onLoading }) => {
                 />
                 {formErrors.periodMonths && <span className="error-text">{formErrors.periodMonths}</span>}
               </div>
+
               <div className="form-group">
                 <label>Disbursement Date</label>
                 <input
@@ -371,11 +383,12 @@ const MemberLoans = ({ onError, onLoading }) => {
                     </button>
                     {loan.status === 'pending' && (
                       <button
-                        className="btn-icon approve"
+                        className={`btn-icon approve${approvingLoanId === loan.id ? ' loading' : ''}`}
                         onClick={() => handleApprove(loan.id)}
                         title="Approve"
+                        disabled={approvingLoanId === loan.id}
                       >
-                        <span role="img" aria-label="Approve">✔️</span>
+                        {approvingLoanId === loan.id ? <Loader size={16} className="spinner" /> : <span role="img" aria-label="Approve">✔️</span>}
                       </button>
                     )}
                     <button
