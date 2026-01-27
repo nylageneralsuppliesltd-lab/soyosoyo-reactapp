@@ -149,14 +149,15 @@ async function testFinancialStatements() {
     console.log(`Loans Disbursed GL: ${expected.loansGL.toLocaleString()}`);
     console.log(`Loan Repayments GL: ${expected.repaymentsGL.toLocaleString()}`);
 
+
     // Verify double entry - total debits should equal total credits
-    const totalDebits = 100000 + 50000 + 30000 + 20000;
-    const totalCredits = 100000 + 50000 + 30000 + 20000;
+    const manualTotalDebits = 100000 + 50000 + 30000 + 20000;
+    const manualTotalCredits = 100000 + 50000 + 30000 + 20000;
 
     console.log(`\n✅ Double Entry Verification:`);
-    console.log(`Total Debits: ${totalDebits.toLocaleString()}`);
-    console.log(`Total Credits: ${totalCredits.toLocaleString()}`);
-    console.log(`Balanced: ${totalDebits === totalCredits ? '✅ YES' : '❌ NO'}`);
+    console.log(`Total Debits: ${manualTotalDebits.toLocaleString()}`);
+    console.log(`Total Credits: ${manualTotalCredits.toLocaleString()}`);
+    console.log(`Balanced: ${manualTotalDebits === manualTotalCredits ? '✅ YES' : '❌ NO'}`);
 
     // Test comprehensive statement
     console.log('\n\n═══════════════════════════════════════════════════');

@@ -337,13 +337,20 @@ export class LoansService {
     // Only for outward loans
     if (loan.loanDirection === 'outward') {
       // Use disbursementAccount as the ID (string or number)
-      const disbursementAccountId = loan.disbursementAccount ? Number(loan.disbursementAccount) : undefined;
-      if (!disbursementAccountId) {
-        throw new BadRequestException('Disbursement account is missing for this loan.');
-      }
-      const disbursementAccount = await this.prisma.account.findUnique({ where: { id: disbursementAccountId } });
+      let disbursementAccountId = loan.disbursementAccount ? Number(loan.disbursementAccount) : undefined;
+      let disbursementAccount = disbursementAccountId
+        ? await this.prisma.account.findUnique({ where: { id: disbursementAccountId } })
+        : null;
+      // If missing or invalid, auto-assign the first available bank account
       if (!disbursementAccount || disbursementAccount.type !== 'bank') {
-        throw new BadRequestException('Disbursement account must be an existing bank account');
+        const firstBankAccount = await this.prisma.account.findFirst({ where: { type: 'bank' } });
+        if (!firstBankAccount) {
+          throw new BadRequestException('No valid bank account available for disbursement.');
+        }
+        disbursementAccount = firstBankAccount;
+        disbursementAccountId = firstBankAccount.id;
+        // Optionally update the loan record to store the assigned account
+        await this.prisma.loan.update({ where: { id: loan.id }, data: { disbursementAccount: String(disbursementAccountId) } });
       }
       // Use or create the correct enum for account type: 'gl' for general ledger
       const loanLedgerAccount = await this.ensureAccountByName('Loans Ledger', 'gl', 'System GL account for loans');

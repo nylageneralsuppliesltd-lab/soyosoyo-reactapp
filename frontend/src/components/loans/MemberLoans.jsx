@@ -40,112 +40,114 @@ const MemberLoans = ({ onError, onLoading }) => {
         throw new Error(errorMsg);
       }
       onError?.('Loan approved successfully!');
-      setTimeout(() => onError?.(null), 3000);
-      fetchData();
-    } catch (err) {
-      onError?.(err.message);
-    } finally {
-      setApprovingLoanId(null);
-    }
-  };
+      {showForm && (
+        <div className="form-card">
+          <h3>Create Member Loan</h3>
+          <form onSubmit={handleSubmit} className="member-loan-form">
+            <>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="required">Member {members.length > 0 && `(${members.length})`}</label>
+                  <select
+                    value={formData.memberId}
+                    onChange={e => setFormData({ ...formData, memberId: e.target.value })}
+                    className={formErrors.memberId ? 'error' : ''}
+                  >
+                    <option value="">-- Select Member --</option>
+                    {members && members.length > 0 ? (
+                      members.map(m => (
+                        <option key={m.id} value={String(m.id)}>
+                          {m.firstName && m.lastName ? `${m.firstName} ${m.lastName}` : m.name || `Member ${m.id}`}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>No members available</option>
+                    )}
+                  </select>
+                  {formErrors.memberId && <span className="error-text">{formErrors.memberId}</span>}
+                </div>
+                <div className="form-group">
+                  <label className="required">Loan Type</label>
+                  <select
+                    value={formData.typeId}
+                    onChange={e => {
+                      const selected = loanTypes.find(t => t.id === parseInt(e.target.value));
+                      setFormData({
+                        ...formData,
+                        typeId: e.target.value,
+                        periodMonths: selected?.periodMonths || '',
+                      });
+                    }}
+                    className={formErrors.typeId ? 'error' : ''}
+                  >
+                    <option value="">-- Select Type --</option>
+                    {loanTypes.map(t => (
+                      <option key={t.id} value={String(t.id)}>
+                        {t.name} ({t.interestRate}%)
+                      </option>
+                    ))}
+                  </select>
+                  {formErrors.typeId && <span className="error-text">{formErrors.typeId}</span>}
+                </div>
+                <div className="form-group">
+                  <label className="required">Disbursement Account</label>
+                  <select
+                    value={formData.disbursementAccountId}
+                    onChange={e => setFormData({ ...formData, disbursementAccountId: e.target.value })}
+                    className={formErrors.disbursementAccountId ? 'error' : ''}
+                  >
+                    <option value="">-- Select Account --</option>
+                    {accounts && accounts.length > 0 ? (
+                      accounts.map(acc => (
+                        <option key={acc.id} value={String(acc.id)}>
+                          {acc.name} ({acc.type.toUpperCase()})
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>No accounts available</option>
+                    )}
+                  </select>
+                  {formErrors.disbursementAccountId && <span className="error-text">{formErrors.disbursementAccountId}</span>}
+                </div>
+                <div className="form-group">
+                  <label className="required">Period (months)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.periodMonths}
+                    onChange={e => setFormData({ ...formData, periodMonths: e.target.value })}
+                    className={formErrors.periodMonths ? 'error' : ''}
+                  />
+                  {formErrors.periodMonths && <span className="error-text">{formErrors.periodMonths}</span>}
+                </div>
+                <div className="form-group">
+                  <label>Disbursement Date</label>
+                  <input
+                    type="date"
+                    value={formData.disbursementDate}
+                    onChange={e => setFormData({ ...formData, disbursementDate: e.target.value })}
+                  />
+                </div>
+              </div>
 
-  // Delete loan handler
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this loan?')) return;
-    try {
-      const response = await fetch(`${API_BASE}/loans/${id}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Failed to delete loan');
-      onError?.('Loan deleted successfully!');
-      setTimeout(() => onError?.(null), 3000);
-      fetchData();
-    } catch (err) {
-      onError?.(err.message);
-    }
-  };
+              <div className="form-group">
+                <label>Purpose/Notes</label>
+                <textarea
+                  value={formData.purpose}
+                  onChange={e => setFormData({ ...formData, purpose: e.target.value })}
+                  placeholder="Loan purpose or additional notes"
+                  rows="3"
+                />
+              </div>
 
-  // Edit loan handler (opens form pre-filled)
-  const handleEdit = (loan) => {
-    setEditingLoan(loan);
-    setShowForm(true);
-    setFormData({
-      memberId: String(loan.memberId || ''),
-      typeId: String(loan.typeId || loan.loanTypeId || ''),
-      disbursementAccountId: String(loan.disbursementAccountId || ''),
-      amount: String(loan.amount || ''),
-      periodMonths: String(loan.periodMonths || ''),
-      disbursementDate: loan.disbursementDate ? new Date(loan.disbursementDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      purpose: loan.purpose || '',
-    });
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [loansRes, membersRes, typesRes, accountsRes] = await Promise.all([
-        fetch(`${API_BASE}/loans?direction=outward`),
-        fetch(`${API_BASE}/members`),
-        fetch(`${API_BASE}/loan-types`),
-        fetch(`${API_BASE}/accounts`),
-      ]);
-
-      if (!loansRes.ok || !membersRes.ok || !typesRes.ok || !accountsRes.ok) throw new Error('Failed to fetch data');
-
-      const loansData = await loansRes.json();
-      const membersData = await membersRes.json();
-      const typesData = await typesRes.json();
-      const accountsData = await accountsRes.json();
-
-      // Handle both array and wrapped responses
-      const loansArray = Array.isArray(loansData) ? loansData : (loansData.data || []);
-      const membersArray = Array.isArray(membersData) ? membersData : (membersData.data || []);
-      const typesArray = Array.isArray(typesData) ? typesData : (typesData.data || []);
-      const accountsArray = Array.isArray(accountsData) ? accountsData : (accountsData.data || []);
-      // Filter to only bank/cash/mobile accounts (exclude GL accounts)
-      const bankAccounts = accountsArray.filter(a => 
-        ['cash', 'bank', 'mobileMoney', 'pettyCash'].includes(a.type) &&
-        a.type !== 'gl' &&
-        !/ledger/i.test(a.name)
-      );
-
-      setLoans(loansArray);
-      setMembers(membersArray);
-      setLoanTypes(typesArray);
-      setAccounts(bankAccounts);
-      
-      // Debug log
-      if (import.meta.env.DEV) {
-        console.log('Members loaded:', membersArray.length);
-        console.log('Accounts loaded:', bankAccounts.length);
-      }
-    } catch (err) {
-      onError?.(err.message);
-      if (import.meta.env.DEV) {
-        console.error('Fetch error:', err);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const validateForm = () => {
-    const errors = {};
-    if (!formData.memberId) errors.memberId = 'Member is required';
-    if (!formData.typeId) errors.typeId = 'Loan type is required';
-    if (!formData.disbursementAccountId) errors.disbursementAccountId = 'Disbursement account is required';
-    if (!formData.amount || parseFloat(formData.amount) <= 0) errors.amount = 'Valid amount is required';
-    if (!formData.periodMonths || parseInt(formData.periodMonths) < 1) errors.periodMonths = 'Valid period is required';
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
-
+              <div className="form-actions">
+                <button type="submit" className="btn-primary">Create Loan</button>
+                <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setFormErrors({}); }}>Cancel</button>
+              </div>
+            </>
+          </form>
+        </div>
+      )}
     try {
       let response;
       if (editingLoan) {
