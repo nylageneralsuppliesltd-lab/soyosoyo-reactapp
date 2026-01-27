@@ -1,5 +1,4 @@
-﻿// ...existing code...
-// MemberLoans.jsx - Outward Loans to Members
+﻿// MemberLoans.jsx - Outward Loans to Members
 import React, { useState, useEffect } from 'react';
 import { Plus, Eye, Loader, AlertCircle, Edit, Trash2 } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
@@ -28,8 +27,8 @@ const MemberLoans = ({ onError, onLoading }) => {
   const handleApprove = async (id) => {
     if (!id) return;
     if (!window.confirm('Approve this loan? This will disburse funds and activate the loan.')) return;
-    setApprovingLoanId(id);
     try {
+      setApprovingLoanId(id);
       const response = await fetch(`${API_BASE}/loans/${id}/approve`, { method: 'PATCH' });
       if (!response.ok) {
         let errorMsg = 'Failed to approve loan';
@@ -40,176 +39,12 @@ const MemberLoans = ({ onError, onLoading }) => {
         throw new Error(errorMsg);
       }
       onError?.('Loan approved successfully!');
-      {showForm && (
-        <div className="form-card">
-          <h3>Create Member Loan</h3>
-          <form onSubmit={handleSubmit} className="member-loan-form">
-            <>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="required">Member {members.length > 0 && `(${members.length})`}</label>
-                  <select
-                    value={formData.memberId}
-                    onChange={e => setFormData({ ...formData, memberId: e.target.value })}
-                    className={formErrors.memberId ? 'error' : ''}
-                  >
-                    <option value="">-- Select Member --</option>
-                    {members && members.length > 0 ? (
-                      members.map(m => (
-                        <option key={m.id} value={String(m.id)}>
-                          {m.firstName && m.lastName ? `${m.firstName} ${m.lastName}` : m.name || `Member ${m.id}`}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="" disabled>No members available</option>
-                    )}
-                  </select>
-                  {formErrors.memberId && <span className="error-text">{formErrors.memberId}</span>}
-                </div>
-                <div className="form-group">
-                  <label className="required">Loan Type</label>
-                  <select
-                    value={formData.typeId}
-                    onChange={e => {
-                      const selected = loanTypes.find(t => t.id === parseInt(e.target.value));
-                      setFormData({
-                        ...formData,
-                        typeId: e.target.value,
-                        periodMonths: selected?.periodMonths || '',
-                      });
-                    }}
-                    className={formErrors.typeId ? 'error' : ''}
-                  >
-                    <option value="">-- Select Type --</option>
-                    {loanTypes.map(t => (
-                      <option key={t.id} value={String(t.id)}>
-                        {t.name} ({t.interestRate}%)
-                      </option>
-                    ))}
-                  </select>
-                  {formErrors.typeId && <span className="error-text">{formErrors.typeId}</span>}
-                </div>
-                <div className="form-group">
-                  <label className="required">Disbursement Account</label>
-                  <select
-                    value={formData.disbursementAccountId}
-                    onChange={e => setFormData({ ...formData, disbursementAccountId: e.target.value })}
-                    className={formErrors.disbursementAccountId ? 'error' : ''}
-                  >
-                    <option value="">-- Select Account --</option>
-                    {accounts && accounts.length > 0 ? (
-                      accounts.map(acc => (
-                        <option key={acc.id} value={String(acc.id)}>
-                          {acc.name} ({acc.type.toUpperCase()})
-                        </option>
-                      ))
-                    ) : (
-                      <option value="" disabled>No accounts available</option>
-                    )}
-                  </select>
-                  {formErrors.disbursementAccountId && <span className="error-text">{formErrors.disbursementAccountId}</span>}
-                </div>
-                <div className="form-group">
-                  <label className="required">Period (months)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={formData.periodMonths}
-                    onChange={e => setFormData({ ...formData, periodMonths: e.target.value })}
-                    className={formErrors.periodMonths ? 'error' : ''}
-                  />
-                  {formErrors.periodMonths && <span className="error-text">{formErrors.periodMonths}</span>}
-                </div>
-                <div className="form-group">
-                  <label>Disbursement Date</label>
-                  <input
-                    type="date"
-                    value={formData.disbursementDate}
-                    onChange={e => setFormData({ ...formData, disbursementDate: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Purpose/Notes</label>
-                <textarea
-                  value={formData.purpose}
-                  onChange={e => setFormData({ ...formData, purpose: e.target.value })}
-                  placeholder="Loan purpose or additional notes"
-                  rows="3"
-                />
-              </div>
-
-              <div className="form-actions">
-                <button type="submit" className="btn-primary">Create Loan</button>
-                <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setFormErrors({}); }}>Cancel</button>
-              </div>
-            </>
-          </form>
-        </div>
-      )}
-    try {
-      let response;
-      if (editingLoan) {
-        // PATCH update
-        response = await fetch(`${API_BASE}/loans/${editingLoan.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...formData,
-            loanDirection: 'outward',
-            amount: parseFloat(formData.amount),
-            periodMonths: parseInt(formData.periodMonths),
-            memberId: parseInt(formData.memberId),
-            typeId: parseInt(formData.typeId),
-            disbursementAccountId: formData.disbursementAccountId ? parseInt(formData.disbursementAccountId) : undefined,
-          }),
-        });
-      } else {
-        // POST create
-        response = await fetch(`${API_BASE}/loans`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...formData,
-            loanDirection: 'outward',
-            amount: parseFloat(formData.amount),
-            periodMonths: parseInt(formData.periodMonths),
-            memberId: parseInt(formData.memberId),
-            typeId: parseInt(formData.typeId),
-            disbursementAccountId: formData.disbursementAccountId ? parseInt(formData.disbursementAccountId) : undefined,
-          }),
-        });
-      }
-
-      if (!response.ok) {
-        let errorMsg = editingLoan ? 'Failed to update loan' : 'Failed to create loan';
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.message || errorMsg;
-        } catch {
-          // Use default error message
-        }
-        throw new Error(errorMsg);
-      }
-
-      onError?.(editingLoan ? 'Member loan updated successfully!' : 'Member loan created successfully!');
       setTimeout(() => onError?.(null), 3000);
-      setShowForm(false);
-      setEditingLoan(null);
-      setFormData({
-        memberId: '',
-        typeId: '',
-        disbursementAccountId: '',
-        amount: '',
-        periodMonths: '',
-        disbursementDate: new Date().toISOString().split('T')[0],
-        purpose: '',
-      });
-      setFormErrors({});
       fetchData();
     } catch (err) {
       onError?.(err.message);
+    } finally {
+      setApprovingLoanId(null);
     }
   };
 
