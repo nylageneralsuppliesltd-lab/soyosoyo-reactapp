@@ -109,7 +109,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
     try {
       const response = await fetch(`${API_BASE}/loans?memberId=${memberId}&status=active`);
       const data = await response.json();
-      setMemberLoans(data);
+      setMemberLoans(Array.isArray(data.data) ? data.data : []);
     } catch (error) {
       console.error('Error fetching member loans:', error);
       setMemberLoans([]);
