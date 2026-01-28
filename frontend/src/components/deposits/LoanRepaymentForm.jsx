@@ -399,7 +399,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               onChange={handleSmartSelectChange('accountId')}
               options={accounts.map(account => ({
                 id: account.id,
-                name: `${account.code} - ${account.name}`,
+                name: `${account.code ? account.code : ''}${account.code ? ' - ' : ''}${account.name || ''}`,
               }))}
               onAddNew={() => navigate('/settings/accounts/create')}
               addButtonText="Add Bank Account"
