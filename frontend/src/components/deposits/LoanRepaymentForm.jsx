@@ -356,21 +356,21 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           )}
         </div>
 
-        <div className="form-group">
-          <label>
-            <DollarSign size={18} />
-            Repayment Amount (KSh) *
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            value={formData.amount}
-            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-            placeholder="Enter total repayment amount"
-            required
-          />
-        </div>
-
+        <div className="form-grid-2">
+          <div className="form-group">
+            <label>
+              <DollarSign size={18} />
+              Repayment Amount (KSh) *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={formData.amount}
+              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+              placeholder="Enter total repayment amount"
+              required
+            />
+          </div>
           <div className="form-group">
             <label>
               <CreditCard size={18} />
