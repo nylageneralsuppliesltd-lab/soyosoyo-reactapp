@@ -124,9 +124,43 @@ export default function IncomeStatementPage() {
             </div>
           )}
 
-          {!loading && (
+          {!loading && data && (
             <div className="statement-section">
-              <h3 className="statement-subheading">Summary</h3>
+              <h3 className="statement-subheading">Income & Expenses (Granular)</h3>
+              <div className="overflow-x-auto">
+                <table className="report-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Section</th>
+                      <th>Category</th>
+                      <th>Source</th>
+                      <th>Description</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.rows && data.rows.length > 0 ? (
+                      data.rows.map((r, idx) => (
+                        <tr key={idx}>
+                          <td>{r.date ? new Date(r.date).toLocaleDateString('en-KE') : '-'}</td>
+                          <td>{r.section || '-'}</td>
+                          <td>{r.category || '-'}</td>
+                          <td>{r.source || '-'}</td>
+                          <td>{r.description || '-'}</td>
+                          <td>{typeof r.amount === 'number' ? `KES ${r.amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="6" className="text-center py-8 text-gray-500">No data</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {/* Summary Section */}
+              <h3 className="statement-subheading" style={{marginTop: '2rem'}}>Summary</h3>
               <div className="statement-row">
                 <span className="label">Revenue</span>
                 <span className="amount">KES {revenue.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -135,6 +169,13 @@ export default function IncomeStatementPage() {
                 <span className="label">Expenses</span>
                 <span className="amount">KES {(-expenses).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
+              {/* IFRS 9 Impairment Loss Row */}
+              {data?.meta?.totalImpairment !== undefined && (
+                <div className="statement-row">
+                  <span className="label">IFRS 9 Impairment Loss</span>
+                  <span className="amount">KES {data.meta.totalImpairment.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
               <div className="total-row statement-row">
                 <span className="label">Surplus / (Deficit)</span>
                 <span className="amount">KES {surplus.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>

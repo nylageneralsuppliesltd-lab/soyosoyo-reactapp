@@ -124,30 +124,99 @@ export default function BalanceSheetPage() {
             </div>
           )}
 
-          {!loading && (
+          {!loading && data && (
             <div className="statement-columns">
-              {/* Assets */}
+              {/* Assets Table */}
               <div className="statement-section">
                 <h3 className="statement-subheading">Assets</h3>
-                <div className="statement-row">
-                  <span className="label">Total Assets</span>
-                  <span className="amount">KES {assetTotal.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <div className="overflow-x-auto">
+                  <table className="report-table">
+                    <thead>
+                      <tr>
+                        <th>Section</th>
+                        <th>Account / Item</th>
+                        <th>Amount</th>
+                        <th>Classification</th>
+                        <th>Impairment</th>
+                        <th>ECL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.rows.filter(r => r.category === 'Assets').map((r, idx) => (
+                        <tr key={idx}>
+                          <td>{r.section}</td>
+                          <td>{r.account}</td>
+                          <td>{typeof r.amount === 'number' ? `KES ${r.amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+                          <td>{r.classification || '-'}</td>
+                          <td>{typeof r.impairment === 'number' ? `KES ${r.impairment.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+                          <td>{typeof r.ecl === 'number' ? `KES ${r.ecl.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
+                {/* IFRS 9 Impairment Row */}
+                {data?.meta?.totalImpairment !== undefined && (
+                  <div className="statement-row">
+                    <span className="label">Less: IFRS 9 Impairment</span>
+                    <span className="amount">KES {data.meta.totalImpairment.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 <div className="subtotal-row statement-row">
                   <span className="label">Subtotal Assets</span>
                   <span className="amount">KES {assetTotal.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
-              {/* Liabilities & Equity */}
+              {/* Liabilities Table */}
               <div className="statement-section">
                 <h3 className="statement-subheading">Liabilities</h3>
+                <div className="overflow-x-auto">
+                  <table className="report-table">
+                    <thead>
+                      <tr>
+                        <th>Section</th>
+                        <th>Account / Item</th>
+                        <th>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.rows.filter(r => r.category === 'Liabilities').map((r, idx) => (
+                        <tr key={idx}>
+                          <td>{r.section}</td>
+                          <td>{r.account}</td>
+                          <td>{typeof r.amount === 'number' ? `KES ${r.amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 <div className="statement-row">
                   <span className="label">Total Liabilities</span>
                   <span className="amount">KES {liabilities.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
 
                 <h3 className="statement-subheading" style={{ marginTop: '0.75rem' }}>Equity</h3>
+                <div className="overflow-x-auto">
+                  <table className="report-table">
+                    <thead>
+                      <tr>
+                        <th>Section</th>
+                        <th>Account / Item</th>
+                        <th>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.rows.filter(r => r.category === 'Equity').map((r, idx) => (
+                        <tr key={idx}>
+                          <td>{r.section}</td>
+                          <td>{r.account}</td>
+                          <td>{typeof r.amount === 'number' ? `KES ${r.amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 <div className="statement-row">
                   <span className="label">Total Equity</span>
                   <span className="amount">KES {equity.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>

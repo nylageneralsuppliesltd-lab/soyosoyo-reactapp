@@ -131,12 +131,14 @@ export default function TrialBalancePage() {
                       <th>Debit</th>
                       <th>Credit</th>
                       <th>Balance</th>
+                      <th>Impairment</th>
+                      <th>ECL</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.length === 0 ? (
                       <tr>
-                        <td colSpan="4" className="text-center py-8 text-gray-500">No data</td>
+                        <td colSpan="6" className="text-center py-8 text-gray-500">No data</td>
                       </tr>
                     ) : (
                       rows.map((r, idx) => (
@@ -145,6 +147,8 @@ export default function TrialBalancePage() {
                           <td>{typeof r.debitAmount === 'number' ? `KES ${r.debitAmount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
                           <td>{typeof r.creditAmount === 'number' ? `KES ${r.creditAmount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
                           <td>{typeof r.balance === 'number' ? `KES ${r.balance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+                          <td>{typeof r.impairment === 'number' ? `KES ${r.impairment.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+                          <td>{typeof r.ecl === 'number' ? `KES ${r.ecl.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
                         </tr>
                       ))
                     )}

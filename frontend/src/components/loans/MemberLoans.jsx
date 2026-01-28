@@ -4,6 +4,38 @@ import { Plus, Eye, Loader, AlertCircle, Edit, Trash2 } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
 const MemberLoans = ({ onError, onLoading }) => {
+    // Fetch all required data
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [loansRes, membersRes, loanTypesRes, accountsRes] = await Promise.all([
+          fetch(`${API_BASE}/loans`),
+          fetch(`${API_BASE}/members`),
+          fetch(`${API_BASE}/loan-types`),
+          fetch(`${API_BASE}/accounts`),
+        ]);
+        const [loansData, membersData, loanTypesData, accountsData] = await Promise.all([
+          loansRes.json(),
+          membersRes.json(),
+          loanTypesRes.json(),
+          accountsRes.json(),
+        ]);
+        setLoans(Array.isArray(loansData) ? loansData : loansData.data || []);
+        setMembers(Array.isArray(membersData) ? membersData : membersData.data || []);
+        setLoanTypes(Array.isArray(loanTypesData) ? loanTypesData : loanTypesData.data || []);
+        setAccounts(Array.isArray(accountsData) ? accountsData : accountsData.data || []);
+      } catch (err) {
+        onError?.('Failed to load loan data: ' + (err.message || err));
+      } finally {
+        setLoading(false);
+        onLoading?.(false);
+      }
+    };
+
+    useEffect(() => {
+      fetchData();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
   const [editingLoan, setEditingLoan] = useState(null);
   const [loans, setLoans] = useState([]);
   const [members, setMembers] = useState([]);
@@ -40,6 +72,8 @@ const MemberLoans = ({ onError, onLoading }) => {
       }
       onError?.('Loan approved successfully!');
       setTimeout(() => onError?.(null), 3000);
+      // Wait 500ms to ensure backend commit
+      await new Promise(res => setTimeout(res, 500));
       fetchData();
     } catch (err) {
       onError?.(err.message);
