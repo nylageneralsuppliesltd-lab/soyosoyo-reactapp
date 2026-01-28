@@ -25,7 +25,7 @@ const MemberLoans = ({ onError, onLoading }) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              memberId: formData.memberId,
+              memberId: Number(formData.memberId), // ensure number
               typeId: formData.typeId,
               disbursementAccountId: formData.disbursementAccountId,
               amount: Number(formData.amount),
@@ -205,6 +205,26 @@ const MemberLoans = ({ onError, onLoading }) => {
                 </select>
                 {formErrors.typeId && <span className="error-text">{formErrors.typeId}</span>}
               </div>
+
+              {/* Loan selection dropdown for repayments (if needed elsewhere) */}
+              {Array.isArray(loans) && loans.length > 0 && (
+                <div className="form-group">
+                  <label>Select Loan to Repay</label>
+                  <select
+                    value={formData.loanId || ''}
+                    onChange={e => setFormData({ ...formData, loanId: e.target.value })}
+                  >
+                    <option value="">-- Select Loan --</option>
+                    {loans
+                      .filter(l => l.memberId === Number(formData.memberId))
+                      .map(l => (
+                        <option key={l.id} value={String(l.id)}>
+                          {`Loan #${l.id} | ${l.typeName} | KES ${(l.amount || 0).toLocaleString()} | Bal: KES ${(l.balance || 0).toLocaleString()} | Status: ${l.status}`}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="required">Disbursement Account</label>
