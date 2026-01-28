@@ -4,6 +4,60 @@ import { Plus, Eye, Loader, AlertCircle, Edit, Trash2 } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
 const MemberLoans = ({ onError, onLoading }) => {
+      // Handle form submission for creating a new loan
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setFormErrors({});
+        // Basic validation
+        const errors = {};
+        if (!formData.memberId) errors.memberId = 'Member is required';
+        if (!formData.typeId) errors.typeId = 'Loan type is required';
+        if (!formData.disbursementAccountId) errors.disbursementAccountId = 'Disbursement account is required';
+        if (!formData.amount || isNaN(formData.amount) || Number(formData.amount) <= 0) errors.amount = 'Valid amount required';
+        if (!formData.periodMonths || isNaN(formData.periodMonths) || Number(formData.periodMonths) <= 0) errors.periodMonths = 'Valid period required';
+        if (Object.keys(errors).length > 0) {
+          setFormErrors(errors);
+          return;
+        }
+        try {
+          onLoading?.(true);
+          const res = await fetch(`${API_BASE}/loans`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              memberId: formData.memberId,
+              typeId: formData.typeId,
+              disbursementAccountId: formData.disbursementAccountId,
+              amount: Number(formData.amount),
+              periodMonths: Number(formData.periodMonths),
+              disbursementDate: formData.disbursementDate,
+              purpose: formData.purpose,
+            }),
+          });
+          if (!res.ok) {
+            let msg = 'Failed to create loan';
+            try { const data = await res.json(); msg = data.message || msg; } catch {}
+            throw new Error(msg);
+          }
+          setShowForm(false);
+          setFormData({
+            memberId: '',
+            typeId: '',
+            disbursementAccountId: '',
+            amount: '',
+            periodMonths: '',
+            disbursementDate: new Date().toISOString().split('T')[0],
+            purpose: '',
+          });
+          onError?.('Loan created successfully!');
+          setTimeout(() => onError?.(null), 3000);
+          fetchData();
+        } catch (err) {
+          onError?.(err.message);
+        } finally {
+          onLoading?.(false);
+        }
+      };
     // Fetch all required data
     const fetchData = async () => {
       setLoading(true);

@@ -22,6 +22,9 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
   const [members, setMembers] = useState([]);
   const [memberLoans, setMemberLoans] = useState([]);
+
+  // Always treat memberLoans as an array
+  const safeMemberLoans = Array.isArray(memberLoans) ? memberLoans : [];
   const [accounts, setAccounts] = useState([]);
   const [filteredMembers, setFilteredMembers] = useState([]);
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
@@ -239,7 +242,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   };
 
   const selectedAccount = accounts.find(acc => acc.id === parseInt(formData.accountId));
-  const selectedLoan = memberLoans.find(loan => loan.id === parseInt(formData.loanId));
+  const selectedLoan = safeMemberLoans.find(loan => loan.id === parseInt(formData.loanId));
 
   return (
     <div className="form-container">
@@ -335,7 +338,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
             disabled={!formData.memberId}
           >
             <option value="">{formData.memberId ? 'Select a loan' : 'Select member first'}</option>
-            {memberLoans.map(loan => (
+            {safeMemberLoans.map(loan => (
               <option key={loan.id} value={String(loan.id)}>
                 Loan #{loan.id} - KSh {loan.principalAmount.toLocaleString()} 
                 (Balance: KSh {(loan.principalAmount - loan.principalPaid).toLocaleString()})
