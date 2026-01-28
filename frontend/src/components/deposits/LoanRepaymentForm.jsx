@@ -107,9 +107,17 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
   const fetchMemberLoans = async (memberId) => {
     try {
-      const response = await fetch(`${API_BASE}/loans?memberId=${memberId}&status=active`);
+      // Fetch all loans for the member, not just 'active', to allow repayment of any with a balance
+      const response = await fetch(`${API_BASE}/loans?memberId=${memberId}`);
       const data = await response.json();
-      setMemberLoans(Array.isArray(data.data) ? data.data : []);
+      // Only show loans with a positive principal or interest balance
+      const loans = Array.isArray(data.data) ? data.data : [];
+      const repayableLoans = loans.filter(loan => {
+        const principalBal = (loan.principalAmount || loan.amount || 0) - (loan.principalPaid || 0);
+        const interestBal = (loan.interestAmount || 0) - (loan.interestPaid || 0);
+        return principalBal > 0.01 || interestBal > 0.01;
+      });
+      setMemberLoans(repayableLoans);
     } catch (error) {
       console.error('Error fetching member loans:', error);
       setMemberLoans([]);
