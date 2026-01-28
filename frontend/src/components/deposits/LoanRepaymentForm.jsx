@@ -25,7 +25,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
   // Always treat memberLoans as an array
   const safeMemberLoans = Array.isArray(memberLoans) ? memberLoans : [];
-  const [accounts, setAccounts] = useState([]);
+  const [accounts, setAccounts] = useState([]); // Will hold all real bank accounts
   const [filteredMembers, setFilteredMembers] = useState([]);
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
@@ -116,12 +116,13 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
     }
   };
 
+  // Fetch all real bank accounts only
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(`${API_BASE}/accounts`);
+      const response = await fetch(`${API_BASE}/accounts?type=BANK`);
       const data = await response.json();
       const accountsArray = Array.isArray(data) ? data : (data.data || []);
-      setAccounts(accountsArray.filter(acc => ['ASSET', 'BANK'].includes(acc.type)));
+      setAccounts(accountsArray);
     } catch (error) {
       console.error('Error fetching accounts:', error);
       setAccounts([]);
@@ -355,59 +356,20 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           )}
         </div>
 
-        <div className="form-grid-2">
-          <div className="form-group">
-            <label>
-              <DollarSign size={18} />
-              Total Payment Amount (KSh) *
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              placeholder="0.00"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>
-              <DollarSign size={18} />
-              Interest Amount
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={formData.interestAmount}
-              onChange={(e) => setFormData({ 
-                ...formData, 
-                interestAmount: e.target.value,
-                principalAmount: (parseFloat(formData.amount) - parseFloat(e.target.value || 0)).toFixed(2)
-              })}
-              placeholder="Auto-allocated"
-            />
-          </div>
+        <div className="form-group">
+          <label>
+            <DollarSign size={18} />
+            Repayment Amount (KSh) *
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            value={formData.amount}
+            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+            placeholder="Enter total repayment amount"
+            required
+          />
         </div>
-
-        <div className="form-grid-2">
-          <div className="form-group">
-            <label>
-              <DollarSign size={18} />
-              Principal Amount
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={formData.principalAmount}
-              onChange={(e) => setFormData({ 
-                ...formData, 
-                principalAmount: e.target.value,
-                interestAmount: (parseFloat(formData.amount) - parseFloat(e.target.value || 0)).toFixed(2)
-              })}
-              placeholder="Auto-allocated"
-            />
-          </div>
 
           <div className="form-group">
             <label>
