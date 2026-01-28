@@ -273,7 +273,8 @@ export class ReportsService {
       orderBy: { createdAt: 'asc' }, 
       include: { member: true, loanType: true } 
     });
-    
+
+    // Add IFRS 9 fields: classification, impairment, ecl, and stage (if available)
     const rows = loans.map(l => ({
       memberName: l.member?.name || 'Non-member',
       loanType: l.loanType?.name || 'Other',
@@ -283,15 +284,26 @@ export class ReportsService {
       status: l.status,
       disbursementDate: l.disbursementDate,
       dueDate: l.dueDate,
+      classification: l.classification || 'amortized_cost',
+      impairment: l.impairment ?? null,
+      ecl: l.ecl ?? null,
+      // Optionally, add stage if available (not persisted, but can be derived)
+      // stage: l.stage ?? null,
     }));
-    
+
+    // Meta summary for IFRS 9
     const totals = loans.reduce(
-      (acc, r) => {
-        acc.principal += Number(r.amount);
-        acc.balance += Number(r.balance);
+      (acc, l) => {
+        acc.principal += Number(l.amount);
+        acc.balance += Number(l.balance);
+        acc.impairment += Number(l.impairment || 0);
+        acc.ecl += Number(l.ecl || 0);
+        // Optionally, count by classification
+        const cls = l.classification || 'amortized_cost';
+        acc.classification[cls] = (acc.classification[cls] || 0) + 1;
         return acc;
       },
-      { principal: 0, balance: 0, count: loans.length },
+      { principal: 0, balance: 0, impairment: 0, ecl: 0, count: loans.length, classification: {} as Record<string, number> },
     );
     return { rows, meta: totals };
   }
@@ -826,6 +838,10 @@ export class ReportsService {
   }
 
   private async trialBalanceReport(dateRange: { start: Date; end: Date }) {
+        // IFRS 9: Get impairment and ECL for loan accounts
+        const loanImpairments = await this.prisma.loan.findMany({
+          select: { disbursementAccount: true, impairment: true, ecl: true },
+        });
     // Get all journal entries for the date range
     const entries = await this.prisma.journalEntry.findMany({
       where: { date: { gte: dateRange.start, lte: dateRange.end } },
@@ -924,6 +940,13 @@ export class ReportsService {
     const rowsWithRunning = rowsOut.map(row => ({
       ...row,
       runningBalance: row.balance,
+      // IFRS 9: Add impairment and ECL columns for loan accounts
+      ...(row.accountType === 'loan' ? (() => {
+        // Find matching loan by account name (disbursementAccount)
+        // This assumes accountName matches disbursementAccount in loan
+        // If not, this can be adjusted to match your schema
+        return (loanImpairments.find(l => l.disbursementAccount === row.accountName) || { impairment: 0, ecl: 0 });
+      })() : {}),
     }));
 
     // Calculate totals - now only from REAL accounts (not GL)
@@ -1039,24 +1062,36 @@ export class ReportsService {
     }
     
     // ===== NET INCOME =====
-    const netSurplus = totalIncome - totalExpenses;
+    // IFRS 9: Add total impairment loss (from loans) to expenses
+    const loanImpairment = await this.prisma.loan.aggregate({ _sum: { impairment: true } });
+    const totalImpairment = Number(loanImpairment._sum.impairment || 0);
+    if (totalImpairment > 0) {
+      rows.push({
+        section: 'Expenses',
+        type: 'impairment',
+        category: 'IFRS 9 Impairment Loss',
+        source: 'Loans',
+        amount: -totalImpairment,
+        description: 'Total impairment loss (ECL) on loans',
+      });
+    }
+    const netSurplus = totalIncome - totalExpenses - totalImpairment;
     rows.push({
       section: 'Summary',
       type: 'summary',
       category: 'Net Surplus / (Deficit)',
       amount: netSurplus,
-      description: 'Total Income minus Total Expenses',
+      description: 'Total Income minus Total Expenses minus Impairment Loss',
     });
-    
     const meta = {
       totalIncome,
       totalExpenses,
+      totalImpairment,
       netSurplus,
       incomeTransactions: incomeDeposits.length + fines.length,
       expenseTransactions: expenses.length,
       totalTransactions: incomeDeposits.length + fines.length + expenses.length,
     };
-    
     return { rows, meta };
   }
 
@@ -1123,6 +1158,9 @@ export class ReportsService {
         amount: amount,
         loanId: loan.id,
         accountType: 'loan',
+        classification: loan.classification || 'amortized_cost',
+        impairment: loan.impairment ?? null,
+        ecl: loan.ecl ?? null,
       });
       totalAssets += amount;
     }
@@ -1187,9 +1225,10 @@ export class ReportsService {
       totalMemberSavings: totalMemberEquity,
       totalEquity: equity,
       totalLiabilitiesAndEquity: totalLiabilities + totalMemberEquity + equity,
+      totalLoanImpairment: memberLoans.reduce((sum, l) => sum + Number(l.impairment || 0), 0),
+      totalLoanEcl: memberLoans.reduce((sum, l) => sum + Number(l.ecl || 0), 0),
       lineItemCount: rows.length,
     };
-    
     return { rows, meta };
   }
 

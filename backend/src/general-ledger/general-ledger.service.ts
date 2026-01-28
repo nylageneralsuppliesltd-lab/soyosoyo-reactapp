@@ -65,10 +65,22 @@ export class GeneralLedgerService {
       orderBy: { name: 'asc' },
     });
 
+    // IFRS 9: Get impairment and ECL for loan accounts
+    const loanImpairments = await this.prisma.loan.findMany({
+      select: { disbursementAccount: true, impairment: true, ecl: true },
+    });
+    const impairmentMap = new Map();
+    for (const l of loanImpairments) {
+      if (!l.disbursementAccount) continue;
+      if (!impairmentMap.has(l.disbursementAccount)) {
+        impairmentMap.set(l.disbursementAccount, { impairment: 0, ecl: 0 });
+      }
+      impairmentMap.get(l.disbursementAccount).impairment += Number(l.impairment || 0);
+      impairmentMap.get(l.disbursementAccount).ecl += Number(l.ecl || 0);
+    }
+
     // CRITICAL FIX: Only sum REAL financial accounts, exclude GL placeholder accounts
     const totalAssets = accounts.reduce((sum, acc) => {
-      // Assets (cash, bank accounts) have positive balances when debited
-      // BUT only count REAL accounts, not GL accounts used for categorization
       if (
         ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(acc.type) &&
         acc.type !== 'gl' &&
@@ -85,6 +97,11 @@ export class GeneralLedgerService {
       totalCredits,
       debitsCreditBalance: totalDebits - totalCredits, // Should be 0 in proper accounting
       totalAssets,
+      accounts: accounts.map(acc => ({
+        ...acc,
+        impairment: acc.type === 'gl' ? (impairmentMap.get(acc.name)?.impairment ?? 0) : undefined,
+        ecl: acc.type === 'gl' ? (impairmentMap.get(acc.name)?.ecl ?? 0) : undefined,
+      })),
       transactions: journals.map(j => {
         return {
           ...j,
