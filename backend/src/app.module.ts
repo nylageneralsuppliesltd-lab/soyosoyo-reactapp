@@ -1,6 +1,7 @@
 
 
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma.module';
 import { AuditModule } from './audit/audit.module';
 import { HealthModule } from './health/health.module';
@@ -21,10 +22,12 @@ import { ReportsModule } from './reports/reports.module';
 import { AppController } from './app.controller';
 import { LoanTypesModule } from './loan-types/loan-types.module';
 import { DiagnosticsModule } from './diagnostics/diagnostics.module';
+import { IfrsModule } from './ifrs/ifrs.module';
 
 @Module({
   imports: [
     PrismaModule,
+    ScheduleModule.forRoot(),
     AuditModule,
     HealthModule,
     DashboardModule,
@@ -43,6 +46,7 @@ import { DiagnosticsModule } from './diagnostics/diagnostics.module';
     AssetsModule,
     ReportsModule,
     DiagnosticsModule,
+    IfrsModule,
   ],
   controllers: [AppController],
 })

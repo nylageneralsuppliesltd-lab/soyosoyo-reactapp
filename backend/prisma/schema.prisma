@@ -280,13 +280,13 @@ model Deposit {
   type         TransactionType @default(contribution)
   category     String?
   amount       Decimal         @db.Decimal(14, 2)
-  description  String?
-  narration    String?
-  method       PaymentMethod   @default(cash)
   account      Account?        @relation("DepositAccount", fields: [accountId], references: [id], onDelete: SetNull)
   accountId    Int?
+  method       PaymentMethod   @default(cash)
   reference    String?
   notes        String?
+  description  String?
+  narration    String?
   date         DateTime        @db.Date
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
@@ -352,23 +352,13 @@ model Loan {
   externalName      String?
   bankName          String?         // For inward loans
   contactPerson     String?
-  email             String?
-  phone             String?
-  idNumber          String?
-  accountNumber     String?
-  loanType          LoanType?       @relation(fields: [loanTypeId], references: [id], onDelete: SetNull)
-  loanTypeId        Int?
-  typeName          String?
-  
   amount            Decimal         @db.Decimal(14, 2)
   balance           Decimal         @db.Decimal(14, 2)
   interestRate      Decimal         @db.Decimal(5, 2)
   interestType      String          @default("flat")
   periodMonths      Int
-  
   status            LoanStatus      @default(pending)
   loanDirection     LoanDirection   @default(outward)
-  
   schedule          Json?           // Amortization schedule
   disbursementDate  DateTime?       @db.Date
   disbursementAccount String?
@@ -377,16 +367,33 @@ model Loan {
   purpose           String?
   terms             String?
   collateral        String?
-  
+  classification    String?         // IFRS 9: amortized_cost, FVPL, FVOCI
+  impairment        Decimal?        @db.Decimal(14, 2) // IFRS 9: impairment loss
+  ecl               Decimal?        @db.Decimal(14, 2) // IFRS 9: expected credit loss
+  notes             String?         // For disclosures
+
   repayments        Repayment[]
   fines             Fine[]
-  
+
+  loanType          LoanType?       @relation(fields: [loanTypeId], references: [id], onDelete: SetNull)
+  loanTypeId        Int?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
   @@index([memberId])
   @@index([status])
   @@index([loanDirection])
+}
+
+// ============== IFRS DISCLOSURE NOTES ==============
+model DisclosureNote {
+  id          Int      @id @default(autoincrement())
+  title       String
+  content     String
+  relatedType String? // loan, asset, liability, equity, etc.
+  relatedId   Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Repayment {
@@ -651,4 +658,25 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@map("AuditLog")
+}
+
+// ============== IFRS CONFIG & RUNS ==============
+model IFRSConfig {
+  id        Int     @id @default(autoincrement())
+  key       String  @unique
+  value     String  // JSON encoded value for flexibility
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EclRun {
+  id          Int      @id @default(autoincrement())
+  runAt       DateTime @default(now())
+  operator    String?  // user or system that triggered the run
+  dryRun      Boolean  @default(true)
+  loanCount   Int?     // loans considered
+  totalEcl    Decimal? @db.Decimal(18, 6)
+  notes       String?
+  createdAt   DateTime @default(now())
 }
