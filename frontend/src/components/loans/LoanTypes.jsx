@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Loader, AlertCircle } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 
-const LoanTypes = ({ onError }) => {
+const LoanTypes = ({ onError }) => { 
   const [loanTypes, setLoanTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -50,7 +50,7 @@ const LoanTypes = ({ onError }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const url = editingType ? `${API_BASE}/loan-types/${editingType.id}` : `${API_BASE}/loan-types`;
+      const url = editingType ? `${API_BASE}/loan-types/${editingType.id}` : `${API_BASE}/loan-types`; 
       const method = editingType ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -106,7 +106,7 @@ const LoanTypes = ({ onError }) => {
   };
 
   const handleEdit = (type) => {
-    setEditingType(type);
+          <div className="form-card member-form" style={{ maxWidth: '1000px', padding: '18px' }}>
     setFormData({
       name: type.name,
       maxAmount: type.maxAmount || '',
