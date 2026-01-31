@@ -12,22 +12,27 @@ const LoanTypes = ({ onError }) => {
     name: '',
     maxAmount: '',
     maxMultiple: '',
-    periodMonths: 12,
-    interestRate: 10,
+    periodMonths: '12',
+    interestRate: '10',
     interestType: 'flat',
     repaymentFrequency: 'monthly',
     amortizationMethod: 'equal_installment',
-    principalGrace: 0,
-    interestGrace: 0,
-    earlyRepaymentPenalty: 0,
+    principalGrace: '0',
+    interestGrace: '0',
+    earlyRepaymentPenalty: '0',
     glAccount: '',
     lateFineEnabled: false,
     lateFineType: 'fixed',
-    lateFineValue: 0,
+    lateFineValue: '0',
     outstandingFineEnabled: false,
     outstandingFineType: 'fixed',
-    outstandingFineValue: 0,
+    outstandingFineValue: '0',
+    requireGuarantors: 'no',
+    numGuarantors: '1',
+    requireCollateral: 'no',
+    requireInsurance: 'no',
   });
+  const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
     fetchLoanTypes();
@@ -49,43 +54,70 @@ const LoanTypes = ({ onError }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const url = editingType ? `${API_BASE}/loan-types/${editingType.id}` : `${API_BASE}/loan-types`; 
-      const method = editingType ? 'PUT' : 'POST';
+    // Validate required fields
+    const errors = {};
+    if (!formData.name || formData.name.trim().length < 2) errors.name = 'Name is required';
+    if (!formData.periodMonths || isNaN(Number(formData.periodMonths)) || Number(formData.periodMonths) <= 0) errors.periodMonths = 'Period is required';
+    if (!formData.interestRate || isNaN(Number(formData.interestRate)) || Number(formData.interestRate) < 0) errors.interestRate = 'Interest rate is required';
+    if (!formData.interestType) errors.interestType = 'Interest type is required';
+    if (!formData.repaymentFrequency) errors.repaymentFrequency = 'Repayment frequency is required';
+    if (!formData.amortizationMethod) errors.amortizationMethod = 'Amortization method is required';
+    if (formData.requireGuarantors === 'yes' && (!formData.numGuarantors || isNaN(Number(formData.numGuarantors)) || Number(formData.numGuarantors) < 1)) errors.numGuarantors = 'Number of guarantors required';
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
+    // Prepare payload, ensure all numbers are valid
+    const payload = {
+      ...formData,
+      periodMonths: formData.periodMonths ? Number(formData.periodMonths) : null,
+      interestRate: formData.interestRate ? Number(formData.interestRate) : null,
+      maxAmount: formData.maxAmount ? Number(formData.maxAmount) : null,
+      maxMultiple: formData.maxMultiple ? Number(formData.maxMultiple) : null,
+      principalGrace: formData.principalGrace ? Number(formData.principalGrace) : 0,
+      interestGrace: formData.interestGrace ? Number(formData.interestGrace) : 0,
+      earlyRepaymentPenalty: formData.earlyRepaymentPenalty ? Number(formData.earlyRepaymentPenalty) : 0,
+      lateFineValue: formData.lateFineValue ? Number(formData.lateFineValue) : 0,
+      outstandingFineValue: formData.outstandingFineValue ? Number(formData.outstandingFineValue) : 0,
+      numGuarantors: formData.requireGuarantors === 'yes' ? Number(formData.numGuarantors) : 0,
+    };
+
+    try {
+      const url = editingType ? `${API_BASE}/loan-types/${editingType.id}` : `${API_BASE}/loan-types`;
+      const method = editingType ? 'PUT' : 'POST';
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
-
       if (!response.ok) throw new Error('Failed to save loan type');
       onError?.('Loan type saved successfully!');
       setTimeout(() => onError?.(null), 3000);
-      
       setShowForm(false);
       setEditingType(null);
       setFormData({
         name: '',
         maxAmount: '',
         maxMultiple: '',
-        periodMonths: 12,
-        interestRate: 10,
+        periodMonths: '12',
+        interestRate: '10',
         interestType: 'flat',
         repaymentFrequency: 'monthly',
         amortizationMethod: 'equal_installment',
-        principalGrace: 0,
-        interestGrace: 0,
-        earlyRepaymentPenalty: 0,
+        principalGrace: '0',
+        interestGrace: '0',
+        earlyRepaymentPenalty: '0',
         glAccount: '',
         lateFineEnabled: false,
         lateFineType: 'fixed',
-        lateFineValue: 0,
+        lateFineValue: '0',
         outstandingFineEnabled: false,
         outstandingFineType: 'fixed',
-        outstandingFineValue: 0,
+        outstandingFineValue: '0',
+        requireGuarantors: 'no',
+        numGuarantors: '1',
+        requireCollateral: 'no',
+        requireInsurance: 'no',
       });
-      
       fetchLoanTypes();
     } catch (err) {
       onError?.(err.message);
