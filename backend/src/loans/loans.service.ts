@@ -3,6 +3,11 @@ import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class LoansService {
+    // Stub for imposing fines if needed (to be implemented with business logic)
+    async imposeFinesIfNeeded(loan: any): Promise<void> {
+      // TODO: Implement fine logic for late payments or outstanding balances
+      return;
+    }
   constructor(private prisma: PrismaService) {}
 
   async create(data: any): Promise<any> {
