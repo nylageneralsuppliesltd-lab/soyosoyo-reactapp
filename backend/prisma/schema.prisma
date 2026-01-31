@@ -377,34 +377,70 @@ model LoanType {
   id                    Int       @id @default(autoincrement())
   name                  String    @unique
   description           String?
+  nature                String?
+  qualificationBasis    String?
   maxAmount             Decimal?  @db.Decimal(14, 2)
   maxMultiple           Decimal?  @db.Decimal(5, 2)
+  minQualificationAmount Decimal? @db.Decimal(14, 2)
+  maxQualificationAmount Decimal? @db.Decimal(14, 2)
   periodMonths          Int       @default(12)
+  periodType            String?
   interestRate          Decimal   @db.Decimal(5, 2)
   interestType          String    @default("flat") // flat, reducing, fixed
+  interestRatePeriod    String?
   interestFrequency     String?   // monthly, weekly, daily, yearly
   periodFlexible        String?   // fixed, flexible
   gracePeriod           Int?      // months
-  qualificationCriteria String?   // qualification criteria
+  principalGrace        Int?      // months
+  interestGrace         Int?      // months
+  amortizationMethod    String?
+  repaymentFrequency    String?
+  repaymentSequence     String?
+  reconciliationCriteria String?
+  approvalOfficials     String?
+  approvalWorkflow      String?
+  minApprovals          Int?
   approvers             String?   // approvers
   fineFrequency         String?   // monthly, weekly, daily, yearly
   fineBase              String?   // total-unpaid, loan-amount, installment-balance, installment-interest
+  lateFineEnabled       Boolean?  @default(false)
+  lateFineType          String?
+  lateFineValue         Decimal?  @db.Decimal(5, 2)
+  lateFineFrequency     String?
+  lateFineChargeOn      String?
+  outstandingFineEnabled Boolean? @default(false)
+  outstandingFineType   String?
+  outstandingFineValue  Decimal?  @db.Decimal(5, 2)
+  outstandingFineFrequency String?
+  outstandingFineChargeOn String?
+  autoDisburse          Boolean?  @default(false)
+  disburseAccount       String?
   autoDisbursement      Boolean?  @default(false)
+  processingFeeEnabled  Boolean?  @default(false)
   processingFee         Decimal?  @db.Decimal(14, 2)
   processingFeeType     String?   // fixed, percentage
+  processingFeeValue    Decimal?  @db.Decimal(14, 2)
+  disableProcessingIncome Boolean? @default(false)
+  glAccount             String?
+  requireGuarantors     String?
+  whenGuarantorsRequired String?
+  minGuarantors         Int?
+  maxGuarantors         Int?
+  guarantorType         String?
   guarantorsRequired    Boolean?  @default(false)
   guarantorName         String?
   guarantorAmount       Decimal?  @db.Decimal(14, 2)
   guarantorNotified     Boolean?  @default(false)
+  requireCollateral     String?
+  requireInsurance      String?
+  customFields          Json?
   lateFinesEnabled      Boolean   @default(false)
   lateFinesType         String?   // one-off, fixed, percentage
   lateFinesValue        Decimal?  @db.Decimal(5, 2)
   outstandingFinesEnabled Boolean @default(false)
   outstandingFinesType  String?
   outstandingFinesValue Decimal?  @db.Decimal(5, 2)
-  
   loans                 Loan[]
-  
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 }

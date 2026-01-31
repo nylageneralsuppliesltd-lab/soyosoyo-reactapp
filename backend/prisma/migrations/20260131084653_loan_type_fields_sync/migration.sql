@@ -1,0 +1,47 @@
+/*
+  Warnings:
+
+  - You are about to drop the column `qualificationCriteria` on the `LoanType` table. All the data in the column will be lost.
+
+*/
+-- AlterTable
+ALTER TABLE "LoanType" DROP COLUMN "qualificationCriteria",
+ADD COLUMN     "amortizationMethod" TEXT,
+ADD COLUMN     "approvalOfficials" TEXT,
+ADD COLUMN     "approvalWorkflow" TEXT,
+ADD COLUMN     "autoDisburse" BOOLEAN DEFAULT false,
+ADD COLUMN     "customFields" JSONB,
+ADD COLUMN     "disableProcessingIncome" BOOLEAN DEFAULT false,
+ADD COLUMN     "disburseAccount" TEXT,
+ADD COLUMN     "glAccount" TEXT,
+ADD COLUMN     "guarantorType" TEXT,
+ADD COLUMN     "interestGrace" INTEGER,
+ADD COLUMN     "interestRatePeriod" TEXT,
+ADD COLUMN     "lateFineChargeOn" TEXT,
+ADD COLUMN     "lateFineEnabled" BOOLEAN DEFAULT false,
+ADD COLUMN     "lateFineFrequency" TEXT,
+ADD COLUMN     "lateFineType" TEXT,
+ADD COLUMN     "lateFineValue" DECIMAL(5,2),
+ADD COLUMN     "maxGuarantors" INTEGER,
+ADD COLUMN     "maxQualificationAmount" DECIMAL(14,2),
+ADD COLUMN     "minApprovals" INTEGER,
+ADD COLUMN     "minGuarantors" INTEGER,
+ADD COLUMN     "minQualificationAmount" DECIMAL(14,2),
+ADD COLUMN     "nature" TEXT,
+ADD COLUMN     "outstandingFineChargeOn" TEXT,
+ADD COLUMN     "outstandingFineEnabled" BOOLEAN DEFAULT false,
+ADD COLUMN     "outstandingFineFrequency" TEXT,
+ADD COLUMN     "outstandingFineType" TEXT,
+ADD COLUMN     "outstandingFineValue" DECIMAL(5,2),
+ADD COLUMN     "periodType" TEXT,
+ADD COLUMN     "principalGrace" INTEGER,
+ADD COLUMN     "processingFeeEnabled" BOOLEAN DEFAULT false,
+ADD COLUMN     "processingFeeValue" DECIMAL(14,2),
+ADD COLUMN     "qualificationBasis" TEXT,
+ADD COLUMN     "reconciliationCriteria" TEXT,
+ADD COLUMN     "repaymentFrequency" TEXT,
+ADD COLUMN     "repaymentSequence" TEXT,
+ADD COLUMN     "requireCollateral" TEXT,
+ADD COLUMN     "requireGuarantors" TEXT,
+ADD COLUMN     "requireInsurance" TEXT,
+ADD COLUMN     "whenGuarantorsRequired" TEXT;
