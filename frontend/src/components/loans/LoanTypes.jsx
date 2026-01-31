@@ -10,61 +10,34 @@ const LoanTypes = ({ onError }) => {
   const [editingType, setEditingType] = useState(null);
   const [formData, setFormData] = useState({
     // Loan Details
-    nature: '',
     name: '',
     description: '',
-    // Qualification
-    qualificationBasis: '',
     maxAmount: '',
     maxMultiple: '',
-    minQualificationAmount: '',
-    maxQualificationAmount: '',
-    // Interest & Repayment
-    interestType: '',
-    interestRate: '',
-    interestRatePeriod: '',
-    periodType: '',
     periodMonths: '',
-    repaymentSequence: '',
-    principalGrace: '',
-    interestGrace: '',
-    amortizationMethod: '',
-    repaymentFrequency: '',
-    reconciliationCriteria: '',
-    // Approvals
-    approvalOfficials: [],
-    approvalWorkflow: [],
-    minApprovals: '',
-    // Fines & Penalties
-    lateFineEnabled: false,
-    lateFineType: '',
-    lateFineValue: '',
-    lateFineFrequency: '',
-    lateFineChargeOn: '',
-    outstandingFineEnabled: false,
-    outstandingFineType: '',
-    outstandingFineValue: '',
-    outstandingFineFrequency: '',
-    outstandingFineChargeOn: '',
-    // Disbursement
-    autoDisburse: false,
-    disburseAccount: '',
-    // Guarantors
-    requireGuarantors: 'no',
-    whenGuarantorsRequired: '',
-    minGuarantors: '',
-    maxGuarantors: '',
-    guarantorType: '',
-    // Fees & Charges
-    processingFeeEnabled: false,
+    interestRate: '',
+    interestType: '',
+    // Backend-aligned fields
+    lateFinesEnabled: false,
+    lateFinesType: '',
+    lateFinesValue: '',
+    outstandingFinesEnabled: false,
+    outstandingFinesType: '',
+    outstandingFinesValue: '',
+    qualificationCriteria: '',
+    interestFrequency: '',
+    periodFlexible: false,
+    gracePeriod: '',
+    approvers: '',
+    fineFrequency: '',
+    fineBase: '',
+    autoDisbursement: false,
+    processingFee: '',
     processingFeeType: '',
-    processingFeeValue: '',
-    disableProcessingIncome: false,
-    // Misc
-    glAccount: '',
-    requireCollateral: 'no',
-    requireInsurance: 'no',
-    customFields: '',
+    guarantorsRequired: false,
+    guarantorName: '',
+    guarantorAmount: '',
+    guarantorNotified: false,
   });
   const [formErrors, setFormErrors] = useState({});
 
@@ -100,19 +73,35 @@ const LoanTypes = ({ onError }) => {
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
-    // Prepare payload, ensure all numbers are valid
+    // Prepare payload, ensure all numbers are valid and fields match backend
     const payload = {
-      ...formData,
-      periodMonths: formData.periodMonths ? Number(formData.periodMonths) : null,
-      interestRate: formData.interestRate ? Number(formData.interestRate) : null,
-      maxAmount: formData.maxAmount ? Number(formData.maxAmount) : null,
-      maxMultiple: formData.maxMultiple ? Number(formData.maxMultiple) : null,
-      principalGrace: formData.principalGrace ? Number(formData.principalGrace) : 0,
-      interestGrace: formData.interestGrace ? Number(formData.interestGrace) : 0,
-      earlyRepaymentPenalty: formData.earlyRepaymentPenalty ? Number(formData.earlyRepaymentPenalty) : 0,
-      lateFineValue: formData.lateFineValue ? Number(formData.lateFineValue) : 0,
-      outstandingFineValue: formData.outstandingFineValue ? Number(formData.outstandingFineValue) : 0,
-      numGuarantors: formData.requireGuarantors === 'yes' ? Number(formData.numGuarantors) : 0,
+      name: formData.name,
+      description: formData.description,
+      maxAmount: formData.maxAmount ? parseFloat(formData.maxAmount) : null,
+      maxMultiple: formData.maxMultiple ? parseFloat(formData.maxMultiple) : null,
+      periodMonths: formData.periodMonths ? parseInt(formData.periodMonths) : null,
+      interestRate: formData.interestRate ? parseFloat(formData.interestRate) : null,
+      interestType: formData.interestType,
+      lateFinesEnabled: !!formData.lateFinesEnabled,
+      lateFinesType: formData.lateFinesType,
+      lateFinesValue: formData.lateFinesValue ? parseFloat(formData.lateFinesValue) : null,
+      outstandingFinesEnabled: !!formData.outstandingFinesEnabled,
+      outstandingFinesType: formData.outstandingFinesType,
+      outstandingFinesValue: formData.outstandingFinesValue ? parseFloat(formData.outstandingFinesValue) : null,
+      qualificationCriteria: formData.qualificationCriteria,
+      interestFrequency: formData.interestFrequency,
+      periodFlexible: !!formData.periodFlexible,
+      gracePeriod: formData.gracePeriod ? parseInt(formData.gracePeriod) : null,
+      approvers: Array.isArray(formData.approvers) ? formData.approvers.join(',') : formData.approvers,
+      fineFrequency: formData.fineFrequency,
+      fineBase: formData.fineBase,
+      autoDisbursement: !!formData.autoDisbursement,
+      processingFee: formData.processingFee ? parseFloat(formData.processingFee) : null,
+      processingFeeType: formData.processingFeeType,
+      guarantorsRequired: !!formData.guarantorsRequired,
+      guarantorName: formData.guarantorName,
+      guarantorAmount: formData.guarantorAmount ? parseFloat(formData.guarantorAmount) : null,
+      guarantorNotified: !!formData.guarantorNotified,
     };
 
     try {
@@ -172,28 +161,66 @@ const LoanTypes = ({ onError }) => {
   };
 
   const handleEdit = (type) => {
-          <div className="form-card member-form" style={{ maxWidth: '1000px', padding: '18px' }}>
     setFormData({
-      name: type.name,
+      // Loan Details
+      nature: type.nature || '',
+      name: type.name || '',
+      description: type.description || '',
+      // Qualification
+      qualificationBasis: type.qualificationBasis || '',
       maxAmount: type.maxAmount || '',
       maxMultiple: type.maxMultiple || '',
-      periodMonths: type.periodMonths || 12,
-      interestRate: type.interestRate || 10,
-      interestType: type.interestType || 'flat',
-      repaymentFrequency: type.repaymentFrequency || 'monthly',
-      amortizationMethod: type.amortizationMethod || 'equal_installment',
-      principalGrace: type.principalGrace || 0,
-      interestGrace: type.interestGrace || 0,
-      earlyRepaymentPenalty: type.earlyRepaymentPenalty || 0,
-      glAccount: type.glAccount || '',
+      minQualificationAmount: type.minQualificationAmount || '',
+      maxQualificationAmount: type.maxQualificationAmount || '',
+      // Interest & Repayment
+      interestType: type.interestType || '',
+      interestRate: type.interestRate || '',
+      interestRatePeriod: type.interestRatePeriod || '',
+      periodType: type.periodType || '',
+      periodMonths: type.periodMonths || '',
+      repaymentSequence: type.repaymentSequence || '',
+      principalGrace: type.principalGrace || '',
+      interestGrace: type.interestGrace || '',
+      amortizationMethod: type.amortizationMethod || '',
+      repaymentFrequency: type.repaymentFrequency || '',
+      reconciliationCriteria: type.reconciliationCriteria || '',
+      // Approvals
+      approvalOfficials: type.approvalOfficials || [],
+      approvalWorkflow: type.approvalWorkflow || [],
+      minApprovals: type.minApprovals || '',
+      // Fines & Penalties
       lateFineEnabled: type.lateFineEnabled || false,
-      lateFineType: type.lateFineType || 'fixed',
-      lateFineValue: type.lateFineValue || 0,
+      lateFineType: type.lateFineType || '',
+      lateFineValue: type.lateFineValue || '',
+      lateFineFrequency: type.lateFineFrequency || '',
+      lateFineChargeOn: type.lateFineChargeOn || '',
       outstandingFineEnabled: type.outstandingFineEnabled || false,
-      outstandingFineType: type.outstandingFineType || 'fixed',
-      outstandingFineValue: type.outstandingFineValue || 0,
+      outstandingFineType: type.outstandingFineType || '',
+      outstandingFineValue: type.outstandingFineValue || '',
+      outstandingFineFrequency: type.outstandingFineFrequency || '',
+      outstandingFineChargeOn: type.outstandingFineChargeOn || '',
+      // Disbursement
+      autoDisburse: type.autoDisburse || false,
+      disburseAccount: type.disburseAccount || '',
+      // Guarantors
+      requireGuarantors: type.requireGuarantors || 'no',
+      whenGuarantorsRequired: type.whenGuarantorsRequired || '',
+      minGuarantors: type.minGuarantors || '',
+      maxGuarantors: type.maxGuarantors || '',
+      guarantorType: type.guarantorType || '',
+      // Fees & Charges
+      processingFeeEnabled: type.processingFeeEnabled || false,
+      processingFeeType: type.processingFeeType || '',
+      processingFeeValue: type.processingFeeValue || '',
+      disableProcessingIncome: type.disableProcessingIncome || false,
+      // Misc
+      glAccount: type.glAccount || '',
+      requireCollateral: type.requireCollateral || 'no',
+      requireInsurance: type.requireInsurance || 'no',
+      customFields: type.customFields || '',
     });
     setShowForm(true);
+    setEditingType(type);
   };
 
   if (loading) {
@@ -217,7 +244,7 @@ const LoanTypes = ({ onError }) => {
 
       {/* Form */}
       {showForm && (
-        <div className="form-card">
+        <div className="member-form-container" style={{ width: '100%', maxWidth: 'none', margin: 0, padding: 0 }}>
           <h3>{editingType ? 'Edit' : 'Create'} Loan Type</h3>
           <form onSubmit={handleSubmit} className="loan-type-form">
             {/* Loan Details Section */}
@@ -363,17 +390,14 @@ const LoanTypes = ({ onError }) => {
             <div className="form-divider">Loan Application Approvals</div>
             <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
               <div className="form-group">
-                <label>Who are the group officials that have to approve loan applications for this loan type?</label>
-                <input type="text" value={formData.approvalOfficials.join(', ')} onChange={e => setFormData({ ...formData, approvalOfficials: e.target.value.split(',').map(s => s.trim()) })} placeholder="Type or select officials" />
-              </div>
-              <div className="form-group">
-                <label>Approval workflow order (comma separated)</label>
-                <input type="text" value={formData.approvalWorkflow.join(', ')} onChange={e => setFormData({ ...formData, approvalWorkflow: e.target.value.split(',').map(s => s.trim()) })} placeholder="e.g., Ivan Safari, James Ngari Charo" />
+                <label>Approvers (comma separated)</label>
+                <input type="text" value={formData.approvers} onChange={e => setFormData({ ...formData, approvers: e.target.value })} placeholder="e.g., Ivan Safari, James Ngari Charo" />
               </div>
               <div className="form-group">
                 <label>Minimum number of approvals required</label>
                 <input type="number" min="1" value={formData.minApprovals} onChange={e => setFormData({ ...formData, minApprovals: e.target.value })} placeholder="e.g., 2" />
               </div>
+              <div className="form-group" />
             </div>
 
             {/* Fines & Penalties Section */}
