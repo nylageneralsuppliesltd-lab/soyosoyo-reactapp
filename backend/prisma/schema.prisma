@@ -121,6 +121,31 @@ model Ledger {
   @@index([memberInvoiceId])
 }
 // ============== SETTINGS & CONFIGURATION ==============
+
+model IncomeCategory {
+  id            Int              @id @default(autoincrement())
+  name          String           @unique
+  description   String?
+  categoryLedger   CategoryLedger? @relation("IncomeCategoryToLedger")
+  categoryLedgerId Int? @unique
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model CategoryLedger {
+  id               Int                  @id @default(autoincrement())
+  categoryType     String               // 'income' or 'expense'
+  categoryName     String
+  expenseCategory  ExpenseCategory? @relation("ExpenseCategoryToLedger")
+  expenseCategoryId Int? @unique
+  incomeCategory   IncomeCategory? @relation("IncomeCategoryToLedger", fields: [incomeCategoryId], references: [id])
+  incomeCategoryId Int? @unique
+  totalAmount      Decimal              @default(0) @db.Decimal(14, 2)
+  balance          Decimal              @default(0) @db.Decimal(14, 2)
+  entries          CategoryLedgerEntry[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+}
 model ContributionType {
   id                  Int       @id @default(autoincrement())
   name                String    @unique
@@ -147,58 +172,86 @@ model ContributionType {
 }
 
 model ExpenseCategory {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique
-  description String?
-  isAdmin     Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // Link to auto-created ledger for this category
-  categoryLedger CategoryLedger? @relation("ExpenseCategoryLedger")
-}
-
-model IncomeCategory {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique
-  description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // Link to auto-created ledger for this category
-  categoryLedger CategoryLedger? @relation("IncomeCategoryLedger")
-}
-
-model CategoryLedger {
-  id               Int       @id @default(autoincrement())
-  categoryType     String    // 'income' or 'expense'
-  categoryName     String    @unique
-  
-  // Relations to categories
-  expenseCategory  ExpenseCategory? @relation("ExpenseCategoryLedger", fields: [expenseCategoryId], references: [id], onDelete: Cascade)
-  expenseCategoryId Int? @unique
-  
-  incomeCategory   IncomeCategory? @relation("IncomeCategoryLedger", fields: [incomeCategoryId], references: [id], onDelete: Cascade)
-  incomeCategoryId Int? @unique
+  id                    Int       @id @default(autoincrement())
+  name                  String    @unique
+  description           String?
+  nature                String?
+  qualificationBasis    String?
+  maxAmount             Decimal?  @db.Decimal(14, 2)
+  maxMultiple           Decimal?  @db.Decimal(5, 2)
+  minQualificationAmount Decimal? @db.Decimal(14, 2)
+  maxQualificationAmount Decimal? @db.Decimal(14, 2)
+  periodMonths          Int       @default(12)
+  periodType            String?
+  interestRate          Decimal   @default(0) @db.Decimal(5, 2)
+  interestType          String    @default("flat") // flat, reducing, fixed
+  interestRatePeriod    String?
+  interestFrequency     String?
+  periodFlexible        String?
+  gracePeriod           Int?
+  principalGrace        Int?
+  interestGrace         Int?
+  amortizationMethod    String?
+  repaymentFrequency    String?
+  repaymentSequence     String?
+  reconciliationCriteria String?
+  approvalOfficials     String?
+  approvalWorkflow      String?
+  minApprovals          Int?
+  approvers             String?
+  fineFrequency         String?
+  fineBase              String?
+  lateFineFrequency     String?
+  lateFineChargeOn      String?
+  outstandingFineFrequency String?
+  outstandingFineChargeOn String?
+  autoDisbursement      Boolean?  @default(false)
+  autoDisburse          Boolean?  @default(false)
+  disburseAccount       String?
+  processingFeeEnabled  Boolean?  @default(false)
+  processingFee         Decimal?  @db.Decimal(14, 2)
+  processingFeeType     String?
+  processingFeeValue    Decimal?  @db.Decimal(14, 2)
+  disableProcessingIncome Boolean? @default(false)
+  glAccount             String?
+  requireGuarantors     String?
+  whenGuarantorsRequired String?
+  minGuarantors         Int?
+  maxGuarantors         Int?
+  guarantorType         String?
+  guarantorsRequired    Boolean?  @default(false)
+  guarantorName         String?
+  guarantorAmount       Decimal?  @db.Decimal(14, 2)
+  guarantorNotified     Boolean?  @default(false)
+  requireCollateral     String?
+  requireInsurance      String?
+  customFields          Json?
+  lateFinesEnabled      Boolean   @default(false)
+  lateFinesType         String?
+  lateFinesValue        Decimal?  @db.Decimal(5, 2)
+  outstandingFinesEnabled Boolean @default(false)
+  outstandingFinesType  String?
+  outstandingFinesValue Decimal?  @db.Decimal(5, 2)
+  // Removed duplicate createdAt and updatedAt, and invalid relation
   
   // Ledger totals
   totalAmount      Decimal   @default(0) @db.Decimal(14, 2)
   balance          Decimal   @default(0) @db.Decimal(14, 2)
   
-  // Entries posted to this ledger
-  entries          CategoryLedgerEntry[]
-  
+  // Relation to category ledger
+  categoryLedger   CategoryLedger? @relation("ExpenseCategoryToLedger", fields: [categoryLedgerId], references: [id])
+  categoryLedgerId Int? @unique
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   
-  @@index([categoryType])
-  @@index([categoryName])
+  // @@index([categoryType])
+  // @@index([categoryName])
 }
 
 model CategoryLedgerEntry {
   id               Int       @id @default(autoincrement())
   categoryLedger   CategoryLedger @relation(fields: [categoryLedgerId], references: [id], onDelete: Cascade)
-  categoryLedgerId Int
+  categoryLedgerId  Int
   
   type             String    // 'debit', 'credit', 'transfer'
   amount           Decimal   @db.Decimal(14, 2)
@@ -216,7 +269,6 @@ model CategoryLedgerEntry {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   
-  @@index([categoryLedgerId])
   @@index([date])
   @@index([sourceType])
 }
@@ -564,11 +616,7 @@ model AssetTransaction {
   updatedAt       DateTime  @updatedAt
   
   @@index([assetId])
-  @@index([type])
-  @@index([date])
-  @@index([accountId])
 }
-
 // ============== INVOICE TEMPLATES ==============
 model InvoiceTemplate {
   id            Int       @id @default(autoincrement())

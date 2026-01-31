@@ -133,7 +133,8 @@ export class CategoryLedgerService {
    * Get category ledger by category name
    */
   async getCategoryLedgerByName(categoryName: string) {
-    return this.prisma.categoryLedger.findUnique({
+    // categoryName is not unique, use findFirst
+    return this.prisma.categoryLedger.findFirst({
       where: { categoryName },
       include: {
         entries: {

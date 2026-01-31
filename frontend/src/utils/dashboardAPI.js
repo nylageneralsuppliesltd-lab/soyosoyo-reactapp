@@ -118,7 +118,7 @@ export const calculateDashboardStats = async () => {
 
     // Calculate total outstanding loans
     const totalLoans = loans.reduce((sum, l) => {
-      const amount = typeof l.loanAmount === 'number' ? l.loanAmount : parseFloat(l.loanAmount) || 0;
+      const amount = typeof l.amount === 'number' ? l.amount : parseFloat(l.amount) || 0;
       return sum + amount;
     }, 0);
 
@@ -194,7 +194,7 @@ export const getMonthlyTrendData = async (months = 6) => {
           const lDate = new Date(l.createdAt);
           return lDate >= monthStart && lDate <= monthEnd;
         })
-        .reduce((sum, l) => sum + (l.loanAmount || 0), 0);
+        .reduce((sum, l) => sum + (l.amount || 0), 0);
 
       trendData.push({
         month: monthDate.toLocaleString('default', { month: 'short' }),
@@ -272,7 +272,7 @@ export const getRecentActivity = async (limit = 10) => {
         type: 'loan',
         description: `Loan Disbursement`,
         memberName: member ? `${member.firstName} ${member.lastName}` : 'Unknown',
-        amount: `KES ${(loan.loanAmount / 1000).toFixed(0)}K`,
+        amount: `KES ${(loan.amount / 1000).toFixed(0)}K`,
         timestamp: loan.disbursementDate || loan.createdAt,
         icon: 'loan',
       });

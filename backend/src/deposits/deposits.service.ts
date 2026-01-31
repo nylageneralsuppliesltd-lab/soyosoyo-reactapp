@@ -57,7 +57,7 @@ export class DepositsService {
       // Ensure accounts exist (fallback defaults if none provided)
       const cashAccount = depositData.accountId
         ? await this.prisma.account.findUnique({ where: { id: depositData.accountId } })
-        : await this.ensureAccountByName('Cashbox', 'cash', 'Default cash account');
+        : await this.prisma.account.findFirst({ where: { name: 'Cashbox', type: 'cash' } });
 
       if (!cashAccount) {
         throw new Error('Cash account not found. Please select an account.');
@@ -377,7 +377,7 @@ export class DepositsService {
 
     // Determine deposit type and related accounts
     const depositType = payment.paymentType;
-    const description = this.getPaymentDescription(payment);
+    const description = payment.notes || '';
 
     // Create the deposit record
     const deposit = await this.prisma.deposit.create({
@@ -439,15 +439,15 @@ export class DepositsService {
         // DR: Cash/Bank Account (money comes in)
         // CR: Contribution GL Account (tracks source)
         const cashAccount = accountId
-          ? await this.ensureAccount(accountId)
-          : await this.ensureAccount(null, 'cash', 'Default Cash Account');
+          ? await this.prisma.account.findUnique({ where: { id: accountId } })
+          : await this.prisma.account.findFirst({ where: { type: 'cash' } });
 
         if (!cashAccount) {
           throw new Error('Cash account not found');
         }
 
         creditAccountName = description ? `${description} Received` : 'Contributions Received';
-        const creditAccount = await this.ensureAccountByName(creditAccountName, 'gl', creditAccountName);
+        const creditAccount = await this.prisma.account.findFirst({ where: { name: creditAccountName, type: 'gl' } });
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -460,14 +460,14 @@ export class DepositsService {
         // DR: Cash (money comes in)
         // CR: Fines Collected GL Account
         const cashAccount = accountId
-          ? await this.ensureAccount(accountId)
-          : await this.ensureAccount(null, 'cash', 'Default Cash Account');
+          ? await this.prisma.account.findUnique({ where: { id: accountId } })
+          : await this.prisma.account.findFirst({ where: { type: 'cash' } });
 
         if (!cashAccount) {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.ensureAccountByName('Fines Collected', 'gl', 'Fines Collected GL Account');
+        const creditAccount = await this.prisma.account.findFirst({ where: { name: 'Fines Collected', type: 'gl' } });
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -480,14 +480,14 @@ export class DepositsService {
         // DR: Cash (money comes in)
         // CR: Loan Repayments GL Account
         const cashAccount = accountId
-          ? await this.ensureAccount(accountId)
-          : await this.ensureAccount(null, 'cash', 'Default Cash Account');
+          ? await this.prisma.account.findUnique({ where: { id: accountId } })
+          : await this.prisma.account.findFirst({ where: { type: 'cash' } });
 
         if (!cashAccount) {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.ensureAccountByName('Loan Repayments Received', 'gl', 'Loan Repayments GL Account');
+        const creditAccount = await this.prisma.account.findFirst({ where: { name: 'Loan Repayments Received', type: 'gl' } });
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -500,14 +500,14 @@ export class DepositsService {
         // DR: Cash (money comes in)
         // CR: Income GL Account
         const cashAccount = accountId
-          ? await this.ensureAccount(accountId)
-          : await this.ensureAccount(null, 'cash', 'Default Cash Account');
+          ? await this.prisma.account.findUnique({ where: { id: accountId } })
+          : await this.prisma.account.findFirst({ where: { type: 'cash' } });
 
         if (!cashAccount) {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.ensureAccountByName('Other Income', 'gl', 'Other Income GL Account');
+        const creditAccount = await this.prisma.account.findFirst({ where: { name: 'Other Income', type: 'gl' } });
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -521,14 +521,14 @@ export class DepositsService {
         // DR: Cash (money comes in)
         // CR: Miscellaneous GL Account
         const cashAccount = accountId
-          ? await this.ensureAccount(accountId)
-          : await this.ensureAccount(null, 'cash', 'Default Cash Account');
+          ? await this.prisma.account.findUnique({ where: { id: accountId } })
+          : await this.prisma.account.findFirst({ where: { type: 'cash' } });
 
         if (!cashAccount) {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.ensureAccountByName('Miscellaneous Receipts', 'gl', 'Miscellaneous GL Account');
+        const creditAccount = await this.prisma.account.findFirst({ where: { name: 'Miscellaneous Receipts', type: 'gl' } });
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -558,192 +558,5 @@ export class DepositsService {
       where: { id: debitAccountId },
       data: { balance: { increment: amount } },
     });
-
-      // DO NOT update GL account balances - they are calculated from journal entries
-      // Only real cash/bank accounts need balance tracking
-      const creditAccount = await this.prisma.account.findUnique({
-        where: { id: creditAccountId },
-        select: { name: true, type: true }
-      });
-    
-      const isGLAccount = !!creditAccount && (
-        creditAccount.type === 'gl' ||
-        creditAccount.name.includes('Received') || 
-        creditAccount.name.includes('Expense') || 
-        creditAccount.name.includes('Payable') ||
-        creditAccount.name.includes('Collected') ||
-        creditAccount.name.includes('Income') ||
-        creditAccount.name.includes('GL Account')
-      );
-    
-      // Only update credit account balance if it's a real cash/bank account (not GL)
-      if (!isGLAccount) {
-        await this.prisma.account.update({
-          where: { id: creditAccountId },
-          data: { balance: { increment: amount } },
-        });
-      }
-
-    // Update category ledger if applicable
-    // NOTE: Contributions are NOT income - they are liabilities (money owed to members)
-    // Only track actual income sources in the category ledger
-    if (depositType === 'fine') {
-      await this.updateCategoryLedger('income', 'Fines', amount, depositId, 'deposit', description);
-    } else if (depositType === 'income') {
-      await this.updateCategoryLedger(
-        'income',
-        'Other Income',
-        amount,
-        depositId,
-        'deposit',
-        description,
-      );
-    }
-
-    // Update member balance and ledger
-    if (memberId) {
-      const member = await this.prisma.member.update({
-        where: { id: memberId },
-        data: { balance: { increment: Number(amount) } },
-      });
-
-      await this.prisma.ledger.create({
-        data: {
-          memberId,
-          type: depositType,
-          amount: Number(amount),
-          description: description,
-          reference: reference || null,
-          balanceAfter: Number(member.balance),
-          date,
-        },
-      });
-    }
-  }
-
-  /**
-   * Update category ledger with transaction entry
-   */
-  private async updateCategoryLedger(
-    categoryType: string,
-    categoryName: string,
-    amount: Prisma.Decimal,
-    sourceId: number,
-    sourceType: string,
-    description: string,
-  ) {
-    try {
-      // Find or create category ledger
-      let categoryLedger = await this.prisma.categoryLedger.findUnique({
-        where: { categoryName },
-      });
-
-      if (!categoryLedger) {
-        categoryLedger = await this.prisma.categoryLedger.create({
-          data: {
-            categoryType,
-            categoryName,
-            totalAmount: amount,
-            balance: amount,
-          },
-        });
-      } else {
-        // Update totals
-        categoryLedger = await this.prisma.categoryLedger.update({
-          where: { id: categoryLedger.id },
-          data: {
-            totalAmount: { increment: amount },
-            balance: { increment: amount },
-          },
-        });
-      }
-
-      // Create entry in category ledger
-      await this.prisma.categoryLedgerEntry.create({
-        data: {
-          categoryLedgerId: categoryLedger.id,
-          type: 'credit',
-          amount,
-          description,
-          sourceType,
-          sourceId: sourceId.toString(),
-          balanceAfter: categoryLedger.balance,
-          narration: description,
-        },
-      });
-    } catch (error) {
-      console.warn('Category ledger update failed:', error.message);
-      // Non-critical, continue processing
-    }
-  }
-
-  /**
-   * Helper: ensure account by ID or return default
-   */
-  private async ensureAccount(
-    id?: number,
-    type: string = 'cash',
-    description?: string,
-  ): Promise<{ id: number; name: string }> {
-    if (id) {
-      const existing = await this.prisma.account.findUnique({ where: { id } });
-      if (existing) return existing;
-    }
-
-    const defaultName = type === 'cash' ? 'Cashbox' : 'Default Account';
-    const existing = await this.prisma.account.findFirst({ where: { name: defaultName } });
-    if (existing) return existing;
-
-    return this.prisma.account.create({
-      data: {
-        name: defaultName,
-        type: type as any,
-        description: description ?? null,
-        currency: 'KES',
-        balance: new Prisma.Decimal(0),
-      },
-    });
-  }
-
-  /**
-   * Helper: ensure account by name
-   */
-  private async ensureAccountByName(
-    name: string,
-    type: string,
-    description?: string,
-  ): Promise<{ id: number; name: string }> {
-    const existing = await this.prisma.account.findFirst({ where: { name } });
-    if (existing) return existing;
-
-    return this.prisma.account.create({
-      data: {
-        name,
-        type: type as any,
-        description: description ?? null,
-        currency: 'KES',
-        balance: new Prisma.Decimal(0),
-      },
-    });
-  }
-
-  /**
-   * Generate payment description based on type and data
-   */
-  private getPaymentDescription(payment: BulkPaymentRecord): string {
-    switch (payment.paymentType) {
-      case 'contribution':
-        return `Contribution - ${payment.contributionType || 'Regular'}`;
-      case 'fine':
-        return 'Fine payment';
-      case 'loan_repayment':
-        return 'Loan repayment';
-      case 'income':
-        return 'Income recorded';
-      case 'miscellaneous':
-        return 'Miscellaneous payment';
-      default:
-        return 'Payment';
-    }
   }
 }

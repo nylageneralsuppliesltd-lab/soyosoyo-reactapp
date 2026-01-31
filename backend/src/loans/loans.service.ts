@@ -43,40 +43,67 @@ export class LoansService {
   async getLoanStatistics(direction?: string): Promise<any> {
     return {};
   }
-  // Generate amortization schedule (flat or reducing)
-  private generateSchedule(amount: number, rate: number, months: number, interestType: string, gracePeriod: number = 0, interestFrequency: string = 'monthly'): any[] {
+  // Dynamic loan schedule generator using all new fields
+  public generateDynamicSchedule(params: {
+    principal: number;
+    interestRate: number;
+    termMonths: number;
+    amortizationMethod: 'equal_installment' | 'equal_principal' | 'bullet';
+    repaymentFrequency: 'monthly' | 'quarterly' | 'yearly';
+    gracePeriods?: number;
+    qualification?: { min: number; max: number };
+    startDate?: Date;
+  }): any[] {
+    const {
+      principal,
+      interestRate,
+      termMonths,
+      amortizationMethod,
+      repaymentFrequency,
+      gracePeriods = 0,
+      qualification,
+      startDate = new Date()
+    } = params;
+    // Qualification check
+    if (qualification) {
+      if (principal < qualification.min || principal > qualification.max) {
+        throw new Error('Principal does not meet qualification criteria');
+      }
+    }
     const schedule = [];
-    if (!amount || !rate || !months) return schedule;
-    if (interestType === 'flat') {
-      const totalInterest = amount * (rate / 100) * (months / 12);
-      const monthly = (amount + totalInterest) / months;
-      for (let i = 1; i <= months; i++) {
-        schedule.push({
-          installment: i,
-          principal: amount / months,
-          interest: totalInterest / months,
-          total: monthly,
-          dueDate: null, // can be set if needed
-          paid: false
-        });
+    const periods = repaymentFrequency === 'monthly' ? termMonths
+      : repaymentFrequency === 'quarterly' ? Math.ceil(termMonths / 3)
+      : Math.ceil(termMonths / 12);
+    let remainingPrincipal = principal;
+    let periodLength = repaymentFrequency === 'monthly' ? 1
+      : repaymentFrequency === 'quarterly' ? 3
+      : 12;
+    for (let i = 1; i <= periods; i++) {
+      let isGrace = i <= gracePeriods;
+      let interest = remainingPrincipal * (interestRate / 100) * (periodLength / 12);
+      let principalPayment = 0;
+      if (!isGrace) {
+        if (amortizationMethod === 'equal_installment') {
+          // Annuity formula
+          const r = (interestRate / 100) / (12 / periodLength);
+          const n = periods - gracePeriods;
+          const installment = principal * r / (1 - Math.pow(1 + r, -n));
+          principalPayment = installment - interest;
+        } else if (amortizationMethod === 'equal_principal') {
+          principalPayment = principal / (periods - gracePeriods);
+        } else if (amortizationMethod === 'bullet') {
+          principalPayment = (i === periods) ? principal : 0;
+        }
       }
-    } else { // reducing
-      const r = rate / 100 / 12;
-      const emi = amount * (r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1);
-      let balance = amount;
-      for (let i = 1; i <= months; i++) {
-        const interest = balance * r;
-        const principal = emi - interest;
-        balance -= principal;
-        schedule.push({
-          installment: i,
-          principal,
-          interest,
-          total: emi,
-          dueDate: null, // can be set if needed
-          paid: false
-        });
-      }
+      schedule.push({
+        period: i,
+        dueDate: new Date(startDate.getFullYear(), startDate.getMonth() + periodLength * i, startDate.getDate()),
+        principal: Number(principalPayment.toFixed(2)),
+        interest: Number(interest.toFixed(2)),
+        total: Number((principalPayment + interest).toFixed(2)),
+        isGrace,
+      });
+      remainingPrincipal -= principalPayment;
     }
     return schedule;
   }

@@ -4,6 +4,35 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class FinancialStatementsService {
+    /**
+     * Loan Repayment and Interest Summary for Financial Statements
+     */
+    async loanRepaymentSummary(startDate: Date, endDate: Date) {
+      // Aggregate repayments and interest from Repayment table
+      const repayments = await this.prisma.repayment.findMany({
+        where: { date: { gte: startDate, lte: endDate } },
+        include: { loan: { include: { member: true, loanType: true } } },
+        orderBy: [{ date: 'asc' }]
+      });
+      const rows = repayments.map(r => ({
+        date: r.date,
+        member: r.loan?.member?.name || 'N/A',
+        loanType: r.loan?.loanType?.name || 'N/A',
+        principal: Number(r.principal),
+        interest: Number(r.interest),
+        total: Number(r.amount),
+        reference: r.reference,
+        notes: r.notes
+      }));
+      // Totals
+      const totals = repayments.reduce((acc, r) => {
+        acc.principal += Number(r.principal);
+        acc.interest += Number(r.interest);
+        acc.total += Number(r.amount);
+        return acc;
+      }, { principal: 0, interest: 0, total: 0 });
+      return { rows, totals };
+    }
   constructor(private prisma: PrismaService) {}
 
   /**
@@ -181,6 +210,20 @@ export class FinancialStatementsService {
       orderBy: [{ date: 'asc' }, { id: 'asc' }]
     });
 
+    // Add loan repayments and interest as a section in the statement
+    const loanSummary = await this.loanRepaymentSummary(startDate, endDate);
+    const rows = [];
+    rows.push({
+      date: null,
+      reference: 'LOAN SUMMARY',
+      narration: 'Loan Repayments and Interest',
+      debit: loanSummary.totals.principal,
+      credit: loanSummary.totals.interest,
+      balance: null,
+      type: 'loan-summary',
+      details: loanSummary.rows
+    });
+
     // Get opening balance
     const openingTx = await this.prisma.journalEntry.findMany({
       where: { date: { lt: startDate } },
@@ -188,38 +231,29 @@ export class FinancialStatementsService {
     });
 
     let runningBalance = 0;
-    for (const tx of openingTx) {
-      const isAssetDebit = ['cash', 'bank', 'pettyCash', 'mobileMoney'].includes(tx.debitAccount.type);
-      const isAssetCredit = ['cash', 'bank', 'pettyCash', 'mobileMoney'].includes(tx.creditAccount.type);
-
-      if (isAssetDebit) runningBalance += Number(tx.debitAmount);
-      if (isAssetCredit) runningBalance -= Number(tx.creditAmount);
-    }
-
-    const rows = [];
     let totalMoneyIn = 0;
     let totalMoneyOut = 0;
 
-    // Add opening balance
-    rows.push({
-      date: null,
-      reference: 'OPENING',
-      description: 'Opening Balance',
-      moneyIn: null,
-      moneyOut: null,
-      runningBalance,
-      type: 'header'
-    });
+    // Calculate opening balance
+    for (const entry of openingTx) {
+      const isAssetDebit = entry.debitAccount && ['cash', 'bank', 'pettyCash', 'mobileMoney'].includes(entry.debitAccount.type);
+      const isAssetCredit = entry.creditAccount && ['cash', 'bank', 'pettyCash', 'mobileMoney'].includes(entry.creditAccount.type);
+      let moneyIn = null;
+      let moneyOut = null;
+      if (isAssetDebit) moneyIn = Number(entry.debitAmount);
+      if (isAssetCredit) moneyOut = Number(entry.creditAmount);
+      if (moneyIn !== null) totalMoneyIn += moneyIn;
+      if (moneyOut !== null) totalMoneyOut += moneyOut;
+      runningBalance += (moneyIn || 0) - (moneyOut || 0);
+    }
 
-    // Process transactions
+    // Process each transaction
     for (const entry of entries) {
-      const isAssetDebit = ['cash', 'bank', 'pettyCash', 'mobileMoney'].includes(entry.debitAccount.type);
-      const isAssetCredit = ['cash', 'bank', 'pettyCash', 'mobileMoney'].includes(entry.creditAccount.type);
-
+      const isAssetDebit = entry.debitAccount && ['cash', 'bank', 'pettyCash', 'mobileMoney'].includes(entry.debitAccount.type);
+      const isAssetCredit = entry.creditAccount && ['cash', 'bank', 'pettyCash', 'mobileMoney'].includes(entry.creditAccount.type);
       let moneyIn = null;
       let moneyOut = null;
       let description = '';
-
       if (isAssetDebit && !isAssetCredit) {
         // Money in
         moneyIn = Number(entry.debitAmount);
@@ -241,7 +275,6 @@ export class FinancialStatementsService {
         totalMoneyOut += moneyOut;
         description = `Transfer: ${entry.creditAccount.name} → ${entry.debitAccount.name}`;
       }
-
       if (moneyIn !== null || moneyOut !== null) {
         rows.push({
           date: entry.date,
@@ -271,11 +304,11 @@ export class FinancialStatementsService {
       meta: {
         startDate,
         endDate,
-        openingBalance: rows[0].runningBalance,
+        openingBalance: rows[1]?.runningBalance ?? 0,
         closingBalance: runningBalance,
         totalMoneyIn,
         totalMoneyOut,
-        netChange: runningBalance - rows[0].runningBalance
+        netChange: runningBalance - (rows[1]?.runningBalance ?? 0)
       }
     };
   }

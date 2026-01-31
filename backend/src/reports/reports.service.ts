@@ -271,7 +271,7 @@ export class ReportsService {
     const loans = await this.prisma.loan.findMany({ 
       where, 
       orderBy: { createdAt: 'asc' }, 
-      include: { member: true, loanType: true } 
+      include: { member: true, loanType: true, repayments: true } 
     });
 
     // Add IFRS 9 fields: classification, impairment, ecl, and stage (if available)
@@ -287,8 +287,13 @@ export class ReportsService {
       classification: l.classification || 'amortized_cost',
       impairment: l.impairment ?? null,
       ecl: l.ecl ?? null,
-      // Optionally, add stage if available (not persisted, but can be derived)
-      // stage: l.stage ?? null,
+      repayments: l.repayments?.map(r => ({
+        date: r.date,
+        principal: Number(r.principal),
+        interest: Number(r.interest),
+        total: Number(r.amount),
+        reference: r.reference
+      })) || [],
     }));
 
     // Meta summary for IFRS 9
