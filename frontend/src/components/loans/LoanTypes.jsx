@@ -186,7 +186,7 @@ const LoanTypes = ({ onError }) => {
         <div className="form-card">
           <h3>{editingType ? 'Edit' : 'Create'} Loan Type</h3>
           <form onSubmit={handleSubmit} className="loan-type-form">
-            <div className="form-row">
+            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
               <div className="form-group">
                 <label className="required">Loan Type Name</label>
                 <input
@@ -218,7 +218,7 @@ const LoanTypes = ({ onError }) => {
               </div>
             </div>
 
-            <div className="form-row">
+            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
               <div className="form-group">
                 <label className="required">Period (Months)</label>
                 <input
@@ -274,7 +274,7 @@ const LoanTypes = ({ onError }) => {
               </div>
             </div>
 
-            <div className="form-row">
+            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
               <div className="form-group">
                 <label>Principal Grace Period (months)</label>
                 <input
@@ -315,7 +315,7 @@ const LoanTypes = ({ onError }) => {
             </div>
             <div className="form-divider">Fine Settings</div>
 
-            <div className="form-row">
+            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
               <div className="form-group checkbox">
                 <label>
                   <input
