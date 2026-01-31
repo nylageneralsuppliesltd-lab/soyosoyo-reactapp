@@ -10,7 +10,7 @@ const MemberLoans = ({ onError, onLoading }) => {
         setFormErrors({});
         // Basic validation
         const errors = {};
-        if (!formData.memberId) errors.memberId = 'Member is required';
+        if (!formData.memberId || isNaN(Number(formData.memberId))) errors.memberId = 'Member is required';
         if (!formData.typeId) errors.typeId = 'Loan type is required';
         if (!formData.disbursementAccountId) errors.disbursementAccountId = 'Disbursement account is required';
         if (!formData.amount || isNaN(formData.amount) || Number(formData.amount) <= 0) errors.amount = 'Valid amount required';
@@ -21,11 +21,16 @@ const MemberLoans = ({ onError, onLoading }) => {
         }
         try {
           onLoading?.(true);
+          const memberIdInt = Number(formData.memberId);
+          if (!memberIdInt || isNaN(memberIdInt)) {
+            onError?.('Invalid member ID. Please select a valid member.');
+            return;
+          }
           const res = await fetch(`${API_BASE}/loans`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              memberId: Number(formData.memberId), // ensure number
+              memberId: memberIdInt,
               typeId: formData.typeId,
               disbursementAccountId: formData.disbursementAccountId,
               amount: Number(formData.amount),
@@ -74,7 +79,14 @@ const MemberLoans = ({ onError, onLoading }) => {
           loanTypesRes.json(),
           accountsRes.json(),
         ]);
-        setLoans(Array.isArray(loansData) ? loansData : loansData.data || []);
+        // Defensive: log if any loan is missing memberId
+        const allLoans = Array.isArray(loansData) ? loansData : loansData.data || [];
+        if (import.meta.env.DEV) {
+          allLoans.forEach(l => {
+            if (!l.memberId) console.warn('Loan missing memberId:', l);
+          });
+        }
+        setLoans(allLoans);
         setMembers(Array.isArray(membersData) ? membersData : membersData.data || []);
         setLoanTypes(Array.isArray(loanTypesData) ? loanTypesData : loanTypesData.data || []);
         setAccounts(Array.isArray(accountsData) ? accountsData : accountsData.data || []);
@@ -407,10 +419,15 @@ const MemberLoans = ({ onError, onLoading }) => {
                   </div>
                 )}
               </div>
-              {/* Amortization Table */}
+              {/* Amortization Table (from backend) */}
               <div className="amortization-table-section">
                 <h4>Amortization Table</h4>
-                <AmortizationTable loan={selectedLoan} />
+                <BackendAmortizationTable loanId={selectedLoan.id} />
+              </div>
+              {/* Loan Statement (from backend) */}
+              <div className="loan-statement-section">
+                <h4>Loan Statement</h4>
+                <BackendLoanStatement loanId={selectedLoan.id} />
               </div>
             </div>
 
@@ -426,63 +443,135 @@ const MemberLoans = ({ onError, onLoading }) => {
   );
 }
 
-// AmortizationTable component
-function AmortizationTable({ loan }) {
-  if (!loan || !loan.amount || !loan.periodMonths || !loan.interestRate) return null;
-  const principal = Number(loan.amount);
-  const months = Number(loan.periodMonths);
-  const rate = Number(loan.interestRate) / 100 / 12;
-  let rows = [];
-  let monthlyPayment = 0;
-  if (loan.interestType === 'flat' || !loan.interestType) {
-    // Flat interest
-    const totalInterest = principal * (Number(loan.interestRate) / 100) * (months / 12);
-    monthlyPayment = (principal + totalInterest) / months;
-    for (let i = 1; i <= months; i++) {
-      rows.push({
-        month: i,
-        principal: (principal / months),
-        interest: (totalInterest / months),
-        payment: monthlyPayment,
-        balance: principal - (principal / months) * i
-      });
-    }
-  } else {
-    // Reducing balance (annuity)
-    monthlyPayment = rate === 0 ? principal / months : (principal * rate) / (1 - Math.pow(1 + rate, -months));
-    let balance = principal;
-    for (let i = 1; i <= months; i++) {
-      const interest = balance * rate;
-      const principalPaid = monthlyPayment - interest;
-      balance -= principalPaid;
-      rows.push({
-        month: i,
-        principal: principalPaid,
-        interest: interest,
-        payment: monthlyPayment,
-        balance: balance > 0 ? balance : 0
-      });
-    }
-  }
+
+// BackendLoanStatement: Fetches loan statement from backend
+function BackendLoanStatement({ loanId }) {
+  const [statement, setStatement] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!loanId) return;
+    setLoading(true);
+    setError(null);
+    fetch(`${API_BASE}/loans/${loanId}/statement`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data) {
+          setStatement(data.data);
+        } else {
+          setError(data.message || 'Failed to load statement');
+        }
+      })
+      .catch(err => setError(err.message || 'Failed to load statement'))
+      .finally(() => setLoading(false));
+  }, [loanId]);
+
+  if (!loanId) return null;
+  if (loading) return <div>Loading statement...</div>;
+  if (error) return <div className="error-text">{error}</div>;
+  if (!statement) return <div>No statement available.</div>;
+
+  // Render repayments and fines as a simple table
+  return (
+    <div>
+      <h5>Repayments</h5>
+      {Array.isArray(statement.repayments) && statement.repayments.length > 0 ? (
+        <table className="statement-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Type</th>
+              <th>Reference</th>
+            </tr>
+          </thead>
+          <tbody>
+            {statement.repayments.map((r, idx) => (
+              <tr key={idx}>
+                <td>{r.date ? new Date(r.date).toLocaleDateString() : '--'}</td>
+                <td>KES {Number(r.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                <td>{r.type || 'Repayment'}</td>
+                <td>{r.reference || '--'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <div>No repayments recorded.</div>}
+      <h5>Fines</h5>
+      {Array.isArray(statement.fines) && statement.fines.length > 0 ? (
+        <table className="statement-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {statement.fines.map((f, idx) => (
+              <tr key={idx}>
+                <td>{f.date ? new Date(f.date).toLocaleDateString() : '--'}</td>
+                <td>KES {Number(f.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                <td>{f.reason || '--'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <div>No fines recorded.</div>}
+    </div>
+  );
+}
+
+// BackendAmortizationTable: Fetches amortization schedule from backend
+function BackendAmortizationTable({ loanId }) {
+  const [schedule, setSchedule] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!loanId) return;
+    setLoading(true);
+    setError(null);
+    fetch(`${API_BASE}/loans/${loanId}/amortization`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.schedule)) {
+          setSchedule(data.schedule);
+        } else {
+          setError(data.message || 'Failed to load schedule');
+        }
+      })
+      .catch(err => setError(err.message || 'Failed to load schedule'))
+      .finally(() => setLoading(false));
+  }, [loanId]);
+
+  if (!loanId) return null;
+  if (loading) return <div>Loading amortization table...</div>;
+  if (error) return <div className="error-text">{error}</div>;
+  if (!schedule || schedule.length === 0) return <div>No amortization schedule available.</div>;
+
   return (
     <table className="amortization-table">
       <thead>
         <tr>
-          <th>Month</th>
+          <th>Installment</th>
           <th>Principal</th>
           <th>Interest</th>
-          <th>Payment</th>
-          <th>Balance</th>
+          <th>Total</th>
+          <th>Due Date</th>
+          <th>Paid</th>
         </tr>
       </thead>
       <tbody>
-        {rows.map(row => (
-          <tr key={row.month}>
-            <td>{row.month}</td>
-            <td>KES {row.principal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-            <td>KES {row.interest.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-            <td>KES {row.payment.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-            <td>KES {row.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+        {schedule.map((row, idx) => (
+          <tr key={idx}>
+            <td>{row.installment || row.month || idx + 1}</td>
+            <td>KES {Number(row.principal).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+            <td>KES {Number(row.interest).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+            <td>KES {Number(row.total || row.payment).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+            <td>{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '--'}</td>
+            <td>{row.paid ? 'Yes' : 'No'}</td>
           </tr>
         ))}
       </tbody>

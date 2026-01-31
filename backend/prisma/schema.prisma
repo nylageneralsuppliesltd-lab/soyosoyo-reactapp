@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // NO url or directUrl here anymore in Prisma 7+
 }
 
 // ============== ENUMS ==============
@@ -330,7 +329,21 @@ model LoanType {
   maxMultiple           Decimal?  @db.Decimal(5, 2)
   periodMonths          Int       @default(12)
   interestRate          Decimal   @db.Decimal(5, 2)
-  interestType          String    @default("flat") // flat or reducing
+  interestType          String    @default("flat") // flat, reducing, fixed
+  interestFrequency     String?   // monthly, weekly, daily, yearly
+  periodFlexible        String?   // fixed, flexible
+  gracePeriod           Int?      // months
+  qualificationCriteria String?   // qualification criteria
+  approvers             String?   // approvers
+  fineFrequency         String?   // monthly, weekly, daily, yearly
+  fineBase              String?   // total-unpaid, loan-amount, installment-balance, installment-interest
+  autoDisbursement      Boolean?  @default(false)
+  processingFee         Decimal?  @db.Decimal(14, 2)
+  processingFeeType     String?   // fixed, percentage
+  guarantorsRequired    Boolean?  @default(false)
+  guarantorName         String?
+  guarantorAmount       Decimal?  @db.Decimal(14, 2)
+  guarantorNotified     Boolean?  @default(false)
   lateFinesEnabled      Boolean   @default(false)
   lateFinesType         String?   // one-off, fixed, percentage
   lateFinesValue        Decimal?  @db.Decimal(5, 2)
@@ -356,6 +369,20 @@ model Loan {
   balance           Decimal         @db.Decimal(14, 2)
   interestRate      Decimal         @db.Decimal(5, 2)
   interestType      String          @default("flat")
+  interestFrequency String?         // monthly, weekly, daily, yearly
+  periodFlexible    String?         // fixed, flexible
+  gracePeriod       Int?            // months
+  qualificationCriteria String?     // qualification criteria
+  approvers         String?         // approvers
+  fineFrequency     String?         // monthly, weekly, daily, yearly
+  fineBase          String?         // total-unpaid, loan-amount, installment-balance, installment-interest
+  autoDisbursement  Boolean?        @default(false)
+  processingFee     Decimal?        @db.Decimal(14, 2)
+  processingFeeType String?         // fixed, percentage
+  guarantorsRequired Boolean?       @default(false)
+  guarantorName     String?
+  guarantorAmount   Decimal?        @db.Decimal(14, 2)
+  guarantorNotified Boolean?        @default(false)
   periodMonths      Int
   status            LoanStatus      @default(pending)
   loanDirection     LoanDirection   @default(outward)

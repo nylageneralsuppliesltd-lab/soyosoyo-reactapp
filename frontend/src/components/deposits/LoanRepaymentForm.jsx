@@ -66,8 +66,12 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   }, [editingDeposit]);
 
   useEffect(() => {
-    if (formData.memberId) {
-      fetchMemberLoans(formData.memberId);
+    const memberIdInt = Number(formData.memberId);
+    if (formData.memberId && !isNaN(memberIdInt)) {
+      fetchMemberLoans(memberIdInt);
+    } else if (formData.memberId) {
+      console.warn('Invalid memberId for loan fetch:', formData.memberId);
+      setMemberLoans([]);
     }
   }, [formData.memberId]);
 
@@ -107,12 +111,23 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
   const fetchMemberLoans = async (memberId) => {
     try {
+      if (!memberId || isNaN(Number(memberId))) {
+        console.warn('fetchMemberLoans called with invalid memberId:', memberId);
+        setMemberLoans([]);
+        return;
+      }
       // Fetch all loans for the member, not just 'active', to allow repayment of any with a balance
       const response = await fetch(`${API_BASE}/loans?memberId=${memberId}`);
       const data = await response.json();
-      // Only show loans with a positive principal or interest balance
+      // Only show loans with a positive balance (fallback if principal/interest fields are missing)
       const loans = Array.isArray(data.data) ? data.data : [];
+      if (import.meta.env.DEV) {
+        loans.forEach(l => { if (!l.memberId) console.warn('Loan missing memberId:', l); });
+      }
       const repayableLoans = loans.filter(loan => {
+        if (typeof loan.balance === 'number') {
+          return loan.balance > 0.01;
+        }
         const principalBal = (loan.principalAmount || loan.amount || 0) - (loan.principalPaid || 0);
         const interestBal = (loan.interestAmount || 0) - (loan.interestPaid || 0);
         return principalBal > 0.01 || interestBal > 0.01;

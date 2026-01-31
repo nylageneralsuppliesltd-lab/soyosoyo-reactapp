@@ -1,3 +1,121 @@
+    // Calculate and impose fines for overdue installments and outstanding balances
+    private async imposeFinesIfNeeded(loan: any) {
+      if (!loan || !loan.loanType) return;
+      const now = new Date();
+      const schedule = Array.isArray(loan.schedule) ? loan.schedule : [];
+      const loanType = loan.loanType;
+      const fines: any[] = [];
+
+      // Fine config
+      const fineEnabled = loanType.lateFinesEnabled || loanType.lateFineEnabled;
+      const fineType = loanType.lateFinesType || loanType.lateFineType;
+      const fineValue = Number(loanType.lateFinesValue || 0);
+      const fineFrequency = loanType.fineFrequency || 'monthly';
+      const fineBase = loanType.fineBase || 'installment-balance';
+      const gracePeriod = Number(loanType.gracePeriod || 0);
+
+      // 1. Overdue installments
+      for (const inst of schedule) {
+        if (inst.paid) continue;
+        // Assume dueDate is set or calculate from disbursementDate
+        let dueDate = inst.dueDate ? new Date(inst.dueDate) : null;
+        if (!dueDate && loan.disbursementDate) {
+          dueDate = new Date(loan.disbursementDate);
+          dueDate.setMonth(dueDate.getMonth() + (inst.installment - 1) + gracePeriod);
+        }
+        if (dueDate && now > dueDate) {
+          // Calculate fine amount
+          let baseAmount = 0;
+          if (fineBase === 'installment-balance') baseAmount = inst.total;
+          else if (fineBase === 'loan-amount') baseAmount = Number(loan.amount);
+          else if (fineBase === 'total-unpaid') baseAmount = Number(loan.balance);
+          else if (fineBase === 'installment-interest') baseAmount = inst.interest;
+          else baseAmount = inst.total;
+          let fineAmt = 0;
+          if (fineType === 'percentage') fineAmt = baseAmount * (fineValue / 100);
+          else fineAmt = fineValue;
+          // Check if fine already imposed for this installment
+          const existingFine = await this.prisma.fine.findFirst({ where: { loanId: loan.id, reason: { contains: `Installment ${inst.installment}` } } });
+          if (!existingFine && fineAmt > 0) {
+            // Create fine
+            await this.prisma.fine.create({
+              data: {
+                loanId: loan.id,
+                memberId: loan.memberId,
+                amount: fineAmt,
+                type: 'late_payment',
+                reason: `Installment ${inst.installment} overdue`,
+                dueDate: dueDate,
+                status: 'unpaid',
+              },
+            });
+          }
+        }
+      }
+
+      // 2. Outstanding after loan period
+      if (loan.dueDate && now > new Date(loan.dueDate) && Number(loan.balance) > 0) {
+        // Only one fine for outstanding after maturity
+        const existingFine = await this.prisma.fine.findFirst({ where: { loanId: loan.id, reason: { contains: 'Outstanding after maturity' } } });
+        let baseAmount = 0;
+        if (fineBase === 'total-unpaid') baseAmount = Number(loan.balance);
+        else if (fineBase === 'loan-amount') baseAmount = Number(loan.amount);
+        else baseAmount = Number(loan.balance);
+        let fineAmt = 0;
+        if (fineType === 'percentage') fineAmt = baseAmount * (fineValue / 100);
+        else fineAmt = fineValue;
+        if (!existingFine && fineAmt > 0) {
+          await this.prisma.fine.create({
+            data: {
+              loanId: loan.id,
+              memberId: loan.memberId,
+              amount: fineAmt,
+              type: 'late_payment',
+              reason: 'Outstanding after maturity',
+              dueDate: loan.dueDate,
+              status: 'unpaid',
+            },
+          });
+        }
+      }
+    }
+  // Generate amortization schedule (flat or reducing)
+  private generateSchedule(amount: number, rate: number, months: number, interestType: string, gracePeriod: number = 0, interestFrequency: string = 'monthly'): any[] {
+    const schedule = [];
+    if (!amount || !rate || !months) return schedule;
+    if (interestType === 'flat') {
+      const totalInterest = amount * (rate / 100) * (months / 12);
+      const monthly = (amount + totalInterest) / months;
+      for (let i = 1; i <= months; i++) {
+        schedule.push({
+          installment: i,
+          principal: amount / months,
+          interest: totalInterest / months,
+          total: monthly,
+          dueDate: null, // can be set if needed
+          paid: false
+        });
+      }
+    } else { // reducing
+      const r = rate / 100 / 12;
+      const emi = amount * (r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1);
+      let balance = amount;
+      for (let i = 1; i <= months; i++) {
+        const interest = balance * r;
+        const principal = emi - interest;
+        balance -= principal;
+        schedule.push({
+          installment: i,
+          principal,
+          interest,
+          total: emi,
+          dueDate: null, // can be set if needed
+          paid: false
+        });
+      }
+    }
+    return schedule;
+  }
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Prisma } from '@prisma/client';
@@ -55,6 +173,20 @@ export class LoansService {
         collateral: data.collateral?.trim() || null,
         disbursementDate: data.disbursementDate ? new Date(data.disbursementDate) : (data.startDate ? new Date(data.startDate) : new Date()),
         typeName: data.typeName?.trim() || null,
+        qualificationCriteria: data.qualificationCriteria?.trim() || null,
+        interestFrequency: data.interestFrequency?.trim() || null,
+        periodFlexible: data.periodFlexible !== undefined ? !!data.periodFlexible : false,
+        gracePeriod: data.gracePeriod !== undefined ? parseInt(data.gracePeriod) : null,
+        approvers: data.approvers ? (Array.isArray(data.approvers) ? data.approvers.join(',') : String(data.approvers)) : null,
+        fineFrequency: data.fineFrequency?.trim() || null,
+        fineBase: data.fineBase?.trim() || null,
+        autoDisbursement: data.autoDisbursement !== undefined ? !!data.autoDisbursement : false,
+        processingFee: data.processingFee !== undefined ? parseFloat(data.processingFee) : null,
+        processingFeeType: data.processingFeeType?.trim() || null,
+        guarantorsRequired: data.guarantorsRequired !== undefined ? !!data.guarantorsRequired : false,
+        guarantorName: data.guarantorName?.trim() || null,
+        guarantorAmount: data.guarantorAmount !== undefined ? parseFloat(data.guarantorAmount) : null,
+        guarantorNotified: data.guarantorNotified !== undefined ? !!data.guarantorNotified : false,
       };
 
       // Set memberName from memberId if not provided
@@ -115,6 +247,17 @@ export class LoansService {
       const loanLedgerAccount = await this.ensureAccountByName('Loans Ledger', 'gl', 'System GL account for loans');
 
       const amountDecimal = new Prisma.Decimal(amount);
+
+      // Generate amortization schedule and store in schedule field
+      const schedule = this.generateSchedule(
+        amount,
+        loanData.interestRate,
+        loanData.periodMonths,
+        loanData.interestType,
+        loanData.gracePeriod,
+        loanData.interestFrequency
+      );
+      loanData.schedule = schedule;
 
       // Create the loan record
       const loan = await this.prisma.loan.create({ 
@@ -240,6 +383,20 @@ export class LoansService {
       typeName: data.typeName?.trim() ?? undefined,
       dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
       disbursementAccount: data.disbursementAccount?.trim() ?? undefined,
+      qualificationCriteria: data.qualificationCriteria?.trim() ?? undefined,
+      interestFrequency: data.interestFrequency?.trim() ?? undefined,
+      periodFlexible: data.periodFlexible !== undefined ? !!data.periodFlexible : undefined,
+      gracePeriod: data.gracePeriod !== undefined ? parseInt(data.gracePeriod) : undefined,
+      approvers: data.approvers ? (Array.isArray(data.approvers) ? data.approvers.join(',') : String(data.approvers)) : undefined,
+      fineFrequency: data.fineFrequency?.trim() ?? undefined,
+      fineBase: data.fineBase?.trim() ?? undefined,
+      autoDisbursement: data.autoDisbursement !== undefined ? !!data.autoDisbursement : undefined,
+      processingFee: data.processingFee !== undefined ? parseFloat(data.processingFee) : undefined,
+      processingFeeType: data.processingFeeType?.trim() ?? undefined,
+      guarantorsRequired: data.guarantorsRequired !== undefined ? !!data.guarantorsRequired : undefined,
+      guarantorName: data.guarantorName?.trim() ?? undefined,
+      guarantorAmount: data.guarantorAmount !== undefined ? parseFloat(data.guarantorAmount) : undefined,
+      guarantorNotified: data.guarantorNotified !== undefined ? !!data.guarantorNotified : undefined,
     };
 
     const cleanedUpdate = Object.fromEntries(
@@ -288,12 +445,27 @@ export class LoansService {
       }
     }
 
+    // If any core schedule fields changed, regenerate schedule
+    let schedule = undefined;
+    if (
+      (data.amount !== undefined || data.interestRate !== undefined || data.periodMonths !== undefined || data.interestType !== undefined)
+    ) {
+      const amount = cleanedUpdate.amount !== undefined ? cleanedUpdate.amount : loan.amount;
+      const rate = cleanedUpdate.interestRate !== undefined ? cleanedUpdate.interestRate : loan.interestRate;
+      const months = cleanedUpdate.periodMonths !== undefined ? cleanedUpdate.periodMonths : loan.periodMonths;
+      const interestType = cleanedUpdate.interestType !== undefined ? cleanedUpdate.interestType : loan.interestType;
+      const gracePeriod = cleanedUpdate.gracePeriod !== undefined ? cleanedUpdate.gracePeriod : loan.gracePeriod || 0;
+      const interestFrequency = cleanedUpdate.interestFrequency !== undefined ? cleanedUpdate.interestFrequency : loan.interestFrequency || 'monthly';
+      schedule = this.generateSchedule(amount, rate, months, interestType, gracePeriod, interestFrequency);
+      cleanedUpdate.schedule = schedule;
+    }
     const updatedLoan = await this.prisma.loan.update({
       where: { id },
       data: cleanedUpdate,
       include: { member: true, repayments: true, loanType: true },
     });
-
+    // After update, check and impose fines if needed
+    await this.imposeFinesIfNeeded(updatedLoan);
     return updatedLoan;
   }
 

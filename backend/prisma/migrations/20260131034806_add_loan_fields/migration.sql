@@ -1,0 +1,31 @@
+-- AlterTable
+ALTER TABLE "Loan" ADD COLUMN     "approvers" TEXT,
+ADD COLUMN     "autoDisbursement" BOOLEAN DEFAULT false,
+ADD COLUMN     "fineBase" TEXT,
+ADD COLUMN     "fineFrequency" TEXT,
+ADD COLUMN     "gracePeriod" INTEGER,
+ADD COLUMN     "guarantorAmount" DECIMAL(14,2),
+ADD COLUMN     "guarantorName" TEXT,
+ADD COLUMN     "guarantorNotified" BOOLEAN DEFAULT false,
+ADD COLUMN     "guarantorsRequired" BOOLEAN DEFAULT false,
+ADD COLUMN     "interestFrequency" TEXT,
+ADD COLUMN     "periodFlexible" TEXT,
+ADD COLUMN     "processingFee" DECIMAL(14,2),
+ADD COLUMN     "processingFeeType" TEXT,
+ADD COLUMN     "qualificationCriteria" TEXT;
+
+-- AlterTable
+ALTER TABLE "LoanType" ADD COLUMN     "approvers" TEXT,
+ADD COLUMN     "autoDisbursement" BOOLEAN DEFAULT false,
+ADD COLUMN     "fineBase" TEXT,
+ADD COLUMN     "fineFrequency" TEXT,
+ADD COLUMN     "gracePeriod" INTEGER,
+ADD COLUMN     "guarantorAmount" DECIMAL(14,2),
+ADD COLUMN     "guarantorName" TEXT,
+ADD COLUMN     "guarantorNotified" BOOLEAN DEFAULT false,
+ADD COLUMN     "guarantorsRequired" BOOLEAN DEFAULT false,
+ADD COLUMN     "interestFrequency" TEXT,
+ADD COLUMN     "periodFlexible" TEXT,
+ADD COLUMN     "processingFee" DECIMAL(14,2),
+ADD COLUMN     "processingFeeType" TEXT,
+ADD COLUMN     "qualificationCriteria" TEXT;

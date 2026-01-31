@@ -61,10 +61,18 @@ export class RepaymentsService {
 
       // Sync: Update loan balance
       const newLoanBalance = Math.max(0, Number(loan.balance) - repaymentData.amount);
-      await this.prisma.loan.update({
+      const updatedLoan = await this.prisma.loan.update({
         where: { id: repaymentData.loanId },
-        data: { balance: new Prisma.Decimal(newLoanBalance) }
+        data: { balance: new Prisma.Decimal(newLoanBalance) },
+        include: { loanType: true }
       });
+
+      // After repayment, re-check and impose fines if needed
+      // (import LoansService if not already, or move fine logic to a shared util)
+      const loansService = (global as any).loansServiceInstance;
+      if (loansService && typeof loansService.imposeFinesIfNeeded === 'function') {
+        await loansService.imposeFinesIfNeeded({ ...loan, ...updatedLoan });
+      }
 
       // Sync: Create journal entry
       const loanRepaymentAccount = await this.ensureAccountByName(

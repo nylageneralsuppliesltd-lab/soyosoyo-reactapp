@@ -1,3 +1,40 @@
+
+  // Get full loan statement (repayments, fines, schedule)
+  @Get(':id/statement')
+  async getLoanStatement(@Param('id') id: string) {
+    try {
+      const loan = await this.loansService.findOne(parseInt(id));
+      if (!loan) throw new Error('Loan not found');
+      // Get repayments and fines
+      const repayments = loan.repayments || [];
+      const fines = (loan.fines || []);
+      // Compose statement
+      return {
+        success: true,
+        data: {
+          loan,
+          repayments,
+          fines,
+          schedule: loan.schedule || [],
+        }
+      };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  // Get amortization table only
+  @Get(':id/amortization')
+  async getLoanAmortization(@Param('id') id: string) {
+    try {
+      const loan = await this.loansService.findOne(parseInt(id));
+      if (!loan) throw new Error('Loan not found');
+      return { success: true, schedule: loan.schedule || [] };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+import { EclService } from '../ifrs/ecl.service';
 import {
   Controller,
   Get,
@@ -15,7 +52,21 @@ import { LoansService } from './loans.service';
 
 @Controller('loans')
 export class LoansController {
-  constructor(private readonly loansService: LoansService) {}
+  constructor(
+    private readonly loansService: LoansService,
+    private readonly eclService: EclService
+  ) {}
+
+  // IFRS 9: Trigger ECL calculation and update all loans
+  @Post('ifrs/ecl')
+  async runEclCalculation() {
+    try {
+      const result = await this.eclService.runEcl(false, 'manual');
+      return { success: true, ...result };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
 
   @Post()
   async create(@Body() data: any) {

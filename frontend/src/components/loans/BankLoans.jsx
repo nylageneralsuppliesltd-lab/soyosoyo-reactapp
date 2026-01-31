@@ -1,4 +1,140 @@
-﻿// BankLoans.jsx - Bank & Institutional Loans (Inward Liabilities)
+﻿// BackendLoanStatement: Fetches loan statement from backend
+function BackendLoanStatement({ loanId }) {
+  const [statement, setStatement] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!loanId) return;
+    setLoading(true);
+    setError(null);
+    fetch(`${API_BASE}/loans/${loanId}/statement`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data) {
+          setStatement(data.data);
+        } else {
+          setError(data.message || 'Failed to load statement');
+        }
+      })
+      .catch(err => setError(err.message || 'Failed to load statement'))
+      .finally(() => setLoading(false));
+  }, [loanId]);
+
+  if (!loanId) return null;
+  if (loading) return <div>Loading statement...</div>;
+  if (error) return <div className="error-text">{error}</div>;
+  if (!statement) return <div>No statement available.</div>;
+
+  // Render repayments and fines as a simple table
+  return (
+    <div>
+      <h5>Repayments</h5>
+      {Array.isArray(statement.repayments) && statement.repayments.length > 0 ? (
+        <table className="statement-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Type</th>
+              <th>Reference</th>
+            </tr>
+          </thead>
+          <tbody>
+            {statement.repayments.map((r, idx) => (
+              <tr key={idx}>
+                <td>{r.date ? new Date(r.date).toLocaleDateString() : '--'}</td>
+                <td>KES {Number(r.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                <td>{r.type || 'Repayment'}</td>
+                <td>{r.reference || '--'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <div>No repayments recorded.</div>}
+      <h5>Fines</h5>
+      {Array.isArray(statement.fines) && statement.fines.length > 0 ? (
+        <table className="statement-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {statement.fines.map((f, idx) => (
+              <tr key={idx}>
+                <td>{f.date ? new Date(f.date).toLocaleDateString() : '--'}</td>
+                <td>KES {Number(f.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                <td>{f.reason || '--'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <div>No fines recorded.</div>}
+    </div>
+  );
+}
+// BankLoans.jsx - Bank & Institutional Loans (Inward Liabilities)
+// ...existing code...
+// ...existing code...
+// BackendAmortizationTable: Fetches amortization schedule from backend
+function BackendAmortizationTable({ loanId }) {
+  const [schedule, setSchedule] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!loanId) return;
+    setLoading(true);
+    setError(null);
+    fetch(`${API_BASE}/loans/${loanId}/amortization`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.schedule)) {
+          setSchedule(data.schedule);
+        } else {
+          setError(data.message || 'Failed to load schedule');
+        }
+      })
+      .catch(err => setError(err.message || 'Failed to load schedule'))
+      .finally(() => setLoading(false));
+  }, [loanId]);
+
+  if (!loanId) return null;
+  if (loading) return <div>Loading amortization table...</div>;
+  if (error) return <div className="error-text">{error}</div>;
+  if (!schedule || schedule.length === 0) return <div>No amortization schedule available.</div>;
+
+  return (
+    <table className="amortization-table">
+      <thead>
+        <tr>
+          <th>Installment</th>
+          <th>Principal</th>
+          <th>Interest</th>
+          <th>Total</th>
+          <th>Due Date</th>
+          <th>Paid</th>
+        </tr>
+      </thead>
+      <tbody>
+        {schedule.map((row, idx) => (
+          <tr key={idx}>
+            <td>{row.installment || row.month || idx + 1}</td>
+            <td>KES {Number(row.principal).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+            <td>KES {Number(row.interest).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+            <td>KES {Number(row.total || row.payment).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+            <td>{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '--'}</td>
+            <td>{row.paid ? 'Yes' : 'No'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 import React, { useState, useEffect } from 'react';
 import { Plus, Eye, Loader, AlertCircle, Trash2 } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
@@ -422,6 +558,16 @@ const BankLoans = ({ onError }) => {
                     <p>{selectedLoan.terms}</p>
                   </div>
                 )}
+              </div>
+              {/* Amortization Table (from backend) */}
+              <div className="amortization-table-section">
+                <h4>Amortization Table</h4>
+                <BackendAmortizationTable loanId={selectedLoan.id} />
+              </div>
+              {/* Loan Statement (from backend) */}
+              <div className="loan-statement-section">
+                <h4>Loan Statement</h4>
+                <BackendLoanStatement loanId={selectedLoan.id} />
               </div>
             </div>
             <div className="modal-footer">
