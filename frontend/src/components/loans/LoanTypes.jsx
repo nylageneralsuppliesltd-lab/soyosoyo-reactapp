@@ -15,6 +15,12 @@ const LoanTypes = ({ onError }) => {
     periodMonths: 12,
     interestRate: 10,
     interestType: 'flat',
+    repaymentFrequency: 'monthly',
+    amortizationMethod: 'equal_installment',
+    principalGrace: 0,
+    interestGrace: 0,
+    earlyRepaymentPenalty: 0,
+    glAccount: '',
     lateFineEnabled: false,
     lateFineType: 'fixed',
     lateFineValue: 0,
@@ -66,6 +72,12 @@ const LoanTypes = ({ onError }) => {
         periodMonths: 12,
         interestRate: 10,
         interestType: 'flat',
+        repaymentFrequency: 'monthly',
+        amortizationMethod: 'equal_installment',
+        principalGrace: 0,
+        interestGrace: 0,
+        earlyRepaymentPenalty: 0,
+        glAccount: '',
         lateFineEnabled: false,
         lateFineType: 'fixed',
         lateFineValue: 0,
@@ -102,6 +114,12 @@ const LoanTypes = ({ onError }) => {
       periodMonths: type.periodMonths || 12,
       interestRate: type.interestRate || 10,
       interestType: type.interestType || 'flat',
+      repaymentFrequency: type.repaymentFrequency || 'monthly',
+      amortizationMethod: type.amortizationMethod || 'equal_installment',
+      principalGrace: type.principalGrace || 0,
+      interestGrace: type.interestGrace || 0,
+      earlyRepaymentPenalty: type.earlyRepaymentPenalty || 0,
+      glAccount: type.glAccount || '',
       lateFineEnabled: type.lateFineEnabled || false,
       lateFineType: type.lateFineType || 'fixed',
       lateFineValue: type.lateFineValue || 0,
@@ -199,8 +217,70 @@ const LoanTypes = ({ onError }) => {
                   <option value="reducing">Reducing Balance</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label className="required">Repayment Frequency</label>
+                <select
+                  value={formData.repaymentFrequency}
+                  onChange={e => setFormData({ ...formData, repaymentFrequency: e.target.value })}
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="biweekly">Biweekly</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="quarterly">Quarterly</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="required">Amortization Method</label>
+                <select
+                  value={formData.amortizationMethod}
+                  onChange={e => setFormData({ ...formData, amortizationMethod: e.target.value })}
+                >
+                  <option value="equal_installment">Equal Installment</option>
+                  <option value="interest_only">Interest Only</option>
+                  <option value="bullet">Bullet (Lump Sum)</option>
+                </select>
+              </div>
             </div>
 
+            <div className="form-row">
+              <div className="form-group">
+                <label>Principal Grace Period (months)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.principalGrace}
+                  onChange={e => setFormData({ ...formData, principalGrace: parseInt(e.target.value) })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Interest Grace Period (months)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.interestGrace}
+                  onChange={e => setFormData({ ...formData, interestGrace: parseInt(e.target.value) })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Early Repayment Penalty (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.earlyRepaymentPenalty}
+                  onChange={e => setFormData({ ...formData, earlyRepaymentPenalty: parseFloat(e.target.value) })}
+                />
+              </div>
+              <div className="form-group">
+                <label>GL Account Code</label>
+                <input
+                  type="text"
+                  value={formData.glAccount}
+                  onChange={e => setFormData({ ...formData, glAccount: e.target.value })}
+                  placeholder="e.g., 1201"
+                />
+              </div>
+            </div>
             <div className="form-divider">Fine Settings</div>
 
             <div className="form-row">
