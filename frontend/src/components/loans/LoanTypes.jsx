@@ -9,28 +9,62 @@ const LoanTypes = ({ onError }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingType, setEditingType] = useState(null);
   const [formData, setFormData] = useState({
+    // Loan Details
+    nature: '',
     name: '',
+    description: '',
+    // Qualification
+    qualificationBasis: '',
     maxAmount: '',
     maxMultiple: '',
-    periodMonths: '12',
-    interestRate: '10',
-    interestType: 'flat',
-    repaymentFrequency: 'monthly',
-    amortizationMethod: 'equal_installment',
-    principalGrace: '0',
-    interestGrace: '0',
-    earlyRepaymentPenalty: '0',
-    glAccount: '',
+    minQualificationAmount: '',
+    maxQualificationAmount: '',
+    // Interest & Repayment
+    interestType: '',
+    interestRate: '',
+    interestRatePeriod: '',
+    periodType: '',
+    periodMonths: '',
+    repaymentSequence: '',
+    principalGrace: '',
+    interestGrace: '',
+    amortizationMethod: '',
+    repaymentFrequency: '',
+    reconciliationCriteria: '',
+    // Approvals
+    approvalOfficials: [],
+    approvalWorkflow: [],
+    minApprovals: '',
+    // Fines & Penalties
     lateFineEnabled: false,
-    lateFineType: 'fixed',
-    lateFineValue: '0',
+    lateFineType: '',
+    lateFineValue: '',
+    lateFineFrequency: '',
+    lateFineChargeOn: '',
     outstandingFineEnabled: false,
-    outstandingFineType: 'fixed',
-    outstandingFineValue: '0',
+    outstandingFineType: '',
+    outstandingFineValue: '',
+    outstandingFineFrequency: '',
+    outstandingFineChargeOn: '',
+    // Disbursement
+    autoDisburse: false,
+    disburseAccount: '',
+    // Guarantors
     requireGuarantors: 'no',
-    numGuarantors: '1',
+    whenGuarantorsRequired: '',
+    minGuarantors: '',
+    maxGuarantors: '',
+    guarantorType: '',
+    // Fees & Charges
+    processingFeeEnabled: false,
+    processingFeeType: '',
+    processingFeeValue: '',
+    disableProcessingIncome: false,
+    // Misc
+    glAccount: '',
     requireCollateral: 'no',
     requireInsurance: 'no',
+    customFields: '',
   });
   const [formErrors, setFormErrors] = useState({});
 
@@ -186,75 +220,128 @@ const LoanTypes = ({ onError }) => {
         <div className="form-card">
           <h3>{editingType ? 'Edit' : 'Create'} Loan Type</h3>
           <form onSubmit={handleSubmit} className="loan-type-form">
+            {/* Loan Details Section */}
+            <div className="form-divider">Loan Details</div>
             <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
               <div className="form-group">
-                <label className="required">Loan Type Name</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g., Education Loan"
-                />
+                <label className="required">Nature of the loan type?</label>
+                <select required value={formData.nature} onChange={e => setFormData({ ...formData, nature: e.target.value })}>
+                  <option value="">Select...</option>
+                  <option value="normal">Normal</option>
+                  <option value="emergency">Emergency</option>
+                  <option value="asset">Asset</option>
+                  <option value="school">School Fees</option>
+                  <option value="development">Development</option>
+                  <option value="other">Other</option>
+                </select>
               </div>
               <div className="form-group">
-                <label>Max Amount (KES)</label>
-                <input
-                  type="number"
-                  value={formData.maxAmount}
-                  onChange={e => setFormData({ ...formData, maxAmount: e.target.value })}
-                  placeholder="Leave blank if using multiple"
-                />
+                <label className="required">What is the loan type name?</label>
+                <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Emergency Loan" />
               </div>
               <div className="form-group">
-                <label>Max Multiple of Savings</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={formData.maxMultiple}
-                  onChange={e => setFormData({ ...formData, maxMultiple: e.target.value })}
-                  placeholder="e.g., 3"
-                />
+                <label>Description/Notes</label>
+                <input type="text" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Optional notes" />
               </div>
             </div>
 
+            {/* Qualification Section */}
+            <div className="form-divider">Member Qualification</div>
             <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
               <div className="form-group">
-                <label className="required">Period (Months)</label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  value={formData.periodMonths}
-                  onChange={e => setFormData({ ...formData, periodMonths: parseInt(e.target.value) })}
-                />
+                <label className="required">Member qualification amount is based on what?</label>
+                <select required value={formData.qualificationBasis} onChange={e => setFormData({ ...formData, qualificationBasis: e.target.value })}>
+                  <option value="">Select...</option>
+                  <option value="savings">Member Savings</option>
+                  <option value="shares">Member Shares</option>
+                  <option value="salary">Member Salary</option>
+                  <option value="guarantors">Guarantors</option>
+                  <option value="other">Other</option>
+                </select>
               </div>
               <div className="form-group">
-                <label className="required">Interest Rate (%)</label>
-                <input
-                  type="number"
-                  required
-                  step="0.1"
-                  value={formData.interestRate}
-                  onChange={e => setFormData({ ...formData, interestRate: parseFloat(e.target.value) })}
-                />
+                <label>How many times on member savings?</label>
+                <input type="number" min="1" value={formData.maxMultiple} onChange={e => setFormData({ ...formData, maxMultiple: e.target.value })} placeholder="e.g., 3" />
               </div>
               <div className="form-group">
-                <label className="required">Interest Type</label>
-                <select
-                  value={formData.interestType}
-                  onChange={e => setFormData({ ...formData, interestType: e.target.value })}
-                >
-                  <option value="flat">Flat Interest</option>
+                <label>Maximum qualification amount (KES)</label>
+                <input type="number" min="0" value={formData.maxQualificationAmount} onChange={e => setFormData({ ...formData, maxQualificationAmount: e.target.value })} placeholder="e.g., 500000" />
+              </div>
+              <div className="form-group">
+                <label>Minimum qualification amount (KES)</label>
+                <input type="number" min="0" value={formData.minQualificationAmount} onChange={e => setFormData({ ...formData, minQualificationAmount: e.target.value })} placeholder="e.g., 10000" />
+              </div>
+              <div className="form-group">
+                <label>Maximum loan amount (KES)</label>
+                <input type="number" min="0" value={formData.maxAmount} onChange={e => setFormData({ ...formData, maxAmount: e.target.value })} placeholder="e.g., 1000000" />
+              </div>
+            </div>
+
+            {/* Interest & Repayment Section */}
+            <div className="form-divider">Interest & Repayment</div>
+            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
+              <div className="form-group">
+                <label className="required">How is the interest charged?</label>
+                <select required value={formData.interestType} onChange={e => setFormData({ ...formData, interestType: e.target.value })}>
+                  <option value="">Select...</option>
+                  <option value="flat">Fixed Balance</option>
                   <option value="reducing">Reducing Balance</option>
                 </select>
               </div>
               <div className="form-group">
-                <label className="required">Repayment Frequency</label>
-                <select
-                  value={formData.repaymentFrequency}
-                  onChange={e => setFormData({ ...formData, repaymentFrequency: e.target.value })}
-                >
+                <label className="required">What is the interest rate?</label>
+                <input type="number" required min="0" step="0.01" value={formData.interestRate} onChange={e => setFormData({ ...formData, interestRate: e.target.value })} placeholder="e.g., 5" />
+              </div>
+              <div className="form-group">
+                <label className="required">The interest rate is charged per?</label>
+                <select required value={formData.interestRatePeriod} onChange={e => setFormData({ ...formData, interestRatePeriod: e.target.value })}>
+                  <option value="">Select...</option>
+                  <option value="month">Per Month</option>
+                  <option value="year">Per Year</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="required">Is the repayment period fixed or varying?</label>
+                <select required value={formData.periodType} onChange={e => setFormData({ ...formData, periodType: e.target.value })}>
+                  <option value="">Select...</option>
+                  <option value="fixed">Fixed</option>
+                  <option value="varying">Varying</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="required">Repayment period (months)?</label>
+                <input type="number" required min="1" value={formData.periodMonths} onChange={e => setFormData({ ...formData, periodMonths: e.target.value })} placeholder="e.g., 12" />
+              </div>
+              <div className="form-group">
+                <label className="required">What is the sequence of repaying the loan?</label>
+                <select required value={formData.repaymentSequence} onChange={e => setFormData({ ...formData, repaymentSequence: e.target.value })}>
+                  <option value="">Select...</option>
+                  <option value="principal_first">Principal First</option>
+                  <option value="interest_first">Interest First</option>
+                  <option value="both">Both</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>After how long are members expected to repay the loan? (months)</label>
+                <input type="number" min="0" value={formData.principalGrace} onChange={e => setFormData({ ...formData, principalGrace: e.target.value })} placeholder="e.g., 3" />
+              </div>
+              <div className="form-group">
+                <label>How long does a member have before they start repaying the loan? (grace period, months)</label>
+                <input type="number" min="0" value={formData.interestGrace} onChange={e => setFormData({ ...formData, interestGrace: e.target.value })} placeholder="e.g., 1" />
+              </div>
+              <div className="form-group">
+                <label>Amortization Method</label>
+                <select value={formData.amortizationMethod} onChange={e => setFormData({ ...formData, amortizationMethod: e.target.value })}>
+                  <option value="">Select...</option>
+                  <option value="equal_installment">Equal Installment</option>
+                  <option value="interest_only">Interest Only</option>
+                  <option value="bullet">Bullet (Lump Sum)</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Repayment Frequency</label>
+                <select value={formData.repaymentFrequency} onChange={e => setFormData({ ...formData, repaymentFrequency: e.target.value })}>
+                  <option value="">Select...</option>
                   <option value="monthly">Monthly</option>
                   <option value="biweekly">Biweekly</option>
                   <option value="weekly">Weekly</option>
@@ -262,129 +349,226 @@ const LoanTypes = ({ onError }) => {
                 </select>
               </div>
               <div className="form-group">
-                <label className="required">Amortization Method</label>
-                <select
-                  value={formData.amortizationMethod}
-                  onChange={e => setFormData({ ...formData, amortizationMethod: e.target.value })}
-                >
-                  <option value="equal_installment">Equal Installment</option>
-                  <option value="interest_only">Interest Only</option>
-                  <option value="bullet">Bullet (Lump Sum)</option>
+                <label>Reconciliation criteria upon loan repayment?</label>
+                <select value={formData.reconciliationCriteria} onChange={e => setFormData({ ...formData, reconciliationCriteria: e.target.value })}>
+                  <option value="">Select...</option>
+                  <option value="fifo">FIFO</option>
+                  <option value="lifo">LIFO</option>
+                  <option value="custom">Custom</option>
                 </select>
               </div>
             </div>
 
+            {/* Approvals Section */}
+            <div className="form-divider">Loan Application Approvals</div>
             <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
               <div className="form-group">
-                <label>Principal Grace Period (months)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.principalGrace}
-                  onChange={e => setFormData({ ...formData, principalGrace: parseInt(e.target.value) })}
-                />
+                <label>Who are the group officials that have to approve loan applications for this loan type?</label>
+                <input type="text" value={formData.approvalOfficials.join(', ')} onChange={e => setFormData({ ...formData, approvalOfficials: e.target.value.split(',').map(s => s.trim()) })} placeholder="Type or select officials" />
               </div>
               <div className="form-group">
-                <label>Interest Grace Period (months)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.interestGrace}
-                  onChange={e => setFormData({ ...formData, interestGrace: parseInt(e.target.value) })}
-                />
+                <label>Approval workflow order (comma separated)</label>
+                <input type="text" value={formData.approvalWorkflow.join(', ')} onChange={e => setFormData({ ...formData, approvalWorkflow: e.target.value.split(',').map(s => s.trim()) })} placeholder="e.g., Ivan Safari, James Ngari Charo" />
               </div>
               <div className="form-group">
-                <label>Early Repayment Penalty (%)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.earlyRepaymentPenalty}
-                  onChange={e => setFormData({ ...formData, earlyRepaymentPenalty: parseFloat(e.target.value) })}
-                />
+                <label>Minimum number of approvals required</label>
+                <input type="number" min="1" value={formData.minApprovals} onChange={e => setFormData({ ...formData, minApprovals: e.target.value })} placeholder="e.g., 2" />
               </div>
+            </div>
+
+            {/* Fines & Penalties Section */}
+            <div className="form-divider">Fine Details</div>
+            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
+              <div className="form-group checkbox">
+                <label>
+                  <input type="checkbox" checked={formData.lateFineEnabled} onChange={e => setFormData({ ...formData, lateFineEnabled: e.target.checked })} />
+                  Do you charge fines for late loan installment payments?
+                </label>
+              </div>
+              {formData.lateFineEnabled && <>
+                <div className="form-group">
+                  <label>What type of Late Loan Payment fine do you charge?</label>
+                  <select value={formData.lateFineType} onChange={e => setFormData({ ...formData, lateFineType: e.target.value })}>
+                    <option value="">Select...</option>
+                    <option value="fixed">Fixed</option>
+                    <option value="percentage">Percentage</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Late Fine Value</label>
+                  <input type="number" min="0" value={formData.lateFineValue} onChange={e => setFormData({ ...formData, lateFineValue: e.target.value })} placeholder="e.g., 2" />
+                </div>
+                <div className="form-group">
+                  <label>Fine Frequency</label>
+                  <select value={formData.lateFineFrequency} onChange={e => setFormData({ ...formData, lateFineFrequency: e.target.value })}>
+                    <option value="">Select...</option>
+                    <option value="once">Once</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Fine Charge on</label>
+                  <select value={formData.lateFineChargeOn} onChange={e => setFormData({ ...formData, lateFineChargeOn: e.target.value })}>
+                    <option value="">Select...</option>
+                    <option value="principal">Principal</option>
+                    <option value="interest">Interest</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+              </>}
+              <div className="form-group checkbox">
+                <label>
+                  <input type="checkbox" checked={formData.outstandingFineEnabled} onChange={e => setFormData({ ...formData, outstandingFineEnabled: e.target.checked })} />
+                  Do you charge fines for any outstanding loan balances at the end of the Loan?
+                </label>
+              </div>
+              {formData.outstandingFineEnabled && <>
+                <div className="form-group">
+                  <label>What type of fine do you charge for outstanding balances?</label>
+                  <select value={formData.outstandingFineType} onChange={e => setFormData({ ...formData, outstandingFineType: e.target.value })}>
+                    <option value="">Select...</option>
+                    <option value="fixed">Fixed</option>
+                    <option value="percentage">Percentage</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Outstanding Fine Value</label>
+                  <input type="number" min="0" value={formData.outstandingFineValue} onChange={e => setFormData({ ...formData, outstandingFineValue: e.target.value })} placeholder="e.g., 2" />
+                </div>
+                <div className="form-group">
+                  <label>Fine Frequency</label>
+                  <select value={formData.outstandingFineFrequency} onChange={e => setFormData({ ...formData, outstandingFineFrequency: e.target.value })}>
+                    <option value="">Select...</option>
+                    <option value="once">Once</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Fine Charge on</label>
+                  <select value={formData.outstandingFineChargeOn} onChange={e => setFormData({ ...formData, outstandingFineChargeOn: e.target.value })}>
+                    <option value="">Select...</option>
+                    <option value="principal">Principal</option>
+                    <option value="interest">Interest</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+              </>}
+            </div>
+
+            {/* Disbursement Section */}
+            <div className="form-divider">Disbursement Details</div>
+            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
+              <div className="form-group checkbox">
+                <label>
+                  <input type="checkbox" checked={formData.autoDisburse} onChange={e => setFormData({ ...formData, autoDisburse: e.target.checked })} />
+                  Do you wish to enable automatic disbursement after approvals?
+                </label>
+              </div>
+              <div className="form-group">
+                <label>Account to Disburse</label>
+                <input type="text" value={formData.disburseAccount} onChange={e => setFormData({ ...formData, disburseAccount: e.target.value })} placeholder="e.g., Main Bank Account" />
+              </div>
+            </div>
+
+            {/* Guarantors Section */}
+            <div className="form-divider">Guarantor Details</div>
+            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
+              <div className="form-group">
+                <label>Do you require guarantors for this loan type?</label>
+                <select value={formData.requireGuarantors} onChange={e => setFormData({ ...formData, requireGuarantors: e.target.value })}>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+              {formData.requireGuarantors === 'yes' && <>
+                <div className="form-group">
+                  <label>When are members required to submit guarantors?</label>
+                  <select value={formData.whenGuarantorsRequired} onChange={e => setFormData({ ...formData, whenGuarantorsRequired: e.target.value })}>
+                    <option value="">Select...</option>
+                    <option value="every_time">Every time a member is applying for a loan</option>
+                    <option value="above_max">When a member's loan application exceeds the maximum loan amount</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Minimum Allowed Guarantors</label>
+                  <input type="number" min="0" value={formData.minGuarantors} onChange={e => setFormData({ ...formData, minGuarantors: e.target.value })} placeholder="e.g., 2" />
+                </div>
+                <div className="form-group">
+                  <label>Maximum Allowed Guarantors</label>
+                  <input type="number" min="0" value={formData.maxGuarantors} onChange={e => setFormData({ ...formData, maxGuarantors: e.target.value })} placeholder="e.g., 5" />
+                </div>
+                <div className="form-group">
+                  <label>Guarantor Type</label>
+                  <select value={formData.guarantorType} onChange={e => setFormData({ ...formData, guarantorType: e.target.value })}>
+                    <option value="">Select...</option>
+                    <option value="member">Member</option>
+                    <option value="external">External</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+              </>}
+            </div>
+
+            {/* Fees & Charges Section */}
+            <div className="form-divider">Fees & Charges</div>
+            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
+              <div className="form-group checkbox">
+                <label>
+                  <input type="checkbox" checked={formData.processingFeeEnabled} onChange={e => setFormData({ ...formData, processingFeeEnabled: e.target.checked })} />
+                  Do you charge a loan processing fee for this loan type?
+                </label>
+              </div>
+              {formData.processingFeeEnabled && <>
+                <div className="form-group">
+                  <label>Loan processing fee type:</label>
+                  <select value={formData.processingFeeType} onChange={e => setFormData({ ...formData, processingFeeType: e.target.value })}>
+                    <option value="">Select...</option>
+                    <option value="fixed">Fixed Amount</option>
+                    <option value="percentage">Percentage</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Processing Fee Value</label>
+                  <input type="number" min="0" value={formData.processingFeeValue} onChange={e => setFormData({ ...formData, processingFeeValue: e.target.value })} placeholder="e.g., 500" />
+                </div>
+              </>}
+              <div className="form-group checkbox">
+                <label>
+                  <input type="checkbox" checked={formData.disableProcessingIncome} onChange={e => setFormData({ ...formData, disableProcessingIncome: e.target.checked })} />
+                  Disable Automated Loan Processing Income Recording
+                </label>
+              </div>
+            </div>
+
+            {/* Misc Section */}
+            <div className="form-divider">Miscellaneous</div>
+            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
               <div className="form-group">
                 <label>GL Account Code</label>
-                <input
-                  type="text"
-                  value={formData.glAccount}
-                  onChange={e => setFormData({ ...formData, glAccount: e.target.value })}
-                  placeholder="e.g., 1201"
-                />
+                <input type="text" value={formData.glAccount} onChange={e => setFormData({ ...formData, glAccount: e.target.value })} placeholder="e.g., 1201" />
               </div>
-            </div>
-            <div className="form-divider">Fine Settings</div>
-
-            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
-              <div className="form-group checkbox">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={formData.lateFineEnabled}
-                    onChange={e => setFormData({ ...formData, lateFineEnabled: e.target.checked })}
-                  />
-                  Charge late payment fines
-                </label>
+              <div className="form-group">
+                <label>Require Collateral?</label>
+                <select value={formData.requireCollateral} onChange={e => setFormData({ ...formData, requireCollateral: e.target.value })}>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
               </div>
-              {formData.lateFineEnabled && (
-                <>
-                  <div className="form-group">
-                    <label>Late Fine Type</label>
-                    <select
-                      value={formData.lateFineType}
-                      onChange={e => setFormData({ ...formData, lateFineType: e.target.value })}
-                    >
-                      <option value="fixed">Fixed Amount</option>
-                      <option value="percentage">Percentage</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Late Fine Value</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.lateFineValue}
-                      onChange={e => setFormData({ ...formData, lateFineValue: parseFloat(e.target.value) })}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="form-row">
-              <div className="form-group checkbox">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={formData.outstandingFineEnabled}
-                    onChange={e => setFormData({ ...formData, outstandingFineEnabled: e.target.checked })}
-                  />
-                  Charge outstanding balance fines
-                </label>
+              <div className="form-group">
+                <label>Require Insurance?</label>
+                <select value={formData.requireInsurance} onChange={e => setFormData({ ...formData, requireInsurance: e.target.value })}>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
               </div>
-              {formData.outstandingFineEnabled && (
-                <>
-                  <div className="form-group">
-                    <label>Outstanding Fine Type</label>
-                    <select
-                      value={formData.outstandingFineType}
-                      onChange={e => setFormData({ ...formData, outstandingFineType: e.target.value })}
-                    >
-                      <option value="fixed">Fixed Amount</option>
-                      <option value="percentage">Percentage</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Outstanding Fine Value</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.outstandingFineValue}
-                      onChange={e => setFormData({ ...formData, outstandingFineValue: parseFloat(e.target.value) })}
-                    />
-                  </div>
-                </>
-              )}
+              <div className="form-group">
+                <label>Custom Fields (JSON or notes)</label>
+                <input type="text" value={formData.customFields} onChange={e => setFormData({ ...formData, customFields: e.target.value })} placeholder="Optional custom fields" />
+              </div>
             </div>
 
             <div className="form-actions">
