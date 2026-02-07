@@ -1,258 +1,494 @@
-﻿// LoanTypes.jsx - Configure Loan Products
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Loader, AlertCircle } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import '../../styles/loanTypes.css';
 
-const LoanTypes = ({ onError }) => { 
+
+// All fields from LoanType model in schema.prisma
+// Only relevant, non-duplicated fields for user input
+const initialForm = {
+  name: '',
+  description: '',
+  nature: '',
+  qualificationBasis: '',
+  maxAmount: '',
+  maxMultiple: '',
+  minQualificationAmount: '',
+  periodMonths: '',
+  interestRate: '',
+  interestType: '',
+  interestRatePeriod: '',
+  periodFlexible: '',
+  repaymentSequence: '',
+  gracePeriod: '',
+  amortizationMethod: '',
+  repaymentFrequency: '',
+  reconciliationCriteria: '',
+  minApprovals: '',
+  approvers: '',
+  fineFrequency: '',
+  fineBase: '',
+  lateFineEnabled: false,
+  lateFineType: '',
+  lateFineValue: '',
+  lateFineFrequency: '',
+  lateFineChargeOn: '',
+  outstandingFineEnabled: false,
+  outstandingFineType: '',
+  outstandingFineValue: '',
+  outstandingFineFrequency: '',
+  outstandingFineChargeOn: '',
+  autoDisburse: false,
+  disburseAccount: '',
+  processingFeeEnabled: false,
+  processingFeeType: '',
+  processingFeeValue: '',
+  processingFeePercentageOf: '',
+  disableProcessingIncome: false,
+  requireGuarantors: 'no',
+  whenGuarantorsRequired: '',
+  minGuarantors: '',
+  guarantorType: '',
+  requireCollateral: 'no',
+  requireInsurance: 'no',
+  glAccount: '',
+};
+
+const LoanTypes = ({ onError }) => {
   const [loanTypes, setLoanTypes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
   const [editingType, setEditingType] = useState(null);
-  const [formData, setFormData] = useState({
-    // Loan Details
-    name: '',
-    description: '',
-    maxAmount: '',
-    maxMultiple: '',
-    periodMonths: '',
-    interestRate: '',
-    interestType: '',
-    // Backend-aligned fields
-    lateFinesEnabled: false,
-    lateFinesType: '',
-    lateFinesValue: '',
-    outstandingFinesEnabled: false,
-    outstandingFinesType: '',
-    outstandingFinesValue: '',
-    qualificationCriteria: '',
-    interestFrequency: '',
-    periodFlexible: false,
-    gracePeriod: '',
-    approvers: '',
-    fineFrequency: '',
-    fineBase: '',
-    autoDisbursement: false,
-    processingFee: '',
-    processingFeeType: '',
-    guarantorsRequired: false,
-    guarantorName: '',
-    guarantorAmount: '',
-    guarantorNotified: false,
-  });
+  const [uiMessage, setUiMessage] = useState(null);
+  const [formData, setFormData] = useState(initialForm);
   const [formErrors, setFormErrors] = useState({});
+  const [formLoading, setFormLoading] = useState(false);
+  const [reload, setReload] = useState(0); // trigger for reloading loan types
+  const [members, setMembers] = useState([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [approverSearch, setApproverSearch] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
+  // Fetch members for approvers list
   useEffect(() => {
-    fetchLoanTypes();
+    setMembersLoading(true);
+    fetch(`${API_BASE}/members`)
+      .then(res => res.json())
+      .then(data => {
+        const list = Array.isArray(data) ? data : (data.data || []);
+        setMembers(list);
+      })
+      .catch(() => {
+        setMembers([]);
+      })
+      .finally(() => setMembersLoading(false));
   }, []);
 
-  const fetchLoanTypes = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${API_BASE}/loan-types`);
-      if (!response.ok) throw new Error('Failed to fetch loan types');
-      const data = await response.json();
-      setLoanTypes(data.data || []);
-    } catch (err) {
-      onError?.(err.message);
-    } finally {
-      setLoading(false);
-    }
+  // Fetch loan types
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API_BASE}/loan-types`)
+      .then(res => res.json())
+      .then(data => {
+        setLoanTypes(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(err => {
+        setLoading(false);
+        setLoanTypes([]);
+        if (onError) onError('Failed to load loan types');
+      });
+  }, [reload]);
+
+  // Handle form field changes
+  const handleChange = e => {
+    const { name, value, type, checked } = e.target;
+    setFormData(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
+    if (formErrors[name]) setFormErrors(f => ({ ...f, [name]: null }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    // Validate required fields
+  const handleApproversChange = (memberName) => {
+    const currentApprovers = formData.approvers ? formData.approvers.split(', ').filter(Boolean) : [];
+    const isSelected = currentApprovers.includes(memberName);
+    
+    const updatedApprovers = isSelected
+      ? currentApprovers.filter(name => name !== memberName)
+      : [...currentApprovers, memberName];
+    
+    setFormData(f => ({ ...f, approvers: updatedApprovers.join(', ') }));
+    if (formErrors.approvers) setFormErrors(f => ({ ...f, approvers: null }));
+  };
+
+  // Open form for new or edit
+  const openForm = (type = null) => {
+    if (type) {
+      setEditingType(type);
+      setFormData({ ...initialForm, ...type });
+    } else {
+      setEditingType(null);
+      setFormData(initialForm);
+    }
+    setUiMessage(null);
+    setFormErrors({});
+    setShowForm(true);
+    // Scroll to form
+    setTimeout(() => {
+      document.querySelector('.loan-types-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
+
+  // Validate form
+  const validateForm = () => {
     const errors = {};
     if (!formData.name || formData.name.trim().length < 2) errors.name = 'Name is required';
     if (!formData.periodMonths || isNaN(Number(formData.periodMonths)) || Number(formData.periodMonths) <= 0) errors.periodMonths = 'Period is required';
     if (!formData.interestRate || isNaN(Number(formData.interestRate)) || Number(formData.interestRate) < 0) errors.interestRate = 'Interest rate is required';
     if (!formData.interestType) errors.interestType = 'Interest type is required';
-    if (!formData.repaymentFrequency) errors.repaymentFrequency = 'Repayment frequency is required';
-    if (!formData.amortizationMethod) errors.amortizationMethod = 'Amortization method is required';
-    if (formData.requireGuarantors === 'yes' && (!formData.numGuarantors || isNaN(Number(formData.numGuarantors)) || Number(formData.numGuarantors) < 1)) errors.numGuarantors = 'Number of guarantors required';
-    setFormErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    return errors;
+  };
 
-    // Prepare payload, ensure all numbers are valid and fields match backend
+  // Submit form (create or update)
+  const handleSubmit = e => {
+    e.preventDefault();
+    setUiMessage(null);
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    setFormLoading(true);
+    
+    // Prepare payload with proper type conversions
     const payload = {
       name: formData.name,
-      description: formData.description,
+      description: formData.description || null,
+      nature: formData.nature || null,
+      qualificationBasis: formData.qualificationBasis || null,
       maxAmount: formData.maxAmount ? parseFloat(formData.maxAmount) : null,
       maxMultiple: formData.maxMultiple ? parseFloat(formData.maxMultiple) : null,
-      periodMonths: formData.periodMonths ? parseInt(formData.periodMonths) : null,
+      minQualificationAmount: formData.minQualificationAmount ? parseFloat(formData.minQualificationAmount) : null,
+      periodMonths: formData.periodMonths ? parseInt(formData.periodMonths) : 12,
+      periodType: formData.periodType || null,
       interestRate: formData.interestRate ? parseFloat(formData.interestRate) : null,
-      interestType: formData.interestType,
-      lateFinesEnabled: !!formData.lateFinesEnabled,
-      lateFinesType: formData.lateFinesType,
-      lateFinesValue: formData.lateFinesValue ? parseFloat(formData.lateFinesValue) : null,
-      outstandingFinesEnabled: !!formData.outstandingFinesEnabled,
-      outstandingFinesType: formData.outstandingFinesType,
-      outstandingFinesValue: formData.outstandingFinesValue ? parseFloat(formData.outstandingFinesValue) : null,
-      qualificationCriteria: formData.qualificationCriteria,
-      interestFrequency: formData.interestFrequency,
-      periodFlexible: !!formData.periodFlexible,
+      interestType: formData.interestType || 'flat',
+      interestRatePeriod: formData.interestRatePeriod || null,
+      interestFrequency: formData.interestFrequency || null,
+      periodFlexible: formData.periodFlexible || null,
       gracePeriod: formData.gracePeriod ? parseInt(formData.gracePeriod) : null,
-      approvers: Array.isArray(formData.approvers) ? formData.approvers.join(',') : formData.approvers,
-      fineFrequency: formData.fineFrequency,
-      fineBase: formData.fineBase,
-      autoDisbursement: !!formData.autoDisbursement,
-      processingFee: formData.processingFee ? parseFloat(formData.processingFee) : null,
-      processingFeeType: formData.processingFeeType,
-      guarantorsRequired: !!formData.guarantorsRequired,
-      guarantorName: formData.guarantorName,
-      guarantorAmount: formData.guarantorAmount ? parseFloat(formData.guarantorAmount) : null,
-      guarantorNotified: !!formData.guarantorNotified,
+      amortizationMethod: formData.amortizationMethod || null,
+      repaymentFrequency: formData.repaymentFrequency || null,
+      repaymentSequence: formData.repaymentSequence || null,
+      reconciliationCriteria: formData.reconciliationCriteria || null,
+      minApprovals: formData.minApprovals ? parseInt(formData.minApprovals) : null,
+      approvers: formData.approvers || null,
+      fineFrequency: formData.fineFrequency || null,
+      fineBase: formData.fineBase || null,
+      lateFineEnabled: !!formData.lateFineEnabled,
+      lateFineType: formData.lateFineType || null,
+      lateFineValue: formData.lateFineValue ? parseFloat(formData.lateFineValue) : null,
+      lateFineFrequency: formData.lateFineFrequency || null,
+      lateFineChargeOn: formData.lateFineChargeOn || null,
+      outstandingFineEnabled: !!formData.outstandingFineEnabled,
+      outstandingFineType: formData.outstandingFineType || null,
+      outstandingFineValue: formData.outstandingFineValue ? parseFloat(formData.outstandingFineValue) : null,
+      outstandingFineFrequency: formData.outstandingFineFrequency || null,
+      outstandingFineChargeOn: formData.outstandingFineChargeOn || null,
+      autoDisburse: !!formData.autoDisburse,
+      disburseAccount: formData.disburseAccount || null,
+      autoDisbursement: !!formData.autoDisburse, // Match backend expectation
+      processingFeeEnabled: !!formData.processingFeeEnabled,
+      processingFeeType: formData.processingFeeType || null,
+      processingFeeValue: formData.processingFeeValue ? parseFloat(formData.processingFeeValue) : null,
+        processingFeePercentageOf: formData.processingFeePercentageOf || null,
+      disableProcessingIncome: !!formData.disableProcessingIncome,
+      // String fields - use "yes"/"no"
+      requireGuarantors: formData.requireGuarantors === 'yes' ? 'yes' : 'no',
+      whenGuarantorsRequired: formData.whenGuarantorsRequired || null,
+      minGuarantors: formData.minGuarantors ? parseInt(formData.minGuarantors) : null,
+      guarantorType: formData.guarantorType || null,
+      requireCollateral: formData.requireCollateral || 'no',
+      requireInsurance: formData.requireInsurance || 'no',
+      glAccount: formData.glAccount || null,
     };
+    
+    const method = editingType ? 'PATCH' : 'POST';
+    const url = editingType ? `${API_BASE}/loan-types/${editingType.id}` : `${API_BASE}/loan-types`;
 
-    try {
-      const url = editingType ? `${API_BASE}/loan-types/${editingType.id}` : `${API_BASE}/loan-types`;
-      const method = editingType ? 'PUT' : 'POST';
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) throw new Error('Failed to save loan type');
-      onError?.('Loan type saved successfully!');
-      setTimeout(() => onError?.(null), 3000);
-      setShowForm(false);
-      setEditingType(null);
-      setFormData({
-        name: '',
-        maxAmount: '',
-        maxMultiple: '',
-        periodMonths: '12',
-        interestRate: '10',
-        interestType: 'flat',
-        repaymentFrequency: 'monthly',
-        amortizationMethod: 'equal_installment',
-        principalGrace: '0',
-        interestGrace: '0',
-        earlyRepaymentPenalty: '0',
-        glAccount: '',
-        lateFineEnabled: false,
-        lateFineType: 'fixed',
-        lateFineValue: '0',
-        outstandingFineEnabled: false,
-        outstandingFineType: 'fixed',
-        outstandingFineValue: '0',
-        requireGuarantors: 'no',
-        numGuarantors: '1',
-        requireCollateral: 'no',
-        requireInsurance: 'no',
-      });
-      fetchLoanTypes();
-    } catch (err) {
-      onError?.(err.message);
-    }
+    fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(res => res.json())
+      .then(result => {
+        if (result.success) {
+          setUiMessage('Loan type saved successfully!');
+          setEditingType(null);
+          setFormData(initialForm);
+          setShowForm(false);
+          setReload(r => r + 1); // trigger reload
+        } else {
+          setUiMessage(result.message || 'Failed to save loan type');
+        }
+      })
+      .catch(() => {
+        setUiMessage('Failed to save loan type');
+      })
+      .finally(() => setFormLoading(false));
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this loan type?')) return;
-    try {
-      const response = await fetch(`/api/loan-types/${id}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Failed to delete loan type');
-      onError?.('Loan type deleted');
-      setTimeout(() => onError?.(null), 3000);
-      fetchLoanTypes();
-    } catch (err) {
-      onError?.(err.message);
-    }
+  // Delete loan type
+  const handleDelete = id => {
+    if (!window.confirm('Are you sure you want to delete this loan type?')) return;
+    setLoading(true);
+    fetch(`${API_BASE}/loan-types/${id}`, { method: 'DELETE' })
+      .then(res => res.json())
+      .then(result => {
+        if (result.success) {
+          setUiMessage('Loan type deleted');
+          setReload(r => r + 1); // trigger reload
+        } else {
+          setUiMessage(result.message || 'Failed to delete loan type');
+        }
+      })
+      .catch(() => {
+        setUiMessage('Failed to delete loan type');
+      })
+      .finally(() => setLoading(false));
   };
-
-  const handleEdit = (type) => {
-    setFormData({
-      // Loan Details
-      nature: type.nature || '',
-      name: type.name || '',
-      description: type.description || '',
-      // Qualification
-      qualificationBasis: type.qualificationBasis || '',
-      maxAmount: type.maxAmount || '',
-      maxMultiple: type.maxMultiple || '',
-      minQualificationAmount: type.minQualificationAmount || '',
-      maxQualificationAmount: type.maxQualificationAmount || '',
-      // Interest & Repayment
-      interestType: type.interestType || '',
-      interestRate: type.interestRate || '',
-      interestRatePeriod: type.interestRatePeriod || '',
-      periodType: type.periodType || '',
-      periodMonths: type.periodMonths || '',
-      repaymentSequence: type.repaymentSequence || '',
-      principalGrace: type.principalGrace || '',
-      interestGrace: type.interestGrace || '',
-      amortizationMethod: type.amortizationMethod || '',
-      repaymentFrequency: type.repaymentFrequency || '',
-      reconciliationCriteria: type.reconciliationCriteria || '',
-      // Approvals
-      approvalOfficials: type.approvalOfficials || [],
-      approvalWorkflow: type.approvalWorkflow || [],
-      minApprovals: type.minApprovals || '',
-      // Fines & Penalties
-      lateFineEnabled: type.lateFineEnabled || false,
-      lateFineType: type.lateFineType || '',
-      lateFineValue: type.lateFineValue || '',
-      lateFineFrequency: type.lateFineFrequency || '',
-      lateFineChargeOn: type.lateFineChargeOn || '',
-      outstandingFineEnabled: type.outstandingFineEnabled || false,
-      outstandingFineType: type.outstandingFineType || '',
-      outstandingFineValue: type.outstandingFineValue || '',
-      outstandingFineFrequency: type.outstandingFineFrequency || '',
-      outstandingFineChargeOn: type.outstandingFineChargeOn || '',
-      // Disbursement
-      autoDisburse: type.autoDisburse || false,
-      disburseAccount: type.disburseAccount || '',
-      // Guarantors
-      requireGuarantors: type.requireGuarantors || 'no',
-      whenGuarantorsRequired: type.whenGuarantorsRequired || '',
-      minGuarantors: type.minGuarantors || '',
-      maxGuarantors: type.maxGuarantors || '',
-      guarantorType: type.guarantorType || '',
-      // Fees & Charges
-      processingFeeEnabled: type.processingFeeEnabled || false,
-      processingFeeType: type.processingFeeType || '',
-      processingFeeValue: type.processingFeeValue || '',
-      disableProcessingIncome: type.disableProcessingIncome || false,
-      // Misc
-      glAccount: type.glAccount || '',
-      requireCollateral: type.requireCollateral || 'no',
-      requireInsurance: type.requireInsurance || 'no',
-      customFields: type.customFields || '',
-    });
-    setShowForm(true);
-    setEditingType(type);
-  };
-
-  if (loading) {
-    return (
-      <div className="loading-state">
-        <Loader size={32} className="spinner" />
-        <p>Loading loan types...</p>
-      </div>
-    );
-  }
 
   return (
-    <div className="loans-section">
-      <div className="section-header">
-        <h2>Loan Types Configuration</h2>
-        <button className="btn-primary" onClick={() => { setShowForm(!showForm); setEditingType(null); }}>
-          <Plus size={18} />
-          New Loan Type
+    <div className="loan-types-container">
+      <div className="loan-types-header">
+        <div>
+          <h1>Loan Types Management</h1>
+          <p className="form-subtitle">Create and manage loan types for your SACCO</p>
+        </div>
+        <button 
+          className="btn-primary-new" 
+          onClick={() => openForm()}
+        >
+          <Plus size={18} /> New Loan Type
         </button>
       </div>
 
-      {/* Form */}
+      {uiMessage && (
+        <div className={`alert alert-${uiMessage.includes('success') ? 'success' : 'error'}`}>{uiMessage}</div>
+      )}
+
+      {/* Loan Types Grid - Premium Cards Display */}
+      <div className="loan-types-grid-wrapper">
+        {loading ? (
+          <div className="loading-state">
+            <Loader className="spinner" size={32} /> Loading loan types...
+          </div>
+        ) : loanTypes.length === 0 ? (
+          <div className="empty-state">
+            <AlertCircle size={48} />
+            <h3>No Loan Types Yet</h3>
+            <p>Create your first loan type to get started</p>
+            <button className="btn-primary-new" onClick={() => openForm()}>
+              <Plus size={16} /> Create Loan Type
+            </button>
+          </div>
+        ) : (
+          <div className="loan-types-list">
+            {loanTypes.map(type => (
+              <div key={type.id} className="loan-type-row">
+                <div className="loan-type-name">
+                  <span className="name-text">{type.name}</span>
+                  <span className={`nature-badge ${type.nature || 'default'}`}>
+                    {type.nature ? type.nature.charAt(0).toUpperCase() + type.nature.slice(1) : 'N/A'}
+                  </span>
+                </div>
+                
+                {type.description && (
+                  <div className="loan-type-description">
+                    {type.description}
+                  </div>
+                )}
+                
+                <div className="loan-type-details-comprehensive">
+                  {/* Interest & Repayment Section */}
+                  <div className="detail-section">
+                    <h4 className="section-label">Interest & Repayment</h4>
+                    <div className="detail-grid">
+                      <span className="detail-item">
+                        <strong>Type:</strong> {type.interestType || 'N/A'}
+                      </span>
+                      <span className="detail-item">
+                        <strong>Rate:</strong> {type.interestRate ? `${type.interestRate}%` : 'N/A'}
+                      </span>
+                      <span className="detail-item">
+                        <strong>Period:</strong> {type.interestRatePeriod ? `Per ${type.interestRatePeriod}` : 'N/A'}
+                      </span>
+                      <span className="detail-item">
+                        <strong>Duration:</strong> {type.periodMonths ? `${type.periodMonths} months` : 'N/A'}
+                      </span>
+                      <span className="detail-item">
+                        <strong>Frequency:</strong> {type.repaymentFrequency || 'N/A'}
+                      </span>
+                      <span className="detail-item">
+                        <strong>Sequence:</strong> {type.repaymentSequence ? type.repaymentSequence.replace('_', ' ') : 'N/A'}
+                      </span>
+                      {type.gracePeriod && (
+                        <span className="detail-item">
+                          <strong>Grace:</strong> {type.gracePeriod} months
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Qualification Section */}
+                  <div className="detail-section">
+                    <h4 className="section-label">Qualification</h4>
+                    <div className="detail-grid">
+                      <span className="detail-item">
+                        <strong>Basis:</strong> {type.qualificationBasis || 'N/A'}
+                      </span>
+                      {type.maxMultiple && (
+                        <span className="detail-item">
+                          <strong>Multiple:</strong> {type.maxMultiple}x
+                        </span>
+                      )}
+                      {type.maxAmount && (
+                        <span className="detail-item">
+                          <strong>Max Amount:</strong> KES {parseFloat(type.maxAmount).toLocaleString()}
+                        </span>
+                      )}
+                      {type.minQualificationAmount && (
+                        <span className="detail-item">
+                          <strong>Min Qualification:</strong> KES {parseFloat(type.minQualificationAmount).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Fines & Penalties Section */}
+                  {(type.lateFineEnabled || type.outstandingFineEnabled) && (
+                    <div className="detail-section fines-section">
+                      <h4 className="section-label">Fines & Penalties</h4>
+                      <div className="detail-grid">
+                        {type.lateFineEnabled && (
+                          <>
+                            <span className="detail-item badge-item">
+                              <span className="badge warning">⚠ Late Fine</span>
+                            </span>
+                            <span className="detail-item">
+                              <strong>Type:</strong> {type.lateFineType === 'fixed' ? 'Fixed Amount' : 'Percentage'}
+                            </span>
+                            <span className="detail-item">
+                              <strong>Value:</strong> {type.lateFineType === 'fixed' 
+                                ? `KES ${parseFloat(type.lateFineValue).toLocaleString()}` 
+                                : `${type.lateFineValue}%`}
+                            </span>
+                            <span className="detail-item">
+                              <strong>Frequency:</strong> {type.lateFineFrequency || 'N/A'}
+                            </span>
+                          </>
+                        )}
+                        {type.outstandingFineEnabled && (
+                          <>
+                            <span className="detail-item badge-item">
+                              <span className="badge danger">⚠ Outstanding Fine</span>
+                            </span>
+                            <span className="detail-item">
+                              <strong>Type:</strong> {type.outstandingFineType === 'fixed' ? 'Fixed Amount' : 'Percentage'}
+                            </span>
+                            <span className="detail-item">
+                              <strong>Value:</strong> {type.outstandingFineType === 'fixed' 
+                                ? `KES ${parseFloat(type.outstandingFineValue).toLocaleString()}` 
+                                : `${type.outstandingFineValue}%`}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Requirements Section */}
+                  <div className="detail-section">
+                    <h4 className="section-label">Requirements</h4>
+                    <div className="detail-badges">
+                      {type.requireGuarantors === 'yes' && (
+                        <span className="badge info">
+                          👥 Guarantors ({type.minGuarantors || 0} min)
+                        </span>
+                      )}
+                      {type.requireCollateral === 'yes' && (
+                        <span className="badge info">
+                          🏠 Collateral Required
+                        </span>
+                      )}
+                      {type.requireInsurance === 'yes' && (
+                        <span className="badge info">
+                          🛡️ Insurance Required
+                        </span>
+                      )}
+                      {type.processingFeeEnabled && (
+                        <span className="badge secondary">
+                          💰 Processing Fee: {type.processingFeeType === 'fixed' 
+                            ? `KES ${parseFloat(type.processingFeeValue).toLocaleString()}` 
+                            : `${type.processingFeeValue}%`}
+                        </span>
+                      )}
+                      {type.autoDisburse && (
+                        <span className="badge success">
+                          ⚡ Auto-Disbursement
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Approvals Section */}
+                  {type.approvers && (
+                    <div className="detail-section">
+                      <h4 className="section-label">Approvals</h4>
+                      <div className="detail-grid">
+                        <span className="detail-item">
+                          <strong>Min Approvals:</strong> {type.minApprovals || 0}
+                        </span>
+                        <span className="detail-item" style={{gridColumn: '1 / -1'}}>
+                          <strong>Approvers:</strong> {type.approvers}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="loan-type-actions">
+                  <button 
+                    title="Edit" 
+                    onClick={() => openForm(type)}
+                    className="btn-icon-edit"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button 
+                    title="Delete" 
+                    onClick={() => handleDelete(type.id)}
+                    className="btn-icon-delete"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Loan Type Form - conditionally visible */}
       {showForm && (
-        <div className="member-form-container" style={{ width: '100%', maxWidth: 'none', margin: 0, padding: 0 }}>
-          <h3>{editingType ? 'Edit' : 'Create'} Loan Type</h3>
-          <form onSubmit={handleSubmit} className="loan-type-form">
-            {/* Loan Details Section */}
-            <div className="form-divider">Loan Details</div>
-            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
-              <div className="form-group">
-                <label className="required">Nature of the loan type?</label>
-                <select required value={formData.nature} onChange={e => setFormData({ ...formData, nature: e.target.value })}>
+      <div className="loan-types-form">
+        <form onSubmit={handleSubmit}>
+          {/* Loan Details Section */}
+          <div className="form-section">
+            <h2 className="section-title">Loan Details</h2>
+            <div className="form-grid">
+              <div className="form-field">
+                <label htmlFor="nature">Nature of the loan type? <span className="required">*</span></label>
+                <select id="nature" name="nature" className={`form-input${formErrors.nature ? ' error' : ''}`} value={formData.nature} onChange={handleChange}>
                   <option value="">Select...</option>
                   <option value="normal">Normal</option>
                   <option value="emergency">Emergency</option>
@@ -261,23 +497,27 @@ const LoanTypes = ({ onError }) => {
                   <option value="development">Development</option>
                   <option value="other">Other</option>
                 </select>
+                {formErrors.nature && <span className="field-error">{formErrors.nature}</span>}
               </div>
-              <div className="form-group">
-                <label className="required">What is the loan type name?</label>
-                <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Emergency Loan" />
+              <div className="form-field">
+                <label htmlFor="name">What is the loan type name? <span className="required">*</span></label>
+                <input id="name" name="name" className={`form-input${formErrors.name ? ' error' : ''}`} placeholder="e.g., Emergency Loan" value={formData.name} onChange={handleChange} />
+                {formErrors.name && <span className="field-error">{formErrors.name}</span>}
               </div>
-              <div className="form-group">
-                <label>Description/Notes</label>
-                <input type="text" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Optional notes" />
+              <div className="form-field">
+                <label htmlFor="description">Description/Notes</label>
+                <input id="description" name="description" className="form-input" placeholder="Optional notes" value={formData.description} onChange={handleChange} />
               </div>
             </div>
+          </div>
 
-            {/* Qualification Section */}
-            <div className="form-divider">Member Qualification</div>
-            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
-              <div className="form-group">
-                <label className="required">Member qualification amount is based on what?</label>
-                <select required value={formData.qualificationBasis} onChange={e => setFormData({ ...formData, qualificationBasis: e.target.value })}>
+          {/* Member Qualification Section */}
+          <div className="form-section">
+            <h2 className="section-title">Member Qualification</h2>
+            <div className="form-grid">
+              <div className="form-field">
+                <label htmlFor="qualificationBasis">Member qualification amount is based on what?</label>
+                <select id="qualificationBasis" name="qualificationBasis" className="form-input" value={formData.qualificationBasis} onChange={handleChange}>
                   <option value="">Select...</option>
                   <option value="savings">Member Savings</option>
                   <option value="shares">Member Shares</option>
@@ -286,88 +526,84 @@ const LoanTypes = ({ onError }) => {
                   <option value="other">Other</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label>How many times on member savings?</label>
-                <input type="number" min="1" value={formData.maxMultiple} onChange={e => setFormData({ ...formData, maxMultiple: e.target.value })} placeholder="e.g., 3" />
+              <div className="form-field">
+                <label htmlFor="maxMultiple">How many times on member savings?</label>
+                <input id="maxMultiple" name="maxMultiple" type="number" min="1" className="form-input" placeholder="e.g., 3" value={formData.maxMultiple} onChange={handleChange} />
               </div>
-              <div className="form-group">
-                <label>Maximum qualification amount (KES)</label>
-                <input type="number" min="0" value={formData.maxQualificationAmount} onChange={e => setFormData({ ...formData, maxQualificationAmount: e.target.value })} placeholder="e.g., 500000" />
+              <div className="form-field">
+                <label htmlFor="minQualificationAmount">Minimum qualification amount (KES)</label>
+                <input id="minQualificationAmount" name="minQualificationAmount" type="number" min="0" className="form-input" placeholder="e.g., 10000" value={formData.minQualificationAmount} onChange={handleChange} />
               </div>
-              <div className="form-group">
-                <label>Minimum qualification amount (KES)</label>
-                <input type="number" min="0" value={formData.minQualificationAmount} onChange={e => setFormData({ ...formData, minQualificationAmount: e.target.value })} placeholder="e.g., 10000" />
-              </div>
-              <div className="form-group">
-                <label>Maximum loan amount (KES)</label>
-                <input type="number" min="0" value={formData.maxAmount} onChange={e => setFormData({ ...formData, maxAmount: e.target.value })} placeholder="e.g., 1000000" />
+              <div className="form-field">
+                <label htmlFor="maxAmount">Maximum loan amount (KES)</label>
+                <input id="maxAmount" name="maxAmount" type="number" min="0" className="form-input" placeholder="e.g., 1000000" value={formData.maxAmount} onChange={handleChange} />
               </div>
             </div>
-
-            {/* Interest & Repayment Section */}
-            <div className="form-divider">Interest & Repayment</div>
-            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
-              <div className="form-group">
-                <label className="required">How is the interest charged?</label>
-                <select required value={formData.interestType} onChange={e => setFormData({ ...formData, interestType: e.target.value })}>
+          </div>
+          {/* Interest & Repayment Section */}
+          <div className="form-section">
+            <h2 className="section-title">Interest & Repayment</h2>
+            <div className="form-grid">
+              <div className="form-field">
+                <label htmlFor="interestType">How is the interest charged? <span className="required">*</span></label>
+                <select id="interestType" name="interestType" className={`form-input${formErrors.interestType ? ' error' : ''}`} value={formData.interestType} onChange={handleChange}>
                   <option value="">Select...</option>
                   <option value="flat">Fixed Balance</option>
                   <option value="reducing">Reducing Balance</option>
                 </select>
+                {formErrors.interestType && <span className="field-error">{formErrors.interestType}</span>}
               </div>
-              <div className="form-group">
-                <label className="required">What is the interest rate?</label>
-                <input type="number" required min="0" step="0.01" value={formData.interestRate} onChange={e => setFormData({ ...formData, interestRate: e.target.value })} placeholder="e.g., 5" />
+              <div className="form-field">
+                <label htmlFor="interestRate">What is the interest rate? <span className="required">*</span></label>
+                <input id="interestRate" name="interestRate" type="number" min="0" step="0.01" className={`form-input${formErrors.interestRate ? ' error' : ''}`} placeholder="e.g., 5" value={formData.interestRate} onChange={handleChange} />
+                {formErrors.interestRate && <span className="field-error">{formErrors.interestRate}</span>}
               </div>
-              <div className="form-group">
-                <label className="required">The interest rate is charged per?</label>
-                <select required value={formData.interestRatePeriod} onChange={e => setFormData({ ...formData, interestRatePeriod: e.target.value })}>
+              <div className="form-field">
+                <label htmlFor="interestRatePeriod">The interest rate is charged per?</label>
+                <select id="interestRatePeriod" name="interestRatePeriod" className="form-input" value={formData.interestRatePeriod} onChange={handleChange}>
                   <option value="">Select...</option>
                   <option value="month">Per Month</option>
                   <option value="year">Per Year</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label className="required">Is the repayment period fixed or varying?</label>
-                <select required value={formData.periodType} onChange={e => setFormData({ ...formData, periodType: e.target.value })}>
+              <div className="form-field">
+                <label htmlFor="periodFlexible">Is the repayment period fixed or varying?</label>
+                <select id="periodFlexible" name="periodFlexible" className="form-input" value={formData.periodFlexible} onChange={handleChange}>
                   <option value="">Select...</option>
                   <option value="fixed">Fixed</option>
-                  <option value="varying">Varying</option>
+                  <option value="flexible">Varying</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label className="required">Repayment period (months)?</label>
-                <input type="number" required min="1" value={formData.periodMonths} onChange={e => setFormData({ ...formData, periodMonths: e.target.value })} placeholder="e.g., 12" />
+              <div className="form-field">
+                <label htmlFor="periodMonths">Repayment period (months)?</label>
+                <input id="periodMonths" name="periodMonths" type="number" min="1" className={`form-input${formErrors.periodMonths ? ' error' : ''}`} placeholder="e.g., 12" value={formData.periodMonths} onChange={handleChange} />
+                {formErrors.periodMonths && <span className="field-error">{formErrors.periodMonths}</span>}
               </div>
-              <div className="form-group">
-                <label className="required">What is the sequence of repaying the loan?</label>
-                <select required value={formData.repaymentSequence} onChange={e => setFormData({ ...formData, repaymentSequence: e.target.value })}>
+              <div className="form-field">
+                <label htmlFor="repaymentSequence">What is the sequence of repaying the loan?</label>
+                <select id="repaymentSequence" name="repaymentSequence" className="form-input" value={formData.repaymentSequence} onChange={handleChange}>
                   <option value="">Select...</option>
                   <option value="principal_first">Principal First</option>
                   <option value="interest_first">Interest First</option>
                   <option value="both">Both</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label>After how long are members expected to repay the loan? (months)</label>
-                <input type="number" min="0" value={formData.principalGrace} onChange={e => setFormData({ ...formData, principalGrace: e.target.value })} placeholder="e.g., 3" />
+              <div className="form-field">
+                <label htmlFor="gracePeriod">Grace period - how long before repayment starts? (months)</label>
+                <input id="gracePeriod" name="gracePeriod" type="number" min="0" className="form-input" placeholder="e.g., 1" value={formData.gracePeriod} onChange={handleChange} />
               </div>
-              <div className="form-group">
-                <label>How long does a member have before they start repaying the loan? (grace period, months)</label>
-                <input type="number" min="0" value={formData.interestGrace} onChange={e => setFormData({ ...formData, interestGrace: e.target.value })} placeholder="e.g., 1" />
-              </div>
-              <div className="form-group">
-                <label>Amortization Method</label>
-                <select value={formData.amortizationMethod} onChange={e => setFormData({ ...formData, amortizationMethod: e.target.value })}>
+              <div className="form-field">
+                <label htmlFor="amortizationMethod">Amortization Method</label>
+                <select id="amortizationMethod" name="amortizationMethod" className="form-input" value={formData.amortizationMethod} onChange={handleChange}>
                   <option value="">Select...</option>
                   <option value="equal_installment">Equal Installment</option>
-                  <option value="interest_only">Interest Only</option>
+                  <option value="equal_principal">Equal Principal</option>
                   <option value="bullet">Bullet (Lump Sum)</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label>Repayment Frequency</label>
-                <select value={formData.repaymentFrequency} onChange={e => setFormData({ ...formData, repaymentFrequency: e.target.value })}>
+              <div className="form-field">
+                <label htmlFor="repaymentFrequency">Repayment Frequency</label>
+                <select id="repaymentFrequency" name="repaymentFrequency" className="form-input" value={formData.repaymentFrequency} onChange={handleChange}>
                   <option value="">Select...</option>
                   <option value="monthly">Monthly</option>
                   <option value="biweekly">Biweekly</option>
@@ -375,9 +611,9 @@ const LoanTypes = ({ onError }) => {
                   <option value="quarterly">Quarterly</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label>Reconciliation criteria upon loan repayment?</label>
-                <select value={formData.reconciliationCriteria} onChange={e => setFormData({ ...formData, reconciliationCriteria: e.target.value })}>
+              <div className="form-field">
+                <label htmlFor="reconciliationCriteria">Reconciliation criteria upon loan repayment?</label>
+                <select id="reconciliationCriteria" name="reconciliationCriteria" className="form-input" value={formData.reconciliationCriteria} onChange={handleChange}>
                   <option value="">Select...</option>
                   <option value="fifo">FIFO</option>
                   <option value="lifo">LIFO</option>
@@ -385,149 +621,200 @@ const LoanTypes = ({ onError }) => {
                 </select>
               </div>
             </div>
-
-            {/* Approvals Section */}
-            <div className="form-divider">Loan Application Approvals</div>
-            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
-              <div className="form-group">
-                <label>Approvers (comma separated)</label>
-                <input type="text" value={formData.approvers} onChange={e => setFormData({ ...formData, approvers: e.target.value })} placeholder="e.g., Ivan Safari, James Ngari Charo" />
+          </div>
+          {/* Fines & Penalties Section */}
+          <div className="form-section">
+            <h2 className="section-title">Fine Details</h2>
+            
+            {/* Late Fines */}
+            <div style={{ marginBottom: 24 }}>
+              <h3 className="section-subtitle">Late Loan Payment Fines</h3>
+              <div className="form-grid">
+                <div className="form-field" style={{ gridColumn: '1 / -1' }}>
+                  <label>
+                    <input type="checkbox" name="lateFineEnabled" checked={formData.lateFineEnabled} onChange={handleChange} />
+                    Charge fine for late installments?
+                  </label>
+                </div>
+                {formData.lateFineEnabled && <>
+                  <div className="form-field">
+                    <label htmlFor="lateFineType">Fine type</label>
+                    <select id="lateFineType" name="lateFineType" className="form-input" value={formData.lateFineType} onChange={handleChange}>
+                      <option value="">Select...</option>
+                      <option value="fixed">Fixed Amount</option>
+                      <option value="percentage">Percentage</option>
+                    </select>
+                  </div>
+                  {formData.lateFineType === 'fixed' && <>
+                    <div className="form-field">
+                      <label htmlFor="lateFineValue">Fixed fine amount (KES)</label>
+                      <input id="lateFineValue" name="lateFineValue" type="number" min="0" className="form-input" placeholder="e.g., 500" value={formData.lateFineValue} onChange={handleChange} />
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor="lateFineFrequency">How often is it charged?</label>
+                      <select id="lateFineFrequency" name="lateFineFrequency" className="form-input" value={formData.lateFineFrequency} onChange={handleChange}>
+                        <option value="">Select...</option>
+                        <option value="once_off">Once Off</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="daily">Daily</option>
+                      </select>
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor="lateFineChargeOn">Charged on</label>
+                      <select id="lateFineChargeOn" name="lateFineChargeOn" className="form-input" value={formData.lateFineChargeOn} onChange={handleChange}>
+                        <option value="">Select...</option>
+                        <option value="per_installment">Every Failed Installment</option>
+                        <option value="once_off_total">Once Off on Total Balance</option>
+                      </select>
+                    </div>
+                  </>}
+                  {formData.lateFineType === 'percentage' && <>
+                    <div className="form-field">
+                      <label htmlFor="lateFineValue">Percentage (%)</label>
+                      <input id="lateFineValue" name="lateFineValue" type="number" min="0" step="0.01" className="form-input" placeholder="e.g., 2.5" value={formData.lateFineValue} onChange={handleChange} />
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor="lateFineChargeOn">Percentage of what?</label>
+                      <select id="lateFineChargeOn" name="lateFineChargeOn" className="form-input" value={formData.lateFineChargeOn} onChange={handleChange}>
+                        <option value="">Select...</option>
+                        <option value="total_unpaid">Total Unpaid Loan</option>
+                        <option value="installment_balance">Installment Balance</option>
+                        <option value="installment_interest">Installment Interest</option>
+                        <option value="loan_amount">Loan Amount</option>
+                      </select>
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor="lateFineFrequency">How often is it charged?</label>
+                      <select id="lateFineFrequency" name="lateFineFrequency" className="form-input" value={formData.lateFineFrequency} onChange={handleChange}>
+                        <option value="">Select...</option>
+                        <option value="once_off">Once Off</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="daily">Daily</option>
+                      </select>
+                    </div>
+                  </>}
+                </>}
               </div>
-              <div className="form-group">
-                <label>Minimum number of approvals required</label>
-                <input type="number" min="1" value={formData.minApprovals} onChange={e => setFormData({ ...formData, minApprovals: e.target.value })} placeholder="e.g., 2" />
-              </div>
-              <div className="form-group" />
             </div>
 
-            {/* Fines & Penalties Section */}
-            <div className="form-divider">Fine Details</div>
-            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
-              <div className="form-group checkbox">
-                <label>
-                  <input type="checkbox" checked={formData.lateFineEnabled} onChange={e => setFormData({ ...formData, lateFineEnabled: e.target.checked })} />
-                  Do you charge fines for late loan installment payments?
-                </label>
+            {/* Outstanding Fines */}
+            <div>
+              <h3 className="section-subtitle">Outstanding Balance Fines</h3>
+              <div className="form-grid">
+                <div className="form-field" style={{ gridColumn: '1 / -1' }}>
+                  <label>
+                    <input type="checkbox" name="outstandingFineEnabled" checked={formData.outstandingFineEnabled} onChange={handleChange} />
+                    Charge fine for outstanding balance?
+                  </label>
+                </div>
+                {formData.outstandingFineEnabled && <>
+                  <div className="form-field">
+                    <label htmlFor="outstandingFineType">Fine type</label>
+                    <select id="outstandingFineType" name="outstandingFineType" className="form-input" value={formData.outstandingFineType} onChange={handleChange}>
+                      <option value="">Select...</option>
+                      <option value="fixed">Fixed Amount</option>
+                      <option value="percentage">Percentage</option>
+                    </select>
+                  </div>
+                  {formData.outstandingFineType === 'fixed' && <>
+                    <div className="form-field">
+                      <label htmlFor="outstandingFineValue">Fixed fine amount (KES)</label>
+                      <input id="outstandingFineValue" name="outstandingFineValue" type="number" min="0" className="form-input" placeholder="e.g., 500" value={formData.outstandingFineValue} onChange={handleChange} />
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor="outstandingFineFrequency">How often is it charged?</label>
+                      <select id="outstandingFineFrequency" name="outstandingFineFrequency" className="form-input" value={formData.outstandingFineFrequency} onChange={handleChange}>
+                        <option value="">Select...</option>
+                        <option value="once_off">Once Off</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="daily">Daily</option>
+                      </select>
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor="outstandingFineChargeOn">Charged on</label>
+                      <select id="outstandingFineChargeOn" name="outstandingFineChargeOn" className="form-input" value={formData.outstandingFineChargeOn} onChange={handleChange}>
+                        <option value="">Select...</option>
+                        <option value="per_installment">Every Failed Installment</option>
+                        <option value="once_off_total">Once Off on Total Balance</option>
+                      </select>
+                    </div>
+                  </>}
+                  {formData.outstandingFineType === 'percentage' && <>
+                    <div className="form-field">
+                      <label htmlFor="outstandingFineValue">Percentage (%)</label>
+                      <input id="outstandingFineValue" name="outstandingFineValue" type="number" min="0" step="0.01" className="form-input" placeholder="e.g., 2.5" value={formData.outstandingFineValue} onChange={handleChange} />
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor="outstandingFineChargeOn">Percentage of what?</label>
+                      <select id="outstandingFineChargeOn" name="outstandingFineChargeOn" className="form-input" value={formData.outstandingFineChargeOn} onChange={handleChange}>
+                        <option value="">Select...</option>
+                        <option value="total_unpaid">Total Unpaid Loan</option>
+                        <option value="installment_balance">Installment Balance</option>
+                        <option value="installment_interest">Installment Interest</option>
+                        <option value="loan_amount">Loan Amount</option>
+                      </select>
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor="outstandingFineFrequency">How often is it charged?</label>
+                      <select id="outstandingFineFrequency" name="outstandingFineFrequency" className="form-input" value={formData.outstandingFineFrequency} onChange={handleChange}>
+                        <option value="">Select...</option>
+                        <option value="once_off">Once Off</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="daily">Daily</option>
+                      </select>
+                    </div>
+                  </>}
+                </>}
               </div>
-              {formData.lateFineEnabled && <>
-                <div className="form-group">
-                  <label>What type of Late Loan Payment fine do you charge?</label>
-                  <select value={formData.lateFineType} onChange={e => setFormData({ ...formData, lateFineType: e.target.value })}>
-                    <option value="">Select...</option>
-                    <option value="fixed">Fixed</option>
-                    <option value="percentage">Percentage</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Late Fine Value</label>
-                  <input type="number" min="0" value={formData.lateFineValue} onChange={e => setFormData({ ...formData, lateFineValue: e.target.value })} placeholder="e.g., 2" />
-                </div>
-                <div className="form-group">
-                  <label>Fine Frequency</label>
-                  <select value={formData.lateFineFrequency} onChange={e => setFormData({ ...formData, lateFineFrequency: e.target.value })}>
-                    <option value="">Select...</option>
-                    <option value="once">Once</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Fine Charge on</label>
-                  <select value={formData.lateFineChargeOn} onChange={e => setFormData({ ...formData, lateFineChargeOn: e.target.value })}>
-                    <option value="">Select...</option>
-                    <option value="principal">Principal</option>
-                    <option value="interest">Interest</option>
-                    <option value="both">Both</option>
-                  </select>
-                </div>
-              </>}
-              <div className="form-group checkbox">
-                <label>
-                  <input type="checkbox" checked={formData.outstandingFineEnabled} onChange={e => setFormData({ ...formData, outstandingFineEnabled: e.target.checked })} />
-                  Do you charge fines for any outstanding loan balances at the end of the Loan?
-                </label>
-              </div>
-              {formData.outstandingFineEnabled && <>
-                <div className="form-group">
-                  <label>What type of fine do you charge for outstanding balances?</label>
-                  <select value={formData.outstandingFineType} onChange={e => setFormData({ ...formData, outstandingFineType: e.target.value })}>
-                    <option value="">Select...</option>
-                    <option value="fixed">Fixed</option>
-                    <option value="percentage">Percentage</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Outstanding Fine Value</label>
-                  <input type="number" min="0" value={formData.outstandingFineValue} onChange={e => setFormData({ ...formData, outstandingFineValue: e.target.value })} placeholder="e.g., 2" />
-                </div>
-                <div className="form-group">
-                  <label>Fine Frequency</label>
-                  <select value={formData.outstandingFineFrequency} onChange={e => setFormData({ ...formData, outstandingFineFrequency: e.target.value })}>
-                    <option value="">Select...</option>
-                    <option value="once">Once</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Fine Charge on</label>
-                  <select value={formData.outstandingFineChargeOn} onChange={e => setFormData({ ...formData, outstandingFineChargeOn: e.target.value })}>
-                    <option value="">Select...</option>
-                    <option value="principal">Principal</option>
-                    <option value="interest">Interest</option>
-                    <option value="both">Both</option>
-                  </select>
-                </div>
-              </>}
             </div>
-
-            {/* Disbursement Section */}
-            <div className="form-divider">Disbursement Details</div>
-            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
-              <div className="form-group checkbox">
+          </div>
+          {/* Disbursement Details Section */}
+          <div className="form-section">
+            <h2 className="section-title">Disbursement Details</h2>
+            <div className="form-grid">
+              <div className="form-field" style={{ gridColumn: '1 / -1' }}>
                 <label>
-                  <input type="checkbox" checked={formData.autoDisburse} onChange={e => setFormData({ ...formData, autoDisburse: e.target.checked })} />
+                  <input type="checkbox" name="autoDisburse" checked={formData.autoDisburse} onChange={handleChange} />
                   Do you wish to enable automatic disbursement after approvals?
                 </label>
               </div>
-              <div className="form-group">
-                <label>Account to Disburse</label>
-                <input type="text" value={formData.disburseAccount} onChange={e => setFormData({ ...formData, disburseAccount: e.target.value })} placeholder="e.g., Main Bank Account" />
+              <div className="form-field">
+                <label htmlFor="disburseAccount">Account to Disburse</label>
+                <input id="disburseAccount" name="disburseAccount" className="form-input" placeholder="e.g., Main Bank Account" value={formData.disburseAccount} onChange={handleChange} />
               </div>
             </div>
-
-            {/* Guarantors Section */}
-            <div className="form-divider">Guarantor Details</div>
-            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
-              <div className="form-group">
-                <label>Do you require guarantors for this loan type?</label>
-                <select value={formData.requireGuarantors} onChange={e => setFormData({ ...formData, requireGuarantors: e.target.value })}>
+          </div>
+          {/* Guarantor Details Section */}
+          <div className="form-section">
+            <h2 className="section-title">Guarantor Details</h2>
+            <div className="form-grid">
+              <div className="form-field">
+                <label htmlFor="requireGuarantors">Do you require guarantors for this loan type?</label>
+                <select id="requireGuarantors" name="requireGuarantors" className="form-input" value={formData.requireGuarantors} onChange={handleChange}>
                   <option value="no">No</option>
                   <option value="yes">Yes</option>
                 </select>
               </div>
               {formData.requireGuarantors === 'yes' && <>
-                <div className="form-group">
-                  <label>When are members required to submit guarantors?</label>
-                  <select value={formData.whenGuarantorsRequired} onChange={e => setFormData({ ...formData, whenGuarantorsRequired: e.target.value })}>
+                <div className="form-field">
+                  <label htmlFor="whenGuarantorsRequired">When are members required to submit guarantors?</label>
+                  <select id="whenGuarantorsRequired" name="whenGuarantorsRequired" className="form-input" value={formData.whenGuarantorsRequired} onChange={handleChange}>
                     <option value="">Select...</option>
                     <option value="every_time">Every time a member is applying for a loan</option>
                     <option value="above_max">When a member's loan application exceeds the maximum loan amount</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Minimum Allowed Guarantors</label>
-                  <input type="number" min="0" value={formData.minGuarantors} onChange={e => setFormData({ ...formData, minGuarantors: e.target.value })} placeholder="e.g., 2" />
+                <div className="form-field">
+                  <label htmlFor="minGuarantors">Minimum Allowed Guarantors</label>
+                  <input id="minGuarantors" name="minGuarantors" type="number" min="0" className="form-input" placeholder="e.g., 2" value={formData.minGuarantors} onChange={handleChange} />
                 </div>
-                <div className="form-group">
-                  <label>Maximum Allowed Guarantors</label>
-                  <input type="number" min="0" value={formData.maxGuarantors} onChange={e => setFormData({ ...formData, maxGuarantors: e.target.value })} placeholder="e.g., 5" />
-                </div>
-                <div className="form-group">
-                  <label>Guarantor Type</label>
-                  <select value={formData.guarantorType} onChange={e => setFormData({ ...formData, guarantorType: e.target.value })}>
+                <div className="form-field">
+                  <label htmlFor="guarantorType">Guarantor Type</label>
+                  <select id="guarantorType" name="guarantorType" className="form-input" value={formData.guarantorType} onChange={handleChange}>
                     <option value="">Select...</option>
                     <option value="member">Member</option>
                     <option value="external">External</option>
@@ -536,113 +823,273 @@ const LoanTypes = ({ onError }) => {
                 </div>
               </>}
             </div>
+          </div>
+          {/* Loan Application Approvals Section */}
+          <div className="form-section">
+            <h2 className="section-title">Loan Application Approvals</h2>
+            <div className="form-grid">
+              <div className="form-field" style={{ gridColumn: '1 / -1', position: 'relative' }}>
+                <label>Select approvers from members list:</label>
+                
+                {/* Combobox with dropdown arrow */}
+                <div style={{ position: 'relative', marginTop: '8px', marginBottom: '8px' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Click arrow or type to search members..."
+                    value={approverSearch}
+                    onChange={(e) => {
+                      setApproverSearch(e.target.value);
+                      if (!showDropdown) setShowDropdown(true);
+                    }}
+                    onFocus={() => setShowDropdown(true)}
+                    style={{ paddingRight: '35px' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDropdown(!showDropdown)}
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      border: 'none',
+                      background: 'none',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      fontSize: '18px',
+                      color: '#666',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                  >
+                    {showDropdown ? '▲' : '▼'}
+                  </button>
+                </div>
+                
+                {/* Dropdown List */}
+                {showDropdown && !membersLoading && members.length > 0 && (
+                  <div style={{ 
+                    position: 'absolute',
+                    top: 'calc(100% - 8px)',
+                    left: 0,
+                    right: 0,
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    backgroundColor: '#fff',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                    zIndex: 1000,
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: '#888 #f1f1f1'
+                  }}
+                  className="custom-scrollbar">
+                    <style>{`
+                      .custom-scrollbar::-webkit-scrollbar {
+                        width: 6px;
+                      }
+                      .custom-scrollbar::-webkit-scrollbar-track {
+                        background: #f1f1f1;
+                        border-radius: 4px;
+                      }
+                      .custom-scrollbar::-webkit-scrollbar-thumb {
+                        background: #888;
+                        border-radius: 4px;
+                      }
+                      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                        background: #555;
+                      }
+                    `}</style>
+                    {(() => {
+                      const filteredMembers = approverSearch.length > 0
+                        ? members.filter(member => 
+                            member.name.toLowerCase().includes(approverSearch.toLowerCase())
+                          )
+                        : members.slice(0, 5);
+                      
+                      if (filteredMembers.length === 0) {
+                        return (
+                          <p style={{ padding: '12px', color: '#666', textAlign: 'center', margin: 0 }}>No members match your search</p>
+                        );
+                      }
+                      
+                      return filteredMembers.slice(0, 50).map((member, index) => {
+                        const isChecked = formData.approvers ? formData.approvers.split(', ').includes(member.name) : false;
+                        return (
+                          <div
+                            key={member.id || member.name}
+                            onClick={() => {
+                              handleApproversChange(member.name);
+                              setApproverSearch('');
+                              setShowDropdown(false);
+                            }}
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              padding: '10px 12px',
+                              cursor: 'pointer',
+                              borderBottom: index < filteredMembers.length - 1 ? '1px solid #f0f0f0' : 'none',
+                              backgroundColor: isChecked ? '#e8f5e9' : '#fff',
+                              transition: 'background-color 0.15s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isChecked ? '#e8f5e9' : '#f5f5f5'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isChecked ? '#e8f5e9' : '#fff'}
+                          >
+                            <span style={{ flex: 1, fontWeight: isChecked ? '500' : 'normal' }}>{member.name}</span>
+                            {member.phone && <small style={{ color: '#666', marginLeft: '8px' }}>{member.phone}</small>}
+                            {isChecked && <span style={{ marginLeft: '8px', color: '#4caf50', fontSize: '12px' }}>✓</span>}
+                          </div>
+                        );
+                      });
+                    })()}
+                    {approverSearch.length > 0 && members.filter(member => 
+                      member.name.toLowerCase().includes(approverSearch.toLowerCase())
+                    ).length > 50 && (
+                      <p style={{ padding: '8px 12px', color: '#666', fontSize: '12px', textAlign: 'center', margin: 0, backgroundColor: '#fafafa', borderTop: '1px solid #f0f0f0' }}>Showing first 50 results - refine your search</p>
+                    )}
+                    {approverSearch.length === 0 && members.length > 5 && (
+                      <p style={{ padding: '8px 12px', color: '#666', fontSize: '12px', textAlign: 'center', margin: 0, backgroundColor: '#fafafa', borderTop: '1px solid #f0f0f0' }}>Showing first 5 members - type to search more</p>
+                    )}
+                  </div>
+                )}
+                
+                {formData.approvers && (
+                  <div style={{ marginTop: '12px' }}>
+                    <small style={{ display: 'block', marginBottom: '8px', color: '#666', fontWeight: '500' }}>
+                      Selected approvers ({formData.approvers.split(', ').length}):
+                    </small>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {formData.approvers.split(', ').map(name => (
+                        <span 
+                          key={name}
+                          style={{
+                            padding: '4px 10px',
+                            backgroundColor: '#e8f5e9',
+                            borderRadius: '4px',
+                            fontSize: '13px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          {name}
+                          <button
+                            type="button"
+                            onClick={() => handleApproversChange(name)}
+                            style={{
+                              border: 'none',
+                              background: 'none',
+                              color: '#666',
+                              cursor: 'pointer',
+                              padding: '0',
+                              fontSize: '16px',
+                              lineHeight: '1'
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
-            {/* Fees & Charges Section */}
-            <div className="form-divider">Fees & Charges</div>
-            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
-              <div className="form-group checkbox">
+          {/* Fees & Charges Section */}
+          <div className="form-section">
+            <h2 className="section-title">Fees & Charges</h2>
+            <div className="form-grid">
+              <div className="form-field" style={{ gridColumn: '1 / -1' }}>
                 <label>
-                  <input type="checkbox" checked={formData.processingFeeEnabled} onChange={e => setFormData({ ...formData, processingFeeEnabled: e.target.checked })} />
+                  <input type="checkbox" name="processingFeeEnabled" checked={formData.processingFeeEnabled} onChange={handleChange} />
                   Do you charge a loan processing fee for this loan type?
                 </label>
               </div>
               {formData.processingFeeEnabled && <>
-                <div className="form-group">
-                  <label>Loan processing fee type:</label>
-                  <select value={formData.processingFeeType} onChange={e => setFormData({ ...formData, processingFeeType: e.target.value })}>
+                <div className="form-field">
+                  <label htmlFor="processingFeeType">Loan processing fee type:</label>
+                  <select id="processingFeeType" name="processingFeeType" className="form-input" value={formData.processingFeeType} onChange={handleChange}>
                     <option value="">Select...</option>
                     <option value="fixed">Fixed Amount</option>
                     <option value="percentage">Percentage</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Processing Fee Value</label>
-                  <input type="number" min="0" value={formData.processingFeeValue} onChange={e => setFormData({ ...formData, processingFeeValue: e.target.value })} placeholder="e.g., 500" />
-                </div>
+                {formData.processingFeeType === 'fixed' && <>
+                  <div className="form-field">
+                    <label htmlFor="processingFeeValue">Fixed fee amount (KES)</label>
+                    <input id="processingFeeValue" name="processingFeeValue" type="number" min="0" className="form-input" placeholder="e.g., 500" value={formData.processingFeeValue} onChange={handleChange} />
+                  </div>
+                </>}
+                {formData.processingFeeType === 'percentage' && <>
+                  <div className="form-field">
+                    <label htmlFor="processingFeeValue">Percentage (%)</label>
+                    <input id="processingFeeValue" name="processingFeeValue" type="number" min="0" step="0.01" className="form-input" placeholder="e.g., 2.5" value={formData.processingFeeValue} onChange={handleChange} />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="processingFeePercentageOf">Percentage of what?</label>
+                    <select id="processingFeePercentageOf" name="processingFeePercentageOf" className="form-input" value={formData.processingFeePercentageOf} onChange={handleChange}>
+                      <option value="">Select...</option>
+                      <option value="loan_amount">Total Loan Amount</option>
+                      <option value="principal">Principal Only</option>
+                    </select>
+                  </div>
+                </>}
               </>}
-              <div className="form-group checkbox">
+              <div className="form-field" style={{ gridColumn: '1 / -1' }}>
                 <label>
-                  <input type="checkbox" checked={formData.disableProcessingIncome} onChange={e => setFormData({ ...formData, disableProcessingIncome: e.target.checked })} />
+                  <input type="checkbox" name="disableProcessingIncome" checked={formData.disableProcessingIncome} onChange={handleChange} />
                   Disable Automated Loan Processing Income Recording
                 </label>
               </div>
             </div>
+          </div>
 
-            {/* Misc Section */}
-            <div className="form-divider">Miscellaneous</div>
-            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
-              <div className="form-group">
-                <label>GL Account Code</label>
-                <input type="text" value={formData.glAccount} onChange={e => setFormData({ ...formData, glAccount: e.target.value })} placeholder="e.g., 1201" />
+          {/* Miscellaneous Section */}
+          <div className="form-section">
+            <h2 className="section-title">Miscellaneous</h2>
+            <div className="form-grid">
+              <div className="form-field">
+                <label htmlFor="glAccount">GL Account Code</label>
+                <input id="glAccount" name="glAccount" className="form-input" placeholder="e.g., 1201" value={formData.glAccount} onChange={handleChange} />
               </div>
-              <div className="form-group">
-                <label>Require Collateral?</label>
-                <select value={formData.requireCollateral} onChange={e => setFormData({ ...formData, requireCollateral: e.target.value })}>
+              <div className="form-field">
+                <label htmlFor="requireCollateral">Require Collateral?</label>
+                <select id="requireCollateral" name="requireCollateral" className="form-input" value={formData.requireCollateral} onChange={handleChange}>
                   <option value="no">No</option>
                   <option value="yes">Yes</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label>Require Insurance?</label>
-                <select value={formData.requireInsurance} onChange={e => setFormData({ ...formData, requireInsurance: e.target.value })}>
+              <div className="form-field">
+                <label htmlFor="requireInsurance">Require Insurance?</label>
+                <select id="requireInsurance" name="requireInsurance" className="form-input" value={formData.requireInsurance} onChange={handleChange}>
                   <option value="no">No</option>
                   <option value="yes">Yes</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label>Custom Fields (JSON or notes)</label>
-                <input type="text" value={formData.customFields} onChange={e => setFormData({ ...formData, customFields: e.target.value })} placeholder="Optional custom fields" />
-              </div>
             </div>
-
-            <div className="form-actions">
-              <button type="submit" className="btn-primary">Save Loan Type</button>
-              <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setEditingType(null); }}>Cancel</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* List */}
-      {loanTypes.length === 0 ? (
-        <div className="empty-state">
-          <AlertCircle size={48} />
-          <p>No loan types defined yet. Create one to get started.</p>
-        </div>
-      ) : (
-        <div className="loans-table-wrapper">
-          <table className="loans-table">
-            <thead>
-              <tr>
-                <th>Type Name</th>
-                <th>Max Limit</th>
-                <th>Period</th>
-                <th>Interest</th>
-                <th>Late Fine</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loanTypes.map(type => (
-                <tr key={type.id}>
-                  <td className="type-name">{type.name}</td>
-                  <td>{type.maxMultiple ? `${type.maxMultiple}× savings` : `KES ${(type.maxAmount || 0).toLocaleString()}`}</td>
-                  <td>{type.periodMonths} mo</td>
-                  <td>{type.interestRate}% {type.interestType}</td>
-                  <td>{type.lateFineEnabled ? 'Yes' : 'No'}</td>
-                  <td className="actions-cell">
-                    <button className="btn-icon" onClick={() => handleEdit(type)} title="Edit">
-                      <Edit2 size={16} />
-                    </button>
-                    <button className="btn-icon delete" onClick={() => handleDelete(type.id)} title="Delete">
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          </div>
+          <div className="loan-types-actions">
+            <button type="submit" className="btn-primary-large" disabled={formLoading}>
+              {formLoading ? '⏳ Saving...' : editingType ? '✓ Update Loan Type' : '✓ Save Loan Type'}
+            </button>
+            <button 
+              type="button" 
+              className="btn-secondary-large" 
+              onClick={() => { 
+                setEditingType(null); 
+                setFormData(initialForm); 
+                setFormErrors({});
+                setShowForm(false);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
       )}
     </div>
   );

@@ -1150,24 +1150,34 @@ export class ReportsService {
     // 3. Member loans (itemized by member, not aggregated)
     const memberLoans = await this.prisma.loan.findMany({
       where: { loanDirection: 'outward' },
-      include: { member: true },
+      include: { 
+        member: true,
+        fines: {
+          where: { status: 'unpaid' }
+        }
+      },
       orderBy: { createdAt: 'asc' },
     });
     
     for (const loan of memberLoans) {
-      const amount = Number(loan.balance);
+      const principalBalance = Number(loan.balance);
+      const outstandingFines = loan.fines.reduce((sum, f) => sum + Number(f.amount), 0);
+      const totalLoanBalance = principalBalance + outstandingFines;
+      
       rows.push({
         category: 'Assets',
         section: 'Member Loans Receivable',
-        account: loan.member?.name || loan.memberId?.toString() || 'Unknown Member',
-        amount: amount,
+        account: `${loan.member?.name || loan.memberId?.toString() || 'Unknown Member'} ${outstandingFines > 0 ? '(incl. fines)' : ''}`,
+        amount: totalLoanBalance,
+        principalBalance,
+        outstandingFines,
         loanId: loan.id,
         accountType: 'loan',
         classification: loan.classification || 'amortized_cost',
         impairment: loan.impairment ?? null,
         ecl: loan.ecl ?? null,
       });
-      totalAssets += amount;
+      totalAssets += totalLoanBalance;
     }
     
     // ===== LIABILITIES SECTION =====
@@ -1224,12 +1234,18 @@ export class ReportsService {
     });
     
     // Summary totals
+    const totalOutstandingFines = memberLoans.reduce((sum, l) => {
+      return sum + l.fines.reduce((fineSum, f) => fineSum + Number(f.amount), 0);
+    }, 0);
+    
     const meta = {
       totalAssets,
       totalLiabilities,
       totalMemberSavings: totalMemberEquity,
       totalEquity: equity,
       totalLiabilitiesAndEquity: totalLiabilities + totalMemberEquity + equity,
+      totalLoanPrincipal: memberLoans.reduce((sum, l) => sum + Number(l.balance), 0),
+      totalOutstandingFines,
       totalLoanImpairment: memberLoans.reduce((sum, l) => sum + Number(l.impairment || 0), 0),
       totalLoanEcl: memberLoans.reduce((sum, l) => sum + Number(l.ecl || 0), 0),
       lineItemCount: rows.length,

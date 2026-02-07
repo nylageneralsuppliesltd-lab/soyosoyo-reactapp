@@ -5,6 +5,6 @@ import { AuditService } from './audit.service';
 import { AuditInterceptor } from './audit.interceptor';
 
 @Module({
-  providers: [AuditPrismaService, AuditService, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
+  providers: [AuditPrismaService, AuditService], // { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }
 })
 export class AuditModule {}

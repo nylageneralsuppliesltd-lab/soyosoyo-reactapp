@@ -96,20 +96,8 @@ export class LoanTypesService {
     try {
       const loanTypes = await this.prisma.loanType.findMany({
         orderBy: { name: 'asc' },
-        include: {
-          loans: {
-            where: { status: { in: ['pending', 'active'] } },
-          },
-        },
       });
-
-      return {
-        success: true,
-        data: loanTypes.map(lt => ({
-          ...this.formatLoanType(lt),
-          activeCount: lt.loans.length,
-        })),
-      };
+      return loanTypes;
     } catch (error) {
       console.error('LoanTypes fetch error:', error);
       throw error;

@@ -1,0 +1,555 @@
+import React, { useState, useEffect } from 'react';
+import { X, Download, Printer, Calendar, TrendingUp, TrendingDown, AlertCircle, CheckCircle, Clock, DollarSign } from 'lucide-react';
+import { API_BASE } from '../../utils/apiBase';
+import '../../styles/loanStatementFullPage.css';
+
+function LoanStatementFullPage({ loanId, onClose }) {
+  const [statement, setStatement] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [activeView, setActiveView] = useState('overview'); // overview, full, summary, arrears, interest
+
+  useEffect(() => {
+    fetchStatement();
+  }, [loanId]);
+
+  const fetchStatement = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`${API_BASE}/loans/${loanId}/comprehensive-statement`);
+      if (!res.ok) throw new Error('Failed to fetch loan statement');
+      const data = await res.json();
+      setStatement(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleDownload = () => {
+    if (!statement) return;
+    const csv = generateCSV();
+    const element = document.createElement('a');
+    element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
+    element.setAttribute('download', `loan-statement-${loanId}-${new Date().toISOString().split('T')[0]}.csv`);
+    element.click();
+  };
+
+  const generateCSV = () => {
+    const { loan, summary, statement: rows } = statement;
+    let csv = `COMPREHENSIVE LOAN STATEMENT - T24 STYLE\n`;
+    csv += `Generated: ${new Date().toLocaleString()}\n\n`;
+    csv += `LOAN INFORMATION\n`;
+    csv += `Member,${loan.memberName}\n`;
+    csv += `Loan ID,${loan.id}\n`;
+    csv += `Loan Type,${loan.loanType}\n`;
+    csv += `Principal Amount,KES ${Number(loan.amount).toLocaleString()}\n`;
+    csv += `Interest Rate,${loan.interestRate}%\n`;
+    csv += `Period,${loan.periodMonths} months\n`;
+    csv += `Status,${loan.status}\n`;
+    csv += `Disbursement Date,${loan.disbursementDate}\n\n`;
+    
+    csv += `SUMMARY METRICS\n`;
+    csv += `Total Scheduled,KES ${Number(summary.scheduledPayments).toLocaleString()}\n`;
+    csv += `Total Paid,KES ${Number(summary.totalPaid).toLocaleString()}\n`;
+    csv += `Total Fines,KES ${Number(summary.totalFines).toLocaleString()}\n`;
+    csv += `Outstanding Balance,KES ${Number(summary.outstandingBalance).toLocaleString()}\n`;
+    csv += `Completion Rate,${summary.completionPercentage}%\n\n`;
+    
+    csv += `DETAILED STATEMENT\n`;
+    csv += `Date,Period,Scheduled Principal,Scheduled Interest,Actual Principal,Actual Interest,Outstanding,Balance,Note\n`;
+    rows.forEach(row => {
+      csv += `${row.date},${row.period || ''},`;
+      csv += `${row.scheduled ? row.scheduled.principal : ''},`;
+      csv += `${row.scheduled ? row.scheduled.interest : ''},`;
+      csv += `${row.actualPayment.principal},${row.actualPayment.interest},`;
+      csv += `${row.outstanding},${row.balance},"${row.note || ''}"\n`;
+    });
+    return csv;
+  };
+
+  if (loading) {
+    return (
+      <div className="statement-full-page">
+        <div className="statement-loading">
+          <div className="loading-spinner"></div>
+          <p>Loading comprehensive loan statement...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="statement-full-page">
+        <div className="statement-header">
+          <h1>Loan Statement</h1>
+          <button className="close-btn" onClick={onClose}>
+            <X size={24} />
+          </button>
+        </div>
+        <div className="statement-error">
+          <AlertCircle size={48} />
+          <p>{error}</p>
+          <button className="btn-primary" onClick={fetchStatement}>Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!statement) return null;
+
+  const { loan, summary, statement: statementRows, arrearsAnalysis, interestDetails } = statement;
+  const completionPercentage = summary.completionPercentage || 0;
+  const isOverdue = statementRows.some(r => r.outstanding > 0);
+
+  return (
+    <div className="statement-full-page">
+      {/* Header */}
+      <div className="statement-header">
+        <div className="header-left">
+          <h1>Comprehensive Loan Statement</h1>
+          <div className="header-subtitle">
+            <span className="loan-id">Loan #{loan.id}</span>
+            <span className="separator">•</span>
+            <span className="member-name">{loan.memberName}</span>
+            <span className="separator">•</span>
+            <span className={`status-badge status-${loan.status}`}>{loan.status.toUpperCase()}</span>
+          </div>
+        </div>
+        <div className="header-actions">
+          <button className="action-btn" onClick={handlePrint} title="Print Statement">
+            <Printer size={18} />
+            <span>Print</span>
+          </button>
+          <button className="action-btn" onClick={handleDownload} title="Download CSV">
+            <Download size={18} />
+            <span>Export</span>
+          </button>
+          <button className="close-btn" onClick={onClose} title="Close">
+            <X size={24} />
+          </button>
+        </div>
+      </diScrollable Content Area */}
+      <div className="statement-content">
+        
+        {/* Overview Tab - Rich Information Display */}
+        {activeView === 'overview' && (
+          <>
+            {/* Loan Information Panel - T24 Style */}
+          {/* Loan Information Panel - T24 Style */}
+      <div className="statement-content">
+        <div className="info-panel t24-panel">
+          <div className="panel-header">
+            <h2>Loan Information</h2>
+            <span className="generation-date">
+              <Calendar size={14} />
+              Generated: {new Date().toLocaleString()}
+            </span>
+          </div>
+          <div className="info-grid">
+            <div className="info-group">
+              <label>Loan Type</label>
+              <span className="value">{loan.loanType}</span>
+            </div>
+            <div className="info-group">
+              <label>Principal Amount</label>
+              <span className="value amount">KES {Number(loan.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="info-group">
+              <label>Interest Rate</label>
+              <span className="value">{loan.interestRate}% p.a.</span>
+            </div>
+            <div className="info-group">
+              <label>Loan Period</label>
+              <span className="value">{loan.periodMonths} months</span>
+            </div>
+            <div className="info-group">
+              <label>Disbursement Date</label>
+              <span className="value">{new Date(loan.disbursementDate).toLocaleDateString('en-GB')}</span>
+            </div>
+            <div className="info-group">
+              <label>Maturity Date</label>
+              <span className="value">
+                {new Date(new Date(loan.disbursementDate).setMonth(new Date(loan.disbursementDate).getMonth() + loan.periodMonths)).toLocaleDateString('en-GB')}
+            Repayment Progress Card */}
+        <div className="progress-card t24-panel">
+          <div className="progress-header">
+            <h3>Repayment Progress</h3>
+            <span className="completion-badge">{completionPercentage}% Complete</span>
+          </div>
+          <div className="progress-bar-large">
+            <div className="progress-fill-large" style={{ width: `${completionPercentage}%` }}>
+              <span className="progress-text">{completionPercentage}%</span>
+            </div>
+          </div>
+          <div className="progress-labels">
+            <span>Start</span>
+            <span>Completion</span>
+          </div>
+        </div>
+
+        {/*   </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Cards - T24 Style */}
+        <div className="summary-cards t24-cards">
+          <div className="summary-card card-scheduled">
+            <div className="card-icon">
+              <Calendar size={24} />
+            </div>
+            <div className="card-content">
+              <div className="card-label">Total Scheduled</div>
+              <div className="card-value">KES {Number(summary.scheduledPayments || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+              <div className="card-sublabel">Expected payments</div>
+            </div>
+          </div>
+
+          <div className="summary-card card-paid">
+            <div className="card-icon">
+              <CheckCircle size={24} />
+            </div>
+            <div className="card-content">
+              <div className="card-label">Total Paid</div>
+              <div className="card-value">KES {Number(summary.totalPaid || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+              <div className="card-sublabel">Actual payments received</div>
+            </div>
+          </div>
+
+          <div className="summary-card card-outstanding">
+            <div className="card-icon">
+              <AlertCircle size={24} />
+            </div>
+            <div className="card-content">
+              <div className="card-label">Outstanding</div>
+              <div className="card-value">KES {Number(summary.outstandingBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+              <div className="card-sublabel">Remaining balance</div>
+            </div>
+          </div>
+
+          <div className="summary-card card-completion">
+            <div className="card-icon">
+              <TrendingUp size={24} />
+            </div>
+            <div className="card-content">
+              <div className="card-label">Completion</div>
+            Recent Transactions */}
+        <div className="recent-transactions t24-panel">
+          <div className="section-header">
+            <h3>Recent Transactions</h3>
+            <span className="record-count">Last 5 transactions</span>
+          </div>
+          <div className="transaction-list">
+            {statementRows.slice(-5).reverse().map((row, idx) => (
+              <div key={idx} className={`transactioverview' ? 'active' : ''}`}
+            onClick={() => setActiveView('overview')}
+          >
+            Overview
+          </button>
+          <button 
+            className={`tab-btn ${activeView === 'on-item ${row.outstanding > 0 ? 'overdue-transaction' : 'paid-transaction'}`}>
+                <div className="transaction-left">
+                  <div className="transaction-date">
+                    <Calendar size={14} />
+                    {new Date(row.date).toLocaleDateString('en-GB')}
+                  </div>
+                  <div className="transaction-period">
+                    {row.period ? `Period ${row.period}` : 'Payment'}
+                  </div>
+                </div>
+                <div className="transaction-middle">
+                  <div className="transaction-amounts">
+                    {row.actualPayment.principal > 0 && (
+                      <span className="amount-detail">
+                        Principal: <strong>KES {Number(row.actualPayment.principal).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </span>
+                    )}
+                    {row.actualPayment.interest > 0 && (
+                      <span className="amount-detail">
+                        Interest: <strong>KES {Number(row.actualPayment.interest).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </span>
+                    )}
+                  </div>
+                  {row.note && <div className="transaction-note">{row.note}</div>}
+                </div>
+                <div className="transaction-right">
+                  <div className="transaction-balance">
+                    Balance: <strong>KES {Number(row.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                  </div>
+                  {row.outstanding > 0 && (
+                    <div className="transaction-outstanding">
+                      Overdue: <strong>KES {Number(row.outstanding).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+          </>
+        )}
+
+        {/*   <div className="card-value">{summary.completionPercentage || 0}%</div>
+              <div className="card-sublabel">Repayment progress</div>
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${summary.completionPercentage || 0}%` }}></div>
+              </div>
+            </div>
+          </div>
+
+          {summary.totalFines > 0 && (
+            <div className="summary-card card-fines">
+              <div className="card-icon">
+                <TrendingDown size={24} />
+              </div>
+              <div className="card-content">
+                <div className="card-label">Total Fines</div>
+                <div className="card-value">KES {Number(summary.totalFines || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                <div className="card-sublabel">Penalty charges</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* View Tabs */}
+        <div className="view-tabs">
+          <button 
+            className={`tab-btn ${activeView === 'full' ? 'active' : ''}`}
+            onClick={() => setActiveView('full')}
+          >
+            Full Statement
+          </button>
+          <button 
+            className={`tab-btn ${activeView === 'summary' ? 'active' : ''}`}
+            onClick={() => setActiveView('summary')}
+          >
+            Payment Summary
+          </button>
+          {arrearsAnalysis && (
+            <button 
+              className={`tab-btn ${activeView === 'arrears' ? 'active' : ''}`}
+              onClick={() => setActiveView('arrears')}
+            >
+              Arrears Analysis
+            </button>
+          )}
+          {interestDetails && (
+            <button 
+              className={`tab-btn ${activeView === 'interest' ? 'active' : ''}`}
+              onClick={() => setActiveView('interest')}
+            >
+              Interest Details
+            </button>
+          )}
+        </div>
+
+        {/* Full Statement View - T24 Style Horizontal Table */}
+        {activeView === 'full' && (
+          <div className="statement-table-section t24-table">
+            <div className="section-header">
+              <h3>Detailed Transaction Statement</h3>
+              <span className="record-count">{statementRows.length} transactions</span>
+            </div>
+            <div className="table-wrapper">
+              <table className="t24-statement-table">
+                <thead>
+                  <tr>
+                    <th className="col-date">Date</th>
+                    <th className="col-period">Period</th>
+                    <th className="col-currency">Scheduled Principal</th>
+                    <th className="col-currency">Scheduled Interest</th>
+                    <th className="col-currency">Actual Principal</th>
+                    <th className="col-currency">Actual Interest</th>
+                    <th className="col-currency">Outstanding</th>
+                    <th className="col-currency">Balance</th>
+                    <th className="col-note">Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statementRows.map((row, idx) => (
+                    <tr key={idx} className={row.outstanding > 0 ? 'row-overdue' : row.actualPayment.principal > 0 ? 'row-paid' : ''}>
+                      <td className="col-date">{new Date(row.date).toLocaleDateString('en-GB')}</td>
+                      <td className="col-period">{row.period || '--'}</td>
+                      <td className="col-currency">
+                        {row.scheduled ? `KES ${Number(row.scheduled.principal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+                      </td>
+                      <td className="col-currency">
+                        {row.scheduled ? `KES ${Number(row.scheduled.interest).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+                      </td>
+                      <td className="col-currency">
+                        KES {Number(row.actualPayment.principal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="col-currency">
+                        KES {Number(row.actualPayment.interest).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="col-currency outstanding-cell">
+                        {Number(row.outstanding) > 0 ? (
+                          <span className="overdue-amount">
+                            KES {Number(row.outstanding).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        ) : '--'}
+                      </td>
+                      <td className="col-currency balance-cell">
+                        <strong>KES {Number(row.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                      </td>
+                      <td className="col-note">{row.note || '--'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="totals-row">
+                    <td colSpan="2" className="totals-label">TOTALS</td>
+                    <td className="col-currency">
+                      <strong>KES {statementRows.reduce((sum, row) => sum + (row.scheduled?.principal || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                    </td>
+                    <td className="col-currency">
+                      <strong>KES {statementRows.reduce((sum, row) => sum + (row.scheduled?.interest || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                    </td>
+                    <td className="col-currency">
+                      <strong>KES {statementRows.reduce((sum, row) => sum + row.actualPayment.principal, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                    </td>
+                    <td className="col-currency">
+                      <strong>KES {statementRows.reduce((sum, row) => sum + row.actualPayment.interest, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                    </td>
+                    <td className="col-currency">
+                      <strong>KES {statementRows.reduce((sum, row) => sum + row.outstanding, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                    </td>
+                    <td className="col-currency balance-cell">
+                      <strong>KES {statementRows[statementRows.length - 1]?.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Summary View */}
+        {activeView === 'summary' && (
+          <div className="summary-view t24-panel">
+            <div className="section-header">
+              <h3>Payment Summary</h3>
+            </div>
+            <div className="summary-metrics">
+              <div className="metric-row">
+                <span className="metric-label">Principal Paid:</span>
+                <span className="metric-value">KES {statementRows.reduce((sum, row) => sum + row.actualPayment.principal, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="metric-row">
+                <span className="metric-label">Interest Paid:</span>
+                <span className="metric-value">KES {statementRows.reduce((sum, row) => sum + row.actualPayment.interest, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="metric-row">
+                <span className="metric-label">Total Payments:</span>
+                <span className="metric-value total">KES {Number(summary.totalPaid).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="metric-row highlight">
+                <span className="metric-label">Outstanding Balance:</span>
+                <span className="metric-value outstanding">KES {Number(summary.outstandingBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Arrears Analysis View */}
+        {activeView === 'arrears' && arrearsAnalysis && (
+          <div className="arrears-view t24-panel">
+            <div className="section-header">
+              <h3>Arrears Analysis</h3>
+            </div>
+            <div className="arrears-content">
+              <div className="arrears-summary">
+                <div className="arrears-item">
+                  <label>Total Arrears:</label>
+                  <span className="value overdue">KES {Number(arrearsAnalysis.totalArrears || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="arrears-item">
+                  <label>Overdue Periods:</label>
+                  <span className="value">{arrearsAnalysis.overduePeriods || 0}</span>
+                </div>
+
+        {/* Footer - Now inside scrollable content */}
+                    <h4>Aging Analysis</h4>
+                  <table className="aging-table">
+                    <thead>
+                      <tr>
+                        <th>Age Bracket</th>
+                        <th>Amount</th>
+                        <th>Percentage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(arrearsAnalysis.agingBuckets).map(([bucket, amount]) => (
+                        <tr key={bucket}>
+                          <td>{bucket}</td>
+                          <td className="col-currency">KES {Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+      </div>
+                          <td>{((amount / arrearsAnalysis.totalArrears) * 100).toFixed(1)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Interest Details View */}
+        {activeView === 'interest' && interestDetails && (
+          <div className="interest-view t24-panel">
+            <div className="section-header">
+              <h3>Interest Calculation Details</h3>
+            </div>
+            <div className="interest-content">
+              <div className="interest-summary">
+                <div className="interest-item">
+                  <label>Interest Rate:</label>
+                  <span className="value">{loan.interestRate}% per annum</span>
+                </div>
+                <div className="interest-item">
+                  <label>Calculation Method:</label>
+                  <span className="value">{interestDetails.method || 'Reducing Balance'}</span>
+                </div>
+                <div className="interest-item">
+                  <label>Total Interest Accrued:</label>
+                  <span className="value">KES {Number(interestDetails.totalAccrued || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="interest-item">
+                  <label>Total Interest Paid:</label>
+                  <span className="value">KES {statementRows.reduce((sum, row) => sum + row.actualPayment.interest, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="statement-footer t24-footer">
+        <div className="footer-info">
+          <p>This is a system-generated statement and does not require a signature.</p>
+          <p className="disclaimer">For any discrepancies, please contact the finance department within 7 days.</p>
+        </div>
+        <div className="footer-meta">
+          <span>Generated: {new Date().toLocaleString()}</span>
+          <span>•</span>
+          <span>Loan ID: {loan.id}</span>
+          <span>•</span>
+          <span>Page 1 of 1</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default LoanStatementFullPage;

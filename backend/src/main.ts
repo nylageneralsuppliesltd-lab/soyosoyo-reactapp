@@ -8,7 +8,6 @@ dotenv.config();
 async function bootstrap() {
   // Debug: print DATABASE_URL (mask password in logs!)
   const dbUrl = process.env.DATABASE_URL || 'not set';
-  console.log('--- BOOTSTRAP START ---');
   console.log(
     'DATABASE_URL:',
     dbUrl.includes('@')
@@ -16,8 +15,9 @@ async function bootstrap() {
       : dbUrl,
   );
 
-  const app = await NestFactory.create(AppModule);
-  console.log('Nest app created');
+  const app = await NestFactory.create(AppModule, {
+    logger: ['log', 'error', 'warn', 'debug', 'verbose'],
+  });
 
   // Align backend routes with frontend expectations
   app.setGlobalPrefix('api');

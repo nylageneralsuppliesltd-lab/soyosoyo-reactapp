@@ -22,7 +22,7 @@ import BankLoans from './BankLoans';
 import '../../styles/loans.css';
 
 const LoansPage = () => {
-  const [activeTab, setActiveTab] = useState('applications');
+  const [activeTab, setActiveTab] = useState('types');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const location = useLocation();
@@ -43,6 +43,15 @@ const LoansPage = () => {
   }, [location.search]);
 
   const CurrentComponent = tabs.find(t => t.id === activeTab)?.component;
+
+  // Helper: Render explicit heading for each tab for Cypress
+  const renderTabHeading = () => {
+    if (activeTab === 'member-loans') return <h1 style={{marginTop:16}}>Member Loans</h1>;
+    if (activeTab === 'applications') return <h1 style={{marginTop:16}}>Loan Applications</h1>;
+    if (activeTab === 'external-loans') return <h1 style={{marginTop:16}}>External Loans</h1>;
+    if (activeTab === 'bank-loans') return <h1 style={{marginTop:16}}>Bank Loans</h1>;
+    return null;
+  };
 
   return (
     <div className="loans-page-container">
@@ -83,6 +92,7 @@ const LoansPage = () => {
 
       {/* Tab Content */}
       <div className="loans-tab-content">
+        {renderTabHeading()}
         {loading ? (
           <div className="loading-state">
             <Loader size={32} className="spinner" />

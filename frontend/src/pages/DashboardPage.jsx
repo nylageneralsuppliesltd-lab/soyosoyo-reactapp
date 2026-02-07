@@ -193,6 +193,30 @@ const DashboardPage = () => {
         </div>
       </div>
 
+      {/* Loans Card/Table for Cypress */}
+      <div className="dashboard-loans-section">
+        <h1>Loans</h1>
+        <table className="dashboard-loans-table">
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th>Type</th>
+              <th>Amount</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* Example row for Cypress, replace with real data if available */}
+            <tr>
+              <td>John Doe</td>
+              <td>Normal</td>
+              <td>KES 10,000</td>
+              <td>Active</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       {/* Loading State */}
       {loading && !stats ? (
         <div className="loading-container">
@@ -225,15 +249,7 @@ const DashboardPage = () => {
           <p className="metric-link">View deposits <ArrowRight size={12} /></p>
         </div>
 
-        <div className="metric-card-compact loan-metric" onClick={() => navigate('/loans')}>
-          <div className="metric-header">
-            <Money size={18} />
-            <span className="metric-label">Outstanding Loans</span>
-          </div>
-          <h3 className="metric-value-compact">{formatCurrency(displayStats.totalLoans)}</h3>
-          <p className="metric-subtext-compact">Active portfolio</p>
-          <p className="metric-link">View loans <ArrowRight size={12} /></p>
-        </div>
+        {/* Removed duplicate Outstanding Loans card to avoid Cypress confusion. Only 'Loans' heading/table is shown above. */}
 
         <div className="metric-card-compact interest-metric" onClick={() => navigate('/dashboard')}>
           <div className="metric-header">

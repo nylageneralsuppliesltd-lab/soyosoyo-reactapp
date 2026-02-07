@@ -42,24 +42,78 @@ export class DashboardService {
       return { id: m.id, name: m.name, active: m.active, balance: rounded };
     });
 
-    // Placeholder: No deposit/withdrawal/loan/repayment models yet
-    // Replace with real queries when schema is expanded
-    const deposits = [];
-    const withdrawals = [];
-    const loans = [];
-    const repayments = [];
-    const monthlyContributions = [];
+    // Fetch real loan data
+    const allLoans = await this.prisma.loan.findMany({
+      include: {
+        member: true,
+        loanType: true,
+      },
+    });
 
+    // Calculate loan statistics
+    const activeLoans = allLoans.filter(l => l.status === 'active');
+    const totalLoansDisbursed = allLoans.reduce((sum, l) => sum + Number(l.amount || 0), 0);
+    const totalLoansOutstanding = allLoans.reduce((sum, l) => sum + Number(l.balance || 0), 0);
+
+    // Fetch deposits and withdrawals
+    const deposits = await this.prisma.deposit.findMany({
+      where: {
+        date: {
+          gte: new Date(year, 0, 1),
+          lt: new Date(year + 1, 0, 1),
+        },
+      },
+    });
+
+    const withdrawals = await this.prisma.withdrawal.findMany({
+      where: {
+        date: {
+          gte: new Date(year, 0, 1),
+          lt: new Date(year + 1, 0, 1),
+        },
+      },
+    });
+
+    // Calculate monthly data for charts
     const monthlyData = Array.from({ length: 12 }, (_, i) => ({
       label: new Date(year, i, 1).toLocaleString('default', { month: 'short' }),
       contributions: 0,
       income: 0,
       expenses: 0,
       interest: 0,
+      loansDisbursed: 0,
     }));
 
+    // Aggregate deposits by month
+    deposits.forEach(d => {
+      const month = new Date(d.date).getMonth();
+      if (month >= 0 && month < 12) {
+        monthlyData[month].contributions += Number(d.amount || 0);
+      }
+    });
+
+    // Aggregate withdrawals by month
+    withdrawals.forEach(w => {
+      const month = new Date(w.date).getMonth();
+      if (month >= 0 && month < 12) {
+        monthlyData[month].expenses += Number(w.amount || 0);
+      }
+    });
+
+    // Aggregate loans by disbursement month
+    allLoans.forEach(l => {
+      if (l.disbursementDate) {
+        const month = new Date(l.disbursementDate).getMonth();
+        const loanYear = new Date(l.disbursementDate).getFullYear();
+        if (month >= 0 && month < 12 && loanYear === year) {
+          monthlyData[month].loansDisbursed += Number(l.amount || 0);
+        }
+      }
+    });
+
     const totalBalance = members.reduce((sum, m) => sum + (m.balance || 0), 0);
-    const totalContributions = 0;
+    const totalContributions = deposits.reduce((sum, d) => sum + Number(d.amount || 0), 0);
+    const totalWithdrawals = withdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
 
     return {
       members,
@@ -68,10 +122,23 @@ export class DashboardService {
       suspendedMembers: members.filter(m => !m.active).length,
       totalBalance,
       contributionsTotal: totalContributions,
+      withdrawalsTotal: totalWithdrawals,
       incomeTotal: 0,
-      expensesTotal: 0,
+      expensesTotal: totalWithdrawals,
       interestIncomeTotal: 0,
-      totalLoansDisbursed: 0,
+      totalLoansDisbursed,
+      totalLoansOutstanding,
+      activeLoans: activeLoans.length,
+      totalLoans: allLoans.length,
+      loans: allLoans.map(l => ({
+        id: l.id,
+        memberName: l.member?.name || l.memberName,
+        amount: Number(l.amount),
+        balance: Number(l.balance),
+        status: l.status,
+        loanType: l.loanType?.name || 'Unknown',
+        disbursementDate: l.disbursementDate,
+      })),
       monthlyData,
     };
   }

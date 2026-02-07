@@ -62,6 +62,7 @@ function App() {
   // Routes handle landing page; always render app layout here
 
   return (
+
     <div className="app-container">
       {/* Mobile Hamburger Button */}
       <button
@@ -120,9 +121,10 @@ function App() {
 
           <Route path="*" element={<NotFound />} />
         </Routes>
+
       </main>
     </div>
   );
-}
 
+}
 export default App;

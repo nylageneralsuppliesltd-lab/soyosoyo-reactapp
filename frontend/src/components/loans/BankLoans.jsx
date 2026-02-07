@@ -11,8 +11,9 @@ function BackendLoanStatement({ loanId }) {
     fetch(`${API_BASE}/loans/${loanId}/statement`)
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.data) {
-          setStatement(data.data);
+        const payload = data.data || data;
+        if (data.success && payload) {
+          setStatement(payload);
         } else {
           setError(data.message || 'Failed to load statement');
         }
