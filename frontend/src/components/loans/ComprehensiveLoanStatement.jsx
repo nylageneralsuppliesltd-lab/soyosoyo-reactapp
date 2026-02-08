@@ -121,6 +121,41 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
   const formatNumber = (value) => Number(value ?? 0).toLocaleString();
   const completionPercentage = safeSummary.completionPercentage || 0;
   const isOverdue = rows.some(r => (r?.outstanding || 0) > 0 && !r?.scheduled?.isGrace && r?.type === 'Loan Payment');
+  const now = new Date();
+  const paymentRows = rows.filter(r => r.type === 'Loan Payment');
+  const overdueRows = paymentRows.filter(r => (r.outstanding || 0) > 0 && new Date(r.date) < now);
+  const principalArrears = overdueRows.reduce(
+    (sum, r) => sum + Math.max(0, (r.scheduled?.principal || 0) - (r.actualPayment?.principal || 0)),
+    0
+  );
+  const interestArrears = overdueRows.reduce(
+    (sum, r) => sum + Math.max(0, (r.scheduled?.interest || 0) - (r.actualPayment?.interest || 0)),
+    0
+  );
+  const fineArrears = overdueRows.reduce(
+    (sum, r) => sum + Math.max(0, (r.scheduled?.fine || 0) - (r.actualPayment?.fine || 0)),
+    0
+  );
+  const totalArrears = principalArrears + interestArrears + fineArrears;
+  const lastPaymentRow = paymentRows.filter(r => (r.actualPayment?.amount || 0) > 0).slice(-1)[0] || null;
+  const nextDueRow = paymentRows.find(r => (r.outstanding || 0) > 0) || null;
+  const oldestOverdueRow = overdueRows.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] || null;
+  const daysPastDue = oldestOverdueRow
+    ? Math.max(0, Math.floor((now.getTime() - new Date(oldestOverdueRow.date).getTime()) / (1000 * 60 * 60 * 24)))
+    : 0;
+  const classification = daysPastDue === 0
+    ? 'Current'
+    : daysPastDue <= 30
+      ? 'Watch'
+      : daysPastDue <= 90
+        ? 'Substandard'
+        : 'Doubtful';
+  const agingBuckets = [
+    { label: '1-30 days', min: 1, max: 30, status: 'Watch' },
+    { label: '31-60 days', min: 31, max: 60, status: 'Substandard' },
+    { label: '61-90 days', min: 61, max: 90, status: 'Doubtful' },
+    { label: '90+ days', min: 91, max: Infinity, status: 'Bad Debt' },
+  ];
 
   return (
     <div className="statement-full-page">
@@ -448,223 +483,111 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
           {/* ARREARS ANALYSIS TAB */}
           {viewType === 'arrears' && (
             <div className="arrears-section">
-              {/* Current Position */}
               <div className="details-card">
-                <h3>Current Position</h3>
+                <h3>Arrears Summary (Past Due Only)</h3>
+                <p className="section-note">Amounts shown are past due as of today. Future installments are not included.</p>
+                <div className="summary-cards-grid">
+                  <div className="summary-card">
+                    <div className="card-content">
+                      <span className="card-label">Total Arrears (Past Due)</span>
+                      <span className="card-value">KSh {formatNumber(totalArrears)}</span>
+                    </div>
+                  </div>
+                  <div className="summary-card">
+                    <div className="card-content">
+                      <span className="card-label">Past-Due Principal</span>
+                      <span className="card-value">KSh {formatNumber(principalArrears)}</span>
+                    </div>
+                  </div>
+                  <div className="summary-card">
+                    <div className="card-content">
+                      <span className="card-label">Past-Due Interest</span>
+                      <span className="card-value">KSh {formatNumber(interestArrears)}</span>
+                    </div>
+                  </div>
+                  <div className="summary-card">
+                    <div className="card-content">
+                      <span className="card-label">Past-Due Fines</span>
+                      <span className="card-value">KSh {formatNumber(fineArrears)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="details-card">
+                <h3>Dates & Status</h3>
                 <div className="details-grid">
                   <div className="detail-item">
-                    <span className="label">Principal Outstanding</span>
-                    <span className="value amount">KSh {formatNumber(safeSummary.outstandingBalance)}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="label">Interest Accrued</span>
-                    <span className="value">KSh {formatNumber(safeSummary.scheduledPayments - Number(loan.amount))}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="label">Penalties Outstanding</span>
-                    <span className="value fines">KSh {formatNumber(safeSummary.totalFines)}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="label">Total Amount Due</span>
-                    <span className="value outstanding">KSh {formatNumber(safeSummary.outstandingBalance + safeSummary.totalFines)}</span>
-                  </div>
-                  <div className="detail-item">
                     <span className="label">Last Payment Date</span>
-                    <span className="value">
-                      {rows.filter(r => (r.actualPayment?.amount || 0) > 0).length > 0
-                        ? new Date(rows.filter(r => (r.actualPayment?.amount || 0) > 0).slice(-1)[0].date).toLocaleDateString()
-                        : 'No payments yet'}
-                    </span>
+                    <span className="value">{lastPaymentRow ? new Date(lastPaymentRow.date).toLocaleDateString() : 'No payments yet'}</span>
                   </div>
                   <div className="detail-item">
-                    <span className="label">Next Payment Due</span>
-                    <span className="value">
-                      {rows.find(r => (r.outstanding || 0) > 0)
-                        ? new Date(rows.find(r => (r.outstanding || 0) > 0).date).toLocaleDateString()
-                        : 'Fully paid'}
-                    </span>
+                    <span className="label">Next Installment Due</span>
+                    <span className="value">{nextDueRow ? new Date(nextDueRow.date).toLocaleDateString() : 'Fully paid'}</span>
                   </div>
                   <div className="detail-item">
-                    <span className="label">Days in Arrears</span>
-                    <span className={`value ${(() => {
-                      const overdueRow = rows.find(r => (r.outstanding || 0) > 0 && new Date(r.date) < new Date());
-                      if (!overdueRow) return '';
-                      const daysOverdue = Math.floor((new Date() - new Date(overdueRow.date)) / (1000 * 60 * 60 * 24));
-                      return daysOverdue > 0 ? 'overdue' : '';
-                    })()}`}>
-                      {(() => {
-                        const overdueRow = rows.find(r => (r.outstanding || 0) > 0 && new Date(r.date) < new Date());
-                        if (!overdueRow) return '0';
-                        const daysOverdue = Math.floor((new Date() - new Date(overdueRow.date)) / (1000 * 60 * 60 * 24));
-                        return daysOverdue > 0 ? daysOverdue : '0';
-                      })()}
-                    </span>
+                    <span className="label">Days Past Due (Oldest)</span>
+                    <span className={`value ${daysPastDue > 0 ? 'overdue' : ''}`}>{daysPastDue}</span>
                   </div>
                   <div className="detail-item">
-                    <span className="label">Classification</span>
-                    <span className={`status-badge ${(() => {
-                      const overdueRow = rows.find(r => (r.outstanding || 0) > 0 && new Date(r.date) < new Date());
-                      if (!overdueRow) return 'status-active';
-                      const daysOverdue = Math.floor((new Date() - new Date(overdueRow.date)) / (1000 * 60 * 60 * 24));
-                      if (daysOverdue === 0) return 'status-active';
-                      if (daysOverdue <= 30) return 'status-pending';
-                      if (daysOverdue <= 90) return 'status-overdue';
-                      return 'status-defaulted';
-                    })()}`}>
-                      {(() => {
-                        const overdueRow = rows.find(r => (r.outstanding || 0) > 0 && new Date(r.date) < new Date());
-                        if (!overdueRow) return 'Standard';
-                        const daysOverdue = Math.floor((new Date() - new Date(overdueRow.date)) / (1000 * 60 * 60 * 24));
-                        if (daysOverdue === 0) return 'Standard';
-                        if (daysOverdue <= 30) return 'Watch';
-                        if (daysOverdue <= 90) return 'Substandard';
-                        return 'Doubtful';
-                      })()}
+                    <span className="label">Missed Installments (Count)</span>
+                    <span className="value">{overdueRows.length}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="label">Arrears Classification</span>
+                    <span className={`status-badge ${daysPastDue === 0 ? 'status-active' : daysPastDue <= 30 ? 'status-pending' : daysPastDue <= 90 ? 'status-overdue' : 'status-defaulted'}`}>
+                      {classification}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Arrears Breakdown */}
-              <div className="arrears-breakdown-card">
-                <h3>Arrears Breakdown</h3>
-                <table className="statement-table">
-                  <thead>
-                    <tr>
-                      <th>Component</th>
-                      <th className="currency">Amount in Arrears</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const overdueRows = rows.filter(r => (r.outstanding || 0) > 0 && new Date(r.date) < new Date());
-                      const principalArrears = overdueRows.reduce((sum, r) => sum + (r.scheduled?.principal || 0) - (r.actualPayment?.principal || 0), 0);
-                      const interestArrears = overdueRows.reduce((sum, r) => sum + (r.scheduled?.interest || 0) - (r.actualPayment?.interest || 0), 0);
-                      const fineArrears = overdueRows.reduce((sum, r) => sum + (r.scheduled?.fine || 0) - (r.actualPayment?.fine || 0), 0);
-                      
-                      return (
-                        <>
-                          <tr>
-                            <td>Principal in Arrears</td>
-                            <td className="currency">KSh {formatNumber(principalArrears)}</td>
-                            <td><span className={principalArrears > 0 ? 'status-badge status-overdue' : 'status-badge status-active'}>
-                              {principalArrears > 0 ? 'Outstanding' : 'Current'}
-                            </span></td>
-                          </tr>
-                          <tr>
-                            <td>Interest in Arrears</td>
-                            <td className="currency">KSh {formatNumber(interestArrears)}</td>
-                            <td><span className={interestArrears > 0 ? 'status-badge status-overdue' : 'status-badge status-active'}>
-                              {interestArrears > 0 ? 'Outstanding' : 'Current'}
-                            </span></td>
-                          </tr>
-                          <tr>
-                            <td>Penalty Charges</td>
-                            <td className="currency">KSh {formatNumber(fineArrears)}</td>
-                            <td><span className={fineArrears > 0 ? 'status-badge status-overdue' : 'status-badge status-active'}>
-                              {fineArrears > 0 ? 'Outstanding' : 'Current'}
-                            </span></td>
-                          </tr>
-                          <tr style={{ fontWeight: 'bold', borderTop: '2px solid #ddd' }}>
-                            <td>Total Arrears</td>
-                            <td className="currency">KSh {formatNumber(principalArrears + interestArrears + fineArrears)}</td>
-                            <td><span className={(principalArrears + interestArrears + fineArrears) > 0 ? 'status-badge status-overdue' : 'status-badge status-active'}>
-                              {(principalArrears + interestArrears + fineArrears) > 0 ? 'Action Required' : 'Up to Date'}
-                            </span></td>
-                          </tr>
-                        </>
-                      );
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-
               {/* Aging Analysis */}
               <div className="aging-analysis-card">
-                <h3>Aging Analysis</h3>
+                <h3>Arrears Aging (Past Due)</h3>
                 <table className="statement-table">
                   <thead>
                     <tr>
-                      <th>Aging Bucket</th>
-                      <th className="currency">Amount</th>
-                      <th>Periods</th>
-                      <th>Status</th>
+                      <th>Days Past Due</th>
+                      <th className="currency">Past-Due Amount</th>
+                      <th>Installments</th>
+                      <th>Risk</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(() => {
-                      const now = new Date();
-                      const overdueRows = rows.filter(r => (r.outstanding || 0) > 0 && new Date(r.date) < now);
-                      
-                      const aging0to30 = overdueRows.filter(r => {
-                        const days = Math.floor((now - new Date(r.date)) / (1000 * 60 * 60 * 24));
-                        return days >= 0 && days <= 30;
+                    {agingBuckets.map((bucket) => {
+                      const bucketRows = overdueRows.filter((r) => {
+                        const days = Math.floor((now.getTime() - new Date(r.date).getTime()) / (1000 * 60 * 60 * 24));
+                        return days >= bucket.min && days <= bucket.max;
                       });
-                      
-                      const aging31to60 = overdueRows.filter(r => {
-                        const days = Math.floor((now - new Date(r.date)) / (1000 * 60 * 60 * 24));
-                        return days >= 31 && days <= 60;
-                      });
-                      
-                      const aging61to90 = overdueRows.filter(r => {
-                        const days = Math.floor((now - new Date(r.date)) / (1000 * 60 * 60 * 24));
-                        return days >= 61 && days <= 90;
-                      });
-                      
-                      const aging90plus = overdueRows.filter(r => {
-                        const days = Math.floor((now - new Date(r.date)) / (1000 * 60 * 60 * 24));
-                        return days > 90;
-                      });
-                      
-                      const sum0to30 = aging0to30.reduce((s, r) => s + (r.outstanding || 0), 0);
-                      const sum31to60 = aging31to60.reduce((s, r) => s + (r.outstanding || 0), 0);
-                      const sum61to90 = aging61to90.reduce((s, r) => s + (r.outstanding || 0), 0);
-                      const sum90plus = aging90plus.reduce((s, r) => s + (r.outstanding || 0), 0);
-                      
+                      const bucketTotal = bucketRows.reduce((sum, r) => sum + (r.outstanding || 0), 0);
+                      const statusClass = bucketTotal > 0
+                        ? bucket.max >= 90
+                          ? 'status-defaulted'
+                          : bucket.max >= 60
+                            ? 'status-overdue'
+                            : 'status-pending'
+                        : 'status-active';
+
                       return (
-                        <>
-                          <tr>
-                            <td>Current (0 days)</td>
-                            <td className="currency">KSh {formatNumber(rows.filter(r => (r.outstanding || 0) > 0 && new Date(r.date) >= now).reduce((s, r) => s + (r.outstanding || 0), 0))}</td>
-                            <td>{rows.filter(r => (r.outstanding || 0) > 0 && new Date(r.date) >= now).length}</td>
-                            <td><span className="status-badge status-active">Current</span></td>
-                          </tr>
-                          <tr>
-                            <td>1-30 days</td>
-                            <td className="currency">KSh {formatNumber(sum0to30)}</td>
-                            <td>{aging0to30.length}</td>
-                            <td><span className={sum0to30 > 0 ? 'status-badge status-pending' : 'status-badge status-active'}>
-                              {sum0to30 > 0 ? 'Watch' : 'None'}
-                            </span></td>
-                          </tr>
-                          <tr>
-                            <td>31-60 days</td>
-                            <td className="currency">KSh {formatNumber(sum31to60)}</td>
-                            <td>{aging31to60.length}</td>
-                            <td><span className={sum31to60 > 0 ? 'status-badge status-overdue' : 'status-badge status-active'}>
-                              {sum31to60 > 0 ? 'Substandard' : 'None'}
-                            </span></td>
-                          </tr>
-                          <tr>
-                            <td>61-90 days</td>
-                            <td className="currency">KSh {formatNumber(sum61to90)}</td>
-                            <td>{aging61to90.length}</td>
-                            <td><span className={sum61to90 > 0 ? 'status-badge status-overdue' : 'status-badge status-active'}>
-                              {sum61to90 > 0 ? 'Doubtful' : 'None'}
-                            </span></td>
-                          </tr>
-                          <tr>
-                            <td>90+ days</td>
-                            <td className="currency">KSh {formatNumber(sum90plus)}</td>
-                            <td>{aging90plus.length}</td>
-                            <td><span className={sum90plus > 0 ? 'status-badge status-defaulted' : 'status-badge status-active'}>
-                              {sum90plus > 0 ? 'Bad Debt' : 'None'}
-                            </span></td>
-                          </tr>
-                        </>
+                        <tr key={bucket.label}>
+                          <td>{bucket.label}</td>
+                          <td className="currency">KSh {formatNumber(bucketTotal)}</td>
+                          <td>{bucketRows.length}</td>
+                          <td><span className={`status-badge ${statusClass}`}>
+                            {bucketTotal > 0 ? bucket.status : 'None'}
+                          </span></td>
+                        </tr>
                       );
-                    })()}
+                    })}
+                    <tr style={{ fontWeight: 'bold', borderTop: '2px solid #ddd' }}>
+                      <td>Total Overdue</td>
+                      <td className="currency">KSh {formatNumber(overdueRows.reduce((sum, r) => sum + (r.outstanding || 0), 0))}</td>
+                      <td>{overdueRows.length}</td>
+                      <td><span className={`status-badge ${totalArrears > 0 ? 'status-overdue' : 'status-active'}`}>
+                        {totalArrears > 0 ? 'Action Required' : 'Up to Date'}
+                      </span></td>
+                    </tr>
                   </tbody>
                 </table>
               </div>

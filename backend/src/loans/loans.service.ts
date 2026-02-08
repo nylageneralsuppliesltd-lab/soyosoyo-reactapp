@@ -7,12 +7,13 @@ export class LoansService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Impose late payment fines for loans with overdue installments
+   * Impose late payment fines for loans with overdue installments.
    * This should be called periodically (e.g., daily cron job) to check all active loans
-   * and create fine records for missed payments based on loan type configuration
-   * 
-   * LOGIC: Only charges ONE fine per MISSED INSTALLMENT (not per month)
-   * - Only charges if payment is short for that specific period
+   * and create fine records for missed payments based on loan type configuration.
+   *
+   * LOGIC:
+   * - Charges per overdue installment (or per cycle when frequency is set).
+   * - Supports loan-level cycle fines when configured for total outstanding.
    */
   async imposeFinesIfNeeded(loan: any): Promise<void> {
     if (loan.status !== 'active') {
@@ -51,8 +52,9 @@ export class LoansService {
 
     let accumulatedPrincipal = 0;
     let accumulatedInterest = 0;
+    const overduePeriods: Array<{ period: any; principalShortfall: number; interestShortfall: number; dueDate: Date }> = [];
 
-    // Check each installment period - but only charge ONCE per period
+    // Check each installment period - track overdue periods and shortfalls
     for (const period of schedule) {
       if (period.isGrace) continue; // Skip grace periods
 
@@ -70,50 +72,131 @@ export class LoansService {
 
         // Only fine if there's an actual shortfall for THIS period
         if (principalShortfall > 0.01 || interestShortfall > 0.01) {
-          // Check if fine already exists for this period
-          const fineKey = `Period-${period.period}`;
-          const fineExists = existingFines.some(
-            (f) => f.notes && f.notes.includes(fineKey)
-          );
-
-          if (!fineExists) {
-            // Calculate fine amount based on loan type settings
-            let fineAmount = 0;
-
-            if (loanType.lateFineType === 'fixed') {
-              fineAmount = Number(loanType.lateFineValue || 0);
-            } else if (loanType.lateFineType === 'percentage') {
-              const baseAmount = this.calculateFineBase(
-                loanType.lateFineChargeOn,
-                period,
-                loan,
-                principalShortfall + interestShortfall
-              );
-              fineAmount = baseAmount * (Number(loanType.lateFineValue || 0) / 100);
-            }
-
-            // Create fine record if amount is greater than zero
-            if (fineAmount > 0) {
-              const overdueDays = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-              
-              await this.prisma.fine.create({
-                data: {
-                  memberId: loan.memberId,
-                  loanId: loan.id,
-                  amount: new Prisma.Decimal(fineAmount),
-                  reason: `Late payment fine for installment ${period.period} (${overdueDays} days overdue)`,
-                  status: 'unpaid',
-                  type: 'late_payment',
-                  notes: `${fineKey}|Overdue Days: ${overdueDays}|Due: ${dueDate.toISOString()}`,
-                },
-              });
-            }
-          }
+          overduePeriods.push({ period, principalShortfall, interestShortfall, dueDate });
         }
       }
     }
 
+    if (overduePeriods.length === 0) {
+      return;
+    }
+
+    const fineFrequency = (loanType.lateFineFrequency || 'once_off').toLowerCase();
+    const fineChargeOn = loanType.lateFineChargeOn || 'per_installment';
+    const cycleKey = this.getFineCycleKey(today, fineFrequency);
+
+    // Loan-level cycle fine for overdue outstanding (principal + interest due to date)
+    if (fineChargeOn === 'total_unpaid' && ['monthly', 'weekly', 'daily'].includes(fineFrequency)) {
+      const overdueScheduledPrincipal = overduePeriods.reduce(
+        (sum, item) => sum + Number(item.period.principal || 0),
+        0
+      );
+      const overdueScheduledInterest = overduePeriods.reduce(
+        (sum, item) => sum + Number(item.period.interest || 0),
+        0
+      );
+      const overduePrincipal = Math.max(0, overdueScheduledPrincipal - totalPaidPrincipal);
+      const overdueInterest = Math.max(0, overdueScheduledInterest - totalPaidInterest);
+      const totalOutstanding = overduePrincipal + overdueInterest;
+
+      if (totalOutstanding > 0) {
+        const cycleNoteKey = `LateFineCycle:${cycleKey}`;
+        const cycleFineExists = existingFines.some(
+          (f) => f.notes && f.notes.includes(cycleNoteKey)
+        );
+
+        if (!cycleFineExists) {
+          const rate = Number(loanType.lateFineValue || 0) / 100;
+          const fineAmount = totalOutstanding * rate;
+
+          if (fineAmount > 0) {
+            await this.prisma.fine.create({
+              data: {
+                memberId: loan.memberId,
+                loanId: loan.id,
+                amount: new Prisma.Decimal(fineAmount),
+                reason: `Late payment fine (${fineFrequency}) on total outstanding balance`,
+                status: 'unpaid',
+                type: 'late_payment',
+                notes: `${cycleNoteKey}|Overdue: ${totalOutstanding.toFixed(2)}|Frequency: ${fineFrequency}`,
+              },
+            });
+          }
+        }
+      }
+
+      return;
+    }
+
+    // Per-installment fines (once off or per cycle)
+    for (const overdue of overduePeriods) {
+      const { period, principalShortfall, interestShortfall, dueDate } = overdue;
+      const fineKey = `Period-${period.period}`;
+      const fineCycleKey = fineFrequency === 'once_off'
+        ? fineKey
+        : `${fineKey}|Cycle:${cycleKey}`;
+
+      const fineExists = existingFines.some(
+        (f) => f.notes && f.notes.includes(fineCycleKey)
+      );
+
+      if (fineExists) continue;
+
+      // Calculate fine amount based on loan type settings
+      let fineAmount = 0;
+
+      if (loanType.lateFineType === 'fixed') {
+        fineAmount = Number(loanType.lateFineValue || 0);
+      } else if (loanType.lateFineType === 'percentage') {
+        const baseAmount = this.calculateFineBase(
+          fineChargeOn,
+          period,
+          loan,
+          principalShortfall + interestShortfall
+        );
+        fineAmount = baseAmount * (Number(loanType.lateFineValue || 0) / 100);
+      }
+
+      if (fineAmount > 0) {
+        const overdueDays = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        await this.prisma.fine.create({
+          data: {
+            memberId: loan.memberId,
+            loanId: loan.id,
+            amount: new Prisma.Decimal(fineAmount),
+            reason: `Late payment fine for installment ${period.period} (${overdueDays} days overdue)`,
+            status: 'unpaid',
+            type: 'late_payment',
+            notes: `${fineCycleKey}|Overdue Days: ${overdueDays}|Due: ${dueDate.toISOString()}`,
+          },
+        });
+      }
+    }
+
     return;
+  }
+
+  private getFineCycleKey(date: Date, frequency: string): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    if (frequency === 'daily') {
+      return `${year}-${month}-${day}`;
+    }
+
+    if (frequency === 'weekly') {
+      const firstDay = new Date(date.getFullYear(), 0, 1);
+      const days = Math.floor((date.getTime() - firstDay.getTime()) / (24 * 60 * 60 * 1000));
+      const week = Math.ceil((days + firstDay.getDay() + 1) / 7);
+      return `${year}-W${String(week).padStart(2, '0')}`;
+    }
+
+    if (frequency === 'monthly') {
+      return `${year}-${month}`;
+    }
+
+    return 'once_off';
   }
 
   /**
