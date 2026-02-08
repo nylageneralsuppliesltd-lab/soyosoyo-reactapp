@@ -69,6 +69,66 @@ function LoanDetailsFullPage({ loan, onClose }) {
     return Math.round((getTotalPaid() / scheduled) * 100);
   };
 
+  const buildLedgerEntries = (statementRows) => {
+    return statementRows.flatMap((row) => {
+      const entries = [];
+      const periodLabel = row.period != null ? `Period ${row.period}` : 'Final';
+      const dueDate = row.date;
+
+      if ((row.scheduled?.principal || 0) > 0) {
+        entries.push({
+          date: dueDate,
+          description: `Principal due (${periodLabel})`,
+          moneyIn: 0,
+          moneyOut: row.scheduled.principal,
+          order: 1,
+        });
+      }
+
+      if ((row.scheduled?.interest || 0) > 0) {
+        entries.push({
+          date: dueDate,
+          description: `Interest due (${periodLabel})`,
+          moneyIn: 0,
+          moneyOut: row.scheduled.interest,
+          order: 2,
+        });
+      }
+
+      if ((row.scheduled?.fine || 0) > 0) {
+        entries.push({
+          date: dueDate,
+          description: `Fine charged (${periodLabel})`,
+          moneyIn: 0,
+          moneyOut: row.scheduled.fine,
+          order: 3,
+        });
+      }
+
+      if ((row.actualPayment?.amount || 0) > 0) {
+        const methodText = row.actualPayment?.method
+          ? ` via ${row.actualPayment.method.replace(/_/g, ' ')}`
+          : '';
+        const accountText = row.actualPayment?.accountName
+          ? ` (${row.actualPayment.accountName})`
+          : '';
+        entries.push({
+          date: row.actualPayment.paymentDate || row.date,
+          description: `Payment received (${periodLabel})${methodText}${accountText}`,
+          moneyIn: row.actualPayment.amount,
+          moneyOut: 0,
+          order: 4,
+        });
+      }
+
+      return entries;
+    }).sort((a, b) => {
+      const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return (a.order || 0) - (b.order || 0);
+    });
+  };
+
   return (
     <div className="loan-details-full-page">
       {/* Header */}
@@ -349,211 +409,41 @@ function LoanDetailsFullPage({ loan, onClose }) {
               <div className="loading">Loading comprehensive statement...</div>
             ) : comprehensiveStatement ? (
               <div className="statement-content">
-                {/* Statement Summary */}
-                <div className="statement-summary-section">
-                  <h3>Statement Summary</h3>
-                  <div className="summary-grid">
-                    <div className="summary-item">
-                      <span className="label">Original Loan Amount</span>
-                      <span className="value">KES {Number(comprehensiveStatement.loan?.amount || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="label">Scheduled Principal</span>
-                      <span className="value">KES {Number(comprehensiveStatement.summary?.scheduledPrincipal || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="label">Scheduled Interest</span>
-                      <span className="value">KES {Number(comprehensiveStatement.summary?.scheduledInterest || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="label">Scheduled Fines</span>
-                      <span className="value">KES {Number(comprehensiveStatement.summary?.scheduledFines || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="label">Total Scheduled</span>
-                      <span className="value">KES {Number(comprehensiveStatement.summary?.scheduledPayments || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="label">Principal Paid</span>
-                      <span className="value">KES {Number(comprehensiveStatement.summary?.actualPrincipal || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="label">Interest Paid</span>
-                      <span className="value">KES {Number(comprehensiveStatement.summary?.actualInterest || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="label">Fines Paid</span>
-                      <span className="value">KES {Number(comprehensiveStatement.summary?.actualFines || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="label">Total Paid</span>
-                      <span className="value">KES {Number(comprehensiveStatement.summary?.totalPaid || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="label">Outstanding Balance</span>
-                      <span className="value">KES {Number(comprehensiveStatement.summary?.outstandingBalance || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="label">Current Principal Balance</span>
-                      <span className="value">KES {Number(comprehensiveStatement.summary?.currentBalance || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="summary-item">
-                      <span className="label">Completion Rate</span>
-                      <span className="value">{comprehensiveStatement.summary?.completionPercentage || 0}%</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Statement Table */}
                 {comprehensiveStatement.statement && comprehensiveStatement.statement.length > 0 ? (
-                  <>
-                    {/* Desktop View */}
-                    <div className="statement-table-wrapper desktop-view">
-                      <table className="comprehensive-statement-table">
-                        <thead>
-                          <tr>
-                            <th>Date</th>
-                            <th>Period</th>
-                            <th className="currency">Scheduled Principal</th>
-                            <th className="currency">Scheduled Interest</th>
-                            <th className="currency">Scheduled Fine</th>
-                            <th className="currency">Actual Principal</th>
-                            <th className="currency">Actual Interest</th>
-                            <th className="currency">Actual Fine</th>
-                            <th className="currency">Outstanding</th>
-                            <th className="currency">Balance</th>
-                            <th>Note</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {comprehensiveStatement.statement.map((row, idx) => {
-                            const isDisbursement = row.period === 0;
-                            const isOverdue = row.outstanding > 0 && !isDisbursement;
-                            const isGracePeriod = row.scheduled?.isGrace;
-                            const isPaid = row.outstanding === 0 && row.scheduled;
-                            
+                  <div className="statement-table-wrapper">
+                    <table className="comprehensive-statement-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Details</th>
+                          <th className="currency">Money In</th>
+                          <th className="currency">Money Out</th>
+                          <th className="currency">Running Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const ledgerEntries = buildLedgerEntries(
+                            comprehensiveStatement.statement.filter(row => row.type === 'Loan Payment')
+                          );
+                          let runningBalance = 0;
+
+                          return ledgerEntries.map((entry, idx) => {
+                            runningBalance += Number(entry.moneyOut || 0) - Number(entry.moneyIn || 0);
                             return (
-                              <tr 
-                                key={idx} 
-                                className={`${isOverdue ? 'overdue' : ''} ${isDisbursement ? 'disbursement-row' : ''} ${isGracePeriod ? 'grace-period' : ''} ${isPaid ? 'paid-row' : ''}`}
-                              >
-                                <td>{row.date ? new Date(row.date).toLocaleDateString() : '--'}</td>
-                                <td>{isDisbursement ? 'Disbursement' : (row.period ? `Period ${row.period}` : '--')}</td>
-                                <td className="currency">{row.scheduled ? `KES ${Number(row.scheduled.principal || 0).toLocaleString()}` : '--'}</td>
-                                <td className="currency">{row.scheduled ? `KES ${Number(row.scheduled.interest || 0).toLocaleString()}` : '--'}</td>
-                                <td className="currency">{row.scheduled && row.scheduled.fine ? `KES ${Number(row.scheduled.fine).toLocaleString()}` : '--'}</td>
-                                <td className="currency">{isDisbursement ? '--' : `KES ${Number(row.actualPayment.principal || 0).toLocaleString()}`}</td>
-                                <td className="currency">{isDisbursement ? '--' : `KES ${Number(row.actualPayment.interest || 0).toLocaleString()}`}</td>
-                                <td className="currency">{isDisbursement ? '--' : `KES ${Number(row.actualPayment.fine || 0).toLocaleString()}`}</td>
-                                <td className="currency">{isOverdue ? `KES ${Number(row.outstanding).toLocaleString()}` : '--'}</td>
-                                <td className="currency">KES {Number(row.balance || 0).toLocaleString()}</td>
-                                <td className="note-cell" title={row.note}>{row.note || '--'}</td>
+                              <tr key={`${entry.description}-${idx}`}>
+                                <td>{new Date(entry.date).toLocaleDateString()}</td>
+                                <td>{entry.description}</td>
+                                <td className="currency">{entry.moneyIn > 0 ? `KES ${Number(entry.moneyIn).toLocaleString()}` : '-'}</td>
+                                <td className="currency">{entry.moneyOut > 0 ? `KES ${Number(entry.moneyOut).toLocaleString()}` : '-'}</td>
+                                <td className="currency">KES {Number(runningBalance).toLocaleString()}</td>
                               </tr>
                             );
-                          })}
-                        </tbody>
-                        <tfoot>
-                          <tr style={{ fontWeight: 'bold', backgroundColor: '#f5f5f5', borderTop: '2px solid #333' }}>
-                            <td colSpan="2" style={{ textAlign: 'right' }}>TOTAL (Excluding Disbursement)</td>
-                            <td className="currency">KES {comprehensiveStatement.statement.slice(1).reduce((sum, r) => sum + Number(r.scheduled?.principal || 0), 0).toLocaleString()}</td>
-                            <td className="currency">KES {comprehensiveStatement.statement.slice(1).reduce((sum, r) => sum + Number(r.scheduled?.interest || 0), 0).toLocaleString()}</td>
-                            <td className="currency">KES {comprehensiveStatement.statement.slice(1).reduce((sum, r) => sum + Number(r.scheduled?.fine || 0), 0).toLocaleString()}</td>
-                            <td className="currency">KES {comprehensiveStatement.statement.slice(1).reduce((sum, r) => sum + Number(r.actualPayment?.principal || 0), 0).toLocaleString()}</td>
-                            <td className="currency">KES {comprehensiveStatement.statement.slice(1).reduce((sum, r) => sum + Number(r.actualPayment?.interest || 0), 0).toLocaleString()}</td>
-                            <td className="currency">KES {comprehensiveStatement.statement.slice(1).reduce((sum, r) => sum + Number(r.actualPayment?.fine || 0), 0).toLocaleString()}</td>
-                            <td className="currency">--</td>
-                            <td className="currency">KES {comprehensiveStatement.statement.length > 0 ? Number(comprehensiveStatement.statement[comprehensiveStatement.statement.length - 1]?.balance || 0).toLocaleString() : '0'}</td>
-                            <td></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-
-                    {/* Mobile View - Card Layout */}
-                    <div className="statement-cards-wrapper mobile-view">
-                      {comprehensiveStatement.statement.map((row, idx) => {
-                        const isDisbursement = row.period === 0;
-                        const isOverdue = row.outstanding > 0 && !isDisbursement;
-                        const isGracePeriod = row.scheduled?.isGrace;
-                        const isPaid = row.outstanding === 0 && row.scheduled;
-                        
-                        return (
-                          <div 
-                            key={idx} 
-                            className={`statement-mobile-card ${isOverdue ? 'overdue' : ''} ${isDisbursement ? 'disbursement' : ''} ${isGracePeriod ? 'grace' : ''} ${isPaid ? 'paid' : ''}`}
-                          >
-                            <div className="card-header">
-                              <span className="period-label">
-                                {isDisbursement ? 'Disbursement' : `Period ${row.period}`}
-                              </span>
-                              <span className="date-label">{row.date ? new Date(row.date).toLocaleDateString() : '--'}</span>
-                            </div>
-                            <div className="card-body">
-                              {row.scheduled && (
-                                <>
-                                  <div className="card-section-title">Scheduled</div>
-                                  <div className="card-row">
-                                    <span className="label">Principal</span>
-                                    <span className="value">KES {Number(row.scheduled.principal || 0).toLocaleString()}</span>
-                                  </div>
-                                  <div className="card-row">
-                                    <span className="label">Interest</span>
-                                    <span className="value">KES {Number(row.scheduled.interest || 0).toLocaleString()}</span>
-                                  </div>
-                                  {row.scheduled.fine > 0 && (
-                                    <div className="card-row">
-                                      <span className="label">Fine</span>
-                                      <span className="value">KES {Number(row.scheduled.fine).toLocaleString()}</span>
-                                    </div>
-                                  )}
-                                  <div className="card-row highlight">
-                                    <span className="label">Total</span>
-                                    <span className="value">KES {Number(row.scheduled.total || 0).toLocaleString()}</span>
-                                  </div>
-                                </>
-                              )}
-                              {!isDisbursement && (
-                                <>
-                                  <div className="card-section-title">Actual Payment</div>
-                                  <div className="card-row">
-                                    <span className="label">Principal</span>
-                                    <span className="value">KES {Number(row.actualPayment.principal || 0).toLocaleString()}</span>
-                                  </div>
-                                  <div className="card-row">
-                                    <span className="label">Interest</span>
-                                    <span className="value">KES {Number(row.actualPayment.interest || 0).toLocaleString()}</span>
-                                  </div>
-                                  {row.actualPayment.fine > 0 && (
-                                    <div className="card-row">
-                                      <span className="label">Fine</span>
-                                      <span className="value">KES {Number(row.actualPayment.fine || 0).toLocaleString()}</span>
-                                    </div>
-                                  )}
-                                  <div className="card-row highlight">
-                                    <span className="label">Amount</span>
-                                    <span className="value">KES {Number(row.actualPayment.amount || 0).toLocaleString()}</span>
-                                  </div>
-                                </>
-                              )}
-                              {isOverdue && (
-                                <div className="card-row outstanding-row">
-                                  <span className="label">Outstanding</span>
-                                  <span className="value">KES {Number(row.outstanding).toLocaleString()}</span>
-                                </div>
-                              )}
-                              <div className="card-row balance-row">
-                                <span className="label">Balance</span>
-                                <span className="value">KES {Number(row.balance || 0).toLocaleString()}</span>
-                              </div>
-                              {row.note && (
-                                <div className="note-text">{row.note}</div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
                 ) : (
                   <div className="empty-state">No statement records available.</div>
                 )}

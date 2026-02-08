@@ -960,53 +960,66 @@ function BackendLoanStatement({ loanId }) {
   if (error) return <div className="error-text">{error}</div>;
   if (!statement) return <div>No statement available.</div>;
 
-  // Render repayments and fines as a simple table
+  const ledgerEntries = [];
+  if (Array.isArray(statement.repayments)) {
+    statement.repayments.forEach((repayment) => {
+      ledgerEntries.push({
+        date: repayment.date,
+        description: `Repayment${repayment.reference ? ` (${repayment.reference})` : ''}`,
+        moneyIn: Number(repayment.amount || 0),
+        moneyOut: 0,
+      });
+    });
+  }
+  if (Array.isArray(statement.fines)) {
+    statement.fines.forEach((fine) => {
+      ledgerEntries.push({
+        date: fine.date,
+        description: `Fine charged${fine.reason ? ` (${fine.reason})` : ''}`,
+        moneyIn: 0,
+        moneyOut: Number(fine.amount || 0),
+      });
+    });
+  }
+
+  ledgerEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  // Render statement in a T24-style ledger table
   return (
     <div>
-      <h5>Repayments</h5>
-      {Array.isArray(statement.repayments) && statement.repayments.length > 0 ? (
+      <h5>Statement (T24 Style)</h5>
+      {ledgerEntries.length > 0 ? (
         <table className="statement-table">
           <thead>
             <tr>
               <th>Date</th>
-              <th>Amount</th>
-              <th>Type</th>
-              <th>Reference</th>
+              <th>Details</th>
+              <th>Money In</th>
+              <th>Money Out</th>
+              <th>Running Balance</th>
             </tr>
           </thead>
           <tbody>
-            {statement.repayments.map((r, idx) => (
-              <tr key={idx}>
-                <td>{r.date ? new Date(r.date).toLocaleDateString() : '--'}</td>
-                <td>KES {Number(r.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-                <td>{r.type || 'Repayment'}</td>
-                <td>{r.reference || '--'}</td>
-              </tr>
-            ))}
+            {(() => {
+              let runningBalance = 0;
+              return ledgerEntries.map((entry, idx) => {
+                runningBalance += Number(entry.moneyOut || 0) - Number(entry.moneyIn || 0);
+                return (
+                  <tr key={idx}>
+                    <td>{entry.date ? new Date(entry.date).toLocaleDateString() : '--'}</td>
+                    <td>{entry.description || '--'}</td>
+                    <td>{entry.moneyIn > 0 ? `KES ${Number(entry.moneyIn).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '--'}</td>
+                    <td>{entry.moneyOut > 0 ? `KES ${Number(entry.moneyOut).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '--'}</td>
+                    <td>KES {Number(runningBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                  </tr>
+                );
+              });
+            })()}
           </tbody>
         </table>
-      ) : <div>No repayments recorded.</div>}
-      <h5>Fines</h5>
-      {Array.isArray(statement.fines) && statement.fines.length > 0 ? (
-        <table className="statement-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Amount</th>
-              <th>Reason</th>
-            </tr>
-          </thead>
-          <tbody>
-            {statement.fines.map((f, idx) => (
-              <tr key={idx}>
-                <td>{f.date ? new Date(f.date).toLocaleDateString() : '--'}</td>
-                <td>KES {Number(f.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-                <td>{f.reason || '--'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : <div>No fines recorded.</div>}
+      ) : (
+        <div>No statement entries available.</div>
+      )}
     </div>
   );
 }
