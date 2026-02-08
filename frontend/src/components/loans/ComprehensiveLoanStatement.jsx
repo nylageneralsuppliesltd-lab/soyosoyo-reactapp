@@ -109,9 +109,18 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
 
   if (!statement) return null;
 
-  const { loan, summary, statement: rows } = statement;
-  const completionPercentage = summary.completionPercentage || 0;
-  const isOverdue = rows.some(r => r.outstanding > 0 && !r.scheduled?.isGrace && r.type === 'Loan Payment');
+  const { loan, summary, statement: rawRows } = statement;
+  const safeSummary = {
+    scheduledPayments: Number(summary?.scheduledPayments || 0),
+    totalPaid: Number(summary?.totalPaid || 0),
+    totalFines: Number(summary?.totalFines || 0),
+    outstandingBalance: Number(summary?.outstandingBalance || 0),
+    completionPercentage: Number(summary?.completionPercentage || 0),
+  };
+  const rows = Array.isArray(rawRows) ? rawRows : [];
+  const formatNumber = (value) => Number(value ?? 0).toLocaleString();
+  const completionPercentage = safeSummary.completionPercentage || 0;
+  const isOverdue = rows.some(r => (r?.outstanding || 0) > 0 && !r?.scheduled?.isGrace && r?.type === 'Loan Payment');
 
   return (
     <div className="statement-full-page">
@@ -234,7 +243,7 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                   </div>
                   <div className="card-content">
                     <span className="card-label">Total Scheduled</span>
-                    <span className="card-value">KSh {summary.scheduledPayments.toLocaleString()}</span>
+                    <span className="card-value">KSh {formatNumber(safeSummary.scheduledPayments)}</span>
                   </div>
                 </div>
 
@@ -244,7 +253,7 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                   </div>
                   <div className="card-content">
                     <span className="card-label">Total Paid</span>
-                    <span className="card-value">KSh {summary.totalPaid.toLocaleString()}</span>
+                    <span className="card-value">KSh {formatNumber(safeSummary.totalPaid)}</span>
                   </div>
                 </div>
 
@@ -254,7 +263,7 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                   </div>
                   <div className="card-content">
                     <span className="card-label">Fines Charged</span>
-                    <span className="card-value">KSh {summary.totalFines.toLocaleString()}</span>
+                    <span className="card-value">KSh {formatNumber(safeSummary.totalFines)}</span>
                   </div>
                 </div>
 
@@ -264,7 +273,7 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                   </div>
                   <div className="card-content">
                     <span className="card-label">Outstanding</span>
-                    <span className="card-value">KSh {summary.outstandingBalance.toLocaleString()}</span>
+                    <span className="card-value">KSh {formatNumber(safeSummary.outstandingBalance)}</span>
                   </div>
                 </div>
               </div>
@@ -294,10 +303,10 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                               {row.type}
                             </span>
                           </td>
-                          <td className="currency">{row.actualPayment.principal > 0 ? `KSh ${row.actualPayment.principal.toLocaleString()}` : '-'}</td>
-                          <td className="currency">{row.actualPayment.interest > 0 ? `KSh ${row.actualPayment.interest.toLocaleString()}` : '-'}</td>
-                          <td className="currency">{row.actualPayment.fine > 0 ? `KSh ${row.actualPayment.fine.toLocaleString()}` : '-'}</td>
-                          <td className="currency"><strong>{row.actualPayment.amount > 0 ? `KSh ${row.actualPayment.amount.toLocaleString()}` : '-'}</strong></td>
+                          <td className="currency">{Number(row?.actualPayment?.principal || 0) > 0 ? `KSh ${formatNumber(row.actualPayment.principal)}` : '-'}</td>
+                          <td className="currency">{Number(row?.actualPayment?.interest || 0) > 0 ? `KSh ${formatNumber(row.actualPayment.interest)}` : '-'}</td>
+                          <td className="currency">{Number(row?.actualPayment?.fine || 0) > 0 ? `KSh ${formatNumber(row.actualPayment.fine)}` : '-'}</td>
+                          <td className="currency"><strong>{Number(row?.actualPayment?.amount || 0) > 0 ? `KSh ${formatNumber(row.actualPayment.amount)}` : '-'}</strong></td>
                           <td className="transaction-note">{row.note}</td>
                         </tr>
                       ))}
@@ -335,24 +344,24 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                     <tr key={idx} style={{ borderBottom: '1px solid #ddd' }}>
                       <td style={{ padding: '8px', border: '1px solid #ddd' }}>{new Date(row.date).toLocaleDateString()}</td>
                       <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>{row.period !== null ? row.period : '–'}</td>
-                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>{row.scheduled ? row.scheduled.principal.toLocaleString() : '–'}</td>
-                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>{row.scheduled ? row.scheduled.interest.toLocaleString() : '–'}</td>
-                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd', fontWeight: 'bold' }}>{row.scheduled ? row.scheduled.total.toLocaleString() : '–'}</td>
-                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>{row.actualPayment.principal > 0 ? row.actualPayment.principal.toLocaleString() : '–'}</td>
-                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>{row.actualPayment.interest > 0 ? row.actualPayment.interest.toLocaleString() : '–'}</td>
-                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd', fontWeight: 'bold' }}>{row.actualPayment.amount > 0 ? row.actualPayment.amount.toLocaleString() : '–'}</td>
-                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd', color: row.outstanding > 0 ? '#d32f2f' : '#000' }}>{row.outstanding.toLocaleString()}</td>
+                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>{row.scheduled ? formatNumber(row.scheduled.principal) : '–'}</td>
+                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>{row.scheduled ? formatNumber(row.scheduled.interest) : '–'}</td>
+                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd', fontWeight: 'bold' }}>{row.scheduled ? formatNumber(row.scheduled.total) : '–'}</td>
+                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>{Number(row?.actualPayment?.principal || 0) > 0 ? formatNumber(row.actualPayment.principal) : '–'}</td>
+                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>{Number(row?.actualPayment?.interest || 0) > 0 ? formatNumber(row.actualPayment.interest) : '–'}</td>
+                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd', fontWeight: 'bold' }}>{Number(row?.actualPayment?.amount || 0) > 0 ? formatNumber(row.actualPayment.amount) : '–'}</td>
+                      <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd', color: (row.outstanding || 0) > 0 ? '#d32f2f' : '#000' }}>{formatNumber(row.outstanding)}</td>
                     </tr>
                   ))}
                   <tr style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', borderTop: '2px solid #333' }}>
                     <td colSpan="2" style={{ padding: '10px', border: '1px solid #ddd' }}>TOTALS</td>
-                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{rows.filter(row => row.type !== 'Disbursement').filter(r => r.scheduled).reduce((sum, r) => sum + r.scheduled.principal, 0).toLocaleString()}</td>
-                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{rows.filter(row => row.type !== 'Disbursement').filter(r => r.scheduled).reduce((sum, r) => sum + r.scheduled.interest, 0).toLocaleString()}</td>
-                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{rows.filter(row => row.type !== 'Disbursement').filter(r => r.scheduled).reduce((sum, r) => sum + r.scheduled.total, 0).toLocaleString()}</td>
-                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{rows.filter(row => row.type !== 'Disbursement').reduce((sum, r) => sum + r.actualPayment.principal, 0).toLocaleString()}</td>
-                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{rows.filter(row => row.type !== 'Disbursement').reduce((sum, r) => sum + r.actualPayment.interest, 0).toLocaleString()}</td>
-                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{rows.filter(row => row.type !== 'Disbursement').reduce((sum, r) => sum + r.actualPayment.amount, 0).toLocaleString()}</td>
-                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{rows.filter(row => row.type !== 'Disbursement').reduce((sum, r) => sum + r.outstanding, 0).toLocaleString()}</td>
+                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{formatNumber(rows.filter(row => row.type !== 'Disbursement').filter(r => r.scheduled).reduce((sum, r) => sum + (r.scheduled?.principal || 0), 0))}</td>
+                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{formatNumber(rows.filter(row => row.type !== 'Disbursement').filter(r => r.scheduled).reduce((sum, r) => sum + (r.scheduled?.interest || 0), 0))}</td>
+                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{formatNumber(rows.filter(row => row.type !== 'Disbursement').filter(r => r.scheduled).reduce((sum, r) => sum + (r.scheduled?.total || 0), 0))}</td>
+                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{formatNumber(rows.filter(row => row.type !== 'Disbursement').reduce((sum, r) => sum + (r.actualPayment?.principal || 0), 0))}</td>
+                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{formatNumber(rows.filter(row => row.type !== 'Disbursement').reduce((sum, r) => sum + (r.actualPayment?.interest || 0), 0))}</td>
+                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{formatNumber(rows.filter(row => row.type !== 'Disbursement').reduce((sum, r) => sum + (r.actualPayment?.amount || 0), 0))}</td>
+                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{formatNumber(rows.filter(row => row.type !== 'Disbursement').reduce((sum, r) => sum + (r.outstanding || 0), 0))}</td>
                   </tr>
                 </tbody>
               </table>
@@ -371,13 +380,13 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                   </div>
                   <div className="summary-item">
                     <span className="label">Total Scheduled Payments</span>
-                    <span className="value">KSh {summary.scheduledPayments.toLocaleString()}</span>
+                    <span className="value">KSh {formatNumber(safeSummary.scheduledPayments)}</span>
                   </div>
                   <div className="divider"></div>
                   <div className="summary-item">
                     <span className="label">Total Amount Due</span>
                     <span className="value calculated">
-                      KSh {(summary.scheduledPayments + summary.totalFines).toLocaleString()}
+                      KSh {formatNumber(safeSummary.scheduledPayments + safeSummary.totalFines)}
                     </span>
                   </div>
                 </div>
@@ -388,16 +397,16 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                 <div className="summary-items">
                   <div className="summary-item">
                     <span className="label">Total Paid</span>
-                    <span className="value paid">KSh {summary.totalPaid.toLocaleString()}</span>
+                    <span className="value paid">KSh {formatNumber(safeSummary.totalPaid)}</span>
                   </div>
                   <div className="summary-item">
                     <span className="label">Fines Charged</span>
-                    <span className="value fines">KSh {summary.totalFines.toLocaleString()}</span>
+                    <span className="value fines">KSh {formatNumber(safeSummary.totalFines)}</span>
                   </div>
                   <div className="summary-item">
                     <span className="label">Outstanding Balance</span>
                     <span className={`value ${isOverdue ? 'outstanding' : ''}`}>
-                      KSh {summary.outstandingBalance.toLocaleString()}
+                      KSh {formatNumber(safeSummary.outstandingBalance)}
                     </span>
                   </div>
                   <div className="divider"></div>
@@ -445,46 +454,46 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                 <div className="details-grid">
                   <div className="detail-item">
                     <span className="label">Principal Outstanding</span>
-                    <span className="value amount">KSh {summary.outstandingBalance.toLocaleString()}</span>
+                    <span className="value amount">KSh {formatNumber(safeSummary.outstandingBalance)}</span>
                   </div>
                   <div className="detail-item">
                     <span className="label">Interest Accrued</span>
-                    <span className="value">KSh {(summary.scheduledPayments - Number(loan.amount)).toLocaleString()}</span>
+                    <span className="value">KSh {formatNumber(safeSummary.scheduledPayments - Number(loan.amount))}</span>
                   </div>
                   <div className="detail-item">
                     <span className="label">Penalties Outstanding</span>
-                    <span className="value fines">KSh {summary.totalFines.toLocaleString()}</span>
+                    <span className="value fines">KSh {formatNumber(safeSummary.totalFines)}</span>
                   </div>
                   <div className="detail-item">
                     <span className="label">Total Amount Due</span>
-                    <span className="value outstanding">KSh {(summary.outstandingBalance + summary.totalFines).toLocaleString()}</span>
+                    <span className="value outstanding">KSh {formatNumber(safeSummary.outstandingBalance + safeSummary.totalFines)}</span>
                   </div>
                   <div className="detail-item">
                     <span className="label">Last Payment Date</span>
                     <span className="value">
-                      {rows.filter(r => r.actualPayment.amount > 0).length > 0
-                        ? new Date(rows.filter(r => r.actualPayment.amount > 0).slice(-1)[0].date).toLocaleDateString()
+                      {rows.filter(r => (r.actualPayment?.amount || 0) > 0).length > 0
+                        ? new Date(rows.filter(r => (r.actualPayment?.amount || 0) > 0).slice(-1)[0].date).toLocaleDateString()
                         : 'No payments yet'}
                     </span>
                   </div>
                   <div className="detail-item">
                     <span className="label">Next Payment Due</span>
                     <span className="value">
-                      {rows.find(r => r.outstanding > 0)
-                        ? new Date(rows.find(r => r.outstanding > 0).date).toLocaleDateString()
+                      {rows.find(r => (r.outstanding || 0) > 0)
+                        ? new Date(rows.find(r => (r.outstanding || 0) > 0).date).toLocaleDateString()
                         : 'Fully paid'}
                     </span>
                   </div>
                   <div className="detail-item">
                     <span className="label">Days in Arrears</span>
                     <span className={`value ${(() => {
-                      const overdueRow = rows.find(r => r.outstanding > 0 && new Date(r.date) < new Date());
+                      const overdueRow = rows.find(r => (r.outstanding || 0) > 0 && new Date(r.date) < new Date());
                       if (!overdueRow) return '';
                       const daysOverdue = Math.floor((new Date() - new Date(overdueRow.date)) / (1000 * 60 * 60 * 24));
                       return daysOverdue > 0 ? 'overdue' : '';
                     })()}`}>
                       {(() => {
-                        const overdueRow = rows.find(r => r.outstanding > 0 && new Date(r.date) < new Date());
+                        const overdueRow = rows.find(r => (r.outstanding || 0) > 0 && new Date(r.date) < new Date());
                         if (!overdueRow) return '0';
                         const daysOverdue = Math.floor((new Date() - new Date(overdueRow.date)) / (1000 * 60 * 60 * 24));
                         return daysOverdue > 0 ? daysOverdue : '0';
@@ -494,7 +503,7 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                   <div className="detail-item">
                     <span className="label">Classification</span>
                     <span className={`status-badge ${(() => {
-                      const overdueRow = rows.find(r => r.outstanding > 0 && new Date(r.date) < new Date());
+                      const overdueRow = rows.find(r => (r.outstanding || 0) > 0 && new Date(r.date) < new Date());
                       if (!overdueRow) return 'status-active';
                       const daysOverdue = Math.floor((new Date() - new Date(overdueRow.date)) / (1000 * 60 * 60 * 24));
                       if (daysOverdue === 0) return 'status-active';
@@ -503,7 +512,7 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                       return 'status-defaulted';
                     })()}`}>
                       {(() => {
-                        const overdueRow = rows.find(r => r.outstanding > 0 && new Date(r.date) < new Date());
+                        const overdueRow = rows.find(r => (r.outstanding || 0) > 0 && new Date(r.date) < new Date());
                         if (!overdueRow) return 'Standard';
                         const daysOverdue = Math.floor((new Date() - new Date(overdueRow.date)) / (1000 * 60 * 60 * 24));
                         if (daysOverdue === 0) return 'Standard';
@@ -529,37 +538,37 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                   </thead>
                   <tbody>
                     {(() => {
-                      const overdueRows = rows.filter(r => r.outstanding > 0 && new Date(r.date) < new Date());
-                      const principalArrears = overdueRows.reduce((sum, r) => sum + (r.scheduled?.principal || 0) - r.actualPayment.principal, 0);
-                      const interestArrears = overdueRows.reduce((sum, r) => sum + (r.scheduled?.interest || 0) - r.actualPayment.interest, 0);
-                      const fineArrears = overdueRows.reduce((sum, r) => sum + (r.scheduled?.fine || 0) - r.actualPayment.fine, 0);
+                      const overdueRows = rows.filter(r => (r.outstanding || 0) > 0 && new Date(r.date) < new Date());
+                      const principalArrears = overdueRows.reduce((sum, r) => sum + (r.scheduled?.principal || 0) - (r.actualPayment?.principal || 0), 0);
+                      const interestArrears = overdueRows.reduce((sum, r) => sum + (r.scheduled?.interest || 0) - (r.actualPayment?.interest || 0), 0);
+                      const fineArrears = overdueRows.reduce((sum, r) => sum + (r.scheduled?.fine || 0) - (r.actualPayment?.fine || 0), 0);
                       
                       return (
                         <>
                           <tr>
                             <td>Principal in Arrears</td>
-                            <td className="currency">KSh {principalArrears.toLocaleString()}</td>
+                            <td className="currency">KSh {formatNumber(principalArrears)}</td>
                             <td><span className={principalArrears > 0 ? 'status-badge status-overdue' : 'status-badge status-active'}>
                               {principalArrears > 0 ? 'Outstanding' : 'Current'}
                             </span></td>
                           </tr>
                           <tr>
                             <td>Interest in Arrears</td>
-                            <td className="currency">KSh {interestArrears.toLocaleString()}</td>
+                            <td className="currency">KSh {formatNumber(interestArrears)}</td>
                             <td><span className={interestArrears > 0 ? 'status-badge status-overdue' : 'status-badge status-active'}>
                               {interestArrears > 0 ? 'Outstanding' : 'Current'}
                             </span></td>
                           </tr>
                           <tr>
                             <td>Penalty Charges</td>
-                            <td className="currency">KSh {fineArrears.toLocaleString()}</td>
+                            <td className="currency">KSh {formatNumber(fineArrears)}</td>
                             <td><span className={fineArrears > 0 ? 'status-badge status-overdue' : 'status-badge status-active'}>
                               {fineArrears > 0 ? 'Outstanding' : 'Current'}
                             </span></td>
                           </tr>
                           <tr style={{ fontWeight: 'bold', borderTop: '2px solid #ddd' }}>
                             <td>Total Arrears</td>
-                            <td className="currency">KSh {(principalArrears + interestArrears + fineArrears).toLocaleString()}</td>
+                            <td className="currency">KSh {formatNumber(principalArrears + interestArrears + fineArrears)}</td>
                             <td><span className={(principalArrears + interestArrears + fineArrears) > 0 ? 'status-badge status-overdue' : 'status-badge status-active'}>
                               {(principalArrears + interestArrears + fineArrears) > 0 ? 'Action Required' : 'Up to Date'}
                             </span></td>
@@ -586,7 +595,7 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                   <tbody>
                     {(() => {
                       const now = new Date();
-                      const overdueRows = rows.filter(r => r.outstanding > 0 && new Date(r.date) < now);
+                      const overdueRows = rows.filter(r => (r.outstanding || 0) > 0 && new Date(r.date) < now);
                       
                       const aging0to30 = overdueRows.filter(r => {
                         const days = Math.floor((now - new Date(r.date)) / (1000 * 60 * 60 * 24));
@@ -608,22 +617,22 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                         return days > 90;
                       });
                       
-                      const sum0to30 = aging0to30.reduce((s, r) => s + r.outstanding, 0);
-                      const sum31to60 = aging31to60.reduce((s, r) => s + r.outstanding, 0);
-                      const sum61to90 = aging61to90.reduce((s, r) => s + r.outstanding, 0);
-                      const sum90plus = aging90plus.reduce((s, r) => s + r.outstanding, 0);
+                      const sum0to30 = aging0to30.reduce((s, r) => s + (r.outstanding || 0), 0);
+                      const sum31to60 = aging31to60.reduce((s, r) => s + (r.outstanding || 0), 0);
+                      const sum61to90 = aging61to90.reduce((s, r) => s + (r.outstanding || 0), 0);
+                      const sum90plus = aging90plus.reduce((s, r) => s + (r.outstanding || 0), 0);
                       
                       return (
                         <>
                           <tr>
                             <td>Current (0 days)</td>
-                            <td className="currency">KSh {rows.filter(r => r.outstanding > 0 && new Date(r.date) >= now).reduce((s, r) => s + r.outstanding, 0).toLocaleString()}</td>
-                            <td>{rows.filter(r => r.outstanding > 0 && new Date(r.date) >= now).length}</td>
+                            <td className="currency">KSh {formatNumber(rows.filter(r => (r.outstanding || 0) > 0 && new Date(r.date) >= now).reduce((s, r) => s + (r.outstanding || 0), 0))}</td>
+                            <td>{rows.filter(r => (r.outstanding || 0) > 0 && new Date(r.date) >= now).length}</td>
                             <td><span className="status-badge status-active">Current</span></td>
                           </tr>
                           <tr>
                             <td>1-30 days</td>
-                            <td className="currency">KSh {sum0to30.toLocaleString()}</td>
+                            <td className="currency">KSh {formatNumber(sum0to30)}</td>
                             <td>{aging0to30.length}</td>
                             <td><span className={sum0to30 > 0 ? 'status-badge status-pending' : 'status-badge status-active'}>
                               {sum0to30 > 0 ? 'Watch' : 'None'}
@@ -631,7 +640,7 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                           </tr>
                           <tr>
                             <td>31-60 days</td>
-                            <td className="currency">KSh {sum31to60.toLocaleString()}</td>
+                            <td className="currency">KSh {formatNumber(sum31to60)}</td>
                             <td>{aging31to60.length}</td>
                             <td><span className={sum31to60 > 0 ? 'status-badge status-overdue' : 'status-badge status-active'}>
                               {sum31to60 > 0 ? 'Substandard' : 'None'}
@@ -639,7 +648,7 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                           </tr>
                           <tr>
                             <td>61-90 days</td>
-                            <td className="currency">KSh {sum61to90.toLocaleString()}</td>
+                            <td className="currency">KSh {formatNumber(sum61to90)}</td>
                             <td>{aging61to90.length}</td>
                             <td><span className={sum61to90 > 0 ? 'status-badge status-overdue' : 'status-badge status-active'}>
                               {sum61to90 > 0 ? 'Doubtful' : 'None'}
@@ -647,7 +656,7 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                           </tr>
                           <tr>
                             <td>90+ days</td>
-                            <td className="currency">KSh {sum90plus.toLocaleString()}</td>
+                            <td className="currency">KSh {formatNumber(sum90plus)}</td>
                             <td>{aging90plus.length}</td>
                             <td><span className={sum90plus > 0 ? 'status-badge status-defaulted' : 'status-badge status-active'}>
                               {sum90plus > 0 ? 'Bad Debt' : 'None'}
@@ -691,18 +700,18 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                   </div>
                   <div className="detail-item">
                     <span className="label">Total Interest Charged</span>
-                    <span className="value amount">KSh {(summary.scheduledPayments - Number(loan.amount)).toLocaleString()}</span>
+                    <span className="value amount">KSh {formatNumber(safeSummary.scheduledPayments - Number(loan.amount))}</span>
                   </div>
                   <div className="detail-item">
                     <span className="label">Interest Paid</span>
                     <span className="value paid">
-                      KSh {rows.reduce((sum, r) => sum + r.actualPayment.interest, 0).toLocaleString()}
+                      KSh {formatNumber(rows.reduce((sum, r) => sum + (r.actualPayment?.interest || 0), 0))}
                     </span>
                   </div>
                   <div className="detail-item">
                     <span className="label">Interest Outstanding</span>
                     <span className="value outstanding">
-                      KSh {((summary.scheduledPayments - Number(loan.amount)) - rows.reduce((sum, r) => sum + r.actualPayment.interest, 0)).toLocaleString()}
+                      KSh {formatNumber((safeSummary.scheduledPayments - Number(loan.amount)) - rows.reduce((sum, r) => sum + (r.actualPayment?.interest || 0), 0))}
                     </span>
                   </div>
                 </div>
@@ -725,16 +734,16 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                   </thead>
                   <tbody>
                     {rows.filter(r => r.scheduled).map((row, idx) => {
-                      const interestOutstanding = (row.scheduled?.interest || 0) - row.actualPayment.interest;
+                      const interestOutstanding = (row.scheduled?.interest || 0) - (row.actualPayment?.interest || 0);
                       return (
                         <tr key={idx}>
                           <td>{row.period !== null ? `Period ${row.period}` : 'Final'}</td>
                           <td>{new Date(row.date).toLocaleDateString()}</td>
-                          <td className="currency">KSh {row.balance.toLocaleString()}</td>
-                          <td className="currency">KSh {(row.scheduled?.interest || 0).toLocaleString()}</td>
-                          <td className="currency">KSh {row.actualPayment.interest.toLocaleString()}</td>
+                          <td className="currency">KSh {formatNumber(row.balance)}</td>
+                          <td className="currency">KSh {formatNumber(row.scheduled?.interest || 0)}</td>
+                          <td className="currency">KSh {formatNumber(row.actualPayment?.interest || 0)}</td>
                           <td className={`currency ${interestOutstanding > 0 ? 'overdue' : ''}`}>
-                            KSh {interestOutstanding.toLocaleString()}
+                            KSh {formatNumber(interestOutstanding)}
                           </td>
                           <td>
                             <span className={`status-badge ${interestOutstanding > 0 ? 'status-overdue' : 'status-active'}`}>
@@ -747,9 +756,9 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                     {/* TOTALS ROW */}
                     <tr className="totals-row">
                       <td colSpan="3"><strong>TOTALS</strong></td>
-                      <td className="currency"><strong>KSh {rows.filter(r => r.scheduled).reduce((sum, r) => sum + (r.scheduled?.interest || 0), 0).toLocaleString()}</strong></td>
-                      <td className="currency"><strong>KSh {rows.reduce((sum, r) => sum + r.actualPayment.interest, 0).toLocaleString()}</strong></td>
-                      <td className="currency"><strong>KSh {(rows.filter(r => r.scheduled).reduce((sum, r) => sum + (r.scheduled?.interest || 0), 0) - rows.reduce((sum, r) => sum + r.actualPayment.interest, 0)).toLocaleString()}</strong></td>
+                      <td className="currency"><strong>KSh {formatNumber(rows.filter(r => r.scheduled).reduce((sum, r) => sum + (r.scheduled?.interest || 0), 0))}</strong></td>
+                      <td className="currency"><strong>KSh {formatNumber(rows.reduce((sum, r) => sum + (r.actualPayment?.interest || 0), 0))}</strong></td>
+                      <td className="currency"><strong>KSh {formatNumber(rows.filter(r => r.scheduled).reduce((sum, r) => sum + (r.scheduled?.interest || 0), 0) - rows.reduce((sum, r) => sum + (r.actualPayment?.interest || 0), 0))}</strong></td>
                       <td></td>
                     </tr>
                   </tbody>
@@ -770,22 +779,22 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                   </thead>
                   <tbody>
                     {(() => {
-                      const totalInterest = summary.scheduledPayments - Number(loan.amount);
-                      const totalPaidInterest = rows.reduce((sum, r) => sum + r.actualPayment.interest, 0);
+                      const totalInterest = safeSummary.scheduledPayments - Number(loan.amount);
+                      const totalPaidInterest = rows.reduce((sum, r) => sum + (r.actualPayment?.interest || 0), 0);
                       const quarterPeriods = Math.ceil(rows.filter(r => r.scheduled).length / 4);
                       
                       return [1, 2, 3, 4].map(quarter => {
                         const periodsUpTo = quarter * quarterPeriods;
                         const relevantRows = rows.filter(r => r.scheduled).slice(0, periodsUpTo);
                         const cumInterest = relevantRows.reduce((sum, r) => sum + (r.scheduled?.interest || 0), 0);
-                        const cumPaid = relevantRows.reduce((sum, r) => sum + r.actualPayment.interest, 0);
+                        const cumPaid = relevantRows.reduce((sum, r) => sum + (r.actualPayment?.interest || 0), 0);
                         const percentage = cumInterest > 0 ? ((cumPaid / cumInterest) * 100).toFixed(1) : 0;
                         
                         return (
                           <tr key={quarter}>
                             <td>After {quarter === 1 ? '25%' : quarter === 2 ? '50%' : quarter === 3 ? '75%' : '100%'} of Periods</td>
-                            <td className="currency">KSh {cumInterest.toLocaleString()}</td>
-                            <td className="currency">KSh {cumPaid.toLocaleString()}</td>
+                            <td className="currency">KSh {formatNumber(cumInterest)}</td>
+                            <td className="currency">KSh {formatNumber(cumPaid)}</td>
                             <td>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <div style={{ flex: 1, height: '8px', background: '#e0e0e0', borderRadius: '4px', overflow: 'hidden' }}>
