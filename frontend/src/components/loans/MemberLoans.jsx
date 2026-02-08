@@ -37,9 +37,22 @@ const MemberLoans = ({ onError, onLoading }) => {
     amount: '',
     paymentDate: new Date().toISOString().split('T')[0],
     paymentMethod: 'cash',
+    accountId: '',
     notes: '',
   });
   const [formErrors, setFormErrors] = useState({});
+
+  const getRequiredAccountTypes = (method) => {
+    if (method === 'cash') return ['cash', 'pettyCash'];
+    if (method === 'bank_transfer' || method === 'cheque') return ['bank'];
+    if (method === 'mobile_money') return ['mobileMoney'];
+    return [];
+  };
+
+  const requiredAccountTypes = getRequiredAccountTypes(repaymentFormData.paymentMethod);
+  const filteredRepaymentAccounts = requiredAccountTypes.length > 0
+    ? accounts.filter(acc => requiredAccountTypes.includes(acc.type))
+    : accounts;
 
   // Fetch all required data
   const fetchData = async () => {
@@ -208,6 +221,13 @@ const MemberLoans = ({ onError, onLoading }) => {
     if (!repaymentFormData.amount || isNaN(repaymentFormData.amount) || Number(repaymentFormData.amount) <= 0) {
       errors.amount = 'Valid repayment amount required';
     }
+    if (!repaymentFormData.accountId) errors.accountId = 'Paying account is required';
+    if (requiredAccountTypes.length > 0 && repaymentFormData.accountId) {
+      const selectedAccount = accounts.find(acc => String(acc.id) === String(repaymentFormData.accountId));
+      if (selectedAccount && !requiredAccountTypes.includes(selectedAccount.type)) {
+        errors.accountId = `Paying account must be ${requiredAccountTypes.join(' or ')}`;
+      }
+    }
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       return;
@@ -219,6 +239,7 @@ const MemberLoans = ({ onError, onLoading }) => {
         amount: Number(repaymentFormData.amount),
         date: repaymentFormData.paymentDate,
         paymentMethod: repaymentFormData.paymentMethod,
+        accountId: Number(repaymentFormData.accountId),
         reference: repaymentFormData.notes || `Repayment for Loan #${repaymentFormData.loanId}`,
       };
       
@@ -241,6 +262,7 @@ const MemberLoans = ({ onError, onLoading }) => {
         amount: '',
         paymentDate: new Date().toISOString().split('T')[0],
         paymentMethod: 'cash',
+        accountId: '',
         notes: '',
       });
       setUiMessage({ type: 'success', text: 'Repayment recorded successfully' });
@@ -579,13 +601,38 @@ const MemberLoans = ({ onError, onLoading }) => {
                   <label>Payment Method</label>
                   <select
                     value={repaymentFormData.paymentMethod}
-                    onChange={e => setRepaymentFormData({ ...repaymentFormData, paymentMethod: e.target.value })}
+                    onChange={e => setRepaymentFormData({
+                      ...repaymentFormData,
+                      paymentMethod: e.target.value,
+                      accountId: '',
+                    })}
                   >
                     <option value="cash">Cash</option>
                     <option value="bank_transfer">Bank Transfer</option>
                     <option value="mobile_money">Mobile Money</option>
                     <option value="cheque">Cheque</option>
                   </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="required">Paying Account</label>
+                  <select
+                    value={repaymentFormData.accountId}
+                    onChange={e => setRepaymentFormData({ ...repaymentFormData, accountId: e.target.value })}
+                    className={formErrors.accountId ? 'error' : ''}
+                  >
+                    <option value="">-- Select Account --</option>
+                    {filteredRepaymentAccounts && filteredRepaymentAccounts.length > 0 ? (
+                      filteredRepaymentAccounts.map(acc => (
+                        <option key={acc.id} value={String(acc.id)}>
+                          {acc.name} ({acc.type.toUpperCase()})
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>No matching accounts available</option>
+                    )}
+                  </select>
+                  {formErrors.accountId && <span className="error-text">{formErrors.accountId}</span>}
                 </div>
 
                 <div className="form-group">
@@ -613,6 +660,7 @@ const MemberLoans = ({ onError, onLoading }) => {
                         amount: '',
                         paymentDate: new Date().toISOString().split('T')[0],
                         paymentMethod: 'cash',
+                        accountId: '',
                         notes: '',
                       });
                       setFormErrors({}); 

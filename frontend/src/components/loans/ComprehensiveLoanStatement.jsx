@@ -156,6 +156,59 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
     { label: '61-90 days', min: 61, max: 90, status: 'Doubtful' },
     { label: '90+ days', min: 91, max: Infinity, status: 'Bad Debt' },
   ];
+  const basicEntries = paymentRows.flatMap((row) => {
+    const entries = [];
+    const periodLabel = row.period != null ? `Period ${row.period}` : 'Final';
+    const dueDate = row.date;
+
+    if ((row.scheduled?.principal || 0) > 0) {
+      entries.push({
+        date: dueDate,
+        description: `Principal due (${periodLabel})`,
+        moneyIn: 0,
+        moneyOut: row.scheduled.principal,
+        order: 1,
+      });
+    }
+
+    if ((row.scheduled?.interest || 0) > 0) {
+      entries.push({
+        date: dueDate,
+        description: `Interest due (${periodLabel})`,
+        moneyIn: 0,
+        moneyOut: row.scheduled.interest,
+        order: 2,
+      });
+    }
+
+    if ((row.scheduled?.fine || 0) > 0) {
+      entries.push({
+        date: dueDate,
+        description: `Fine charged (${periodLabel})`,
+        moneyIn: 0,
+        moneyOut: row.scheduled.fine,
+        order: 3,
+      });
+    }
+
+    if ((row.actualPayment?.amount || 0) > 0) {
+      entries.push({
+        date: row.actualPayment.paymentDate || row.date,
+        description: `Payment received (${periodLabel})`,
+        moneyIn: row.actualPayment.amount,
+        moneyOut: 0,
+        paymentMethod: row.actualPayment.method || null,
+        accountName: row.actualPayment.accountName || null,
+        order: 4,
+      });
+    }
+
+    return entries;
+  }).sort((a, b) => {
+    const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    return (a.order || 0) - (b.order || 0);
+  });
 
   return (
     <div className="statement-full-page">
@@ -187,6 +240,12 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
             Overview
           </button>
           <button
+            className={`tab ${viewType === 'basic' ? 'active' : ''}`}
+            onClick={() => setViewType('basic')}
+          >
+            Simple Statement
+          </button>
+          <button
             className={`tab ${viewType === 'full' ? 'active' : ''}`}
             onClick={() => setViewType('full')}
           >
@@ -213,6 +272,55 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
         </div>
 
         <div className="statement-content">
+          {/* BASIC STATEMENT TAB */}
+          {viewType === 'basic' && (
+            <div className="details-card">
+              <h3>Simple Statement (Charges and Payments)</h3>
+              <p className="section-note">Each charge (principal, interest, fines) and payment appears on its own line.</p>
+              <div className="transactions-table-wrapper">
+                <table className="transactions-compact-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Description</th>
+                      <th className="currency">Money In</th>
+                      <th className="currency">Money Out</th>
+                      <th>Payment Method</th>
+                      <th>Paying Account</th>
+                      <th className="currency">Running Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {basicEntries.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ textAlign: 'center', color: '#666' }}>
+                          No statement entries available.
+                        </td>
+                      </tr>
+                    ) : (
+                      (() => {
+                        let runningBalance = 0;
+                        return basicEntries.map((entry, idx) => {
+                          runningBalance += Number(entry.moneyOut || 0) - Number(entry.moneyIn || 0);
+                          return (
+                            <tr key={`${entry.description}-${idx}`}>
+                              <td className="transaction-date">{new Date(entry.date).toLocaleDateString()}</td>
+                              <td className="transaction-note">{entry.description}</td>
+                              <td className="currency">{entry.moneyIn > 0 ? `KSh ${formatNumber(entry.moneyIn)}` : '-'}</td>
+                              <td className="currency">{entry.moneyOut > 0 ? `KSh ${formatNumber(entry.moneyOut)}` : '-'}</td>
+                              <td>{entry.paymentMethod ? entry.paymentMethod.replace(/_/g, ' ') : '--'}</td>
+                              <td>{entry.accountName || '--'}</td>
+                              <td className="currency"><strong>KSh {formatNumber(runningBalance)}</strong></td>
+                            </tr>
+                          );
+                        });
+                      })()
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           {/* OVERVIEW TAB */}
           {viewType === 'overview' && (
             <>
@@ -326,6 +434,8 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                         <th className="currency">Interest</th>
                         <th className="currency">Fine</th>
                         <th className="currency">Total</th>
+                        <th>Method</th>
+                        <th>Account</th>
                         <th>Note</th>
                       </tr>
                     </thead>
@@ -342,6 +452,8 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                           <td className="currency">{Number(row?.actualPayment?.interest || 0) > 0 ? `KSh ${formatNumber(row.actualPayment.interest)}` : '-'}</td>
                           <td className="currency">{Number(row?.actualPayment?.fine || 0) > 0 ? `KSh ${formatNumber(row.actualPayment.fine)}` : '-'}</td>
                           <td className="currency"><strong>{Number(row?.actualPayment?.amount || 0) > 0 ? `KSh ${formatNumber(row.actualPayment.amount)}` : '-'}</strong></td>
+                          <td>{row.actualPayment?.method ? row.actualPayment.method.replace(/_/g, ' ') : '--'}</td>
+                          <td>{row.actualPayment?.accountName || '--'}</td>
                           <td className="transaction-note">{row.note}</td>
                         </tr>
                       ))}
@@ -371,6 +483,8 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                     <th style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold', border: '1px solid #ddd' }}>Paid Principal</th>
                     <th style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold', border: '1px solid #ddd' }}>Paid Interest</th>
                     <th style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold', border: '1px solid #ddd' }}>Total Paid</th>
+                    <th style={{ padding: '10px', textAlign: 'left', fontWeight: 'bold', border: '1px solid #ddd' }}>Payment Method</th>
+                    <th style={{ padding: '10px', textAlign: 'left', fontWeight: 'bold', border: '1px solid #ddd' }}>Paying Account</th>
                     <th style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold', border: '1px solid #ddd' }}>Outstanding</th>
                   </tr>
                 </thead>
@@ -385,6 +499,8 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                       <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>{Number(row?.actualPayment?.principal || 0) > 0 ? formatNumber(row.actualPayment.principal) : '–'}</td>
                       <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>{Number(row?.actualPayment?.interest || 0) > 0 ? formatNumber(row.actualPayment.interest) : '–'}</td>
                       <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd', fontWeight: 'bold' }}>{Number(row?.actualPayment?.amount || 0) > 0 ? formatNumber(row.actualPayment.amount) : '–'}</td>
+                      <td style={{ padding: '8px', textAlign: 'left', border: '1px solid #ddd' }}>{row.actualPayment?.method ? row.actualPayment.method.replace(/_/g, ' ') : '–'}</td>
+                      <td style={{ padding: '8px', textAlign: 'left', border: '1px solid #ddd' }}>{row.actualPayment?.accountName || '–'}</td>
                       <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd', color: (row.outstanding || 0) > 0 ? '#d32f2f' : '#000' }}>{formatNumber(row.outstanding)}</td>
                     </tr>
                   ))}
@@ -396,6 +512,8 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                     <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{formatNumber(rows.filter(row => row.type !== 'Disbursement').reduce((sum, r) => sum + (r.actualPayment?.principal || 0), 0))}</td>
                     <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{formatNumber(rows.filter(row => row.type !== 'Disbursement').reduce((sum, r) => sum + (r.actualPayment?.interest || 0), 0))}</td>
                     <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{formatNumber(rows.filter(row => row.type !== 'Disbursement').reduce((sum, r) => sum + (r.actualPayment?.amount || 0), 0))}</td>
+                    <td style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>—</td>
+                    <td style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>—</td>
                     <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ddd' }}>{formatNumber(rows.filter(row => row.type !== 'Disbursement').reduce((sum, r) => sum + (r.outstanding || 0), 0))}</td>
                   </tr>
                 </tbody>

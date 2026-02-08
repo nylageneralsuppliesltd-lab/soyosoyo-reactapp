@@ -979,6 +979,7 @@ export class LoansService {
         member: true,
         repayments: {
           orderBy: { date: 'asc' },
+          include: { account: true },
         },
       },
     });
@@ -1115,6 +1116,7 @@ export class LoansService {
         member: true,
         repayments: {
           orderBy: { date: 'asc' },
+          include: { account: true },
         },
         fines: {
           orderBy: { createdAt: 'asc' },
@@ -1249,6 +1251,8 @@ export class LoansService {
       principal: Number(repayment.principal || 0),
       interest: Number(repayment.interest || 0),
       method: repayment.method,
+      accountId: repayment.accountId || null,
+      accountName: repayment.account?.name || null,
       reference: repayment.reference,
       notes: repayment.notes,
       date: repayment.date,
@@ -1289,6 +1293,7 @@ export class LoansService {
         member: true,
         repayments: {
           orderBy: { date: 'asc' },
+          include: { account: true },
         },
         fines: {
           orderBy: { createdAt: 'asc' },
@@ -1380,6 +1385,7 @@ export class LoansService {
     const sortedRepayments = [...loan.repayments].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     let repaymentIndex = 0;
     let remainingRepaymentAmount = 0;
+    let allocatedRepayment: any = null;
 
     // Process each amortization period
     for (const scheduleRow of amortizationSchedule) {
@@ -1391,6 +1397,7 @@ export class LoansService {
         const rep = sortedRepayments[repaymentIndex];
         remainingRepaymentAmount = Number(rep.amount);
         allocatedRepaymentDate = new Date(rep.date);
+        allocatedRepayment = rep;
         repaymentIndex++;
       }
       
@@ -1442,6 +1449,9 @@ export class LoansService {
           fine: actualFine,
           amount: Number(totalPaymentThisPeriod.toFixed(2)),
           paymentDate: allocatedRepaymentDate ? new Date(allocatedRepaymentDate).toLocaleDateString() : null,
+          method: allocatedRepayment?.method || null,
+          accountId: allocatedRepayment?.accountId || null,
+          accountName: allocatedRepayment?.account?.name || null,
         },
         outstanding: Number(outstanding.toFixed(2)),
         balance: Number(runningPrincipalBalance.toFixed(2)),

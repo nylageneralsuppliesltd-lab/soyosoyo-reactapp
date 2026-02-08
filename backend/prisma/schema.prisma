@@ -314,6 +314,7 @@ model Account {
   creditEntries  JournalEntry[] @relation("CreditAccount")
   deposits       Deposit[]   @relation("DepositAccount")
   withdrawals    Withdrawal[] @relation("WithdrawalAccount")
+  repayments     Repayment[] @relation("RepaymentAccount")
   assetPurchases Asset[]     @relation("AssetPurchaseAccount")
   assetDisposals Asset[]     @relation("AssetDisposalAccount")
   assetTransactions AssetTransaction[] @relation("AssetTransactionAccount")
@@ -517,6 +518,8 @@ model Repayment {
   loanId       Int
   member       Member?   @relation(fields: [memberId], references: [id], onDelete: SetNull)
   memberId     Int?
+  account      Account?  @relation("RepaymentAccount", fields: [accountId], references: [id], onDelete: SetNull)
+  accountId    Int?
   
   amount       Decimal   @db.Decimal(14, 2)
   principal    Decimal   @default(0) @db.Decimal(14, 2)
@@ -533,6 +536,7 @@ model Repayment {
   @@index([loanId])
   @@index([memberId])
   @@index([date])
+  @@index([accountId])
 }
 
 // ============== FINES & PENALTIES ==============

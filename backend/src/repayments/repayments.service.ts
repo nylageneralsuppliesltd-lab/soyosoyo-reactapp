@@ -1,10 +1,37 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, PaymentMethod } from '@prisma/client';
 
 @Injectable()
 export class RepaymentsService {
   constructor(private prisma: PrismaService) {}
+
+  private normalizePaymentMethod(method?: string): string {
+    const value = (method || 'cash').toLowerCase();
+
+    if (value === 'cash') return 'cash';
+    if (value === 'bank_transfer' || value === 'bank') return 'bank';
+    if (value === 'mobile_money' || value === 'mpesa') return 'mpesa';
+    if (value === 'cheque' || value === 'check_off') return 'check_off';
+    if (value === 'bank_deposit') return 'bank_deposit';
+
+    return 'other';
+  }
+
+  private getRequiredAccountTypes(method: string): string[] {
+    switch (method) {
+      case 'cash':
+        return ['cash', 'pettyCash'];
+      case 'bank':
+      case 'bank_deposit':
+      case 'check_off':
+        return ['bank'];
+      case 'mpesa':
+        return ['mobileMoney'];
+      default:
+        return [];
+    }
+  }
 
   private async ensureAccountByName(
     name: string,
@@ -31,15 +58,19 @@ export class RepaymentsService {
       const repaymentData = {
         loanId: data.loanId ? parseInt(data.loanId) : null,
         memberId: data.memberId ? parseInt(data.memberId) : null,
+        accountId: data.accountId ? parseInt(data.accountId) : null,
         amount: data.amount ? parseFloat(data.amount) : 0,
         date: data.date ? new Date(data.date) : new Date(),
-        method: data.method || 'cash',
+        method: this.normalizePaymentMethod(data.method || data.paymentMethod),
         notes: data.notes?.trim() || null,
       };
 
       // Validate required fields
       if (!repaymentData.loanId || !repaymentData.amount || repaymentData.amount <= 0) {
         throw new BadRequestException('Loan ID and valid amount are required');
+      }
+      if (data.accountId && isNaN(repaymentData.accountId as any)) {
+        throw new BadRequestException('Invalid account ID');
       }
 
       const amountDecimal = new Prisma.Decimal(repaymentData.amount);
@@ -107,12 +138,20 @@ export class RepaymentsService {
       }
 
       // Create the repayment record with allocation details
-      const repayment = await this.prisma.repayment.create({ 
-        data: {
-          ...repaymentData,
-          principal: principalPayment,
-          interest: interestPayment,
-        }
+      const repaymentCreateData: Prisma.RepaymentUncheckedCreateInput = {
+        loanId: repaymentData.loanId,
+        memberId: repaymentData.memberId ?? undefined,
+        accountId: repaymentData.accountId ?? undefined,
+        amount: amountDecimal,
+        date: repaymentData.date,
+        method: repaymentData.method as PaymentMethod,
+        notes: repaymentData.notes,
+        principal: principalPayment,
+        interest: interestPayment,
+      };
+
+      const repayment = await this.prisma.repayment.create({
+        data: repaymentCreateData,
       });
 
       // Update loan balance (only principal reduces the balance)
@@ -149,11 +188,31 @@ export class RepaymentsService {
       }
 
       // Get necessary accounts
-      const cashAccount = await this.ensureAccountByName(
+      const requiredTypes = this.getRequiredAccountTypes(repaymentData.method);
+      let cashAccount = await this.ensureAccountByName(
         'Cashbox',
         'cash',
         'Default cash account'
       );
+
+      if (repaymentData.accountId) {
+        const selectedAccount = await this.prisma.account.findUnique({
+          where: { id: repaymentData.accountId },
+        });
+        if (!selectedAccount) {
+          throw new BadRequestException(`Account #${repaymentData.accountId} not found`);
+        }
+        if (requiredTypes.length > 0 && !requiredTypes.includes(selectedAccount.type)) {
+          throw new BadRequestException(
+            `Payment method ${repaymentData.method} requires account type ${requiredTypes.join(', ')}`
+          );
+        }
+        cashAccount = selectedAccount;
+      } else if (requiredTypes.length > 0 && repaymentData.method !== 'cash') {
+        throw new BadRequestException(
+          `Payment method ${repaymentData.method} requires a paying account`
+        );
+      }
 
       const loansReceivableAccount = await this.ensureAccountByName(
         'Loans Receivable',
@@ -356,14 +415,14 @@ export class RepaymentsService {
       take,
       skip,
       orderBy: { date: 'desc' },
-      include: { loan: true },
+      include: { loan: true, account: true },
     });
   }
 
   async findOne(id: number) {
     return this.prisma.repayment.findUnique({
       where: { id },
-      include: { loan: true },
+      include: { loan: true, account: true },
     });
   }
 
@@ -383,6 +442,7 @@ export class RepaymentsService {
         amount: data.amount ? parseFloat(data.amount) : repayment.amount,
         method: data.method || repayment.method,
         notes: data.notes || repayment.notes,
+        accountId: data.accountId !== undefined ? data.accountId : repayment.accountId,
         date: data.date ? new Date(data.date) : repayment.date,
       },
       include: { loan: true },
@@ -397,6 +457,7 @@ export class RepaymentsService {
     return this.prisma.repayment.findMany({
       where: { loanId },
       orderBy: { date: 'desc' },
+      include: { account: true },
     });
   }
 }
