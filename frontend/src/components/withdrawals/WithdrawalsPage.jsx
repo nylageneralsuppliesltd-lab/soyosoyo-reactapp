@@ -156,7 +156,9 @@ const WithdrawalsPage = () => {
     setEditingWithdrawal(null);
   };
 
-  const filteredWithdrawals = withdrawals.filter((w) => {
+  const listWithdrawals = withdrawals.filter((w) => !w.isSystemGenerated);
+
+  const filteredWithdrawals = listWithdrawals.filter((w) => {
     const matchesSearch =
       w.memberName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       w.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -175,13 +177,17 @@ const WithdrawalsPage = () => {
     }).format(amount);
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-KE', {
+  const formatDateTime = (dateString) => {
+    return new Date(dateString).toLocaleString('en-KE', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
+
+  const getRecordedAt = (withdrawal) => withdrawal.recordedAt || withdrawal.createdAt || withdrawal.date;
 
   const getTypeBadge = (type) => {
     const badges = {
@@ -189,6 +195,7 @@ const WithdrawalsPage = () => {
       transfer: { label: 'Transfer', className: 'badge-transfer' },
       refund: { label: 'Refund', className: 'badge-refund' },
       dividend: { label: 'Dividend', className: 'badge-dividend' },
+      loan_disbursement: { label: 'Loan Disbursement', className: 'badge-disbursement' },
     };
     const badge = badges[type] || { label: type, className: 'badge-default' };
     return <span className={`badge ${badge.className}`}>{badge.label}</span>;
@@ -302,6 +309,7 @@ const WithdrawalsPage = () => {
                 <option value="transfer">Transfers</option>
                 <option value="refund">Refunds</option>
                 <option value="dividend">Dividends</option>
+                <option value="loan_disbursement">Loan Disbursements</option>
               </select>
             </div>
 
@@ -334,7 +342,7 @@ const WithdrawalsPage = () => {
                   <tbody>
                     {filteredWithdrawals.map((withdrawal) => (
                       <tr key={withdrawal.id} className={withdrawal.isVoided ? 'row-voided' : ''}>
-                        <td>{formatDate(withdrawal.date)}</td>
+                        <td>{formatDateTime(getRecordedAt(withdrawal))}</td>
                         <td>
                           {getTypeBadge(withdrawal.type)}
                           {withdrawal.isVoided && <span className="void-badge">VOID</span>}

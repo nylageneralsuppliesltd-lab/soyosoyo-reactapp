@@ -1,4 +1,4 @@
-/* Premium Sidebar Styling with Mobile Support */
+/* Premium Sidebar Styling - Unified Design System */
 
 :root {
   --primary: #2563eb;
@@ -9,6 +9,15 @@
   --border: #e5e7eb;
   --shadow: 0 1px 3px rgba(0,0,0,0.1);
   --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+  
+  /* Typography */
+  --font-md: 14px;
+  --font-sm: 12px;
+  
+  /* Spacing */
+  --pad-sidebar-logo: 16px;
+  --pad-nav-item: 8px;
+  --gap-nav: 4px;
 }
 
 /* Sidebar Container */
@@ -56,13 +65,13 @@
 .sidebar-close-btn {
   display: none;
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 12px;
+  right: 12px;
   background: none;
   border: none;
   color: var(--dark);
   cursor: pointer;
-  padding: 8px;
+  padding: 6px;
   z-index: 10;
   transition: color 0.2s;
 }
@@ -81,22 +90,22 @@
 
 /* Logo Section */
 .sidebar-logo {
-  padding: 24px 16px;
+  padding: 12px 12px;
   text-align: center;
   border-bottom: 2px solid var(--border);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .logo-circle {
-  width: 60px;
-  height: 60px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--primary) 0%, var(--success) 100%);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: bold;
   margin: 0 auto 12px;
   box-shadow: var(--shadow-md);

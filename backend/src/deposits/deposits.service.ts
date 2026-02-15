@@ -264,6 +264,8 @@ export class DepositsService {
       type: d.type || 'contribution',
       transactionType: 'deposit',
       source: 'deposit',
+      recordedAt: d.createdAt || d.date,
+      isSystemGenerated: false,
     }));
 
     // Transform repayments to common format (as deposit entries)
@@ -282,6 +284,8 @@ export class DepositsService {
       description: `Loan repayment - ${r.loan?.loanType?.name || 'Loan'}`,
       transactionType: 'deposit',
       source: 'repayment',
+      recordedAt: r.createdAt || r.date,
+      isSystemGenerated: false,
       loanId: r.loanId,
       principal: r.principal,
       interest: r.interest,

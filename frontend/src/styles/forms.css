@@ -1,22 +1,20 @@
-/* ═══════════════════════════════════════════════════════════════════
-   UNIVERSAL COMPACT FORM STYLES - PROJECT WIDE
-   Applied to: Members, Deposits, Withdrawals, Loans, Settings
-   ═══════════════════════════════════════════════════════════════════ */
+/* Universal Compact Form Styles - Unified Design System */
 
-/* Color Variables */
+/* Color & Spacing Variables - Unified */
 :root {
   --form-max-width: 1200px;
-  --form-padding: 16px;
-  --form-card-padding: 18px;
-  --form-gap: 12px;
+  --form-padding: 12px;
+  --form-card-padding: 12px;
+  --form-gap: 8px;
   --form-field-gap: 4px;
-  --form-font-size: 13px;
+  --form-font-size: 14px;
   --form-label-size: 12px;
+  --form-h1-size: 20px;
+  --form-h2-size: 16px;
+  --radius: 8px;
 }
 
-/* ─────────────────────────────────────────────────────────
-   UNIVERSAL FORM CONTAINER
-   ───────────────────────────────────────────────────────── */
+/* Universal Form Container */
 
 .form-container {
   max-width: var(--form-max-width);
@@ -29,72 +27,66 @@
 
 .form-card {
   background: white;
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: var(--form-card-padding);
   box-shadow: var(--shadow-md);
 }
 
-/* ─────────────────────────────────────────────────────────
-   FORM HEADER
-   ───────────────────────────────────────────────────────── */
+/* Form Header */
 
 .form-header-section {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   border-bottom: 2px solid var(--primary);
-  padding-bottom: 14px;
+  padding-bottom: 10px;
 }
 
 .form-header-section h1 {
-  font-size: 26px;
+  font-size: var(--form-h1-size);
   font-weight: 700;
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
   color: var(--dark);
 }
 
 .form-header-section h2 {
-  font-size: 22px;
+  font-size: var(--form-h2-size);
   font-weight: 700;
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
   color: var(--dark);
 }
 
 .form-header-subtitle {
-  font-size: 13px;
+  font-size: 11px;
   color: var(--text-light);
   margin: 0;
 }
 
-/* ─────────────────────────────────────────────────────────
-   FORM SECTIONS
-   ───────────────────────────────────────────────────────── */
+/* Form Sections */
 
 .form-section-title {
-  font-size: 14px;
+  font-size: var(--form-label-size);
   font-weight: 600;
   color: var(--dark);
-  margin: 0 0 12px 0;
+  margin: 0 0 8px 0;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding-bottom: 8px;
+  letter-spacing: 0.3px;
+  padding-bottom: 6px;
   border-bottom: 2px solid var(--primary);
   display: inline-block;
 }
 
 .form-section-subtitle {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-light);
-  margin: -8px 0 8px 0;
+  margin: -6px 0 6px 0;
 }
 
-/* ─────────────────────────────────────────────────────────
-   FORM GRID & FIELDS - COMPACT
-   ───────────────────────────────────────────────────────── */
+/* Form Grid & Fields - Compact */
 
 .form-grid-2 {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--form-gap);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .form-grid-3 {

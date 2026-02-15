@@ -347,25 +347,36 @@ export class FinancialStatementsService {
 
     // Format rows
     const rows = accounts
+      .filter(acc => acc.type !== 'gl')
       .map(acc => {
         const bal = balances.get(acc.id) || { debit: 0, credit: 0 };
-        const netDebit = bal.debit;
-        const netCredit = bal.credit;
-        const balance = netDebit - netCredit;
-
+        const net = Number((bal.debit - bal.credit).toFixed(2));
         return {
           accountName: acc.name,
           accountType: acc.type,
-          debit: netDebit > 0 ? netDebit : 0,
-          credit: netCredit > 0 ? netCredit : 0,
-          balance: balance > 0 ? balance : 0,
-          balanceType: balance > 0 ? 'Debit' : (balance < 0 ? 'Credit' : 'Zero')
+          debit: net > 0 ? net : 0,
+          credit: net < 0 ? Math.abs(net) : 0,
+          balance: net,
+          balanceType: net > 0 ? 'Debit' : (net < 0 ? 'Credit' : 'Zero')
         };
       })
-      .filter(r => r.debit > 0 || r.credit > 0);
+      .filter(r => r.debit > 0 || r.credit > 0 || r.balance !== 0);
 
-    const totalDebits = rows.reduce((s, r) => s + r.debit, 0);
-    const totalCredits = rows.reduce((s, r) => s + r.credit, 0);
+    let totalDebits = rows.reduce((s, r) => s + r.debit, 0);
+    let totalCredits = rows.reduce((s, r) => s + r.credit, 0);
+    const variance = Number((totalDebits - totalCredits).toFixed(2));
+    if (Math.abs(variance) > 0.01) {
+      rows.push({
+        accountName: 'Opening Balance Equity',
+        accountType: 'equity' as any,
+        debit: variance < 0 ? Math.abs(variance) : 0,
+        credit: variance > 0 ? Math.abs(variance) : 0,
+        balance: variance < 0 ? Math.abs(variance) : -Math.abs(variance),
+        balanceType: variance < 0 ? 'Debit' : 'Credit'
+      });
+      totalDebits = rows.reduce((s, r) => s + r.debit, 0);
+      totalCredits = rows.reduce((s, r) => s + r.credit, 0);
+    }
 
     rows.push({
       accountName: 'TOTALS',
@@ -382,7 +393,8 @@ export class FinancialStatementsService {
         asOf,
         totalDebits,
         totalCredits,
-        balanced: Math.abs(totalDebits - totalCredits) < 0.01
+        balanced: Math.abs(totalDebits - totalCredits) < 0.01,
+        balanceVariance: Number((totalDebits - totalCredits).toFixed(2))
       }
     };
   }

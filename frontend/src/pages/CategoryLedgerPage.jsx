@@ -11,6 +11,10 @@ const CategoryLedgerPage = () => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
   const [selectedType, setSelectedType] = useState(null);
+  const [entriesPage, setEntriesPage] = useState(0);
+  const [entriesPageSize] = useState(50);
+  const [entriesTotal, setEntriesTotal] = useState(0);
+  const [entriesLoading, setEntriesLoading] = useState(false);
 
   // Form states
   const [transactionForm, setTransactionForm] = useState({
@@ -53,12 +57,28 @@ const CategoryLedgerPage = () => {
     }
   };
 
+  const loadLedgerEntries = async (ledgerId, page = 0) => {
+    setEntriesLoading(true);
+    try {
+      const skip = page * entriesPageSize;
+      const data = await categoryLedgerAPI.getLedgerEntries(ledgerId, skip, entriesPageSize);
+      setEntries(data.entries || []);
+      setEntriesTotal(data.total || 0);
+      setEntriesPage(page);
+    } catch (error) {
+      console.error('Failed to load ledger entries:', error);
+      alert('Error loading ledger entries');
+    } finally {
+      setEntriesLoading(false);
+    }
+  };
+
   const loadLedgerDetail = async (ledgerId) => {
     try {
-      const data = await categoryLedgerAPI.getLedger(ledgerId);
-      setSelectedLedger(data);
-      setEntries(data.entries || []);
-      setActiveTab('entries');
+      const ledger = ledgers.find((l) => l.id === ledgerId) || null;
+      setSelectedLedger(ledger);
+      setActiveTab('ledgers');
+      await loadLedgerEntries(ledgerId, 0);
     } catch (error) {
       console.error('Failed to load ledger detail:', error);
       alert('Error loading ledger details');
@@ -95,8 +115,8 @@ const CategoryLedgerPage = () => {
         narration: '',
       });
 
-      // Reload ledger
-      loadLedgerDetail(selectedLedger.id);
+      // Reload ledger entries and summary
+      loadLedgerEntries(selectedLedger.id, 0);
       loadData();
     } catch (error) {
       console.error('Failed to post transaction:', error);
@@ -136,6 +156,10 @@ const CategoryLedgerPage = () => {
     }
   };
 
+  const entriesTotalPages = entriesTotal > 0 ? Math.ceil(entriesTotal / entriesPageSize) : 0;
+  const entriesRangeStart = entriesTotal === 0 ? 0 : entriesPage * entriesPageSize + 1;
+  const entriesRangeEnd = Math.min(entriesTotal, (entriesPage + 1) * entriesPageSize);
+
   return (
     <div className="category-ledger-page">
       <ReportHeader title="Category Ledgers" subtitle={selectedType ? `Type: ${selectedType}` : 'All Types'} />
@@ -156,7 +180,7 @@ const CategoryLedgerPage = () => {
             <p className="amount">KES {parseFloat(summary.totalExpenses).toLocaleString()}</p>
           </div>
           <div className={`summary-card net ${parseFloat(summary.netResult) >= 0 ? 'profit' : 'loss'}`}>
-            <h4>Net Result</h4>
+            <h4>Profit / (Loss)</h4>
             <p className="amount">KES {parseFloat(summary.netResult).toLocaleString()}</p>
           </div>
         </div>
@@ -316,37 +340,65 @@ const CategoryLedgerPage = () => {
                 </button>
               </div>
 
-              {entries.length > 0 ? (
-                <table className="entries-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Type</th>
-                      <th>Description</th>
-                      <th>Amount</th>
-                      <th>Balance After</th>
-                      <th>Source</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {entries.map((entry) => (
-                      <tr key={entry.id}>
-                        <td>{new Date(entry.date).toLocaleDateString()}</td>
-                        <td>
-                          <span className={`badge ${entry.type}`}>{entry.type}</span>
-                        </td>
-                        <td>{entry.description}</td>
-                        <td className="amount">
-                          KES {parseFloat(entry.amount).toLocaleString()}
-                        </td>
-                        <td className="amount">
-                          KES {parseFloat(entry.balanceAfter).toLocaleString()}
-                        </td>
-                        <td>{entry.sourceType}</td>
+              {entriesLoading ? (
+                <p>Loading ledger entries...</p>
+              ) : entries.length > 0 ? (
+                <>
+                  <table className="entries-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Amount</th>
+                        <th>Balance After</th>
+                        <th>Source</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {entries.map((entry) => (
+                        <tr key={entry.id}>
+                          <td>{new Date(entry.date).toLocaleDateString()}</td>
+                          <td>
+                            <span className={`badge ${entry.type}`}>{entry.type}</span>
+                          </td>
+                          <td>{entry.description}</td>
+                          <td className="amount">
+                            KES {parseFloat(entry.amount).toLocaleString()}
+                          </td>
+                          <td className="amount">
+                            KES {parseFloat(entry.balanceAfter).toLocaleString()}
+                          </td>
+                          <td>{entry.sourceType}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {entriesTotalPages > 1 && (
+                    <div className="pagination-controls">
+                      <span>
+                        Showing {entriesRangeStart}-{entriesRangeEnd} of {entriesTotal}
+                      </span>
+                      <div className="pagination-buttons">
+                        <button
+                          className="btn-secondary"
+                          onClick={() => loadLedgerEntries(selectedLedger.id, entriesPage - 1)}
+                          disabled={entriesPage <= 0 || entriesLoading}
+                        >
+                          Prev
+                        </button>
+                        <button
+                          className="btn-secondary"
+                          onClick={() => loadLedgerEntries(selectedLedger.id, entriesPage + 1)}
+                          disabled={entriesPage + 1 >= entriesTotalPages || entriesLoading}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p>No entries for this ledger</p>
               )}

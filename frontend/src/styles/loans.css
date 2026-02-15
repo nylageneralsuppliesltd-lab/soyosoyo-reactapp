@@ -1,57 +1,55 @@
-/* loans.css - Comprehensive Loans Module Styling */
+/* loans.css - Unified Design System */
 
 :root {
-  --primary: #2563eb;
-  --primary-dark: #1e40af;
-  --success: #10b981;
-  --danger: #ef4444;
-  --warning: #f59e0b;
-  --purple: #8b5cf6;
-  --dark: #1f2937;
-  --light: #f9fafb;
-  --border: #e5e7eb;
-  --shadow: 0 1px 3px rgba(0,0,0,0.1);
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+  --font-h1: 20px;
+  --font-h2: 16px;
+  --font-md: 14px;
+  --font-sm: 12px;
+  --font-xs: 11px;
+  --pad-page: 16px;
+  --pad-card: 12px;
+  --radius: 8px;
 }
 
 .loans-page-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 24px;
+  padding: var(--pad-page);
 }
 
 .loans-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 32px;
-  padding-bottom: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
   border-bottom: 2px solid var(--border);
 }
 
 .loans-title-section h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: var(--font-h1);
   font-weight: 700;
   color: var(--dark);
 }
 
 .loans-subtitle {
-  margin: 8px 0 0 0;
-  font-size: 14px;
+  margin: 4px 0 0 0;
+  font-size: var(--font-sm);
   color: #6b7280;
 }
 
 .error-banner {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 10px 12px;
   background-color: #fee2e2;
   border: 1px solid #fecaca;
-  border-radius: 8px;
-  margin-bottom: 20px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
   color: #7f1d1d;
+  font-size: var(--font-sm);
 }
 
 .error-banner button {
@@ -60,15 +58,15 @@
   border: none;
   color: #7f1d1d;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--font-xs);
   padding: 4px 8px;
 }
 
 /* Tab Navigation */
 .loans-tabs-nav {
   display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
+  gap: 6px;
+  margin-bottom: 16px;
   border-bottom: 2px solid var(--border);
   overflow-x: auto;
   padding-bottom: 0;
@@ -77,12 +75,12 @@
 .loans-tab-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: 6px;
+  padding: 8px 12px;
   border: none;
   background: none;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--font-sm);
   font-weight: 500;
   color: #6b7280;
   border-bottom: 2px solid transparent;

@@ -329,7 +329,7 @@
 
 .entries-table th {
   background: #f5f5f5;
-  padding: 12px;
+  padding: 8px;
   text-align: left;
   font-weight: 500;
   color: #666;
@@ -338,7 +338,7 @@
 }
 
 .entries-table td {
-  padding: 12px;
+  padding: 8px;
   border-bottom: 1px solid #e0e0e0;
   font-size: 13px;
 }
@@ -360,6 +360,21 @@
 
 .entries-table tr:hover {
   background: #f9f9f9;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #555;
+}
+
+.pagination-buttons {
+  display: flex;
+  gap: 8px;
 }
 
 /* Transaction and Transfer Tabs */

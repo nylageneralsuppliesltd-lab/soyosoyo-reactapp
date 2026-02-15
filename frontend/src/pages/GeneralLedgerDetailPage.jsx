@@ -12,13 +12,15 @@ const GeneralLedgerPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [expandedAccounts, setExpandedAccounts] = useState(new Set());
+  const [accountLoading, setAccountLoading] = useState({});
+  const entriesPageSize = 200;
 
   const fetchLedger = async () => {
     setLoading(true);
     setError(null);
     try {
       const response = await fetchWithRetry(
-        `${API_BASE}/reports/general-ledger?startDate=${startDate}&endDate=${endDate}`,
+        `${API_BASE}/reports/general-ledger?startDate=${startDate}&endDate=${endDate}&summaryOnly=1`,
         { timeout: 15000, maxRetries: 3 }
       );
 
@@ -28,10 +30,7 @@ const GeneralLedgerPage = () => {
         console.log('GL Meta Debits:', data.meta?.totalDebit, typeof data.meta?.totalDebit);
         console.log('GL Meta Credits:', data.meta?.totalCredit, typeof data.meta?.totalCredit);
         setLedger(data);
-        // Expand all accounts by default
-        if (data.rows && data.rows.length > 0) {
-          setExpandedAccounts(new Set(data.rows.map((_, idx) => idx)));
-        }
+        setExpandedAccounts(new Set());
       } else if (response.status >= 400 && response.status < 500) {
         setError('Invalid request. Please check your filters.');
       }
@@ -51,12 +50,71 @@ const GeneralLedgerPage = () => {
     fetchLedger();
   }, []);
 
+  const loadAccountTransactions = async (idx, reset = false) => {
+    if (!ledger?.rows?.[idx]?.account?.id) return;
+    const accountId = ledger.rows[idx].account.id;
+    const currentRow = ledger.rows[idx];
+    const nextAfterId = reset ? null : currentRow.pageInfo?.nextAfterId;
+    const startingBalance = reset ? 0 : (currentRow.pageInfo?.lastRunningBalance ?? 0);
+
+    setAccountLoading((prev) => ({ ...prev, [idx]: true }));
+    try {
+      const params = new URLSearchParams({
+        startDate,
+        endDate,
+        accountId: String(accountId),
+        take: String(entriesPageSize),
+      });
+
+      if (nextAfterId) {
+        params.append('afterId', String(nextAfterId));
+        params.append('startingBalance', String(startingBalance));
+      }
+
+      const response = await fetchWithRetry(
+        `${API_BASE}/reports/general-ledger?${params.toString()}`,
+        { timeout: 15000, maxRetries: 3 }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const updatedRow = data.rows?.[0];
+        if (updatedRow) {
+          setLedger((prev) => {
+            if (!prev) return prev;
+            const rows = prev.rows.map((row, rowIdx) => {
+              if (rowIdx !== idx) return row;
+              const existingTransactions = reset ? [] : (row.transactions || []);
+              const nextTransactions = updatedRow.transactions || [];
+              return {
+                ...row,
+                transactions: [...existingTransactions, ...nextTransactions],
+                summary: updatedRow.summary || row.summary,
+                pageInfo: updatedRow.pageInfo || row.pageInfo,
+              };
+            });
+            return { ...prev, rows };
+          });
+        }
+      }
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.debug('[GeneralLedgerDetailPage] Account load failed:', err.message);
+      }
+    } finally {
+      setAccountLoading((prev) => ({ ...prev, [idx]: false }));
+    }
+  };
+
   const toggleAccount = (idx) => {
     const newExpanded = new Set(expandedAccounts);
     if (newExpanded.has(idx)) {
       newExpanded.delete(idx);
     } else {
       newExpanded.add(idx);
+      if (!ledger?.rows?.[idx]?.transactions) {
+        loadAccountTransactions(idx, true);
+      }
     }
     setExpandedAccounts(newExpanded);
   };
@@ -202,48 +260,100 @@ const GeneralLedgerPage = () => {
                   {/* Account Transactions */}
                   {expandedAccounts.has(idx) && (
                     <>
-                      <table className="ledger-table">
-                        <thead>
-                          <tr className="table-header">
-                            <th className="col-date">Date</th>
-                            <th className="col-ref">Reference</th>
-                            <th className="col-desc">Description</th>
-                            <th className="col-opposite">Opposite Account</th>
-                            <th className="col-debit">Money Out (KES)</th>
-                            <th className="col-credit">Money In (KES)</th>
-                            <th className="col-balance">Balance (KES)</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {accountData.transactions && accountData.transactions.length > 0 ? (
-                            accountData.transactions.map((txn, txnIdx) => (
-                              <tr key={txnIdx} className={txn.moneyOut ? 'debit-row' : 'credit-row'}>
-                                <td className="col-date">{formatDate(txn.date)}</td>
-                                <td className="col-ref">{txn.reference || '-'}</td>
-                                <td className="col-desc">{txn.description || '-'}</td>
-                                <td className="col-opposite">{txn.oppositeAccount || '-'}</td>
-                                <td className="col-debit amount">
-                                  {txn.moneyOut ? formatCurrency(txn.moneyOut) : '-'}
-                                </td>
-                                <td className="col-credit amount">
-                                  {txn.moneyIn ? formatCurrency(txn.moneyIn) : '-'}
-                                </td>
-                                <td className="col-balance amount balance-cell">
-                                  {formatCurrency(txn.runningBalance)}
-                                </td>
+                      {accountLoading[idx] ? (
+                        <div className="no-data">Loading transactions...</div>
+                      ) : (
+                        <>
+                          <table className="ledger-table">
+                            <thead>
+                              <tr className="table-header">
+                                <th className="col-date">Date</th>
+                                <th className="col-ref">Reference</th>
+                                <th className="col-desc">Description</th>
+                                <th className="col-opposite">Opposite Account</th>
+                                <th className="col-debit">Money Out (KES)</th>
+                                <th className="col-credit">Money In (KES)</th>
+                                <th className="col-balance">Balance (KES)</th>
                               </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan="7" className="no-data">No transactions</td>
-                            </tr>
+                            </thead>
+                            <tbody>
+                              {typeof accountData.summary?.openingBalance === 'number' && (
+                                <tr className="opening-row">
+                                  <td className="col-date">{formatDate(startDate)}</td>
+                                  <td className="col-ref">-</td>
+                                  <td className="col-desc">Opening Balance</td>
+                                  <td className="col-opposite">-</td>
+                                  <td className="col-debit amount">-</td>
+                                  <td className="col-credit amount">-</td>
+                                  <td className="col-balance amount balance-cell">
+                                    {formatCurrency(accountData.summary.openingBalance)}
+                                  </td>
+                                </tr>
+                              )}
+                              {accountData.transactions && accountData.transactions.length > 0 ? (
+                                accountData.transactions.map((txn, txnIdx) => (
+                                  <tr key={txn.id || txnIdx} className={txn.moneyOut ? 'debit-row' : 'credit-row'}>
+                                    <td className="col-date">{formatDate(txn.date)}</td>
+                                    <td className="col-ref">{txn.reference || '-'}</td>
+                                    <td className="col-desc">{txn.description || '-'}</td>
+                                    <td className="col-opposite">{txn.oppositeAccount || '-'}</td>
+                                    <td className="col-debit amount">
+                                      {txn.moneyOut ? formatCurrency(txn.moneyOut) : '-'}
+                                    </td>
+                                    <td className="col-credit amount">
+                                      {txn.moneyIn ? formatCurrency(txn.moneyIn) : '-'}
+                                    </td>
+                                    <td className="col-balance amount balance-cell">
+                                      {formatCurrency(txn.runningBalance)}
+                                    </td>
+                                  </tr>
+                                ))
+                              ) : typeof accountData.summary?.openingBalance === 'number' ? null : (
+                                <tr>
+                                  <td colSpan="7" className="no-data">No transactions</td>
+                                </tr>
+                              )}
+                            </tbody>
+                            {accountData.summary && (
+                              <tfoot>
+                                <tr className="closing-row">
+                                  <td className="col-date">{formatDate(endDate)}</td>
+                                  <td className="col-ref">-</td>
+                                  <td className="col-desc">Closing Balance</td>
+                                  <td className="col-opposite">-</td>
+                                  <td className="col-debit amount">-</td>
+                                  <td className="col-credit amount">-</td>
+                                  <td className="col-balance amount balance-cell">
+                                    {formatCurrency(accountData.summary.closingBalance)}
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            )}
+                          </table>
+
+                          {accountData.pageInfo?.hasMore && (
+                            <div className="pagination-controls">
+                              <button
+                                className="btn-secondary"
+                                onClick={() => loadAccountTransactions(idx)}
+                                disabled={accountLoading[idx]}
+                              >
+                                Load more
+                              </button>
+                            </div>
                           )}
-                        </tbody>
-                      </table>
+                        </>
+                      )}
 
                       {/* Account Summary */}
                       {accountData.summary && (
                         <div className="account-summary">
+                          <div className="summary-row">
+                            <span className="label">Opening Balance:</span>
+                            <span className={`value ${accountData.summary.openingBalance >= 0 ? 'positive' : 'negative'}`}>
+                              {formatCurrency(accountData.summary.openingBalance)}
+                            </span>
+                          </div>
                           <div className="summary-row">
                             <span className="label">Total Money Out:</span>
                             <span className="value debit">{formatCurrency(accountData.summary.totalMoneyOut)}</span>

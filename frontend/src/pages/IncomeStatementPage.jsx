@@ -57,9 +57,9 @@ export default function IncomeStatementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.period, filters.startDate, filters.endDate]);
 
-  const revenue = data?.meta?.revenue || 0;
-  const expenses = data?.meta?.expenses || 0;
-  const surplus = data?.meta?.surplus || 0;
+  const revenue = data?.meta?.totalIncome || 0;
+  const expenses = data?.meta?.totalExpenses || 0;
+  const surplus = data?.meta?.netSurplus || 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -162,12 +162,12 @@ export default function IncomeStatementPage() {
               {/* Summary Section */}
               <h3 className="statement-subheading" style={{marginTop: '2rem'}}>Summary</h3>
               <div className="statement-row">
-                <span className="label">Revenue</span>
+                <span className="label">Total Income</span>
                 <span className="amount">KES {revenue.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="statement-row">
-                <span className="label">Expenses</span>
-                <span className="amount">KES {(-expenses).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="label">Total Expenses</span>
+                <span className="amount">KES {expenses.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               {/* IFRS 9 Impairment Loss Row */}
               {data?.meta?.totalImpairment !== undefined && (
@@ -177,7 +177,7 @@ export default function IncomeStatementPage() {
                 </div>
               )}
               <div className="total-row statement-row">
-                <span className="label">Surplus / (Deficit)</span>
+                <span className="label">Profit / (Loss)</span>
                 <span className="amount">KES {surplus.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>

@@ -162,4 +162,22 @@ export class ReportsController {
     const viewMode = mode || 'monthly';
     return this.reportsService.enhancedIncomeStatement(viewMode, date);
   }
+
+  @Get('income-breakdown')
+  async incomeBreakdown(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const start = startDate ? new Date(startDate) : new Date('2020-01-01');
+    const end = endDate ? new Date(endDate) : new Date();
+    return this.reportsService.incomeBreakdown(start, end);
+  }
+
+  @Get('balance-sheet-diagnostics')
+  async balanceSheetDiagnostics(
+    @Query('asOf') asOf?: string,
+  ) {
+    const date = asOf ? new Date(asOf) : new Date();
+    return this.reportsService.getBalanceSheetDiagnostics(date);
+  }
 }

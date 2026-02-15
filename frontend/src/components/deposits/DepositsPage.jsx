@@ -78,7 +78,8 @@ const DepositsPage = () => {
       const response = await fetch(`${API_BASE}/deposits?take=200`);
       if (!response.ok) throw new Error('Failed to fetch deposits');
       const data = await response.json();
-      setDeposits(Array.isArray(data) ? data : []);
+      const rows = Array.isArray(data) ? data : (data.data || []);
+      setDeposits(rows);
     } catch (err) {
       setError(err.message);
       setDeposits([]);
@@ -87,10 +88,12 @@ const DepositsPage = () => {
     }
   };
 
+  const listDeposits = deposits.filter((deposit) => !deposit.isSystemGenerated);
+
   const calculateStats = () => {
-    const totalAmount = deposits.reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
+    const totalAmount = listDeposits.reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
     const byType = {};
-    deposits.forEach(d => {
+    listDeposits.forEach(d => {
       const type = d.type || 'contribution';
       if (!byType[type]) {
         byType[type] = { count: 0, amount: 0 };
@@ -98,7 +101,7 @@ const DepositsPage = () => {
       byType[type].count++;
       byType[type].amount += parseFloat(d.amount || 0);
     });
-    setStats({ totalAmount, totalCount: deposits.length, byType });
+    setStats({ totalAmount, totalCount: listDeposits.length, byType });
   };
 
   const handleViewDetails = (deposit) => {
@@ -177,7 +180,7 @@ const DepositsPage = () => {
     setEditingDeposit(null);
   };
 
-  const filteredDeposits = deposits.filter((deposit) => {
+  const filteredDeposits = listDeposits.filter((deposit) => {
     const matchesType = filterType === 'all' || deposit.type === filterType;
     const matchesSearch =
       !searchTerm ||
@@ -194,13 +197,17 @@ const DepositsPage = () => {
     }).format(amount);
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-KE', {
+  const formatDateTime = (dateString) => {
+    return new Date(dateString).toLocaleString('en-KE', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
+
+  const getRecordedAt = (deposit) => deposit.recordedAt || deposit.createdAt || deposit.date;
 
   const getTypeBadge = (type) => {
     const badges = {
@@ -384,7 +391,7 @@ const DepositsPage = () => {
                   <tbody>
                     {filteredDeposits.map((deposit) => (
                       <tr key={deposit.id} className={deposit.isVoided ? 'row-voided' : ''}>
-                        <td>{formatDate(deposit.date)}</td>
+                        <td>{formatDateTime(getRecordedAt(deposit))}</td>
                         <td>
                           {getTypeBadge(deposit.type)}
                           {deposit.isVoided && <span className="void-badge">VOID</span>}

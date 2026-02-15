@@ -22,6 +22,102 @@ export class ReportsService {
     return this.glAccountPatterns.some(pattern => pattern.test(accountName));
   }
 
+  private async getContributionTypeNames() {
+    const types = await this.prisma.contributionType.findMany({
+      select: { name: true },
+    });
+    const names = types.map(t => t.name.trim()).filter(Boolean);
+    if (names.length === 0) {
+      return ['Membership Fees', 'Share Capital'];
+    }
+    return names;
+  }
+
+  private async getContributionBalances(asOfDate: Date) {
+    const contributionTypes = await this.getContributionTypeNames();
+    const typeLookup = new Map(
+      contributionTypes.map(name => [name.toLowerCase(), name]),
+    );
+
+    const glAccounts = await this.prisma.account.findMany({
+      where: { type: 'gl' },
+      select: { name: true, balance: true },
+    });
+
+    const deposits = await this.prisma.deposit.findMany({
+      where: {
+        date: { lte: asOfDate },
+        type: { in: ['contribution', 'income'] },
+      },
+      select: { amount: true, category: true, type: true },
+    });
+
+    const refunds = await this.prisma.withdrawal.findMany({
+      where: {
+        date: { lte: asOfDate },
+        type: 'refund',
+      },
+      select: { amount: true, category: true },
+    });
+
+    const totalsByType: Record<string, number> = {};
+    let otherContributions = 0;
+
+    for (const deposit of deposits) {
+      const category = (deposit.category || '').trim();
+      const categoryKey = category.toLowerCase();
+      const normalizedType = typeLookup.get(categoryKey);
+
+      if (normalizedType) {
+        totalsByType[normalizedType] = (totalsByType[normalizedType] || 0) + Number(deposit.amount);
+        continue;
+      }
+
+      if (deposit.type === 'contribution') {
+        otherContributions += Number(deposit.amount);
+      }
+    }
+
+    for (const refund of refunds) {
+      const category = (refund.category || '').trim();
+      const prefix = 'refund - ';
+      if (category.toLowerCase().startsWith(prefix)) {
+        const refundType = category.slice(prefix.length).trim();
+        const normalized = typeLookup.get(refundType.toLowerCase()) || refundType;
+        totalsByType[normalized] = (totalsByType[normalized] || 0) - Number(refund.amount);
+      }
+    }
+
+    for (const typeName of contributionTypes) {
+      const normalizedType = typeName.toLowerCase();
+      const glAccount = glAccounts.find(a => {
+        const name = a.name.toLowerCase();
+        return name.endsWith('received') && name.includes(normalizedType);
+      });
+      if (!glAccount) {
+        continue;
+      }
+      const glBalance = Math.abs(Number(glAccount.balance || 0));
+      if ((totalsByType[typeName] || 0) === 0 && glBalance !== 0) {
+        totalsByType[typeName] = glBalance;
+      }
+    }
+
+    const otherReceived = glAccounts.find(a => a.name.toLowerCase() === 'contributions received');
+    if (otherReceived && otherContributions === 0) {
+      const glBalance = Math.abs(Number(otherReceived.balance || 0));
+      if (glBalance !== 0) {
+        otherContributions = glBalance;
+      }
+    }
+
+    return {
+      totalsByType,
+      otherContributions,
+      totalContributions: Object.values(totalsByType).reduce((sum, v) => sum + v, 0) + otherContributions,
+    };
+  }
+
   getCatalog() {
     return [
       { key: 'contributions', name: 'Contribution Summary', filters: ['period', 'memberId'] },
@@ -90,8 +186,19 @@ export class ReportsService {
       case 'dividends':
         result = await this.dividendReport(dateRange);
         break;
-      case 'generalLedger':
-        result = await this.generalLedgerReport(dateRange, query.accountId);
+      case 'generalLedger': {
+        const summaryOnly = query.summaryOnly === '1' || query.summaryOnly === 'true';
+        const take = query.take ? Number(query.take) : undefined;
+        const afterId = query.afterId ? Number(query.afterId) : undefined;
+        const startingBalance = query.startingBalance ? Number(query.startingBalance) : undefined;
+        result = await this.generalLedgerReport(dateRange, query.accountId, {
+          summaryOnly,
+          take,
+          afterId,
+          startingBalance,
+        });
+        break;
+      }
         break;
       case 'accountStatement':
         result = await this.transactionStatement(dateRange, query.accountId);
@@ -965,16 +1072,19 @@ export class ReportsService {
     const realAccounts = Array.from(accountMap.values()).filter(acc => acc.accountType !== 'gl');
 
     // Convert to rows with running balance
-    const rowsOut = realAccounts.map(acc => ({
-      accountName: acc.accountName,
-      accountType: acc.accountType,
-      debitAmount: Number(acc.totalDebit.toFixed(2)),
-      creditAmount: Number(acc.totalCredit.toFixed(2)),
-      balance: Number((acc.totalDebit - acc.totalCredit).toFixed(2)),
-      moneyIn: Number(acc.moneyIn.toFixed(2)),
-      moneyOut: Number(acc.moneyOut.toFixed(2)),
-      netFlow: Number((acc.moneyIn - acc.moneyOut).toFixed(2)),
-    }));
+    const rowsOut = realAccounts.map(acc => {
+      const net = Number((acc.totalDebit - acc.totalCredit).toFixed(2));
+      return {
+        accountName: acc.accountName,
+        accountType: acc.accountType,
+        debitAmount: net > 0 ? net : 0,
+        creditAmount: net < 0 ? Math.abs(net) : 0,
+        balance: net,
+        moneyIn: Number(acc.moneyIn.toFixed(2)),
+        moneyOut: Number(acc.moneyOut.toFixed(2)),
+        netFlow: Number((acc.moneyIn - acc.moneyOut).toFixed(2)),
+      };
+    });
 
     // Sort by account name for consistency
     rowsOut.sort((a, b) => a.accountName.localeCompare(b.accountName));
@@ -993,7 +1103,7 @@ export class ReportsService {
     }));
 
     // Calculate totals - now only from REAL accounts (not GL)
-    const totals = rowsWithRunning.reduce(
+    const computeTotals = (rows: typeof rowsWithRunning) => rows.reduce(
       (t, r) => ({
         debit: t.debit + r.debitAmount,
         credit: t.credit + r.creditAmount,
@@ -1005,6 +1115,23 @@ export class ReportsService {
       { debit: 0, credit: 0, balance: 0, totalMoneyIn: 0, totalMoneyOut: 0, count: 0 },
     );
 
+    let totals = computeTotals(rowsWithRunning);
+    const balanceVariance = Number((totals.debit - totals.credit).toFixed(2));
+    if (Math.abs(balanceVariance) > 0.01) {
+      rowsWithRunning.push({
+        accountName: 'Opening Balance Equity',
+        accountType: 'equity',
+        debitAmount: balanceVariance < 0 ? Math.abs(balanceVariance) : 0,
+        creditAmount: balanceVariance > 0 ? Math.abs(balanceVariance) : 0,
+        balance: balanceVariance < 0 ? Math.abs(balanceVariance) : -Math.abs(balanceVariance),
+        moneyIn: 0,
+        moneyOut: 0,
+        netFlow: 0,
+        runningBalance: balanceVariance < 0 ? Math.abs(balanceVariance) : -Math.abs(balanceVariance),
+      });
+      totals = computeTotals(rowsWithRunning);
+    }
+
     return {
       rows: rowsWithRunning,
       meta: {
@@ -1015,6 +1142,7 @@ export class ReportsService {
         totalMoneyOut: Number(totals.totalMoneyOut.toFixed(2)),
         netFlow: Number((totals.totalMoneyIn - totals.totalMoneyOut).toFixed(2)),
         finalRunningBalance: Number(totals.balance.toFixed(2)),
+        balanceVariance: Number((totals.debit - totals.credit).toFixed(2)),
         count: totals.count,
       },
     };
@@ -1122,7 +1250,7 @@ export class ReportsService {
     rows.push({
       section: 'Summary',
       type: 'summary',
-      category: 'Net Surplus / (Deficit)',
+      category: 'Profit / (Loss)',
       amount: netSurplus,
       description: 'Total Income minus Total Expenses minus Impairment Loss',
     });
@@ -1240,36 +1368,86 @@ export class ReportsService {
       totalLiabilities += amount;
     }
     
-    // 2. Member savings/contributions (member equity in the SACCO)
+    // 2. Member savings/contributions (liability) broken down by contribution type
     const members = await this.prisma.member.findMany({
       orderBy: { name: 'asc' },
     });
-    
+
+    const contributionBalances = await this.getContributionBalances(dateRange.end);
+    const contributionTypes = Object.keys(contributionBalances.totalsByType).sort((a, b) => a.localeCompare(b));
+
     let totalMemberEquity = 0;
+    for (const typeName of contributionTypes) {
+      const amount = Number(contributionBalances.totalsByType[typeName] || 0);
+      rows.push({
+        category: 'Liabilities',
+        section: 'Member Savings/Contributions',
+        account: typeName,
+        amount: -amount, // Show as negative (member liability)
+        accountType: 'member-savings',
+      });
+      totalMemberEquity += amount;
+    }
+
+    if (contributionBalances.otherContributions !== 0) {
+      rows.push({
+        category: 'Liabilities',
+        section: 'Member Savings/Contributions',
+        account: 'Other Contributions',
+        amount: -Number(contributionBalances.otherContributions),
+        accountType: 'member-savings',
+      });
+      totalMemberEquity += Number(contributionBalances.otherContributions);
+    }
+
+    let totalMemberReceivable = 0;
     for (const member of members) {
       const amount = Number(member.balance || 0);
-      if (amount > 0) {
+      if (amount < 0) {
+        const receivable = Math.abs(amount);
         rows.push({
-          category: 'Liabilities',
-          section: 'Member Savings/Contributions',
+          category: 'Assets',
+          section: 'Member Savings Receivable',
           account: member.name,
-          amount: -amount, // Show as negative (member liability/equity)
+          amount: receivable,
           memberId: member.id,
-          accountType: 'member-savings',
+          accountType: 'member-receivable',
         });
-        totalMemberEquity += amount;
+        totalAssets += receivable;
+        totalMemberReceivable += receivable;
       }
     }
     
     // ===== EQUITY SECTION =====
-    const equity = totalAssets - totalLiabilities - totalMemberEquity;
+    const yearStart = new Date(dateRange.end.getFullYear(), 0, 1);
+    const allTimeSurplus = await this.getIncomeStatementData(new Date('2000-01-01'), new Date(dateRange.end.getFullYear(), 0, 0));
+    const currentYearSurplusData = await this.getIncomeStatementData(yearStart, dateRange.end);
+    const retainedEarnings = allTimeSurplus.netSurplus;
+    const currentYearSurplus = currentYearSurplusData.netSurplus;
+    const openingBalanceEquity = totalAssets - totalLiabilities - totalMemberEquity - retainedEarnings - currentYearSurplus;
     rows.push({
       category: 'Equity',
       section: 'Retained Earnings / Surplus',
       account: 'Net Equity',
-      amount: equity,
+      amount: retainedEarnings,
       accountType: 'equity',
     });
+    rows.push({
+      category: 'Equity',
+      section: 'Current Year Surplus',
+      account: 'Net Surplus',
+      amount: currentYearSurplus,
+      accountType: 'equity',
+    });
+    if (openingBalanceEquity !== 0) {
+      rows.push({
+        category: 'Equity',
+        section: 'Opening Balance / Prior Adjustments',
+        account: 'Opening Balance Equity',
+        amount: openingBalanceEquity,
+        accountType: 'equity',
+      });
+    }
     
     // Summary totals
     const totalOutstandingFines = memberLoans.reduce((sum, l) => {
@@ -1280,8 +1458,13 @@ export class ReportsService {
       totalAssets,
       totalLiabilities,
       totalMemberSavings: totalMemberEquity,
-      totalEquity: equity,
-      totalLiabilitiesAndEquity: totalLiabilities + totalMemberEquity + equity,
+      totalMemberReceivable,
+      retainedEarnings,
+      currentYearSurplus,
+      openingBalanceEquity,
+      totalEquity: retainedEarnings + currentYearSurplus + openingBalanceEquity,
+      totalLiabilitiesAndEquity: totalLiabilities + totalMemberEquity + retainedEarnings + currentYearSurplus + openingBalanceEquity,
+      balanceVariance: totalAssets - (totalLiabilities + totalMemberEquity + retainedEarnings + currentYearSurplus + openingBalanceEquity),
       totalLoanPrincipal: memberLoans.reduce((sum, l) => sum + Number(l.balance), 0),
       totalOutstandingFines,
       totalLoanImpairment: memberLoans.reduce((sum, l) => sum + Number(l.impairment || 0), 0),
@@ -1418,7 +1601,16 @@ export class ReportsService {
     return { rows, meta: { total, count: dividends.length } };
   }
 
-  private async generalLedgerReport(dateRange: { start: Date; end: Date }, accountId?: string) {
+  private async generalLedgerReport(
+    dateRange: { start: Date; end: Date },
+    accountId?: string,
+    options?: {
+      summaryOnly?: boolean;
+      take?: number;
+      afterId?: number;
+      startingBalance?: number;
+    },
+  ) {
     // Get all accounts or specific account
     const accounts = accountId
       ? [await this.prisma.account.findUnique({ where: { id: Number(accountId) } })].filter(Boolean)
@@ -1430,6 +1622,11 @@ export class ReportsService {
 
     const accountsData = [];
 
+    const summaryOnly = options?.summaryOnly === true && !accountId;
+    const pageTake = Math.min(Math.max(options?.take || 200, 1), 1000);
+    const afterId = options?.afterId;
+    const startingBalance = options?.startingBalance ?? 0;
+
     for (const account of accounts) {
       const where = {
         date: { gte: dateRange.start, lte: dateRange.end },
@@ -1439,47 +1636,61 @@ export class ReportsService {
         ],
       };
 
+      // Asset accounts are real cash/bank accounts, NOT GL tracking accounts
+      const isGLAccount = account.name.includes('Received') || account.name.includes('Expense') ||
+        account.name.includes('Payable') || account.name.includes('GL Account');
+      const isAssetAccount = ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type) && !isGLAccount;
+
+      if (summaryOnly) {
+        accountsData.push({
+          account: { id: account.id, name: account.name, type: account.type, balance: Number(account.balance) },
+        });
+        continue;
+      }
+
+      const queryTake = accountId ? pageTake + 1 : undefined;
       const entries = await this.prisma.journalEntry.findMany({
         where,
-        orderBy: { date: 'asc' },
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
+        take: queryTake,
+        ...(afterId && accountId
+          ? {
+              cursor: { id: afterId },
+              skip: 1,
+            }
+          : {}),
         include: {
           debitAccount: { select: { name: true } },
           creditAccount: { select: { name: true } },
         },
       });
 
-      // Calculate running balance
-      // Asset accounts are real cash/bank accounts, NOT GL tracking accounts
-      const isGLAccount = account.name.includes('Received') || account.name.includes('Expense') || 
-                          account.name.includes('Payable') || account.name.includes('GL Account');
-      const isAssetAccount = ['cash', 'pettyCash', 'mobileMoney', 'bank'].includes(account.type) && !isGLAccount;
-      let runningBalance = 0;
+      let hasMore = false;
+      if (accountId && entries.length > pageTake) {
+        entries.pop();
+        hasMore = true;
+      }
 
+      let runningBalance = accountId ? startingBalance : 0;
       const transactions = entries.map(e => {
         let moneyOut = 0;
         let moneyIn = 0;
         let oppositeAccount = '';
 
         if (e.debitAccountId === account.id) {
-          // This account was debited
           if (isAssetAccount) {
-            // For assets: Debit = Money In (increases balance)
             moneyIn = Number(e.debitAmount);
             runningBalance += moneyIn;
           } else {
-            // For liabilities/expenses: Debit = Money Out (decreases balance)
             moneyOut = Number(e.debitAmount);
             runningBalance -= moneyOut;
           }
           oppositeAccount = e.creditAccount?.name || 'Unknown';
         } else {
-          // This account was credited
           if (isAssetAccount) {
-            // For assets: Credit = Money Out (decreases balance)
             moneyOut = Number(e.creditAmount);
             runningBalance -= moneyOut;
           } else {
-            // For liabilities/expenses: Credit = Money In (increases balance)
             moneyIn = Number(e.creditAmount);
             runningBalance += moneyIn;
           }
@@ -1487,6 +1698,7 @@ export class ReportsService {
         }
 
         return {
+          id: e.id,
           date: e.date,
           reference: e.reference,
           description: e.description,
@@ -1497,21 +1709,68 @@ export class ReportsService {
         };
       });
 
-      const totalMoneyIn = entries.reduce((sum, e) => {
-        if (e.debitAccountId === account.id && isAssetAccount) return sum + Number(e.debitAmount);
-        if (e.creditAccountId === account.id && !isAssetAccount) return sum + Number(e.creditAmount);
-        return sum;
-      }, 0);
-      const totalMoneyOut = entries.reduce((sum, e) => {
-        if (e.creditAccountId === account.id && isAssetAccount) return sum + Number(e.creditAmount);
-        if (e.debitAccountId === account.id && !isAssetAccount) return sum + Number(e.debitAmount);
-        return sum;
-      }, 0);
+      let summary = undefined as any;
+      if (accountId) {
+        const [debitsAgg, creditsAgg, debitsBeforeAgg, creditsBeforeAgg] = await Promise.all([
+          this.prisma.journalEntry.aggregate({
+            where: { ...where, debitAccountId: account.id },
+            _sum: { debitAmount: true },
+          }),
+          this.prisma.journalEntry.aggregate({
+            where: { ...where, creditAccountId: account.id },
+            _sum: { creditAmount: true },
+          }),
+          this.prisma.journalEntry.aggregate({
+            where: {
+              debitAccountId: account.id,
+              date: { lt: dateRange.start },
+            },
+            _sum: { debitAmount: true },
+          }),
+          this.prisma.journalEntry.aggregate({
+            where: {
+              creditAccountId: account.id,
+              date: { lt: dateRange.start },
+            },
+            _sum: { creditAmount: true },
+          }),
+        ]);
+
+        const debitSum = Number(debitsAgg._sum.debitAmount || 0);
+        const creditSum = Number(creditsAgg._sum.creditAmount || 0);
+        const totalMoneyIn = isAssetAccount ? debitSum : creditSum;
+        const totalMoneyOut = isAssetAccount ? creditSum : debitSum;
+        const openingDebits = Number(debitsBeforeAgg._sum.debitAmount || 0);
+        const openingCredits = Number(creditsBeforeAgg._sum.creditAmount || 0);
+        const openingBalance = isAssetAccount
+          ? openingDebits - openingCredits
+          : openingCredits - openingDebits;
+        const closingBalance = openingBalance + (totalMoneyIn - totalMoneyOut);
+        summary = {
+          openingBalance,
+          totalMoneyIn,
+          totalMoneyOut,
+          netChange: totalMoneyIn - totalMoneyOut,
+          closingBalance,
+        };
+      }
+
+      const lastRunningBalance = transactions.length
+        ? transactions[transactions.length - 1].runningBalance
+        : (accountId ? startingBalance : 0);
 
       accountsData.push({
         account: { id: account.id, name: account.name, type: account.type, balance: Number(account.balance) },
         transactions,
-        summary: { totalMoneyIn, totalMoneyOut, netChange: totalMoneyIn - totalMoneyOut, closingBalance: runningBalance },
+        summary,
+        pageInfo: accountId
+          ? {
+              take: pageTake,
+              hasMore,
+              nextAfterId: transactions.length ? transactions[transactions.length - 1].id : null,
+              lastRunningBalance,
+            }
+          : undefined,
       });
     }
 
@@ -1700,10 +1959,16 @@ export class ReportsService {
                   previous: previousData.mobileMoney,
                   change: currentData.mobileMoney - previousData.mobileMoney,
                 },
+                {
+                  label: 'Member Savings Receivable',
+                  current: currentData.memberSavingsReceivable || 0,
+                  previous: previousData.memberSavingsReceivable || 0,
+                  change: (currentData.memberSavingsReceivable || 0) - (previousData.memberSavingsReceivable || 0),
+                },
               ],
               subtotal: {
-                current: currentData.cashAtHand + currentData.cashAtBank + currentData.mobileMoney,
-                previous: previousData.cashAtHand + previousData.cashAtBank + previousData.mobileMoney,
+                current: currentData.cashAtHand + currentData.cashAtBank + currentData.mobileMoney + (currentData.memberSavingsReceivable || 0),
+                previous: previousData.cashAtHand + previousData.cashAtBank + previousData.mobileMoney + (previousData.memberSavingsReceivable || 0),
               },
             },
             {
@@ -1805,6 +2070,18 @@ export class ReportsService {
                   change: currentData.memberSavings - previousData.memberSavings,
                 },
                 {
+                  label: 'Membership Fees',
+                  current: currentData.memberSavingsByType?.['Membership Fees'] || 0,
+                  previous: previousData.memberSavingsByType?.['Membership Fees'] || 0,
+                  change: (currentData.memberSavingsByType?.['Membership Fees'] || 0) - (previousData.memberSavingsByType?.['Membership Fees'] || 0),
+                },
+                {
+                  label: 'Share Capital',
+                  current: currentData.memberSavingsByType?.['Share Capital'] || 0,
+                  previous: previousData.memberSavingsByType?.['Share Capital'] || 0,
+                  change: (currentData.memberSavingsByType?.['Share Capital'] || 0) - (previousData.memberSavingsByType?.['Share Capital'] || 0),
+                },
+                {
                   label: 'Retained Earnings',
                   current: currentData.retainedEarnings,
                   previous: previousData.retainedEarnings,
@@ -1815,6 +2092,12 @@ export class ReportsService {
                   current: currentData.currentYearSurplus,
                   previous: previousData.currentYearSurplus,
                   change: currentData.currentYearSurplus - previousData.currentYearSurplus,
+                },
+                {
+                  label: 'Opening Balance / Prior Adjustments',
+                  current: currentData.openingBalanceEquity,
+                  previous: previousData.openingBalanceEquity,
+                  change: currentData.openingBalanceEquity - previousData.openingBalanceEquity,
                 },
               ],
               subtotal: {
@@ -1905,21 +2188,35 @@ export class ReportsService {
     });
     const totalBankLoans = bankLoans.reduce((sum, l) => sum + Number(l.balance), 0);
 
-    // Member savings/contributions (equity)
+    // Member savings/contributions (liability) and receivables (asset)
     const members = await this.prisma.member.findMany();
-    const memberSavings = members.reduce((sum, m) => sum + Math.max(0, Number(m.balance || 0)), 0);
+    const contributionBalances = await this.getContributionBalances(asOfDate);
+    const memberSavings = contributionBalances.totalContributions;
+    const memberSavingsByType = contributionBalances.totalsByType;
+    const otherContributions = contributionBalances.otherContributions;
+    const memberSavingsReceivable = members.reduce((sum, m) => {
+      const balance = Number(m.balance || 0);
+      return sum + (balance < 0 ? Math.abs(balance) : 0);
+    }, 0);
 
     // Calculate income and expenses for the current year
     const yearStart = new Date(asOfDate.getFullYear(), 0, 1);
     const incomeData = await this.getIncomeStatementData(yearStart, asOfDate);
     
-    const totalAssets = cashAtHand + cashAtBank + mobileMoney + memberLoansPrincipal + accruedInterest + outstandingFines - loanLossProvision + totalFixedAssets;
+    // Calculate cumulative retained earnings from ALL prior years (not just current)
+    // This includes all surpluses from the beginning until end of previous year
+    const previousYearEnd = new Date(asOfDate.getFullYear(), 0, 0); // Last day of previous year
+    const allTimeSurplus = await this.getIncomeStatementData(new Date('2000-01-01'), previousYearEnd);
+    
+    const totalAssets = cashAtHand + cashAtBank + mobileMoney + memberLoansPrincipal + accruedInterest + outstandingFines + memberSavingsReceivable - loanLossProvision + totalFixedAssets;
     const totalLiabilities = totalBankLoans;
     const accruedExpenses = 0; // TODO: Implement accrued expenses tracking
     
     const currentYearSurplus = incomeData.totalIncome - incomeData.totalExpenses - incomeData.totalProvisions;
-    const retainedEarnings = totalAssets - totalLiabilities - memberSavings - currentYearSurplus;
-    const totalEquity = memberSavings + retainedEarnings + currentYearSurplus;
+    // Retained Earnings = Prior years' accumulated surplus (current year shown separately)
+    const retainedEarnings = allTimeSurplus.netSurplus;
+    const openingBalanceEquity = totalAssets - totalLiabilities - memberSavings - retainedEarnings - currentYearSurplus;
+    const totalEquity = memberSavings + retainedEarnings + currentYearSurplus + openingBalanceEquity;
 
     return {
       cashAtHand,
@@ -1934,11 +2231,16 @@ export class ReportsService {
       bankLoans: totalBankLoans,
       accruedExpenses,
       memberSavings,
+      memberSavingsByType,
+      otherContributions,
+      memberSavingsReceivable,
       retainedEarnings,
+      openingBalanceEquity,
       currentYearSurplus,
       totalAssets,
       totalLiabilities: totalLiabilities + accruedExpenses,
       totalEquity,
+      balanceVariance: totalAssets - (totalLiabilities + accruedExpenses + totalEquity),
     };
   }
 
@@ -2115,7 +2417,7 @@ export class ReportsService {
       ],
       summary: {
         netSurplus: {
-          label: 'NET SURPLUS / (DEFICIT)',
+          label: 'PROFIT / (LOSS)',
           current: currentData.netSurplus,
           previous: previousData.netSurplus,
           change: currentData.netSurplus - previousData.netSurplus,
@@ -2145,26 +2447,21 @@ export class ReportsService {
     });
     const finesIncome = fines.reduce((sum, f) => sum + Number(f.paidAmount || 0), 0);
 
-    // Membership fees (from deposits with type='income' and category containing 'membership')
-    const membershipDeposits = await this.prisma.deposit.findMany({
-      where: {
-        type: 'income',
-        category: { contains: 'membership', mode: 'insensitive' },
-        date: { gte: startDate, lte: endDate },
-      },
-    });
-    const membershipFees = membershipDeposits.reduce((sum, d) => sum + Number(d.amount), 0);
+    const contributionTypes = await this.getContributionTypeNames();
+    const contributionLookup = new Set(contributionTypes.map(t => t.toLowerCase()));
 
-    // Other income
+    // Other income (exclude contribution categories)
     const otherIncomeDeposits = await this.prisma.deposit.findMany({
       where: {
         type: 'income',
-        category: { not: { contains: 'membership' } },
         date: { gte: startDate, lte: endDate },
       },
     });
-    const otherIncome = otherIncomeDeposits.reduce((sum, d) => sum + Number(d.amount), 0);
+    const otherIncome = otherIncomeDeposits
+      .filter(d => !contributionLookup.has((d.category || '').toLowerCase()))
+      .reduce((sum, d) => sum + Number(d.amount), 0);
 
+    const membershipFees = 0;
     const totalOperatingIncome = interestIncome + finesIncome + membershipFees;
     const totalIncome = totalOperatingIncome + otherIncome;
 
@@ -2215,4 +2512,179 @@ export class ReportsService {
       netSurplus,
     };
   }
+
+  async incomeBreakdown(startDate: Date, endDate: Date) {
+    // Interest income from repayments
+    const repayments = await this.prisma.repayment.findMany({
+      where: { date: { gte: startDate, lte: endDate } },
+      select: { interest: true, amount: true, loan: { select: { memberId: true } } },
+    });
+    const interestIncome = repayments.reduce((sum, r) => sum + Number(r.interest || 0), 0);
+
+    // Fines income
+    const fines = await this.prisma.fine.findMany({
+      where: { paidDate: { gte: startDate, lte: endDate }, status: 'paid' },
+      select: { paidAmount: true },
+    });
+    const finesIncome = fines.reduce((sum, f) => sum + Number(f.paidAmount || 0), 0);
+
+    const contributionTypes = await this.getContributionTypeNames();
+    const contributionLookup = new Set(contributionTypes.map(t => t.toLowerCase()));
+
+    // Other income deposits (exclude contribution categories)
+    const otherIncomeDeposits = await this.prisma.deposit.findMany({
+      where: {
+        type: 'income',
+        date: { gte: startDate, lte: endDate },
+      },
+      select: { amount: true, category: true, member: { select: { name: true } }, date: true },
+      orderBy: { amount: 'desc' },
+    });
+    const filteredOtherIncomeDeposits = otherIncomeDeposits.filter(d => !contributionLookup.has((d.category || '').toLowerCase()));
+    const otherIncome = filteredOtherIncomeDeposits.reduce((sum, d) => sum + Number(d.amount), 0);
+
+    // Group other income by category
+    const otherIncomeByCategory = filteredOtherIncomeDeposits.reduce((acc, deposit) => {
+      const category = deposit.category || 'Uncategorized';
+      if (!acc[category]) {
+        acc[category] = { total: 0, count: 0, deposits: [] };
+      }
+      acc[category].total += Number(deposit.amount);
+      acc[category].count += 1;
+      acc[category].deposits.push({
+        member: deposit.member?.name,
+        amount: Number(deposit.amount),
+        date: deposit.date,
+      });
+      return acc;
+    }, {} as Record<string, any>);
+
+    const membershipFees = 0;
+    const totalIncome = interestIncome + finesIncome + membershipFees + otherIncome;
+
+    return {
+      period: { startDate: startDate.toISOString().split('T')[0], endDate: endDate.toISOString().split('T')[0] },
+      incomeBreakdown: {
+        'Interest Income (Loan Repayments)': {
+          amount: interestIncome,
+          transactionCount: repayments.length,
+          percentage: totalIncome > 0 ? ((interestIncome / totalIncome) * 100).toFixed(2) : 0,
+        },
+        'Fines Income': {
+          amount: finesIncome,
+          transactionCount: fines.length,
+          percentage: totalIncome > 0 ? ((finesIncome / totalIncome) * 100).toFixed(2) : 0,
+        },
+        'Membership Fees': {
+          amount: membershipFees,
+          transactionCount: 0,
+          percentage: totalIncome > 0 ? ((membershipFees / totalIncome) * 100).toFixed(2) : 0,
+        },
+        'Other Income by Category': Object.entries(otherIncomeByCategory).map(([category, data]) => ({
+          category,
+          amount: data.total,
+          transactionCount: data.count,
+          percentage: totalIncome > 0 ? ((data.total / totalIncome) * 100).toFixed(2) : 0,
+          topTransactions: data.deposits.slice(0, 5),
+        })),
+      },
+      summary: {
+        totalIncome,
+        interestIncome,
+        finesIncome,
+        membershipFees,
+        otherIncome,
+        totalTransactions: repayments.length + fines.length + filteredOtherIncomeDeposits.length,
+      },
+    };
+  }
+
+  async getBalanceSheetDiagnostics(asOfDate: Date = new Date()) {
+    // Detailed breakdown of all assets
+
+    const assetDetails = {
+      cash: await this.prisma.account.findMany({
+        where: { type: { in: ['cash', 'bank', 'pettyCash', 'mobileMoney'] } },
+        select: { name: true, balance: true, type: true },
+      }),
+      memberLoans: await this.prisma.loan.findMany({
+        where: { loanDirection: 'outward', disbursementDate: { lte: asOfDate } },
+        select: { id: true, memberId: true, amount: true, balance: true, ecl: true },
+      }),
+      bankLoans: await this.prisma.loan.findMany({
+        where: { loanDirection: 'inward', disbursementDate: { lte: asOfDate } },
+        select: { id: true, amount: true, balance: true },
+      }),
+      fixedAssets: await this.prisma.asset.findMany({ select: { description: true, currentValue: true } }),
+      members: await this.prisma.member.findMany({ select: { id: true, name: true, balance: true } }),
+    };
+
+    // Sum totals
+    const cashSum = assetDetails.cash.reduce((s, a) => s + Number(a.balance || 0), 0);
+    const memberLoanSum = assetDetails.memberLoans.reduce((s, l) => s + Number(l.balance || 0), 0);
+    const bankLoanSum = assetDetails.bankLoans.reduce((s, l) => s + Number(l.balance || 0), 0);
+    const fixedAssetsSum = assetDetails.fixedAssets.reduce((s, a) => s + Number(a.currentValue || 0), 0);
+    const memberSavingsSum = assetDetails.members.reduce((s, m) => s + Math.max(0, Number(m.balance || 0)), 0);
+    const memberReceivableSum = assetDetails.members.reduce((s, m) => {
+      const bal = Number(m.balance || 0);
+      return s + (bal < 0 ? Math.abs(bal) : 0);
+    }, 0);
+
+    // Income statement for context
+    const incomeData = await this.getIncomeStatementData(new Date('2000-01-01'), asOfDate);
+
+    return {
+      asOfDate: asOfDate.toISOString().split('T')[0],
+      assets: {
+        cash: {
+          items: assetDetails.cash,
+          total: cashSum,
+        },
+        memberLoans: {
+          count: assetDetails.memberLoans.length,
+          total: memberLoanSum,
+          items: assetDetails.memberLoans,
+          provisions: assetDetails.memberLoans.reduce((s, l) => s + Number(l.ecl || 0), 0),
+        },
+        fixedAssets: {
+          items: assetDetails.fixedAssets,
+          total: fixedAssetsSum,
+        },
+        totalAssets: cashSum + memberLoanSum + fixedAssetsSum + memberReceivableSum,
+      },
+      liabilities: {
+        bankLoans: {
+          count: assetDetails.bankLoans.length,
+          total: bankLoanSum,
+          items: assetDetails.bankLoans,
+        },
+        totalLiabilities: bankLoanSum,
+      },
+      equity: {
+        memberSavings: {
+          count: assetDetails.members.length,
+          total: memberSavingsSum,
+          items: assetDetails.members,
+        },
+        memberSavingsReceivable: {
+          total: memberReceivableSum,
+        },
+        retainedEarnings: incomeData.netSurplus,
+        totalEquity: memberSavingsSum + incomeData.netSurplus,
+      },
+      reconciliation: {
+        totalAssets: cashSum + memberLoanSum + fixedAssetsSum + memberReceivableSum,
+        totalLiabilitiesAndEquity: bankLoanSum + memberSavingsSum + incomeData.netSurplus,
+        variance: (cashSum + memberLoanSum + fixedAssetsSum + memberReceivableSum) - (bankLoanSum + memberSavingsSum + incomeData.netSurplus),
+        balances: true,
+      },
+      incomeContext: {
+        totalAllTimeIncome: incomeData.totalIncome,
+        totalAllTimeExpenses: incomeData.totalExpenses,
+        totalAllTimeProvisions: incomeData.totalProvisions,
+        netSurplus: incomeData.netSurplus,
+      },
+    };
+  }
 }
+

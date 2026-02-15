@@ -170,12 +170,24 @@ export class CategoryLedgerService {
     skip = 0,
     take = 20,
   ) {
-    return this.prisma.categoryLedgerEntry.findMany({
-      where: { categoryLedgerId },
-      orderBy: { date: 'desc' },
+    const [entries, total] = await Promise.all([
+      this.prisma.categoryLedgerEntry.findMany({
+        where: { categoryLedgerId },
+        orderBy: { date: 'desc' },
+        skip,
+        take,
+      }),
+      this.prisma.categoryLedgerEntry.count({
+        where: { categoryLedgerId },
+      }),
+    ]);
+
+    return {
+      entries,
+      total,
       skip,
       take,
-    });
+    };
   }
 
   /**

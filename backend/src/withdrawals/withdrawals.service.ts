@@ -754,6 +754,8 @@ export class WithdrawalsService {
       ...w,
       transactionType: 'withdrawal',
       source: 'withdrawal',
+      recordedAt: w.createdAt || w.date,
+      isSystemGenerated: false,
     }));
 
     // Transform loans to common format (as withdrawal entries)
@@ -773,6 +775,8 @@ export class WithdrawalsService {
       description: `Loan disbursement - ${l.loanType?.name || 'Loan'}`,
       transactionType: 'withdrawal',
       source: 'loan',
+      recordedAt: l.createdAt || l.disbursementDate,
+      isSystemGenerated: false,
       loanId: l.id,
       loanType: l.loanType,
       loanStatus: l.status,

@@ -8,6 +8,29 @@ export default defineConfig({
   ],
   theme: {
     extend: {
+      fontSize: {
+        'xs': '11px',
+        'sm': '12px',
+        'base': '13px',
+        'md': '14px',
+        'lg': '15px',
+        'xl': '16px',
+        '2xl': '18px',
+        '3xl': '20px'
+      },
+      spacing: {
+        'xs': '4px',
+        'sm': '6px',
+        'md': '8px',
+        'lg': '12px',
+        'xl': '16px',
+        '2xl': '20px'
+      },
+      padding: {
+        'card': '12px',
+        'section': '16px',
+        'compact': '8px'
+      },
       colors: {
         'primary-green': '#28a745',
         'primary-orange': '#fd7e14',

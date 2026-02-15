@@ -262,6 +262,67 @@ export default function IncomeStatementPage() {
             </div>
           ))}
 
+          {/* Profit/Loss Calculation - Clear Bottom Line */}
+          {data.sections && data.sections.length > 0 && (
+            <div className="bg-white rounded-lg shadow-md border border-gray-200 mt-8 overflow-hidden">
+              <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white px-6 py-4">
+                <h3 className="text-xl font-bold">Profit / (Loss) Calculation</h3>
+              </div>
+              <div className="p-6">
+                <table className="w-full">
+                  <tbody>
+                    {/* Total Income */}
+                    {data.sections.find(s => s.heading === 'INCOME') && (
+                      <tr className="border-b-2 border-gray-300">
+                        <td className="text-lg font-semibold text-gray-900 py-4">Total Income</td>
+                        <td className="text-right text-xl font-bold text-green-600 py-4 min-w-[160px]">
+                          {formatCurrency(data.sections.find(s => s.heading === 'INCOME')?.total?.current || 0)}
+                        </td>
+                        <td className="text-right opacity-70 py-4 min-w-[160px]">
+                          {data.sections.find(s => s.heading === 'INCOME') && (
+                            <span className="text-sm text-gray-600">
+                              {formatCurrency(data.sections.find(s => s.heading === 'INCOME')?.total?.previous || 0)}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    
+                    {/* Total Expenses */}
+                    {data.sections.find(s => s.heading === 'EXPENSES') && (
+                      <tr className="border-b-2 border-gray-300">
+                        <td className="text-lg font-semibold text-gray-900 py-4">Less: Total Expenses</td>
+                        <td className="text-right text-xl font-bold text-red-600 py-4 min-w-[160px]">
+                          ({formatCurrency(data.sections.find(s => s.heading === 'EXPENSES')?.total?.current || 0)})
+                        </td>
+                        <td className="text-right opacity-70 py-4 min-w-[160px]">
+                          {data.sections.find(s => s.heading === 'EXPENSES') && (
+                            <span className="text-sm text-gray-600">
+                              ({formatCurrency(data.sections.find(s => s.heading === 'EXPENSES')?.total?.previous || 0)})
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    
+                    {/* Profit/Loss - Bottom Line */}
+                    <tr className="bg-blue-50 border-t-2 border-b-2 border-blue-300">
+                      <td className="text-xl font-bold text-blue-900 py-4">= PROFIT / (LOSS)</td>
+                      <td className={`text-right text-2xl font-bold py-4 min-w-[160px] ${data.summary?.netSurplus?.current >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(data.summary?.netSurplus?.current || 0)}
+                      </td>
+                      <td className="text-right py-4 min-w-[160px]">
+                        <span className={`text-lg font-semibold ${data.summary?.netSurplus?.previous >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(data.summary?.netSurplus?.previous || 0)}
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Footer Notes */}
           <div className="bg-gray-50 rounded-lg border border-gray-200 p-6 mt-8">
             <h3 className="text-lg font-bold text-gray-900 mb-3">Notes:</h3>
@@ -270,7 +331,7 @@ export default function IncomeStatementPage() {
               <li>Interest Income includes realized interest from loan repayments</li>
               <li>Expected Credit Loss (ECL) provisions calculated per IFRS 9 requirements</li>
               <li>Operating Expenses include administrative and operational costs</li>
-              <li>Net Surplus represents the profit available for distribution or retention</li>
+              <li>Profit/Loss represents the profit available for distribution or retention</li>
               <li>Percentage changes compare current period against previous period</li>
             </ul>
           </div>

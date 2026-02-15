@@ -1,14 +1,23 @@
-/* src/styles/cards.css - Compact dashboard cards */
+/* Compact dashboard cards - Unified Design System */
+
+:root {
+  --card-font-label: 12px;
+  --card-font-value: 16px;
+  --card-font-subtext: 11px;
+  --card-padding: 12px;
+  --card-gap: 6px;
+  --card-radius: 8px;
+}
 
 /* Base compact metric card styles */
 .metric-card-compact {
   background: #fff;
-  border-radius: 10px;
-  padding: 12px;
+  border-radius: var(--card-radius);
+  padding: var(--card-padding);
   box-shadow: 0 2px 6px rgba(0,0,0,0.04);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  min-height: 110px;
+  min-height: 100px;
 }
 
 .metric-card-compact:hover {
@@ -19,9 +28,9 @@
 .metric-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 0.75rem;
+  gap: var(--card-gap);
+  margin-bottom: 6px;
+  font-size: var(--card-font-label);
   font-weight: 600;
   color: #666;
 }
@@ -29,44 +38,44 @@
 .metric-label {
   flex: 1;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
 
 .metric-value-compact {
-  font-size: 1.4rem;
+  font-size: var(--card-font-value);
   font-weight: 700;
   line-height: 1.1;
   color: var(--dark, #1f2937);
-  margin: 6px 0;
+  margin: 4px 0;
 }
 
 .metric-value {
-  font-size: 1.4rem;
+  font-size: var(--card-font-value);
   font-weight: 700;
   line-height: 1.1;
   color: var(--dark, #1f2937);
-  margin: 6px 0;
+  margin: 4px 0;
 }
 
 .metric-value.error {
-  font-size: 0.85rem;
+  font-size: var(--card-font-subtext);
   color: #dc2626;
   font-weight: 500;
 }
 
 .metric-value-container {
-  margin: 6px 0;
+  margin: 4px 0;
 }
 
 .metric-subtext-compact {
-  font-size: 0.75rem;
+  font-size: var(--card-font-subtext);
   color: #6b7280;
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.3;
 }
 
 .metric-subtext-link {
-  font-size: 0.75rem;
+  font-size: var(--card-font-subtext);
   color: #3b82f6;
   text-decoration: none;
   cursor: pointer;

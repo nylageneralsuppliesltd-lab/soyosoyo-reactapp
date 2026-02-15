@@ -1,18 +1,27 @@
-/* General Ledger Page Styles */
+/* General Ledger Page Styles - Unified Design System */
+
+:root {
+  --font-h1: 20px;
+  --font-md: 14px;
+  --font-sm: 12px;
+  --pad-page: 8px;
+  --pad-section: 12px;
+  --radius: 8px;
+}
 
 .general-ledger-page {
   min-height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  padding: 2rem 1rem;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  padding: var(--pad-page) 8px;
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .ledger-header-section {
   max-width: 1400px;
-  margin: 0 auto 2rem;
+  margin: 0 auto 12px;
   background: white;
-  border-radius: 12px;
-  padding: 2rem;
+  border-radius: var(--radius);
+  padding: var(--pad-section);
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
@@ -20,43 +29,44 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
   border-bottom: 2px solid #e0e0e0;
 }
 
 .header-top h1 {
-  font-size: 2rem;
+  font-size: var(--font-h1);
   font-weight: 700;
   color: #1a202c;
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 4px 0;
 }
 
 .header-top p {
   color: #718096;
-  font-size: 0.95rem;
+  font-size: var(--font-sm);
   margin: 0;
 }
 
 .header-actions {
   display: flex;
-  gap: 1rem;
+  gap: 6px;
 }
 
 .btn-action {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
+  gap: 4px;
+  padding: 6px 10px;
   background: white;
   border: 2px solid #e0e0e0;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: var(--font-sm);
   font-weight: 500;
   color: #2d3748;
   transition: all 0.2s ease;
   position: relative;
+  white-space: nowrap;
 }
 
 .btn-action:hover {
@@ -77,9 +87,9 @@
   border: 2px solid #e0e0e0;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  min-width: 150px;
+  min-width: 140px;
   z-index: 10;
-  margin-top: 0.5rem;
+  margin-top: 4px;
 }
 
 .dropdown:hover .dropdown-menu {
@@ -88,12 +98,12 @@
 }
 
 .dropdown-menu button {
-  padding: 0.75rem 1.25rem;
+  padding: 6px 10px;
   border: none;
   background: none;
   cursor: pointer;
   text-align: left;
-  font-size: 0.9rem;
+  font-size: var(--font-sm);
   color: #2d3748;
   transition: all 0.2s ease;
 }
@@ -316,11 +326,22 @@
 }
 
 .ledger-table th {
-  padding: 0.75rem;
+  padding: 0.35rem 0.4rem;
   text-align: left;
   font-weight: 600;
   color: #2d3748;
   border-bottom: 2px solid #cbd5e0;
+  font-size: 12px;
+}
+
+.ledger-table td {
+  padding: 0.3rem 0.4rem;
+  font-size: 12px;
+}
+
+.ledger-table tfoot td {
+  border-top: 2px solid #cbd5e0;
+  font-weight: 600;
 }
 
 .ledger-table th.col-date { width: 11%; }
@@ -338,6 +359,12 @@
 
 .ledger-table tbody tr:hover {
   background-color: #f7fafc;
+}
+
+.pagination-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin: 12px 0 0;
 }
 
 .ledger-table tbody tr.debit-row {

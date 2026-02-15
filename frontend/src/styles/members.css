@@ -1,6 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════════
-   SACCO Members Module - Premium Responsive Design
-   ═══════════════════════════════════════════════════════════════════ */
+/* Members Module - Unified Design System */
 
 /* Color scheme */
 :root {
@@ -18,51 +16,61 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  
+  /* Typography */
+  --font-h1: 20px;
+  --font-h2: 16px;
+  --font-md: 14px;
+  --font-sm: 12px;
+  --font-xs: 11px;
+  
+  /* Spacing */
+  --pad-page: 16px;
+  --pad-card: 12px;
+  --pad-compact: 8px;
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   MEMBER FORM - NEW COMPACT MULTI-COLUMN DESIGN
-   ═══════════════════════════════════════════════════════════════════ */
+/* Member Form - New Compact Multi-Column Design */
 
 .member-form-container {
   max-width: 1000px;
   margin: 0 auto;
-  padding: 16px;
+  padding: var(--pad-page);
   background: var(--light);
   min-height: 100vh;
   font-family: inherit;
 }
 
 .form-header {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   border-bottom: 2px solid var(--primary);
-  padding-bottom: 14px;
+  padding-bottom: 10px;
 }
 
 .form-header h1 {
-  font-size: 26px;
+  font-size: var(--font-h1);
   font-weight: 700;
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
   color: var(--dark);
 }
 
 .form-subtitle {
-  font-size: 13px;
+  font-size: var(--font-xs);
   color: var(--text-light);
   margin: 0;
 }
 
 .member-form {
   background: white;
-  border-radius: 10px;
-  padding: 18px;
+  border-radius: 8px;
+  padding: var(--pad-card);
   box-shadow: var(--shadow-md);
 }
 
 /* Form Sections */
 .form-section {
-  margin-bottom: 16px;
-  padding-bottom: 14px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -73,29 +81,29 @@
 }
 
 .section-title {
-  font-size: 14px;
+  font-size: var(--font-sm);
   font-weight: 600;
   color: var(--dark);
-  margin: 0 0 12px 0;
+  margin: 0 0 8px 0;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding-bottom: 8px;
+  letter-spacing: 0.3px;
+  padding-bottom: 6px;
   border-bottom: 2px solid var(--primary);
   display: inline-block;
 }
 
 .section-subtitle {
-  font-size: 12px;
+  font-size: var(--font-xs);
   color: var(--text-light);
-  margin: -8px 0 8px 0;
+  margin: -6px 0 6px 0;
 }
 
 /* Form Grid - 2 columns on desktop, 1 on mobile/tablet */
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-bottom: 4px;
+  gap: 8px;
+  margin-bottom: 2px;
 }
 
 .form-field {
