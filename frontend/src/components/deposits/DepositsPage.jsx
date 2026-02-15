@@ -37,6 +37,13 @@ const DepositsPage = () => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingDeposit, setEditingDeposit] = useState(null);
+  
+  // Pagination and date filtering
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [currentUser] = useState(() => {
     try {
       const stored =
@@ -63,7 +70,7 @@ const DepositsPage = () => {
     if (activeTab === 'list') {
       fetchDeposits();
     }
-  }, [activeTab]);
+  }, [activeTab, page, pageSize, startDate, endDate]);
 
   useEffect(() => {
     if (deposits.length > 0) {
@@ -75,14 +82,33 @@ const DepositsPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/deposits?take=200`);
+      const params = new URLSearchParams({
+        skip: ((page - 1) * pageSize).toString(),
+        take: pageSize.toString(),
+      });
+      
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      
+      const response = await fetch(`${API_BASE}/deposits?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch deposits');
       const data = await response.json();
-      const rows = Array.isArray(data) ? data : (data.data || []);
-      setDeposits(rows);
+      
+      // Handle both paginated and non-paginated responses
+      if (data.data && Array.isArray(data.data)) {
+        setDeposits(data.data);
+        setTotalCount(data.total || data.data.length);
+      } else if (Array.isArray(data)) {
+        setDeposits(data);
+        setTotalCount(data.length);
+      } else {
+        setDeposits([]);
+        setTotalCount(0);
+      }
     } catch (err) {
       setError(err.message);
       setDeposits([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
@@ -343,6 +369,44 @@ const DepositsPage = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+              
+              <div className="date-filters">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setPage(1); // Reset to first page
+                  }}
+                  placeholder="Start Date"
+                  className="date-input"
+                />
+                <span className="date-separator">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setPage(1); // Reset to first page
+                  }}
+                  placeholder="End Date"
+                  className="date-input"
+                />
+                {(startDate || endDate) && (
+                  <button
+                    onClick={() => {
+                      setStartDate('');
+                      setEndDate('');
+                      setPage(1);
+                    }}
+                    className="btn-clear-dates"
+                    title="Clear dates"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
@@ -356,6 +420,21 @@ const DepositsPage = () => {
                 <option value="income">Income</option>
                 <option value="miscellaneous">Miscellaneous</option>
               </select>
+              
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="pagesize-select"
+              >
+                <option value={25}>25 per page</option>
+                <option value={50}>50 per page</option>
+                <option value={100}>100 per page</option>
+                <option value={200}>200 per page</option>
+              </select>
+
             </div>
 
             {loading ? (
@@ -470,6 +549,48 @@ const DepositsPage = () => {
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+            )}
+            
+            {/* Pagination Controls */}
+            {!loading && filteredDeposits.length > 0 && (
+              <div className="pagination-controls">
+                <div className="pagination-info">
+                  Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, totalCount)} of {totalCount} entries
+                </div>
+                <div className="pagination-buttons">
+                  <button
+                    onClick={() => setPage(1)}
+                    disabled={page === 1}
+                    className="btn-page"
+                  >
+                    First
+                  </button>
+                  <button
+                    onClick={() => setPage(page - 1)}
+                    disabled={page === 1}
+                    className="btn-page"
+                  >
+                    Previous
+                  </button>
+                  <span className="page-indicator">
+                    Page {page} of {Math.ceil(totalCount / pageSize)}
+                  </span>
+                  <button
+                    onClick={() => setPage(page + 1)}
+                    disabled={page >= Math.ceil(totalCount / pageSize)}
+                    className="btn-page"
+                  >
+                    Next
+                  </button>
+                  <button
+                    onClick={() => setPage(Math.ceil(totalCount / pageSize))}
+                    disabled={page >= Math.ceil(totalCount / pageSize)}
+                    className="btn-page"
+                  >
+                    Last
+                  </button>
+                </div>
               </div>
             )}
           </div>

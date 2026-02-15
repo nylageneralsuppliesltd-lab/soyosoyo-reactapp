@@ -18,6 +18,13 @@ const WithdrawalsPage = () => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingWithdrawal, setEditingWithdrawal] = useState(null);
+  
+  // Pagination and date filtering
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [currentUser] = useState(() => {
     try {
       const stored =
@@ -45,21 +52,42 @@ const WithdrawalsPage = () => {
       fetchWithdrawals();
       fetchStats();
     }
-  }, [activeTab]);
+  }, [activeTab, page, pageSize, startDate, endDate]);
 
   const fetchWithdrawals = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/withdrawals?take=200`);
+      const params = new URLSearchParams({
+        skip: ((page - 1) * pageSize).toString(),
+        take: pageSize.toString(),
+      });
+      
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      
+      const response = await fetch(`${API_BASE}/withdrawals?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
-        setWithdrawals(Array.isArray(data) ? data : (data.data || []));
+        
+        // Handle both paginated and non-paginated responses
+        if (data.data && Array.isArray(data.data)) {
+          setWithdrawals(data.data);
+          setTotalCount(data.total || data.data.length);
+        } else if (Array.isArray(data)) {
+          setWithdrawals(data);
+          setTotalCount(data.length);
+        } else {
+          setWithdrawals([]);
+          setTotalCount(0);
+        }
       } else {
         setWithdrawals([]);
+        setTotalCount(0);
       }
     } catch (error) {
       console.error('Error fetching withdrawals:', error);
       setWithdrawals([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
@@ -299,6 +327,44 @@ const WithdrawalsPage = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+              
+              <div className="date-filters">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Start Date"
+                  className="date-input"
+                />
+                <span className="date-separator">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="End Date"
+                  className="date-input"
+                />
+                {(startDate || endDate) && (
+                  <button
+                    onClick={() => {
+                      setStartDate('');
+                      setEndDate('');
+                      setPage(1);
+                    }}
+                    className="btn-clear-dates"
+                    title="Clear dates"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
@@ -310,6 +376,20 @@ const WithdrawalsPage = () => {
                 <option value="refund">Refunds</option>
                 <option value="dividend">Dividends</option>
                 <option value="loan_disbursement">Loan Disbursements</option>
+              </select>
+              
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="pagesize-select"
+              >
+                <option value={25}>25 per page</option>
+                <option value={50}>50 per page</option>
+                <option value={100}>100 per page</option>
+                <option value={200}>200 per page</option>
               </select>
             </div>
 
@@ -424,6 +504,48 @@ const WithdrawalsPage = () => {
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+            )}
+            
+            {/* Pagination Controls */}
+            {!loading && filteredWithdrawals.length > 0 && (
+              <div className="pagination-controls">
+                <div className="pagination-info">
+                  Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, totalCount)} of {totalCount} entries
+                </div>
+                <div className="pagination-buttons">
+                  <button
+                    onClick={() => setPage(1)}
+                    disabled={page === 1}
+                    className="btn-page"
+                  >
+                    First
+                  </button>
+                  <button
+                    onClick={() => setPage(page - 1)}
+                    disabled={page === 1}
+                    className="btn-page"
+                  >
+                    Previous
+                  </button>
+                  <span className="page-indicator">
+                    Page {page} of {Math.ceil(totalCount / pageSize)}
+                  </span>
+                  <button
+                    onClick={() => setPage(page + 1)}
+                    disabled={page >= Math.ceil(totalCount / pageSize)}
+                    className="btn-page"
+                  >
+                    Next
+                  </button>
+                  <button
+                    onClick={() => setPage(Math.ceil(totalCount / pageSize))}
+                    disabled={page >= Math.ceil(totalCount / pageSize)}
+                    className="btn-page"
+                  >
+                    Last
+                  </button>
+                </div>
               </div>
             )}
           </div>
