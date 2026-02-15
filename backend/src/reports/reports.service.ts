@@ -1280,11 +1280,12 @@ export class ReportsService {
       },
       orderBy: { name: 'asc' },
     });
+    const realAccounts = accounts.filter(a => !this.isGlAccount(a.name));
     
     let totalAssets = 0;
     
     // Add each cash/bank account as individual line item
-    for (const account of accounts) {
+    for (const account of realAccounts) {
       const amount = Number(account.balance);
       rows.push({
         category: 'Assets',
@@ -2132,16 +2133,17 @@ export class ReportsService {
     const cashAccounts = await this.prisma.account.findMany({
       where: { type: { in: ['cash', 'pettyCash', 'mobileMoney', 'bank'] } },
     });
+    const realCashAccounts = cashAccounts.filter(a => !this.isGlAccount(a.name));
 
-    const cashAtHand = cashAccounts
+    const cashAtHand = realCashAccounts
       .filter(a => a.type === 'cash' || a.type === 'pettyCash')
       .reduce((sum, a) => sum + Number(a.balance), 0);
 
-    const cashAtBank = cashAccounts
+    const cashAtBank = realCashAccounts
       .filter(a => a.type === 'bank')
       .reduce((sum, a) => sum + Number(a.balance), 0);
 
-    const mobileMoney = cashAccounts
+    const mobileMoney = realCashAccounts
       .filter(a => a.type === 'mobileMoney')
       .reduce((sum, a) => sum + Number(a.balance), 0);
 
@@ -2489,13 +2491,25 @@ export class ReportsService {
 
     const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
-    // Provisions (ECL changes during the period)
-    const loans = await this.prisma.loan.findMany({
+    // Provisions (ECL changes during the period - this is an EXPENSE flow, not a balance)
+    // Calculate ECL at start of period
+    const loansAtStart = await this.prisma.loan.findMany({
+      where: {
+        disbursementDate: { lte: startDate },
+      },
+    });
+    const eclAtStart = loansAtStart.reduce((sum, l) => sum + Number(l.ecl || 0), 0);
+    
+    // Calculate ECL at end of period
+    const loansAtEnd = await this.prisma.loan.findMany({
       where: {
         disbursementDate: { lte: endDate },
       },
     });
-    const totalProvisions = loans.reduce((sum, l) => sum + Number(l.ecl || 0), 0);
+    const eclAtEnd = loansAtEnd.reduce((sum, l) => sum + Number(l.ecl || 0), 0);
+    
+    // Provision expense = increase in ECL during the period
+    const totalProvisions = Math.max(0, eclAtEnd - eclAtStart);
 
     const netSurplus = totalIncome - totalExpenses - totalProvisions;
 
