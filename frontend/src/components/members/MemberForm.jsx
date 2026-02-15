@@ -1,9 +1,12 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createMember, updateMember } from './membersAPI';
 import NomineeInputs from './NomineeInputs';
 import '../../../src/styles/members.css';
 
 export default function MemberForm({ member = null, goBack }) {
+  const navigate = useNavigate();
+  const handleGoBack = typeof goBack === 'function' ? goBack : () => navigate(-1);
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -125,7 +128,7 @@ export default function MemberForm({ member = null, goBack }) {
         setSubmitMessage({ type: 'success', text: '✓ Member registered successfully!' });
       }
 
-      setTimeout(() => goBack(), 1500);
+      setTimeout(() => handleGoBack(), 1500);
     } catch (err) {
       let message = 'Error submitting form.';
 
@@ -282,7 +285,7 @@ export default function MemberForm({ member = null, goBack }) {
           <button
             type="button"
             className="btn-secondary-large"
-            onClick={goBack}
+            onClick={handleGoBack}
             disabled={loading}
           >
             ← Back

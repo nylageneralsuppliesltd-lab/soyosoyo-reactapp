@@ -142,10 +142,14 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   // Fetch all real bank accounts only
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(`${API_BASE}/accounts?type=BANK`);
+      const response = await fetch(`${API_BASE}/accounts`);
       const data = await response.json();
       const accountsArray = Array.isArray(data) ? data : (data.data || []);
-      setAccounts(accountsArray);
+      const realAccounts = accountsArray.filter((acc) => {
+        const type = String(acc.type || '').toLowerCase();
+        return ['cash', 'bank', 'mobilemoney', 'pettycash'].includes(type);
+      });
+      setAccounts(realAccounts);
     } catch (error) {
       console.error('Error fetching accounts:', error);
       setAccounts([]);
@@ -223,7 +227,7 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
         response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deposits: [payload] })
+          body: JSON.stringify({ payments: [payload] })
         });
       }
 

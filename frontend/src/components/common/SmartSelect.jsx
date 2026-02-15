@@ -107,9 +107,9 @@ const SmartSelect = ({
             {/* Options List */}
             <div className="smart-select-options">
               {filteredOptions.length > 0 ? (
-                filteredOptions.map((option) => (
+                filteredOptions.map((option, idx) => (
                   <button
-                    key={option.id}
+                    key={`${option.id ?? 'opt'}-${option.name || option.label || idx}`}
                     type="button"
                     className={`smart-select-option ${
                       selectedOption?.id === option.id ? 'selected' : ''

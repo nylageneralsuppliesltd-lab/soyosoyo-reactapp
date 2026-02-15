@@ -101,7 +101,11 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
       const response = await fetch(`${API_BASE}/accounts`);
       const data = await response.json();
       const accountsArray = Array.isArray(data) ? data : (data.data || []);
-      setAccounts(accountsArray.filter(acc => ['ASSET', 'BANK'].includes(acc.type)));
+      const realAccounts = accountsArray.filter((acc) => {
+        const type = String(acc.type || '').toLowerCase();
+        return ['cash', 'bank', 'mobilemoney', 'pettycash'].includes(type);
+      });
+      setAccounts(realAccounts);
     } catch (error) {
       console.error('Error fetching accounts:', error);
       setAccounts([]);
@@ -177,7 +181,7 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
         response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deposits: [payload] })
+          body: JSON.stringify({ payments: [payload] })
         });
       }
 
