@@ -101,7 +101,7 @@ export default function IncomeStatementPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-6">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-4">
           <ReportHeader 
             title="Income Statement - Profit & Loss Account" 
             subtitle={`Comparative ${mode === 'monthly' ? 'Monthly' : 'Annual'} Analysis`}
@@ -130,18 +130,18 @@ export default function IncomeStatementPage() {
           </div>
 
           {data && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-blue-900 mb-1">Current Period</h3>
-                <p className="text-xl font-bold text-blue-700">{data.currentPeriod?.label}</p>
-                <p className="text-xs text-blue-600 mt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <h3 className="text-xs font-semibold text-blue-900 mb-0.5">Current Period</h3>
+                <p className="text-base font-bold text-blue-700">{data.currentPeriod?.label}</p>
+                <p className="text-[10px] text-blue-600 mt-0.5">
                   {data.currentPeriod?.startDate} to {data.currentPeriod?.endDate}
                 </p>
               </div>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-gray-900 mb-1">Previous Period</h3>
-                <p className="text-xl font-bold text-gray-700">{data.previousPeriod?.label}</p>
-                <p className="text-xs text-gray-600 mt-1">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <h3 className="text-xs font-semibold text-gray-900 mb-0.5">Previous Period</h3>
+                <p className="text-base font-bold text-gray-700">{data.previousPeriod?.label}</p>
+                <p className="text-[10px] text-gray-600 mt-0.5">
                   {data.previousPeriod?.startDate} to {data.previousPeriod?.endDate}
                 </p>
               </div>
@@ -152,27 +152,27 @@ export default function IncomeStatementPage() {
 
       {/* Content */}
       {data && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-8">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-4">
           {/* Net Surplus Summary */}
           {data.summary?.netSurplus && (
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg p-8 mb-6 text-white">
-              <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg p-4 mb-4 text-white">
+              <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold opacity-90 mb-2">{data.summary.netSurplus.label}</h2>
-                  <p className="text-4xl font-bold">{formatCurrency(data.summary.netSurplus.current)}</p>
+                  <h2 className="text-sm font-semibold opacity-90 mb-1">{data.summary.netSurplus.label}</h2>
+                  <p className="text-2xl font-bold">{formatCurrency(data.summary.netSurplus.current)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm opacity-90 mb-1">Previous Period</p>
-                  <p className="text-2xl font-semibold opacity-90">{formatCurrency(data.summary.netSurplus.previous)}</p>
-                  <div className="mt-2 text-white">
+                  <p className="text-xs opacity-90 mb-0.5">Previous Period</p>
+                  <p className="text-lg font-semibold opacity-90">{formatCurrency(data.summary.netSurplus.previous)}</p>
+                  <div className="mt-1 text-white">
                     {data.summary.netSurplus.change !== undefined && (
-                      <div className="flex items-center gap-2 justify-end">
-                        {data.summary.netSurplus.change >= 0 ? <TrendUp size={20} /> : <TrendDown size={20} />}
-                        <span className="text-lg font-medium">
+                      <div className="flex items-center gap-1 justify-end text-sm">
+                        {data.summary.netSurplus.change >= 0 ? <TrendUp size={16} /> : <TrendDown size={16} />}
+                        <span className="font-medium">
                           {formatCurrency(Math.abs(data.summary.netSurplus.change))}
                         </span>
                         {data.summary.netSurplus.percentChange !== undefined && (
-                          <span className="text-sm opacity-90">
+                          <span className="text-xs opacity-90">
                             ({data.summary.netSurplus.percentChange >= 0 ? '+' : ''}{data.summary.netSurplus.percentChange.toFixed(1)}%)
                           </span>
                         )}
@@ -186,42 +186,42 @@ export default function IncomeStatementPage() {
 
           {/* Detailed Sections */}
           {data.sections?.map((section, sectionIdx) => (
-            <div key={sectionIdx} className="bg-white rounded-lg shadow-md border border-gray-200 mb-6 overflow-hidden">
-              <div className={`px-6 py-4 ${
+            <div key={sectionIdx} className="bg-white rounded-lg shadow-md border border-gray-200 mb-4 overflow-hidden">
+              <div className={`px-4 py-3 ${
                 section.heading === 'INCOME' ? 'bg-gradient-to-r from-green-600 to-green-700' :
                 section.heading === 'EXPENSES' ? 'bg-gradient-to-r from-orange-600 to-orange-700' :
                 'bg-gradient-to-r from-gray-600 to-gray-700'
               }`}>
-                <h2 className="text-2xl font-bold text-white">{section.heading}</h2>
+                <h2 className="text-lg font-bold text-white">{section.heading}</h2>
               </div>
 
               {section.categories?.map((category, catIdx) => (
-                <div key={catIdx} className="p-6 border-b border-gray-100 last:border-b-0">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b-2 border-blue-200">
+                <div key={catIdx} className="p-4 border-b border-gray-100 last:border-b-0">
+                  <h3 className="text-base font-bold text-gray-900 mb-3 pb-2 border-b border-blue-200">
                     {category.name}
                   </h3>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-sm font-semibold text-gray-700 border-b border-gray-200">
-                          <th className="text-left py-3 px-2">Description</th>
-                          <th className="text-right py-3 px-2 min-w-[140px]">{data.currentPeriod?.label}</th>
-                          <th className="text-right py-3 px-2 min-w-[140px]">{data.previousPeriod?.label}</th>
-                          <th className="text-right py-3 px-2 min-w-[160px]">Change</th>
+                        <tr className="text-xs font-semibold text-gray-700 border-b border-gray-200">
+                          <th className="text-left py-2 px-1">Description</th>
+                          <th className="text-right py-2 px-1 w-[25%]">Current</th>
+                          <th className="text-right py-2 px-1 w-[25%]">Previous</th>
+                          <th className="text-right py-2 px-1 w-[30%]">Change</th>
                         </tr>
                       </thead>
                       <tbody>
                         {category.items?.map((item, itemIdx) => (
                           <tr key={itemIdx} className="border-b border-gray-100 hover:bg-gray-50 transition">
-                            <td className="py-3 px-2 text-gray-800">{item.label}</td>
-                            <td className="py-3 px-2 text-right font-medium text-gray-900">
+                            <td className="py-2 px-1 text-gray-800 text-xs">{item.label}</td>
+                            <td className="py-2 px-1 text-right font-medium text-gray-900">
                               {formatCurrency(item.current)}
                             </td>
-                            <td className="py-3 px-2 text-right text-gray-600">
+                            <td className="py-2 px-1 text-right text-gray-600">
                               {formatCurrency(item.previous)}
                             </td>
-                            <td className="py-3 px-2 text-right">
+                            <td className="py-2 px-1 text-right">
                               {formatChange(item.change, item.percentChange)}
                             </td>
                           </tr>
@@ -229,14 +229,14 @@ export default function IncomeStatementPage() {
                         
                         {/* Subtotal */}
                         <tr className="bg-blue-50 font-bold text-gray-900">
-                          <td className="py-3 px-2">Subtotal - {category.name}</td>
-                          <td className="py-3 px-2 text-right">
+                          <td className="py-2 px-1 text-xs">Subtotal</td>
+                          <td className="py-2 px-1 text-right">
                             {formatCurrency(category.subtotal?.current)}
                           </td>
-                          <td className="py-3 px-2 text-right">
+                          <td className="py-2 px-1 text-right">
                             {formatCurrency(category.subtotal?.previous)}
                           </td>
-                          <td className="py-3 px-2 text-right">
+                          <td className="py-2 px-1 text-right">
                             {formatChange((category.subtotal?.current || 0) - (category.subtotal?.previous || 0))}
                           </td>
                         </tr>
@@ -247,14 +247,14 @@ export default function IncomeStatementPage() {
               ))}
 
               {/* Section Total */}
-              <div className="bg-gray-900 text-white px-6 py-4">
-                <table className="w-full">
+              <div className="bg-gray-900 text-white px-4 py-3">
+                <table className="w-full text-sm">
                   <tbody>
                     <tr>
-                      <td className="text-lg font-bold py-2">{section.total?.label}</td>
-                      <td className="text-right text-xl font-bold py-2 min-w-[140px]">{formatCurrency(section.total?.current)}</td>
-                      <td className="text-right text-lg opacity-90 py-2 min-w-[140px]">{formatCurrency(section.total?.previous)}</td>
-                      <td className="text-right py-2 min-w-[160px]">{formatChange(section.total?.change)}</td>
+                      <td className="text-sm font-bold py-1">{section.total?.label}</td>
+                      <td className="text-right text-base font-bold py-1 w-[25%]">{formatCurrency(section.total?.current)}</td>
+                      <td className="text-right text-sm opacity-90 py-1 w-[25%]">{formatCurrency(section.total?.previous)}</td>
+                      <td className="text-right py-1 w-[30%]">{formatChange(section.total?.change)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -264,23 +264,23 @@ export default function IncomeStatementPage() {
 
           {/* Profit/Loss Calculation - Clear Bottom Line */}
           {data.sections && data.sections.length > 0 && (
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 mt-8 overflow-hidden">
-              <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white px-6 py-4">
-                <h3 className="text-xl font-bold">Profit / (Loss) Calculation</h3>
+            <div className="bg-white rounded-lg shadow-md border border-gray-200 mt-6 overflow-hidden">
+              <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white px-4 py-3">
+                <h3 className="text-base font-bold">Profit / (Loss) Calculation</h3>
               </div>
-              <div className="p-6">
-                <table className="w-full">
+              <div className="p-4">
+                <table className="w-full text-sm">
                   <tbody>
                     {/* Total Income */}
                     {data.sections.find(s => s.heading === 'INCOME') && (
                       <tr className="border-b-2 border-gray-300">
-                        <td className="text-lg font-semibold text-gray-900 py-4">Total Income</td>
-                        <td className="text-right text-xl font-bold text-green-600 py-4 min-w-[160px]">
+                        <td className="text-sm font-semibold text-gray-900 py-3">Total Income</td>
+                        <td className="text-right text-base font-bold text-green-600 py-3 w-[30%]">
                           {formatCurrency(data.sections.find(s => s.heading === 'INCOME')?.total?.current || 0)}
                         </td>
-                        <td className="text-right opacity-70 py-4 min-w-[160px]">
+                        <td className="text-right opacity-70 py-3 w-[30%]">
                           {data.sections.find(s => s.heading === 'INCOME') && (
-                            <span className="text-sm text-gray-600">
+                            <span className="text-xs text-gray-600">
                               {formatCurrency(data.sections.find(s => s.heading === 'INCOME')?.total?.previous || 0)}
                             </span>
                           )}
@@ -291,13 +291,13 @@ export default function IncomeStatementPage() {
                     {/* Total Expenses */}
                     {data.sections.find(s => s.heading === 'EXPENSES') && (
                       <tr className="border-b-2 border-gray-300">
-                        <td className="text-lg font-semibold text-gray-900 py-4">Less: Total Expenses</td>
-                        <td className="text-right text-xl font-bold text-red-600 py-4 min-w-[160px]">
+                        <td className="text-sm font-semibold text-gray-900 py-3">Less: Total Expenses</td>
+                        <td className="text-right text-base font-bold text-red-600 py-3 w-[30%]">
                           ({formatCurrency(data.sections.find(s => s.heading === 'EXPENSES')?.total?.current || 0)})
                         </td>
-                        <td className="text-right opacity-70 py-4 min-w-[160px]">
+                        <td className="text-right opacity-70 py-3 w-[30%]">
                           {data.sections.find(s => s.heading === 'EXPENSES') && (
-                            <span className="text-sm text-gray-600">
+                            <span className="text-xs text-gray-600">
                               ({formatCurrency(data.sections.find(s => s.heading === 'EXPENSES')?.total?.previous || 0)})
                             </span>
                           )}
@@ -307,12 +307,12 @@ export default function IncomeStatementPage() {
                     
                     {/* Profit/Loss - Bottom Line */}
                     <tr className="bg-blue-50 border-t-2 border-b-2 border-blue-300">
-                      <td className="text-xl font-bold text-blue-900 py-4">= PROFIT / (LOSS)</td>
-                      <td className={`text-right text-2xl font-bold py-4 min-w-[160px] ${data.summary?.netSurplus?.current >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <td className="text-base font-bold text-blue-900 py-3">= PROFIT / (LOSS)</td>
+                      <td className={`text-right text-lg font-bold py-3 w-[30%] ${data.summary?.netSurplus?.current >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {formatCurrency(data.summary?.netSurplus?.current || 0)}
                       </td>
-                      <td className="text-right py-4 min-w-[160px]">
-                        <span className={`text-lg font-semibold ${data.summary?.netSurplus?.previous >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <td className="text-right py-3 w-[30%]">
+                        <span className={`text-sm font-semibold ${data.summary?.netSurplus?.previous >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           {formatCurrency(data.summary?.netSurplus?.previous || 0)}
                         </span>
                       </td>
@@ -324,9 +324,9 @@ export default function IncomeStatementPage() {
           )}
 
           {/* Footer Notes */}
-          <div className="bg-gray-50 rounded-lg border border-gray-200 p-6 mt-8">
-            <h3 className="text-lg font-bold text-gray-900 mb-3">Notes:</h3>
-            <ul className="list-disc list-inside space-y-2 text-sm text-gray-700">
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 mt-6">
+            <h3 className="text-sm font-bold text-gray-900 mb-2">Notes:</h3>
+            <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
               <li>All amounts are presented in Kenya Shillings (KES)</li>
               <li>Interest Income includes realized interest from loan repayments</li>
               <li>Expected Credit Loss (ECL) provisions calculated per IFRS 9 requirements</li>

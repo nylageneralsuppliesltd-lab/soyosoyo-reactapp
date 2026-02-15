@@ -84,7 +84,7 @@ export default function BalanceSheetPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-6">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-4">
           <ReportHeader 
             title="Balance Sheet - Statement of Financial Position" 
             subtitle={`Comparative ${mode === 'monthly' ? 'Monthly' : 'Annual'} Analysis`}
@@ -113,14 +113,14 @@ export default function BalanceSheetPage() {
           </div>
 
           {data && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-blue-900 mb-1">Current Period</h3>
-                <p className="text-xl font-bold text-blue-700">{data.currentPeriod?.label}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <h3 className="text-xs font-semibold text-blue-900 mb-0.5">Current Period</h3>
+                <p className="text-base font-bold text-blue-700">{data.currentPeriod?.label}</p>
               </div>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-gray-900 mb-1">Previous Period</h3>
-                <p className="text-xl font-bold text-gray-700">{data.previousPeriod?.label}</p>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <h3 className="text-xs font-semibold text-gray-900 mb-0.5">Previous Period</h3>
+                <p className="text-base font-bold text-gray-700">{data.previousPeriod?.label}</p>
               </div>
             </div>
           )}
@@ -129,18 +129,18 @@ export default function BalanceSheetPage() {
 
       {/* Content */}
       {data && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-8">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-4">
           {/* Financial Position Summary */}
-          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Financial Position Summary</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 mb-4">
+            <h2 className="text-xl font-bold text-gray-900 mb-3">Financial Position Summary</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {data.sections?.map((section, idx) => (
-                <div key={idx} className="border-l-4 border-blue-600 pl-4">
-                  <h3 className="text-sm font-semibold text-gray-600 mb-1">{section.heading}</h3>
-                  <p className="text-2xl font-bold text-gray-900">
+                <div key={idx} className="border-l-4 border-blue-600 pl-3">
+                  <h3 className="text-xs font-semibold text-gray-600 mb-0.5">{section.heading}</h3>
+                  <p className="text-lg font-bold text-gray-900">
                     {formatCurrency(section.total?.current)}
                   </p>
-                  <div className="mt-2">
+                  <div className="mt-1 text-sm">
                     {formatChange(section.total?.change)}
                   </div>
                 </div>
@@ -149,8 +149,8 @@ export default function BalanceSheetPage() {
             
             {/* Balance Check */}
             {data.totals?.balanceCheck && (
-              <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-sm font-semibold text-green-900">
+              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-xs font-semibold text-green-900">
                   ✓ Accounting Equation Balanced: 
                   <span className="ml-2">Assets = Liabilities + Equity</span>
                 </p>
@@ -163,38 +163,38 @@ export default function BalanceSheetPage() {
 
           {/* Detailed Sections */}
           {data.sections?.map((section, sectionIdx) => (
-            <div key={sectionIdx} className="bg-white rounded-lg shadow-md border border-gray-200 mb-6 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-                <h2 className="text-2xl font-bold text-white">{section.heading}</h2>
+            <div key={sectionIdx} className="bg-white rounded-lg shadow-md border border-gray-200 mb-4 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3">
+                <h2 className="text-lg font-bold text-white">{section.heading}</h2>
               </div>
 
               {section.categories?.map((category, catIdx) => (
-                <div key={catIdx} className="p-6 border-b border-gray-100 last:border-b-0">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b-2 border-blue-200">
+                <div key={catIdx} className="p-4 border-b border-gray-100 last:border-b-0">
+                  <h3 className="text-base font-bold text-gray-900 mb-3 pb-2 border-b border-blue-200">
                     {category.name}
                   </h3>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-sm font-semibold text-gray-700 border-b border-gray-200">
-                          <th className="text-left py-3 px-2">Description</th>
-                          <th className="text-right py-3 px-2 min-w-[140px]">{data.currentPeriod?.label}</th>
-                          <th className="text-right py-3 px-2 min-w-[140px]">{data.previousPeriod?.label}</th>
-                          <th className="text-right py-3 px-2 min-w-[140px]">Change</th>
+                        <tr className="text-xs font-semibold text-gray-700 border-b border-gray-200">
+                          <th className="text-left py-2 px-1">Description</th>
+                          <th className="text-right py-2 px-1 w-[28%]">Current</th>
+                          <th className="text-right py-2 px-1 w-[28%]">Previous</th>
+                          <th className="text-right py-2 px-1 w-[28%]">Change</th>
                         </tr>
                       </thead>
                       <tbody>
                         {category.items?.map((item, itemIdx) => (
                           <tr key={itemIdx} className="border-b border-gray-100 hover:bg-gray-50 transition">
-                            <td className="py-3 px-2 text-gray-800">{item.label}</td>
-                            <td className="py-3 px-2 text-right font-medium text-gray-900">
+                            <td className="py-2 px-1 text-gray-800 text-xs">{item.label}</td>
+                            <td className="py-2 px-1 text-right font-medium text-gray-900">
                               {formatCurrency(item.current)}
                             </td>
-                            <td className="py-3 px-2 text-right text-gray-600">
+                            <td className="py-2 px-1 text-right text-gray-600">
                               {formatCurrency(item.previous)}
                             </td>
-                            <td className="py-3 px-2 text-right">
+                            <td className="py-2 px-1 text-right">
                               {formatChange(item.change)}
                             </td>
                           </tr>
@@ -202,14 +202,14 @@ export default function BalanceSheetPage() {
                         
                         {/* Subtotal */}
                         <tr className="bg-blue-50 font-bold text-gray-900">
-                          <td className="py-3 px-2">Subtotal - {category.name}</td>
-                          <td className="py-3 px-2 text-right">
+                          <td className="py-2 px-1 text-xs">Subtotal</td>
+                          <td className="py-2 px-1 text-right">
                             {formatCurrency(category.subtotal?.current)}
                           </td>
-                          <td className="py-3 px-2 text-right">
+                          <td className="py-2 px-1 text-right">
                             {formatCurrency(category.subtotal?.previous)}
                           </td>
-                          <td className="py-3 px-2 text-right">
+                          <td className="py-2 px-1 text-right">
                             {formatChange((category.subtotal?.current || 0) - (category.subtotal?.previous || 0))}
                           </td>
                         </tr>
@@ -220,14 +220,14 @@ export default function BalanceSheetPage() {
               ))}
 
               {/* Section Total */}
-              <div className="bg-gray-900 text-white px-6 py-4">
-                <table className="w-full">
+              <div className="bg-gray-900 text-white px-4 py-3">
+                <table className="w-full text-sm">
                   <tbody>
                     <tr>
-                      <td className="text-lg font-bold py-2">{section.total?.label}</td>
-                      <td className="text-right text-xl font-bold py-2 min-w-[140px]">{formatCurrency(section.total?.current)}</td>
-                      <td className="text-right text-lg opacity-90 py-2 min-w-[140px]">{formatCurrency(section.total?.previous)}</td>
-                      <td className="text-right py-2 min-w-[140px]">{formatChange(section.total?.change)}</td>
+                      <td className="text-sm font-bold py-1">{section.total?.label}</td>
+                      <td className="text-right text-base font-bold py-1 w-[28%]">{formatCurrency(section.total?.current)}</td>
+                      <td className="text-right text-sm opacity-90 py-1 w-[28%]">{formatCurrency(section.total?.previous)}</td>
+                      <td className="text-right py-1 w-[28%]">{formatChange(section.total?.change)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -236,9 +236,9 @@ export default function BalanceSheetPage() {
           ))}
 
           {/* Footer Notes */}
-          <div className="bg-gray-50 rounded-lg border border-gray-200 p-6 mt-8">
-            <h3 className="text font-bold text-gray-900 mb-3">Notes:</h3>
-            <ul className="list-disc list-inside space-y-2 text-sm text-gray-700">
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 mt-6">
+            <h3 className="text-sm font-bold text-gray-900 mb-2">Notes:</h3>
+            <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
               <li>All amounts are presented in Kenya Shillings (KES)</li>
               <li>Loan Loss Provision calculated using IFRS 9 Expected Credit Loss (ECL) model</li>
               <li>Members' Share Capital represents total member contributions and savings</li>
