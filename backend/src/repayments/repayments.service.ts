@@ -6,6 +6,20 @@ import { Prisma, PaymentMethod } from '@prisma/client';
 export class RepaymentsService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * Generate a reference for repayment transactions
+   * Format: PREFIX-YYMMDD-ID-COMPONENT
+   * Example: REPAY-260215-123-P (Principal), REPAY-260215-123-I (Interest)
+   */
+  private generateReference(prefix: string, id: number | string, component?: string): string {
+    const date = new Date();
+    const yy = String(date.getFullYear()).slice(-2);
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    const suffix = component ? `-${component}` : '';
+    return `${prefix}-${yy}${mm}${dd}-${id}${suffix}`;
+  }
+
   private normalizePaymentMethod(method?: string): string {
     const value = (method || 'cash').toLowerCase();
 
@@ -259,7 +273,7 @@ export class RepaymentsService {
         await this.prisma.journalEntry.create({
           data: {
             date: repaymentData.date,
-            reference: `REPAY-${repayment.id}-P`,
+            reference: this.generateReference('REPAY', repayment.id, 'P'),
             description: `Loan principal repayment - ${loan.memberName} (loanId:${loan.id})`,
             narration: principalNarration,
             debitAccountId: cashAccount.id,
@@ -291,7 +305,7 @@ export class RepaymentsService {
         await this.prisma.journalEntry.create({
           data: {
             date: repaymentData.date,
-            reference: `REPAY-${repayment.id}-I`,
+            reference: this.generateReference('REPAY', repayment.id, 'I'),
             description: `Interest payment - ${loan.memberName} (loanId:${loan.id})`,
             narration: interestNarration,
             debitAccountId: cashAccount.id,
@@ -328,7 +342,7 @@ export class RepaymentsService {
         await this.prisma.journalEntry.create({
           data: {
             date: repaymentData.date,
-            reference: `REPAY-${repayment.id}-F`,
+            reference: this.generateReference('REPAY', repayment.id, 'F'),
             description: `Fine payment - ${loan.memberName} (loanId:${loan.id})`,
             narration: fineNarration,
             debitAccountId: cashAccount.id,
@@ -366,7 +380,7 @@ export class RepaymentsService {
               type: 'loan_repayment',
               amount: principalPayment,
               description: `Loan principal payment - ${updatedLoan.loanType?.name || 'Loan'}`,
-              reference: `REPAY-${repayment.id}-P`,
+              reference: this.generateReference('REPAY', repayment.id, 'P'),
               balanceAfter: updatedMember.balance,
               date: repaymentData.date,
             },
@@ -380,7 +394,7 @@ export class RepaymentsService {
               type: 'interest_payment',
               amount: interestPayment,
               description: `Interest payment - ${updatedLoan.loanType?.name || 'Loan'}`,
-              reference: `REPAY-${repayment.id}-I`,
+              reference: this.generateReference('REPAY', repayment.id, 'I'),
               balanceAfter: updatedMember.balance,
               date: repaymentData.date,
             },
@@ -394,7 +408,7 @@ export class RepaymentsService {
               type: 'fine_payment',
               amount: finePayment,
               description: `Fine payment - ${updatedLoan.loanType?.name || 'Loan'}`,
-              reference: `REPAY-${repayment.id}-F`,
+              reference: this.generateReference('REPAY', repayment.id, 'F'),
               balanceAfter: updatedMember.balance,
               date: repaymentData.date,
             },

@@ -6,6 +6,19 @@ import { Prisma } from '@prisma/client';
 export class LoansService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * Generate a reference for loan-related transactions
+   * Format: PREFIX-YYMMDD-ID
+   * Example: LOAN-260215-123, FINE-260215-45
+   */
+  private generateReference(prefix: string, id: number | string): string {
+    const date = new Date();
+    const yy = String(date.getFullYear()).slice(-2);
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${prefix}-${yy}${mm}${dd}-${id}`;
+  }
+
   private async ensureAccountByName(
     name: string,
     type: string,
@@ -69,7 +82,7 @@ export class LoansService {
     await this.prisma.journalEntry.create({
       data: {
         date: new Date(),
-        reference: `FINE-${fine.id}`,
+        reference: this.generateReference('FINE', fine.id),
         description: `Fine imposed - ${data.reason}`,
         narration: fineNarration,
         debitAccountId: finesReceivableAccount.id,
@@ -510,7 +523,7 @@ export class LoansService {
     await this.prisma.journalEntry.create({
       data: {
         date: disbursementDate,
-        reference: `LOAN-${loan.id}`,
+        reference: this.generateReference('LOAN', loan.id),
         description: `Loan disbursed to ${loan.memberName} (loanId:${loan.id})`,
         narration: [
           `LoanId:${loan.id}`,
@@ -548,7 +561,7 @@ export class LoansService {
       await this.prisma.journalEntry.create({
         data: {
           date: disbursementDate,
-          reference: `LOAN-INT-${loan.id}`,
+          reference: this.generateReference('LOAN-INT', loan.id),
           description: `Interest accrual for ${loan.memberName} (loanId:${loan.id})`,
           narration: [
             `LoanId:${loan.id}`,
@@ -587,7 +600,7 @@ export class LoansService {
           type: 'loan_disbursement',
           amount: -loan.amount, // Negative because it's money out
           description: `Loan disbursed - ${loan.loanType?.name || 'Loan'}`,
-          reference: `LOAN-${loan.id}`,
+          reference: this.generateReference('LOAN', loan.id),
           balanceAfter: updatedMember.balance,
           date: disbursementDate,
         },
@@ -601,7 +614,7 @@ export class LoansService {
             type: 'interest_charge',
             amount: -totalInterest, // Negative because it's an obligation
             description: `Interest on loan - ${loan.loanType?.name || 'Loan'}`,
-            reference: `LOAN-INT-${loan.id}`,
+            reference: this.generateReference('LOAN-INT', loan.id),
             balanceAfter: updatedMember.balance - totalInterest,
             date: disbursementDate,
           },
@@ -706,7 +719,7 @@ export class LoansService {
     await this.prisma.journalEntry.create({
       data: {
         date: date,
-        reference: `ECL-${loan.id}`,
+        reference: this.generateReference('ECL', loan.id),
         description: `ECL provision for loan to ${loan.memberName}`,
         narration: `IFRS 9 Stage 1 ECL: ${eclValue.toFixed(2)} (PD=${pdStage1}, LGD=${lgd})`,
         debitAccountId: eclExpenseAccount.id,
@@ -1292,7 +1305,7 @@ export class LoansService {
         debit: Number(loan.amount),
         credit: 0,
         balance: Number(loan.amount),
-        reference: `LOAN-${loan.id}`,
+        reference: this.generateReference('LOAN', loan.id),
       });
     }
 
@@ -1347,7 +1360,7 @@ export class LoansService {
           debit: 0,
           credit: Number(repayment.amount),
           balance: Math.max(0, runningBalance),
-          reference: `REPAY-${repayment.id}`,
+          reference: this.generateReference('REPAY', repayment.id),
         });
       } else if (transaction.type === 'fine') {
         const fine = transaction.data;
@@ -1360,7 +1373,7 @@ export class LoansService {
           debit: fineAmount,
           credit: 0,
           balance: runningBalance,
-          reference: `FINE-${fine.id}`,
+          reference: this.generateReference('FINE', fine.id),
           status: fine.status,
         });
       } else if (transaction.type === 'fine_payment') {
@@ -1375,7 +1388,7 @@ export class LoansService {
             debit: 0,
             credit: paidAmount,
             balance: runningBalance,
-            reference: `FINE-PAY-${fine.id}`,
+            reference: this.generateReference('FINE-PAY', fine.id),
             status: fine.status,
           });
         }
