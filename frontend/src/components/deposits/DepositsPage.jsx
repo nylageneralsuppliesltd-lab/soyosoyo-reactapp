@@ -12,7 +12,8 @@ import {
   Search,
   Edit,
   Trash2,
-  Eye
+  Eye,
+  Ban
 } from 'lucide-react';
 import ContributionForm from './ContributionForm';
 import FinePaymentForm from './FinePaymentForm';
@@ -36,6 +37,27 @@ const DepositsPage = () => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingDeposit, setEditingDeposit] = useState(null);
+  const [currentUser] = useState(() => {
+    try {
+      const stored =
+        localStorage.getItem('currentUser') ||
+        localStorage.getItem('currentMember') ||
+        localStorage.getItem('user');
+      return stored ? JSON.parse(stored) : null;
+    } catch (error) {
+      return null;
+    }
+  });
+
+  const isAdmin = String(currentUser?.role || currentUser?.user?.role || '').toLowerCase() === 'admin';
+  const canManage = import.meta.env.DEV ? true : isAdmin;
+  const actorName =
+    currentUser?.name ||
+    currentUser?.fullName ||
+    currentUser?.email ||
+    currentUser?.phone ||
+    currentUser?.id ||
+    'system';
 
   useEffect(() => {
     if (activeTab === 'list') {
@@ -90,7 +112,7 @@ const DepositsPage = () => {
   };
 
   const handleDeleteDeposit = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this deposit? This action cannot be undone.')) {
+    if (!window.confirm('Delete this deposit? This removes the record and reverses any posted accounting.')) {
       return;
     }
 
@@ -108,6 +130,39 @@ const DepositsPage = () => {
     } catch (error) {
       console.error('Error deleting deposit:', error);
       alert('Error deleting deposit');
+    }
+  };
+
+  const handleVoidDeposit = async (deposit) => {
+    if (deposit.isVoided) {
+      return;
+    }
+
+    const reason = window.prompt('Reason for voiding this deposit?');
+    if (!reason) {
+      return;
+    }
+
+    if (!window.confirm('Void will reverse accounting and keep a record. Continue?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/deposits/${deposit.id}/void`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, actor: actorName }),
+      });
+
+      if (response.ok) {
+        alert('Deposit voided successfully');
+        fetchDeposits();
+      } else {
+        alert('Failed to void deposit');
+      }
+    } catch (error) {
+      console.error('Error voiding deposit:', error);
+      alert('Error voiding deposit');
     }
   };
 
@@ -197,6 +252,9 @@ const DepositsPage = () => {
         type="deposit"
         onClose={() => setShowDetailModal(false)}
         onEdit={handleEditDeposit}
+        onVoid={handleVoidDeposit}
+        onDelete={(transaction) => handleDeleteDeposit(transaction.id)}
+        canManage={canManage}
       />
 
       <div className="form-header-section">
@@ -325,9 +383,12 @@ const DepositsPage = () => {
                   </thead>
                   <tbody>
                     {filteredDeposits.map((deposit) => (
-                      <tr key={deposit.id}>
+                      <tr key={deposit.id} className={deposit.isVoided ? 'row-voided' : ''}>
                         <td>{formatDate(deposit.date)}</td>
-                        <td>{getTypeBadge(deposit.type)}</td>
+                        <td>
+                          {getTypeBadge(deposit.type)}
+                          {deposit.isVoided && <span className="void-badge">VOID</span>}
+                        </td>
                         <td><span style={!deposit.memberName ? {color: '#999', fontStyle: 'italic'} : {}}>{deposit.memberName || 'No Member'}</span></td>
                         <td className="description-cell">
                           {deposit.description || deposit.narration || '-'}
@@ -350,20 +411,34 @@ const DepositsPage = () => {
                             >
                               <Eye size={16} />
                             </button>
-                            <button
-                              className="btn-icon"
-                              title="Edit"
-                              onClick={() => handleEditDeposit(deposit)}
-                            >
-                              <Edit size={16} />
-                            </button>
-                            <button
-                              className="btn-icon danger"
-                              title="Delete"
-                              onClick={() => handleDeleteDeposit(deposit.id)}
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {!deposit.isVoided && (
+                              <button
+                                className="btn-icon"
+                                title="Edit"
+                                onClick={() => handleEditDeposit(deposit)}
+                              >
+                                <Edit size={16} />
+                              </button>
+                            )}
+                            {canManage && (
+                              <button
+                                className={`btn-icon warning ${deposit.isVoided ? 'disabled' : ''}`}
+                                title="Void"
+                                onClick={() => handleVoidDeposit(deposit)}
+                                disabled={deposit.isVoided}
+                              >
+                                <Ban size={16} />
+                              </button>
+                            )}
+                            {canManage && (
+                              <button
+                                className="btn-icon danger"
+                                title="Delete"
+                                onClick={() => handleDeleteDeposit(deposit.id)}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

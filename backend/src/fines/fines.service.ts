@@ -65,27 +65,49 @@ export class FinesService {
       },
     });
 
-    // Sync: Create GL account for fines collected
-    const finesAccount = await this.ensureAccountByName(
-      'Fines Collected',
-      'bank',
-      'GL account for collected fines'
+    const finesReceivableAccount = await this.ensureAccountByName(
+      'Fines Receivable',
+      'gl',
+      'Outstanding fines owed by members (Asset account)'
     );
 
-    // Create journal entry (fines are recorded as liability, not immediate cash in)
-    // Debit: Fines Receivable GL, Credit: Fines Collected GL
+    const fineIncomeAccount = await this.ensureAccountByName(
+      'Fine Income',
+      'gl',
+      'Fine income from late payments (Revenue account)'
+    );
+
+    // Create journal entry (accrue fine when imposed)
+    // Debit: Fines Receivable, Credit: Fine Income
+    const accrualNarration = [
+      `FineId:${fine.id}`,
+      `MemberId:${fine.memberId}`,
+      `LoanId:${fine.loanId ?? 'n/a'}`,
+      `Reason:${data.reason || 'n/a'}`,
+    ].join(' | ');
+
     await this.prisma.journalEntry.create({
       data: {
         date: data.dueDate ? new Date(data.dueDate) : new Date(),
         reference: `FINE-${fine.id}`,
         description: `Fine imposed - ${fine.member?.name || 'Unknown'}`,
-        narration: data.reason || null,
-        debitAccountId: finesAccount.id,
+        narration: accrualNarration,
+        debitAccountId: finesReceivableAccount.id,
         debitAmount: amountDecimal,
-        creditAccountId: finesAccount.id,
+        creditAccountId: fineIncomeAccount.id,
         creditAmount: amountDecimal,
         category: 'fine',
       },
+    });
+
+    await this.prisma.account.update({
+      where: { id: finesReceivableAccount.id },
+      data: { balance: { increment: amountDecimal } },
+    });
+
+    await this.prisma.account.update({
+      where: { id: fineIncomeAccount.id },
+      data: { balance: { increment: amountDecimal } },
     });
 
     return fine;
@@ -125,10 +147,10 @@ export class FinesService {
     if (paymentDifference > 0) {
       const paymentDecimal = new Prisma.Decimal(paymentDifference);
 
-      const finesAccount = await this.ensureAccountByName(
-        'Fines Collected',
-        'bank',
-        'GL account for collected fines'
+      const finesReceivableAccount = await this.ensureAccountByName(
+        'Fines Receivable',
+        'gl',
+        'Outstanding fines owed by members (Asset account)'
       );
 
       const cashAccount = await this.ensureAccountByName(
@@ -137,16 +159,23 @@ export class FinesService {
         'Default cash account'
       );
 
-      // Debit: Cash (money in), Credit: Fines Collected GL
+      // Debit: Cash (money in), Credit: Fines Receivable
+      const paymentNarration = [
+        `FineId:${id}`,
+        `MemberId:${updatedFine.memberId ?? 'n/a'}`,
+        `LoanId:${updatedFine.loanId ?? 'n/a'}`,
+        `PaidAmount:${paymentDifference.toFixed(2)}`,
+      ].join(' | ');
+
       await this.prisma.journalEntry.create({
         data: {
           date: new Date(),
           reference: `FINE-PAY-${id}`,
           description: `Fine payment - ${updatedFine.member?.name || 'Unknown'}`,
-          narration: null,
+          narration: paymentNarration,
           debitAccountId: cashAccount.id,
           debitAmount: paymentDecimal,
-          creditAccountId: finesAccount.id,
+          creditAccountId: finesReceivableAccount.id,
           creditAmount: paymentDecimal,
           category: 'fine_payment',
         },
@@ -157,6 +186,30 @@ export class FinesService {
         where: { id: cashAccount.id },
         data: { balance: { increment: paymentDecimal } },
       });
+
+      await this.prisma.account.update({
+        where: { id: finesReceivableAccount.id },
+        data: { balance: { decrement: paymentDecimal } },
+      });
+
+      if (updatedFine.memberId) {
+        const updatedMember = await this.prisma.member.update({
+          where: { id: updatedFine.memberId },
+          data: { balance: { increment: paymentDifference } },
+        });
+
+        await this.prisma.ledger.create({
+          data: {
+            memberId: updatedFine.memberId,
+            type: 'fine_payment',
+            amount: paymentDifference,
+            description: `Fine payment${updatedFine.reason ? ` - ${updatedFine.reason}` : ''}`,
+            reference: `FINE-PAY-${id}`,
+            balanceAfter: updatedMember.balance,
+            date: new Date(),
+          },
+        });
+      }
     }
 
     return updatedFine;

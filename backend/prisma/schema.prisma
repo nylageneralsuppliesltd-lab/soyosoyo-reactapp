@@ -335,11 +335,15 @@ model Deposit {
   account      Account?        @relation("DepositAccount", fields: [accountId], references: [id], onDelete: SetNull)
   accountId    Int?
   method       PaymentMethod   @default(cash)
-  reference    String?
+  reference    String?        @unique
   notes        String?
   description  String?
   narration    String?
   date         DateTime        @db.Date
+  isVoided     Boolean         @default(false)
+  voidedAt     DateTime?
+  voidedBy     String?
+  voidReason   String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
@@ -358,13 +362,17 @@ model Withdrawal {
   amount       Decimal         @db.Decimal(14, 2)
   description  String?
   narration    String?
-  reference    String?
+  reference    String?        @unique
   method       PaymentMethod   @default(cash)
   account      Account?        @relation("WithdrawalAccount", fields: [accountId], references: [id], onDelete: SetNull)
   accountId    Int?
   purpose      String?
   notes        String?
   date         DateTime        @db.Date
+  isVoided     Boolean         @default(false)
+  voidedAt     DateTime?
+  voidedBy     String?
+  voidReason   String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 

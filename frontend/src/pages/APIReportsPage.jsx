@@ -79,6 +79,10 @@ const APIReportsPage = () => {
   const [expandedReport, setExpandedReport] = useState(null);
   const [reportData, setReportData] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [referenceQuery, setReferenceQuery] = useState('');
+  const [referenceResults, setReferenceResults] = useState(null);
+  const [referenceLoading, setReferenceLoading] = useState(false);
+  const [referenceError, setReferenceError] = useState(null);
 
   // Fetch report catalog on mount
   useEffect(() => {
@@ -224,6 +228,31 @@ const APIReportsPage = () => {
     }
   };
 
+  const handleReferenceSearch = async (event) => {
+    event.preventDefault();
+    const query = referenceQuery.trim();
+    if (!query) {
+      setReferenceError('Enter a reference to search.');
+      setReferenceResults(null);
+      return;
+    }
+
+    setReferenceLoading(true);
+    setReferenceError(null);
+    setReferenceResults(null);
+
+    try {
+      const response = await fetch(`${API_BASE}/reports/reference-search?reference=${encodeURIComponent(query)}`);
+      if (!response.ok) throw new Error(`Failed to fetch reference: ${response.status}`);
+      const data = await response.json();
+      setReferenceResults(data);
+    } catch (error) {
+      setReferenceError('Reference lookup failed. Please try again.');
+    } finally {
+      setReferenceLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
@@ -245,6 +274,94 @@ const APIReportsPage = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Reference Lookup</h3>
+              <p className="text-sm text-gray-600">Find deposits and withdrawals by reference.</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleReferenceSearch} className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="text"
+              value={referenceQuery}
+              onChange={(event) => setReferenceQuery(event.target.value)}
+              placeholder="Enter reference (e.g., DEP-... or EXP-...)"
+              className="w-full sm:flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              disabled={referenceLoading}
+            >
+              {referenceLoading ? 'Searching...' : 'Search'}
+            </button>
+          </form>
+
+          {referenceError && (
+            <div className="mt-3 text-sm text-red-600">{referenceError}</div>
+          )}
+
+          {referenceResults && (
+            <div className="mt-4">
+              <div className="text-sm text-gray-700 mb-2">
+                Found {referenceResults.count} record{referenceResults.count === 1 ? '' : 's'} for
+                <span className="font-semibold"> {referenceResults.reference}</span>
+              </div>
+              {referenceResults.count === 0 ? (
+                <div className="text-sm text-gray-500">No matching deposits or withdrawals.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border border-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Type</th>
+                        <th className="px-3 py-2 text-left">Date</th>
+                        <th className="px-3 py-2 text-left">Member</th>
+                        <th className="px-3 py-2 text-right">Amount</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                        <th className="px-3 py-2 text-left">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ...(referenceResults.deposits || []).map((deposit) => ({
+                          id: `deposit-${deposit.id}`,
+                          type: 'Deposit',
+                          date: deposit.date,
+                          member: deposit.memberName || deposit.member?.name || '-',
+                          amount: deposit.amount,
+                          status: deposit.isVoided ? 'Voided' : 'Active',
+                          description: deposit.description || deposit.narration || deposit.category || '-',
+                        })),
+                        ...(referenceResults.withdrawals || []).map((withdrawal) => ({
+                          id: `withdrawal-${withdrawal.id}`,
+                          type: 'Withdrawal',
+                          date: withdrawal.date,
+                          member: withdrawal.memberName || withdrawal.member?.name || withdrawal.category || '-',
+                          amount: withdrawal.amount,
+                          status: withdrawal.isVoided ? 'Voided' : 'Active',
+                          description: withdrawal.description || withdrawal.narration || withdrawal.category || '-',
+                        })),
+                      ].map((row) => (
+                        <tr key={row.id} className="border-t">
+                          <td className="px-3 py-2">{row.type}</td>
+                          <td className="px-3 py-2">{formatCellValue('date', row.date)}</td>
+                          <td className="px-3 py-2">{row.member}</td>
+                          <td className="px-3 py-2 text-right">{formatCellValue('amount', row.amount)}</td>
+                          <td className="px-3 py-2">{row.status}</td>
+                          <td className="px-3 py-2">{row.description}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Filter Panel */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-8">
           <button

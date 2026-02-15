@@ -122,6 +122,24 @@
   background-color: #d1d5db;
 }
 
+.modal-footer .btn-warning {
+  background-color: #f59e0b;
+  color: #1f2937;
+}
+
+.modal-footer .btn-warning:hover {
+  background-color: #d97706;
+}
+
+.modal-footer .btn-danger {
+  background-color: #dc2626;
+  color: #fff;
+}
+
+.modal-footer .btn-danger:hover {
+  background-color: #b91c1c;
+}
+
 /* Detail Sections */
 .detail-section {
   margin-bottom: 24px;
@@ -194,6 +212,17 @@
   border-radius: 4px;
   font-weight: 500;
   width: fit-content;
+}
+
+.voided-chip {
+  display: inline-block;
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 6px;
 }
 
 .detail-value.mono {

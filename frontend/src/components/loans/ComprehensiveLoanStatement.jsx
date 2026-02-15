@@ -43,8 +43,8 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
     element.click();
   };
 
-  const buildLedgerEntries = (rows) => {
-    return rows.flatMap((row) => {
+  const buildLedgerEntries = (rows, repayments) => {
+    const chargeEntries = rows.flatMap((row) => {
       const entries = [];
       const periodLabel = row.period != null ? `Period ${row.period}` : 'Final';
       const dueDate = row.date;
@@ -79,24 +79,28 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
         });
       }
 
-      if ((row.actualPayment?.amount || 0) > 0) {
-        const methodText = row.actualPayment?.method
-          ? ` via ${row.actualPayment.method.replace(/_/g, ' ')}`
-          : '';
-        const accountText = row.actualPayment?.accountName
-          ? ` (${row.actualPayment.accountName})`
-          : '';
-        entries.push({
-          date: row.actualPayment.paymentDate || row.date,
-          description: `Payment received (${periodLabel})${methodText}${accountText}`,
-          moneyIn: row.actualPayment.amount,
-          moneyOut: 0,
-          order: 4,
-        });
-      }
-
       return entries;
-    }).sort((a, b) => {
+    });
+
+    const paymentEntries = (repayments || []).map((repayment) => {
+      const methodText = repayment.method
+        ? ` via ${repayment.method.replace(/_/g, ' ')}`
+        : '';
+      const accountText = repayment.accountName
+        ? ` (${repayment.accountName})`
+        : '';
+      const referenceText = repayment.reference ? ` - ${repayment.reference}` : '';
+
+      return {
+        date: repayment.date,
+        description: `Payment received${methodText}${accountText}${referenceText}`,
+        moneyIn: Number(repayment.amount || 0),
+        moneyOut: 0,
+        order: 4,
+      };
+    });
+
+    return [...chargeEntries, ...paymentEntries].sort((a, b) => {
       const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
       if (dateDiff !== 0) return dateDiff;
       return (a.order || 0) - (b.order || 0);
@@ -104,8 +108,11 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
   };
 
   const generateCSV = () => {
-    const { loan, statement: rows } = statement;
-    const ledgerRows = buildLedgerEntries(rows.filter(r => r.type === 'Loan Payment'));
+    const { loan, statement: rows, repayments: repaymentRows } = statement;
+    const ledgerRows = buildLedgerEntries(
+      rows.filter(r => r.type === 'Loan Payment'),
+      repaymentRows || []
+    );
     let runningBalance = 0;
     let csv = `LOAN STATEMENT (LEDGER)\n`;
     csv += `Member: ${loan.memberName}\nLoan ID: ${loan.id}\nLoan Type: ${loan.loanType}\n`;
@@ -158,11 +165,18 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
 
   if (!statement) return null;
 
-  const { loan, statement: rawRows } = statement;
+  const { loan, summary, statement: rawRows, repayments: repaymentRows } = statement;
+  const safeSummary = {
+    scheduledPayments: Number(summary?.scheduledPayments || 0),
+    totalPaid: Number(summary?.totalPaid || 0),
+    totalFines: Number(summary?.totalFinesImposed ?? summary?.totalFines ?? 0),
+    outstandingBalance: Number(summary?.outstandingBalance || 0),
+    completionPercentage: Number(summary?.completionPercentage || 0),
+  };
   const rows = Array.isArray(rawRows) ? rawRows : [];
   const formatNumber = (value) => Number(value ?? 0).toLocaleString();
   const paymentRows = rows.filter(r => r.type === 'Loan Payment');
-  const basicEntries = buildLedgerEntries(paymentRows);
+  const basicEntries = buildLedgerEntries(paymentRows, repaymentRows || []);
 
   return (
     <div className="statement-full-page">
@@ -186,6 +200,42 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
         </div>
 
         <div className="statement-content">
+          <div className="details-card">
+            <h3>Statement Summary</h3>
+            <div className="summary-cards-grid">
+              <div className="summary-card">
+                <div className="card-content">
+                  <span className="card-label">Loan Amount</span>
+                  <span className="card-value">KSh {formatNumber(loan.amount)}</span>
+                </div>
+              </div>
+              <div className="summary-card">
+                <div className="card-content">
+                  <span className="card-label">Total Paid</span>
+                  <span className="card-value">KSh {formatNumber(safeSummary.totalPaid)}</span>
+                </div>
+              </div>
+              <div className="summary-card">
+                <div className="card-content">
+                  <span className="card-label">Fines Charged</span>
+                  <span className="card-value">KSh {formatNumber(safeSummary.totalFines)}</span>
+                </div>
+              </div>
+              <div className="summary-card">
+                <div className="card-content">
+                  <span className="card-label">Outstanding</span>
+                  <span className="card-value">KSh {formatNumber(safeSummary.outstandingBalance)}</span>
+                </div>
+              </div>
+              <div className="summary-card">
+                <div className="card-content">
+                  <span className="card-label">Completion</span>
+                  <span className="card-value">{safeSummary.completionPercentage}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="details-card">
             <h3>Statement (T24 Style)</h3>
             <p className="section-note">All charges and payments are listed by date with running balance.</p>

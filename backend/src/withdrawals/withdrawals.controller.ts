@@ -170,15 +170,42 @@ export class WithdrawalsController {
         data.accountId = data.accountId === null ? null : parseInt(data.accountId);
         if (data.accountId !== null && isNaN(data.accountId)) throw new BadRequestException('Invalid accountId');
       }
+      if (data.toAccountId !== undefined) {
+        data.toAccountId = data.toAccountId === null ? null : parseInt(data.toAccountId);
+        if (data.toAccountId !== null && isNaN(data.toAccountId)) throw new BadRequestException('Invalid toAccountId');
+      }
       if (data.reference) data.reference = String(data.reference).trim();
       if (data.description) data.description = String(data.description).trim();
       if (data.narration) data.narration = String(data.narration).trim();
       if (data.category) data.category = String(data.category).trim();
+      if (data.contributionType) data.contributionType = String(data.contributionType).trim();
       
       const result = await this.withdrawalsService.update(parsedId, data);
       return result;
     } catch (error) {
       console.error(`Error updating withdrawal ${id}:`, error);
+      throw error;
+    }
+  }
+
+  @Post(':id/void')
+  async voidWithdrawal(
+    @Param('id') id: string,
+    @Body() data: any,
+  ) {
+    try {
+      const parsedId = parseInt(id);
+      if (isNaN(parsedId)) {
+        throw new BadRequestException('Invalid withdrawal ID');
+      }
+
+      if (data?.reason) data.reason = String(data.reason).trim();
+      if (data?.actor) data.actor = String(data.actor).trim();
+
+      const result = await this.withdrawalsService.void(parsedId, data);
+      return result;
+    } catch (error) {
+      console.error(`Error voiding withdrawal ${id}:`, error);
       throw error;
     }
   }

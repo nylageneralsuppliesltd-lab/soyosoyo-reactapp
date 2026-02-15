@@ -10,6 +10,23 @@ export class MembersController {
   @Post()
   async create(@Body() dto: CreateMemberDto) {
     try {
+      if (dto && (dto as any).nextOfKin !== undefined) {
+        const rawNextOfKin = (dto as any).nextOfKin;
+        if (rawNextOfKin === null || rawNextOfKin === '') {
+          (dto as any).nextOfKin = undefined;
+        } else if (typeof rawNextOfKin === 'string') {
+          try {
+            (dto as any).nextOfKin = JSON.parse(rawNextOfKin);
+          } catch (error) {
+            throw new BadRequestException('nextOfKin must be valid JSON');
+          }
+        }
+
+        if ((dto as any).nextOfKin !== undefined && !Array.isArray((dto as any).nextOfKin)) {
+          throw new BadRequestException('nextOfKin must be an array');
+        }
+      }
+
       console.log('[POST /members] Received dto:', JSON.stringify(dto));
       const result = await this.membersService.create(dto);
       console.log('[POST /members] Member created successfully with id:', result.id);

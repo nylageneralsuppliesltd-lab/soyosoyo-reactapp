@@ -57,6 +57,11 @@ export class ReportsController {
     return this.reportsService.handleReport('transactions', query, res);
   }
 
+  @Get('reference-search')
+  async referenceSearch(@Query('reference') reference?: string) {
+    return this.reportsService.referenceSearch(reference);
+  }
+
   @Get('cash-flow')
   async cashFlow(@Query() query: any, @Res({ passthrough: true }) res: Response) {
     return this.reportsService.handleReport('cashFlow', query, res);
@@ -136,5 +141,25 @@ export class ReportsController {
     @Param('accountType') accountType: 'cash' | 'bank' | 'mobileMoney' | 'pettyCash',
   ) {
     return this.cashPosition.getAccountTypeDetails(accountType);
+  }
+
+  @Get('enhanced-balance-sheet')
+  async enhancedBalanceSheet(
+    @Query('mode') mode?: 'monthly' | 'yearly',
+    @Query('asOf') asOf?: string,
+  ) {
+    const date = asOf ? new Date(asOf) : new Date();
+    const viewMode = mode || 'monthly';
+    return this.reportsService.enhancedBalanceSheet(viewMode, date);
+  }
+
+  @Get('enhanced-income-statement')
+  async enhancedIncomeStatement(
+    @Query('mode') mode?: 'monthly' | 'yearly',
+    @Query('endDate') endDate?: string,
+  ) {
+    const date = endDate ? new Date(endDate) : new Date();
+    const viewMode = mode || 'monthly';
+    return this.reportsService.enhancedIncomeStatement(viewMode, date);
   }
 }

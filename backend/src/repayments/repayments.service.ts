@@ -89,16 +89,19 @@ export class RepaymentsService {
         throw new NotFoundException(`Loan #${repaymentData.loanId} not found`);
       }
 
-      // Calculate outstanding interest and fines
-      const outstandingFines = await this.prisma.fine.aggregate({
-        where: { 
+      // Calculate outstanding fines (include partials)
+      const fineRecords = await this.prisma.fine.findMany({
+        where: {
           loanId: repaymentData.loanId,
-          status: 'unpaid',
+          status: { in: ['unpaid', 'partial'] },
         },
-        _sum: { amount: true }
+        orderBy: { createdAt: 'asc' },
       });
 
-      const totalOutstandingFines = Number(outstandingFines._sum.amount || 0);
+      const totalOutstandingFines = fineRecords.reduce((sum, fine) => {
+        const outstanding = Number(fine.amount) - Number(fine.paidAmount || 0);
+        return sum + Math.max(0, outstanding);
+      }, 0);
 
       // Get total interest for the loan
       const totalInterest = this.calculateTotalInterest(loan);
@@ -162,28 +165,30 @@ export class RepaymentsService {
         include: { loanType: true }
       });
 
-      // Mark fines as paid if full fine payment made
+      // Apply fine payments (supports partials)
       if (finePayment > 0) {
-        const unpaidFines = await this.prisma.fine.findMany({
-          where: {
-            loanId: repaymentData.loanId,
-            status: 'unpaid',
-          },
-          orderBy: { createdAt: 'asc' }
-        });
-
         let finePaymentRemaining = finePayment;
-        for (const fine of unpaidFines) {
+        for (const fine of fineRecords) {
+          if (finePaymentRemaining <= 0) break;
           const fineAmount = Number(fine.amount);
-          if (finePaymentRemaining >= fineAmount) {
-            await this.prisma.fine.update({
-              where: { id: fine.id },
-              data: { status: 'paid', paidAmount: fineAmount, paidDate: repaymentData.date }
-            });
-            finePaymentRemaining -= fineAmount;
-          } else {
-            break; // Partial fine payment - don't mark as paid
-          }
+          const alreadyPaid = Number(fine.paidAmount || 0);
+          const outstanding = Math.max(0, fineAmount - alreadyPaid);
+          if (outstanding <= 0) continue;
+
+          const payAmount = Math.min(finePaymentRemaining, outstanding);
+          const newPaidAmount = alreadyPaid + payAmount;
+          const newStatus = newPaidAmount >= fineAmount ? 'paid' : 'partial';
+
+          await this.prisma.fine.update({
+            where: { id: fine.id },
+            data: {
+              status: newStatus,
+              paidAmount: new Prisma.Decimal(newPaidAmount),
+              paidDate: newStatus === 'paid' ? repaymentData.date : fine.paidDate,
+            },
+          });
+
+          finePaymentRemaining -= payAmount;
         }
       }
 
@@ -232,10 +237,10 @@ export class RepaymentsService {
         'Interest income earned (Revenue account)'
       );
 
-      const fineIncomeAccount = await this.ensureAccountByName(
-        'Fine Income',
+      const finesReceivableAccount = await this.ensureAccountByName(
+        'Fines Receivable',
         'gl',
-        'Fine income from late payments (Revenue account)'
+        'Outstanding fines owed by members (Asset account)'
       );
 
       // Create journal entries for each component
@@ -243,13 +248,20 @@ export class RepaymentsService {
       // 1. Principal payment: DR Cash, CR Loans Receivable
       if (principalPayment > 0) {
         const principalDecimal = new Prisma.Decimal(principalPayment);
+        const principalNarration = [
+          `RepaymentId:${repayment.id}`,
+          `LoanId:${loan.id}`,
+          `MemberId:${loan.memberId ?? 'n/a'}`,
+          `Method:${repaymentData.method}`,
+          `Principal:${principalPayment.toFixed(2)}`,
+        ].join(' | ');
         
         await this.prisma.journalEntry.create({
           data: {
             date: repaymentData.date,
             reference: `REPAY-${repayment.id}-P`,
-            description: `Loan principal repayment - ${loan.memberName}`,
-            narration: `Principal: ${principalPayment.toFixed(2)}`,
+            description: `Loan principal repayment - ${loan.memberName} (loanId:${loan.id})`,
+            narration: principalNarration,
             debitAccountId: cashAccount.id,
             debitAmount: principalDecimal,
             creditAccountId: loansReceivableAccount.id,
@@ -267,14 +279,21 @@ export class RepaymentsService {
       // 2. Interest payment: DR Cash, CR Interest Receivable & CR Interest Income
       if (interestPayment > 0) {
         const interestDecimal = new Prisma.Decimal(interestPayment);
+        const interestNarration = [
+          `RepaymentId:${repayment.id}`,
+          `LoanId:${loan.id}`,
+          `MemberId:${loan.memberId ?? 'n/a'}`,
+          `Method:${repaymentData.method}`,
+          `Interest:${interestPayment.toFixed(2)}`,
+        ].join(' | ');
         
         // Reduce Interest Receivable (accrued interest asset)
         await this.prisma.journalEntry.create({
           data: {
             date: repaymentData.date,
             reference: `REPAY-${repayment.id}-I`,
-            description: `Interest payment - ${loan.memberName}`,
-            narration: `Interest: ${interestPayment.toFixed(2)}`,
+            description: `Interest payment - ${loan.memberName} (loanId:${loan.id})`,
+            narration: interestNarration,
             debitAccountId: cashAccount.id,
             debitAmount: interestDecimal,
             creditAccountId: interestReceivableAccount.id,
@@ -295,27 +314,34 @@ export class RepaymentsService {
         });
       }
 
-      // 3. Fine payment: DR Cash, CR Fine Income
+      // 3. Fine payment: DR Cash, CR Fines Receivable
       if (finePayment > 0) {
         const fineDecimal = new Prisma.Decimal(finePayment);
+        const fineNarration = [
+          `RepaymentId:${repayment.id}`,
+          `LoanId:${loan.id}`,
+          `MemberId:${loan.memberId ?? 'n/a'}`,
+          `Method:${repaymentData.method}`,
+          `Fines:${finePayment.toFixed(2)}`,
+        ].join(' | ');
         
         await this.prisma.journalEntry.create({
           data: {
             date: repaymentData.date,
             reference: `REPAY-${repayment.id}-F`,
-            description: `Fine payment - ${loan.memberName}`,
-            narration: `Fines: ${finePayment.toFixed(2)}`,
+            description: `Fine payment - ${loan.memberName} (loanId:${loan.id})`,
+            narration: fineNarration,
             debitAccountId: cashAccount.id,
             debitAmount: fineDecimal,
-            creditAccountId: fineIncomeAccount.id,
+            creditAccountId: finesReceivableAccount.id,
             creditAmount: fineDecimal,
             category: 'fine_payment',
           },
         });
 
         await this.prisma.account.update({
-          where: { id: fineIncomeAccount.id },
-          data: { balance: { increment: fineDecimal } },
+          where: { id: finesReceivableAccount.id },
+          data: { balance: { decrement: fineDecimal } },
         });
       }
 

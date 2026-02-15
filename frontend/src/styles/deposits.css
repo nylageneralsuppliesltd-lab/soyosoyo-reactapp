@@ -536,6 +536,36 @@
   gap: 1rem;
 }
 
+.row-voided {
+  opacity: 0.65;
+}
+
+.void-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.btn-icon.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.btn-icon.warning:hover {
+  background: #fde68a;
+}
+
+.btn-icon.disabled,
+.btn-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Deposits List Styles */
 .deposits-filters {
   display: flex;

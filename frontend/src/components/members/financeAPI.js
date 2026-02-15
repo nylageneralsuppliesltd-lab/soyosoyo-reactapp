@@ -15,6 +15,8 @@ export const updateDeposit = (id, data) => API.patch(`/deposits/${id}`, data);
 
 export const deleteDeposit = (id) => API.delete(`/deposits/${id}`);
 
+export const voidDeposit = (id, data) => API.post(`/deposits/${id}/void`, data);
+
 export const getDepositsByMember = (memberId) =>
   API.get(`/deposits/member/${memberId}`);
 
@@ -30,6 +32,8 @@ export const updateWithdrawal = (id, data) =>
   API.patch(`/withdrawals/${id}`, data);
 
 export const deleteWithdrawal = (id) => API.delete(`/withdrawals/${id}`);
+
+export const voidWithdrawal = (id, data) => API.post(`/withdrawals/${id}/void`, data);
 
 export const getWithdrawalsByMember = (memberId) =>
   API.get(`/withdrawals/member/${memberId}`);

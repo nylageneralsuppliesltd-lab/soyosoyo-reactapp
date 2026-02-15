@@ -3,7 +3,7 @@ import { X, ExternalLink, FileText, Clock, User, DollarSign, Tag, Building, Grid
 import { API_BASE } from '../utils/apiBase';
 import '../styles/transactionDetailModal.css';
 
-const TransactionDetailModal = ({ isOpen, transaction, type, onClose, onEdit }) => {
+const TransactionDetailModal = ({ isOpen, transaction, type, onClose, onEdit, onVoid, onDelete, canManage }) => {
   const [loanDetails, setLoanDetails] = useState(null);
   const [loadingLoanDetails, setLoadingLoanDetails] = useState(false);
 
@@ -218,6 +218,23 @@ const TransactionDetailModal = ({ isOpen, transaction, type, onClose, onEdit }) 
           <div className="detail-section">
             <h3 className="section-title">Additional Information</h3>
             <div className="detail-grid">
+              {transaction.isVoided && (
+                <div className="detail-item">
+                  <div className="detail-label">Status</div>
+                  <div className="detail-value">
+                    <span className="voided-chip">Voided</span>
+                    {transaction.voidedAt ? ` on ${formatDate(transaction.voidedAt)}` : ''}
+                  </div>
+                </div>
+              )}
+
+              {transaction.voidReason && (
+                <div className="detail-item">
+                  <div className="detail-label">Void Reason</div>
+                  <div className="detail-value">{transaction.voidReason}</div>
+                </div>
+              )}
+
               {transaction.id && (
                 <div className="detail-item">
                   <div className="detail-label">Transaction ID</div>
@@ -260,6 +277,19 @@ const TransactionDetailModal = ({ isOpen, transaction, type, onClose, onEdit }) 
           <button className="btn-secondary" onClick={onClose}>
             Close
           </button>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={onClose}>Close</button>
+          {canManage && onEdit && !transaction.isVoided && (
+            <button className="btn-primary" onClick={() => onEdit(transaction)}>Edit</button>
+          )}
+          {canManage && onVoid && !transaction.isVoided && (
+            <button className="btn-warning" onClick={() => onVoid(transaction)}>Void</button>
+          )}
+          {canManage && onDelete && (
+            <button className="btn-danger" onClick={() => onDelete(transaction)}>Delete</button>
+          )}
         </div>
       </div>
     </div>

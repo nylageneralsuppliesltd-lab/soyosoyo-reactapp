@@ -116,6 +116,12 @@ export class SettingsController {
     return this.settingsService.getFineCategories();
   }
 
+  // Alias for legacy endpoint used by fine payment form
+  @Get('fine-types')
+  async getFineTypes() {
+    return this.settingsService.getFineCategories();
+  }
+
   @Post('fine-categories')
   async createFineCategory(@Body() data: any) {
     return this.settingsService.createFineCategory(data);

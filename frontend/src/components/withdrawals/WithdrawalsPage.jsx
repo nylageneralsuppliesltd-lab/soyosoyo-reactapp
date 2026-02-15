@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { DollarSign, ArrowRightLeft, RefreshCcw, TrendingUp, List, Plus, Upload, Edit, Trash2, Search, Eye } from 'lucide-react';
+import { DollarSign, ArrowRightLeft, RefreshCcw, TrendingUp, List, Plus, Upload, Edit, Trash2, Search, Eye, Ban } from 'lucide-react';
 import ExpenseForm from './ExpenseForm';
 import TransferForm from './TransferForm';
 import RefundForm from './RefundForm';
@@ -18,6 +18,27 @@ const WithdrawalsPage = () => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingWithdrawal, setEditingWithdrawal] = useState(null);
+  const [currentUser] = useState(() => {
+    try {
+      const stored =
+        localStorage.getItem('currentUser') ||
+        localStorage.getItem('currentMember') ||
+        localStorage.getItem('user');
+      return stored ? JSON.parse(stored) : null;
+    } catch (error) {
+      return null;
+    }
+  });
+
+  const isAdmin = String(currentUser?.role || currentUser?.user?.role || '').toLowerCase() === 'admin';
+  const canManage = import.meta.env.DEV ? true : isAdmin;
+  const actorName =
+    currentUser?.name ||
+    currentUser?.fullName ||
+    currentUser?.email ||
+    currentUser?.phone ||
+    currentUser?.id ||
+    'system';
 
   useEffect(() => {
     if (activeTab === 'list') {
@@ -57,7 +78,7 @@ const WithdrawalsPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this withdrawal?')) {
+    if (!window.confirm('Delete this withdrawal? This removes the record and reverses any posted accounting.')) {
       return;
     }
 
@@ -76,6 +97,40 @@ const WithdrawalsPage = () => {
     } catch (error) {
       console.error('Error deleting withdrawal:', error);
       alert('Error deleting withdrawal');
+    }
+  };
+
+  const handleVoid = async (withdrawal) => {
+    if (withdrawal.isVoided) {
+      return;
+    }
+
+    const reason = window.prompt('Reason for voiding this withdrawal?');
+    if (!reason) {
+      return;
+    }
+
+    if (!window.confirm('Void will reverse accounting and keep a record. Continue?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/withdrawals/${withdrawal.id}/void`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, actor: actorName }),
+      });
+
+      if (response.ok) {
+        alert('Withdrawal voided successfully');
+        fetchWithdrawals();
+        fetchStats();
+      } else {
+        alert('Failed to void withdrawal');
+      }
+    } catch (error) {
+      console.error('Error voiding withdrawal:', error);
+      alert('Error voiding withdrawal');
     }
   };
 
@@ -174,6 +229,9 @@ const WithdrawalsPage = () => {
         transaction={selectedTransaction}
         type="withdrawal"
         onClose={() => setShowDetailModal(false)}
+        onVoid={handleVoid}
+        onDelete={(transaction) => handleDelete(transaction.id)}
+        canManage={canManage}
       />
 
       <div className="page-header">
@@ -275,9 +333,12 @@ const WithdrawalsPage = () => {
                   </thead>
                   <tbody>
                     {filteredWithdrawals.map((withdrawal) => (
-                      <tr key={withdrawal.id}>
+                      <tr key={withdrawal.id} className={withdrawal.isVoided ? 'row-voided' : ''}>
                         <td>{formatDate(withdrawal.date)}</td>
-                        <td>{getTypeBadge(withdrawal.type)}</td>
+                        <td>
+                          {getTypeBadge(withdrawal.type)}
+                          {withdrawal.isVoided && <span className="void-badge">VOID</span>}
+                        </td>
                         <td>
                           {withdrawal.memberName || withdrawal.category || '-'}
                         </td>
@@ -303,20 +364,34 @@ const WithdrawalsPage = () => {
                             >
                               <Eye size={16} />
                             </button>
-                            <button
-                              className="btn-icon"
-                              title="Edit"
-                              onClick={() => handleEditWithdrawal(withdrawal)}
-                            >
-                              <Edit size={16} />
-                            </button>
-                            <button
-                              className="btn-icon danger"
-                              title="Delete"
-                              onClick={() => handleDelete(withdrawal.id)}
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {!withdrawal.isVoided && (
+                              <button
+                                className="btn-icon"
+                                title="Edit"
+                                onClick={() => handleEditWithdrawal(withdrawal)}
+                              >
+                                <Edit size={16} />
+                              </button>
+                            )}
+                            {canManage && (
+                              <button
+                                className={`btn-icon warning ${withdrawal.isVoided ? 'disabled' : ''}`}
+                                title="Void"
+                                onClick={() => handleVoid(withdrawal)}
+                                disabled={withdrawal.isVoided}
+                              >
+                                <Ban size={16} />
+                              </button>
+                            )}
+                            {canManage && (
+                              <button
+                                className="btn-icon danger"
+                                title="Delete"
+                                onClick={() => handleDelete(withdrawal.id)}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

@@ -33,8 +33,8 @@ import GeneralLedgerDetailPage from './pages/GeneralLedgerDetailPage';
 import SettingsPage from './pages/SettingsPage';
 import GeneralLedgerPage from './pages/GeneralLedgerPage';
 import AccountBalanceReportPage from './pages/AccountBalanceReportPage';
-import BalanceSheetPage from './pages/BalanceSheetPage';
-import IncomeStatementPage from './pages/IncomeStatementPage';
+import BalanceSheetPage from './pages/EnhancedBalanceSheetPage';
+import IncomeStatementPage from './pages/EnhancedIncomeStatementPage';
 import TrialBalancePage from './pages/TrialBalancePage';
 
 const NotFound = () => (
@@ -116,7 +116,9 @@ function App() {
           <Route path="/sacco-settings" element={<SaccoSettingsPage />} />
           <Route path="/reports/account-balance" element={<AccountBalanceReportPage />} />
           <Route path="/reports/balance-sheet" element={<BalanceSheetPage />} />
+          <Route path="/reports/enhanced-balance-sheet" element={<BalanceSheetPage />} />
           <Route path="/reports/income-statement" element={<IncomeStatementPage />} />
+          <Route path="/reports/enhanced-income-statement" element={<IncomeStatementPage />} />
           <Route path="/reports/trial-balance" element={<TrialBalancePage />} />
 
           <Route path="*" element={<NotFound />} />

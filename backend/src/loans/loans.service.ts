@@ -6,6 +6,91 @@ import { Prisma } from '@prisma/client';
 export class LoansService {
   constructor(private prisma: PrismaService) {}
 
+  private async ensureAccountByName(
+    name: string,
+    type: string,
+    description?: string,
+  ): Promise<{ id: number; name: string }> {
+    const existing = await this.prisma.account.findFirst({ where: { name } });
+    if (existing) return existing;
+
+    return this.prisma.account.create({
+      data: {
+        name,
+        type: type as any,
+        description: description ?? null,
+        currency: 'KES',
+        balance: new Prisma.Decimal(0),
+      },
+    });
+  }
+
+  private async createFineWithPosting(data: {
+    memberId: number;
+    loanId: number;
+    amount: number;
+    reason: string;
+    notes?: string;
+  }): Promise<void> {
+    const amountDecimal = new Prisma.Decimal(data.amount);
+
+    const fine = await this.prisma.fine.create({
+      data: {
+        memberId: data.memberId,
+        loanId: data.loanId,
+        amount: amountDecimal,
+        reason: data.reason,
+        status: 'unpaid',
+        type: 'late_payment',
+        notes: data.notes,
+      },
+    });
+
+    const finesReceivableAccount = await this.ensureAccountByName(
+      'Fines Receivable',
+      'gl',
+      'Outstanding fines owed by members (Asset account)'
+    );
+
+    const fineIncomeAccount = await this.ensureAccountByName(
+      'Fine Income',
+      'gl',
+      'Fine income from late payments (Revenue account)'
+    );
+
+    const fineNarration = [
+      data.notes ? data.notes : null,
+      `FineId:${fine.id}`,
+      `MemberId:${data.memberId}`,
+      `LoanId:${data.loanId}`,
+      `Amount:${data.amount.toFixed(2)}`,
+    ].filter(Boolean).join(' | ');
+
+    await this.prisma.journalEntry.create({
+      data: {
+        date: new Date(),
+        reference: `FINE-${fine.id}`,
+        description: `Fine imposed - ${data.reason}`,
+        narration: fineNarration,
+        debitAccountId: finesReceivableAccount.id,
+        debitAmount: amountDecimal,
+        creditAccountId: fineIncomeAccount.id,
+        creditAmount: amountDecimal,
+        category: 'fine',
+      },
+    });
+
+    await this.prisma.account.update({
+      where: { id: finesReceivableAccount.id },
+      data: { balance: { increment: amountDecimal } },
+    });
+
+    await this.prisma.account.update({
+      where: { id: fineIncomeAccount.id },
+      data: { balance: { increment: amountDecimal } },
+    });
+  }
+
   /**
    * Impose late payment fines for loans with overdue installments.
    * This should be called periodically (e.g., daily cron job) to check all active loans
@@ -25,7 +110,7 @@ export class LoansService {
       where: { id: loan.loanTypeId },
     });
 
-    if (!loanType || !loanType.lateFineEnabled) {
+    if (!loanType || (!loanType.lateFineEnabled && !loanType.outstandingFineEnabled)) {
       return; // No fines configured for this loan type
     }
 
@@ -86,7 +171,7 @@ export class LoansService {
     const cycleKey = this.getFineCycleKey(today, fineFrequency);
 
     // Loan-level cycle fine for overdue outstanding (principal + interest due to date)
-    if (fineChargeOn === 'total_unpaid' && ['monthly', 'weekly', 'daily'].includes(fineFrequency)) {
+    if (loanType.lateFineEnabled && fineChargeOn === 'total_unpaid' && ['monthly', 'weekly', 'daily'].includes(fineFrequency)) {
       const overdueScheduledPrincipal = overduePeriods.reduce(
         (sum, item) => sum + Number(item.period.principal || 0),
         0
@@ -110,16 +195,12 @@ export class LoansService {
           const fineAmount = totalOutstanding * rate;
 
           if (fineAmount > 0) {
-            await this.prisma.fine.create({
-              data: {
-                memberId: loan.memberId,
-                loanId: loan.id,
-                amount: new Prisma.Decimal(fineAmount),
-                reason: `Late payment fine (${fineFrequency}) on total outstanding balance`,
-                status: 'unpaid',
-                type: 'late_payment',
-                notes: `${cycleNoteKey}|Overdue: ${totalOutstanding.toFixed(2)}|Frequency: ${fineFrequency}`,
-              },
+            await this.createFineWithPosting({
+              memberId: loan.memberId,
+              loanId: loan.id,
+              amount: fineAmount,
+              reason: `Late payment fine (${fineFrequency}) on total outstanding balance`,
+              notes: `${cycleNoteKey}|Overdue: ${totalOutstanding.toFixed(2)}|Frequency: ${fineFrequency}`,
             });
           }
         }
@@ -129,7 +210,8 @@ export class LoansService {
     }
 
     // Per-installment fines (once off or per cycle)
-    for (const overdue of overduePeriods) {
+    if (loanType.lateFineEnabled) {
+      for (const overdue of overduePeriods) {
       const { period, principalShortfall, interestShortfall, dueDate } = overdue;
       const fineKey = `Period-${period.period}`;
       const fineCycleKey = fineFrequency === 'once_off'
@@ -140,36 +222,82 @@ export class LoansService {
         (f) => f.notes && f.notes.includes(fineCycleKey)
       );
 
-      if (fineExists) continue;
+        if (fineExists) continue;
 
       // Calculate fine amount based on loan type settings
       let fineAmount = 0;
 
-      if (loanType.lateFineType === 'fixed') {
-        fineAmount = Number(loanType.lateFineValue || 0);
-      } else if (loanType.lateFineType === 'percentage') {
-        const baseAmount = this.calculateFineBase(
-          fineChargeOn,
-          period,
-          loan,
-          principalShortfall + interestShortfall
-        );
-        fineAmount = baseAmount * (Number(loanType.lateFineValue || 0) / 100);
-      }
+        if (loanType.lateFineType === 'fixed') {
+          fineAmount = Number(loanType.lateFineValue || 0);
+        } else if (loanType.lateFineType === 'percentage') {
+          const baseAmount = this.calculateFineBase(
+            fineChargeOn,
+            period,
+            loan,
+            principalShortfall + interestShortfall
+          );
+          fineAmount = baseAmount * (Number(loanType.lateFineValue || 0) / 100);
+        }
 
-      if (fineAmount > 0) {
-        const overdueDays = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-        await this.prisma.fine.create({
-          data: {
+        if (fineAmount > 0) {
+          const overdueDays = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+          await this.createFineWithPosting({
             memberId: loan.memberId,
             loanId: loan.id,
-            amount: new Prisma.Decimal(fineAmount),
+            amount: fineAmount,
             reason: `Late payment fine for installment ${period.period} (${overdueDays} days overdue)`,
-            status: 'unpaid',
-            type: 'late_payment',
             notes: `${fineCycleKey}|Overdue Days: ${overdueDays}|Due: ${dueDate.toISOString()}`,
-          },
-        });
+          });
+        }
+      }
+    }
+
+    // Outstanding balance fines (loan-level)
+    if (loanType.outstandingFineEnabled) {
+      const outstandingFrequency = (loanType.outstandingFineFrequency || 'once_off').toLowerCase();
+      const outstandingChargeOn = loanType.outstandingFineChargeOn || 'total_unpaid';
+      const outstandingCycleKey = this.getFineCycleKey(today, outstandingFrequency);
+      const outstandingNoteKey = `OutstandingFineCycle:${outstandingCycleKey}`;
+
+      const outstandingFineExists = existingFines.some(
+        (f) => f.notes && f.notes.includes(outstandingNoteKey)
+      );
+
+      if (!outstandingFineExists) {
+        const overdueScheduledPrincipal = overduePeriods.reduce(
+          (sum, item) => sum + Number(item.period.principal || 0),
+          0
+        );
+        const overdueScheduledInterest = overduePeriods.reduce(
+          (sum, item) => sum + Number(item.period.interest || 0),
+          0
+        );
+        const overduePrincipal = Math.max(0, overdueScheduledPrincipal - totalPaidPrincipal);
+        const overdueInterest = Math.max(0, overdueScheduledInterest - totalPaidInterest);
+        const totalOutstanding = overduePrincipal + overdueInterest;
+
+        let fineAmount = 0;
+        if (loanType.outstandingFineType === 'fixed') {
+          fineAmount = Number(loanType.outstandingFineValue || 0);
+        } else if (loanType.outstandingFineType === 'percentage') {
+          const baseAmount = this.calculateFineBase(
+            outstandingChargeOn,
+            { principal: overdueScheduledPrincipal, interest: overdueScheduledInterest },
+            loan,
+            totalOutstanding
+          );
+          fineAmount = baseAmount * (Number(loanType.outstandingFineValue || 0) / 100);
+        }
+
+        if (fineAmount > 0 && totalOutstanding > 0) {
+          await this.createFineWithPosting({
+            memberId: loan.memberId,
+            loanId: loan.id,
+            amount: fineAmount,
+            reason: `Outstanding balance fine (${outstandingFrequency})`,
+            notes: `${outstandingNoteKey}|Overdue: ${totalOutstanding.toFixed(2)}|Frequency: ${outstandingFrequency}`,
+          });
+        }
       }
     }
 
@@ -383,8 +511,14 @@ export class LoansService {
       data: {
         date: disbursementDate,
         reference: `LOAN-${loan.id}`,
-        description: `Loan disbursed to ${loan.memberName}`,
-        narration: loan.purpose || `Loan principal of ${loan.amount} disbursed`,
+        description: `Loan disbursed to ${loan.memberName} (loanId:${loan.id})`,
+        narration: [
+          `LoanId:${loan.id}`,
+          `MemberId:${loan.memberId ?? 'n/a'}`,
+          `Type:${loan.loanType?.name || 'Loan'}`,
+          `Amount:${Number(loan.amount).toFixed(2)}`,
+          `Purpose:${loan.purpose || 'n/a'}`,
+        ].join(' | '),
         debitAccountId: loansReceivableAccount.id,
         debitAmount: amountDecimal,
         creditAccountId: cashAccount.id,
@@ -415,8 +549,13 @@ export class LoansService {
         data: {
           date: disbursementDate,
           reference: `LOAN-INT-${loan.id}`,
-          description: `Interest on loan to ${loan.memberName}`,
-          narration: `Total interest: ${totalInterest} to be recognized over ${loan.periodMonths} months`,
+          description: `Interest accrual for ${loan.memberName} (loanId:${loan.id})`,
+          narration: [
+            `LoanId:${loan.id}`,
+            `MemberId:${loan.memberId ?? 'n/a'}`,
+            `TotalInterest:${totalInterest.toFixed(2)}`,
+            `TermMonths:${loan.periodMonths}`,
+          ].join(' | '),
           debitAccountId: interestReceivableAccount.id,
           debitAmount: totalInterestDecimal,
           creditAccountId: interestIncomeAccount.id,
@@ -1135,10 +1274,11 @@ export class LoansService {
     
     // Calculate fines
     const totalFinesImposed = loan.fines.reduce((sum, fine) => sum + Number(fine.amount), 0);
-    const finesPaid = loan.fines
-      .filter(f => f.status === 'paid')
-      .reduce((sum, fine) => sum + Number(fine.paidAmount || fine.amount), 0);
-    const outstandingFines = totalFinesImposed - finesPaid;
+    const finesPaid = loan.fines.reduce(
+      (sum, fine) => sum + Number(fine.paidAmount || 0),
+      0
+    );
+    const outstandingFines = Math.max(0, totalFinesImposed - finesPaid);
 
     // Generate statement transactions chronologically
     const transactions = [];
@@ -1158,8 +1298,12 @@ export class LoansService {
 
     let runningBalance = Number(loan.amount);
 
-    // Collect all transactions (repayments and fines) and sort by date
+    // Collect all transactions (repayments, fines, and fine payments) and sort by date
     const allTransactions: Array<{date: Date, type: string, data: any}> = [];
+
+    const repaymentDateKeys = new Set(
+      loan.repayments.map((rep) => rep.date.toISOString().slice(0, 10))
+    );
 
     loan.repayments.forEach((repayment) => {
       allTransactions.push({
@@ -1175,6 +1319,17 @@ export class LoansService {
         type: 'fine',
         data: fine,
       });
+
+      if (fine.paidAmount && fine.paidDate) {
+        const paidDateKey = fine.paidDate.toISOString().slice(0, 10);
+        if (!repaymentDateKeys.has(paidDateKey)) {
+          allTransactions.push({
+            date: fine.paidDate,
+            type: 'fine_payment',
+            data: fine,
+          });
+        }
+      }
     });
 
     // Sort all transactions by date
@@ -1196,20 +1351,34 @@ export class LoansService {
         });
       } else if (transaction.type === 'fine') {
         const fine = transaction.data;
-        // Only add unpaid fines to the balance
-        if (fine.status !== 'paid') {
-          runningBalance += Number(fine.amount);
-        }
+        const fineAmount = Number(fine.amount || 0);
+        runningBalance += fineAmount;
         transactions.push({
           date: fine.createdAt,
           type: 'Fine',
           description: fine.reason || 'Late payment fine',
-          debit: Number(fine.amount),
+          debit: fineAmount,
           credit: 0,
           balance: runningBalance,
           reference: `FINE-${fine.id}`,
           status: fine.status,
         });
+      } else if (transaction.type === 'fine_payment') {
+        const fine = transaction.data;
+        const paidAmount = Number(fine.paidAmount || 0);
+        if (paidAmount > 0) {
+          runningBalance = Math.max(0, runningBalance - paidAmount);
+          transactions.push({
+            date: fine.paidDate,
+            type: 'Fine Payment',
+            description: `Fine payment - ${fine.reason || 'Late payment fine'}`,
+            debit: 0,
+            credit: paidAmount,
+            balance: runningBalance,
+            reference: `FINE-PAY-${fine.id}`,
+            status: fine.status,
+          });
+        }
       }
     });
 
@@ -1508,6 +1677,18 @@ export class LoansService {
         completionPercentage: totalScheduled > 0 ? Math.round((totalRepaid / totalScheduled) * 100) : 0,
       },
       statement: consolidatedStatement,
+      repayments: loan.repayments.map((repayment) => ({
+        id: repayment.id,
+        amount: Number(repayment.amount || 0),
+        principal: Number(repayment.principal || 0),
+        interest: Number(repayment.interest || 0),
+        method: repayment.method,
+        accountId: repayment.accountId || null,
+        accountName: repayment.account?.name || null,
+        reference: repayment.reference,
+        notes: repayment.notes,
+        date: repayment.date,
+      })),
     };
   }
 

@@ -69,7 +69,6 @@ export default function NomineeInputs({ nominees, setNominees }) {
                         <option value="Child">Child</option>
                         <option value="Parent">Parent</option>
                         <option value="Sibling">Sibling</option>
-                        <option value="Friend">Friend</option>
                         <option value="Other">Other</option>
                       </select>
                     </div>

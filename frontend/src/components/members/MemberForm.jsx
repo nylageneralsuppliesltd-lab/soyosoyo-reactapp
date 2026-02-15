@@ -29,10 +29,23 @@ export default function MemberForm({ member = null, goBack }) {
 
   useEffect(() => {
     if (member) {
+      const toSafeString = (value) => (value === undefined || value === null ? '' : String(value));
       setForm({
-        ...member,
-        dob: member.dob ? member.dob.split('T')[0] : '',
+        name: toSafeString(member.name),
+        phone: toSafeString(member.phone),
+        email: toSafeString(member.email),
+        idNumber: toSafeString(member.idNumber),
+        dob: member.dob ? String(member.dob).split('T')[0] : '',
+        gender: toSafeString(member.gender),
+        physicalAddress: toSafeString(member.physicalAddress),
+        town: toSafeString(member.town),
+        employmentStatus: toSafeString(member.employmentStatus),
+        employerName: toSafeString(member.employerName),
+        regNo: toSafeString(member.regNo),
+        employerAddress: toSafeString(member.employerAddress),
         role: member.role || 'Member',
+        introducerName: toSafeString(member.introducerName),
+        introducerMemberNo: toSafeString(member.introducerMemberNo),
       });
       setNominees(member.nextOfKin || []);
     }
@@ -101,7 +114,8 @@ export default function MemberForm({ member = null, goBack }) {
     setLoading(true);
 
     try {
-      const payload = { ...form, nextOfKin: nominees.length > 0 ? nominees : null };
+      const nextOfKin = nominees.length > 0 ? nominees : undefined;
+      const payload = { ...form, ...(nextOfKin ? { nextOfKin } : {}) };
 
       if (member) {
         await updateMember(member.id, payload);

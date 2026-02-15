@@ -126,6 +126,28 @@ export class DepositsController {
     }
   }
 
+  @Post(':id/void')
+  async voidDeposit(
+    @Param('id') id: string,
+    @Body() data: any,
+  ) {
+    try {
+      const parsedId = parseInt(id);
+      if (isNaN(parsedId)) {
+        throw new BadRequestException('Invalid deposit ID');
+      }
+
+      if (data?.reason) data.reason = String(data.reason).trim();
+      if (data?.actor) data.actor = String(data.actor).trim();
+
+      const result = await this.depositsService.void(parsedId, data);
+      return result;
+    } catch (error) {
+      console.error(`Error voiding deposit ${id}:`, error);
+      throw error;
+    }
+  }
+
   @Delete(':id')
   async remove(@Param('id') id: string) {
     return this.depositsService.remove(parseInt(id));

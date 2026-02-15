@@ -69,8 +69,8 @@ function LoanDetailsFullPage({ loan, onClose }) {
     return Math.round((getTotalPaid() / scheduled) * 100);
   };
 
-  const buildLedgerEntries = (statementRows) => {
-    return statementRows.flatMap((row) => {
+  const buildLedgerEntries = (statementRows, repayments) => {
+    const chargeEntries = statementRows.flatMap((row) => {
       const entries = [];
       const periodLabel = row.period != null ? `Period ${row.period}` : 'Final';
       const dueDate = row.date;
@@ -105,24 +105,28 @@ function LoanDetailsFullPage({ loan, onClose }) {
         });
       }
 
-      if ((row.actualPayment?.amount || 0) > 0) {
-        const methodText = row.actualPayment?.method
-          ? ` via ${row.actualPayment.method.replace(/_/g, ' ')}`
-          : '';
-        const accountText = row.actualPayment?.accountName
-          ? ` (${row.actualPayment.accountName})`
-          : '';
-        entries.push({
-          date: row.actualPayment.paymentDate || row.date,
-          description: `Payment received (${periodLabel})${methodText}${accountText}`,
-          moneyIn: row.actualPayment.amount,
-          moneyOut: 0,
-          order: 4,
-        });
-      }
-
       return entries;
-    }).sort((a, b) => {
+    });
+
+    const paymentEntries = (repayments || []).map((repayment) => {
+      const methodText = repayment.method
+        ? ` via ${repayment.method.replace(/_/g, ' ')}`
+        : '';
+      const accountText = repayment.accountName
+        ? ` (${repayment.accountName})`
+        : '';
+      const referenceText = repayment.reference ? ` - ${repayment.reference}` : '';
+
+      return {
+        date: repayment.date,
+        description: `Payment received${methodText}${accountText}${referenceText}`,
+        moneyIn: Number(repayment.amount || 0),
+        moneyOut: 0,
+        order: 4,
+      };
+    });
+
+    return [...chargeEntries, ...paymentEntries].sort((a, b) => {
       const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
       if (dateDiff !== 0) return dateDiff;
       return (a.order || 0) - (b.order || 0);
@@ -409,6 +413,64 @@ function LoanDetailsFullPage({ loan, onClose }) {
               <div className="loading">Loading comprehensive statement...</div>
             ) : comprehensiveStatement ? (
               <div className="statement-content">
+                {(() => {
+                  const safeSummary = {
+                    scheduledPayments: Number(comprehensiveStatement.summary?.scheduledPayments || 0),
+                    totalPaid: Number(comprehensiveStatement.summary?.totalPaid || 0),
+                    totalFines: Number(
+                      comprehensiveStatement.summary?.totalFinesImposed ??
+                      comprehensiveStatement.summary?.totalFines ??
+                      0
+                    ),
+                    outstandingBalance: Number(comprehensiveStatement.summary?.outstandingBalance || 0),
+                    completionPercentage: Number(comprehensiveStatement.summary?.completionPercentage || 0),
+                  };
+
+                  return (
+                    <div className="summary-cards">
+                      <div className="summary-card">
+                        <div className="card-icon scheduled">
+                          <TrendingUp size={24} />
+                        </div>
+                        <div className="card-content">
+                          <span className="card-label">Loan Amount</span>
+                          <span className="card-value">{Number(loan.amount).toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="summary-card">
+                        <div className="card-icon paid">
+                          <TrendingDown size={24} />
+                        </div>
+                        <div className="card-content">
+                          <span className="card-label">Total Paid</span>
+                          <span className="card-value">{safeSummary.totalPaid.toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="summary-card">
+                        <div className="card-icon outstanding">
+                          <AlertCircle size={24} />
+                        </div>
+                        <div className="card-content">
+                          <span className="card-label">Fines Charged</span>
+                          <span className="card-value">{safeSummary.totalFines.toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="summary-card">
+                        <div className="card-icon completion">
+                          <span className="percent">{safeSummary.completionPercentage}%</span>
+                        </div>
+                        <div className="card-content">
+                          <span className="card-label">Outstanding</span>
+                          <span className="card-value">{safeSummary.outstandingBalance.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {comprehensiveStatement.statement && comprehensiveStatement.statement.length > 0 ? (
                   <div className="statement-table-wrapper">
                     <table className="comprehensive-statement-table">
@@ -424,7 +486,8 @@ function LoanDetailsFullPage({ loan, onClose }) {
                       <tbody>
                         {(() => {
                           const ledgerEntries = buildLedgerEntries(
-                            comprehensiveStatement.statement.filter(row => row.type === 'Loan Payment')
+                            comprehensiveStatement.statement.filter(row => row.type === 'Loan Payment'),
+                            comprehensiveStatement.repayments || []
                           );
                           let runningBalance = 0;
 
