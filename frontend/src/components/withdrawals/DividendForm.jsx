@@ -2,7 +2,9 @@
 import { TrendingUp, Calendar, DollarSign, User, CreditCard, FileText, Hash, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../../utils/apiBase';
+import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import SmartSelect from '../common/SmartSelect';
+import MemberPicker from '../common/MemberPicker';
 
 const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const navigate = useNavigate();
@@ -22,7 +24,6 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
 
   useEffect(() => {
     fetchMembers();
@@ -62,15 +63,8 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(`${API_BASE}/accounts`);
-      if (response.ok) {
-        const data = await response.json();
-        const accountsArray = Array.isArray(data) ? data : (data.data || []);
-        const allowedTypes = ['cash', 'bank', 'mobileMoney', 'pettyCash'];
-        setAccounts(accountsArray.filter((a) => allowedTypes.includes(a.type) && !a.isGlAccount));
-      } else {
-        setAccounts([]);
-      }
+      const realAccounts = await fetchRealAccounts();
+      setAccounts(realAccounts);
     } catch (error) {
       console.error('Error fetching accounts:', error);
       setAccounts([]);
@@ -84,13 +78,7 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
       memberName: member.name,
     });
     setSearchTerm(member.name);
-    setShowMemberDropdown(false);
   };
-
-  const filteredMembers = members.filter((m) =>
-    (m.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-    (m.phone?.includes(searchTerm) || false)
-  );
 
   const handleSmartSelectChange = (field) => (valueOrEvent) => {
     const value = valueOrEvent?.target ? valueOrEvent.target.value : valueOrEvent;
@@ -226,51 +214,16 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
           </div>
         </div>
 
-        <div className="form-group">
-          <label htmlFor="memberSearch">
-            <User size={18} />
-            Member *
-          </label>
-          <input
-            type="text"
-            id="memberSearch"
-            placeholder="Search by name or phone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onFocus={() => setShowMemberDropdown(true)}
-            required
-          />
-          {showMemberDropdown && (
-            <div className="member-dropdown">
-              {filteredMembers.length > 0 && filteredMembers.slice(0, 10).map((member) => (
-                <button
-                  key={member.id}
-                  type="button"
-                  className="member-option"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleMemberSelect(member);
-                  }}
-                >
-                  <strong>{member.name}</strong>
-                  <span>{member.phone}</span>
-                  <span className="balance">Balance: KES {member.balance?.toFixed(2) || '0.00'}</span>
-                </button>
-              ))}
-              <button
-                type="button"
-                className="member-option add-member-option"
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate('/members/create');
-                }}
-              >
-                <strong>+ Add New Member</strong>
-                <span>Register a new member</span>
-              </button>
-            </div>
-          )}
-        </div>
+        <MemberPicker
+          label="Member"
+          members={members}
+          value={searchTerm}
+          onChange={setSearchTerm}
+          onSelect={handleMemberSelect}
+          onAddNew={() => navigate('/members/create')}
+          required
+          showBalance
+        />
 
         <div className="form-row">
           <div className="form-group">
@@ -301,7 +254,7 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
               onChange={handleSmartSelectChange('accountId')}
               options={accounts.map((account) => ({
                 id: account.id,
-                name: `${account.name} (${account.type}) - Balance: ${parseFloat(account.balance).toFixed(2)}`,
+                name: `${getAccountDisplayName(account)} - Balance: ${parseFloat(account.balance).toFixed(2)}`,
               }))}
               placeholder="Select account or create new..."
               onAddClick={() => navigate('/settings/accounts/create')}

@@ -2,7 +2,9 @@
 import { useNavigate } from 'react-router-dom';
 import { DollarSign, Calendar, User, CreditCard, FileText, Hash, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import SmartSelect from '../common/SmartSelect';
+import MemberPicker from '../common/MemberPicker';
 
 const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
     // Handles SmartSelect changes for fields like contributionType and accountId
@@ -31,7 +33,6 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
   const [depositCategories, setDepositCategories] = useState([]);
 
   const fetchDepositCategories = async () => {
@@ -85,14 +86,8 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(`${API_BASE}/accounts`);
-      if (response.ok) {
-        const data = await response.json();
-        const accountsArray = Array.isArray(data) ? data : (data.data || []);
-        setAccounts(accountsArray.filter((a) => a.type === 'cash' || a.type === 'bank'));
-      } else {
-        setAccounts([]);
-      }
+      const realAccounts = await fetchRealAccounts();
+      setAccounts(realAccounts);
     } catch (error) {
       console.error('Error fetching accounts:', error);
       setAccounts([]);
@@ -106,15 +101,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
       memberName: member.name,
     });
     setSearchTerm(member.name);
-    setShowMemberDropdown(false);
   };
-
-  const filteredMembers = searchTerm
-    ? members.filter((m) =>
-        (m.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-        (m.phone?.includes(searchTerm) || false)
-      )
-    : members;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -243,52 +230,16 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
           </div>
         </div>
 
-        <div className="form-group">
-          <label htmlFor="memberSearch">
-            <User size={18} />
-            Member *
-          </label>
-          <input
-            type="text"
-            id="memberSearch"
-            placeholder="Search by name or phone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onFocus={() => setShowMemberDropdown(true)}
-            required
-          />
-          {showMemberDropdown && (
-            <div className="member-dropdown">
-              {filteredMembers.length > 0 && filteredMembers.slice(0, 10).map((member) => (
-                <button
-                  key={member.id}
-                  type="button"
-                  className="member-option"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleMemberSelect(member);
-                    setShowMemberDropdown(false);
-                  }}
-                >
-                  <strong>{member.name}</strong>
-                  <span>{member.phone}</span>
-                  <span className="balance">Balance: KES {member.balance?.toFixed(2) || '0.00'}</span>
-                </button>
-              ))}
-              <button
-                type="button"
-                className="member-option add-member-option"
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate('/members/create');
-                }}
-              >
-                <strong>+ Add New Member</strong>
-                <span>Register a new member</span>
-              </button>
-            </div>
-          )}
-        </div>
+        <MemberPicker
+          label="Member"
+          members={members}
+          value={searchTerm}
+          onChange={setSearchTerm}
+          onSelect={handleMemberSelect}
+          onAddNew={() => navigate('/members/create')}
+          required
+          showBalance
+        />
 
         <div className="form-grid-2">
           <div className="form-group">
@@ -341,7 +292,7 @@ const ContributionForm = ({ onSuccess, onCancel, editingDeposit }) => {
             name="accountId"
             value={formData.accountId}
             onChange={handleSmartSelectChange('accountId')}
-            options={accounts.map(acc => ({ id: acc.id, name: `${acc.name} (${acc.type})` }))}
+              options={accounts.map(acc => ({ id: acc.id, name: getAccountDisplayName(acc) }))}
             onAddNew={() => navigate('/settings/accounts/create')}
             placeholder="Select account or create new..."
             showAddButton={true}

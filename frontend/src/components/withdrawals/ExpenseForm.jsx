@@ -2,6 +2,7 @@
 import { DollarSign, Calendar, Tag, CreditCard, FileText, Hash } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../../utils/apiBase';
+import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import SmartSelect from '../common/SmartSelect';
 import { useSmartFormAction } from '../../hooks/useSmartFormAction';
 
@@ -46,15 +47,8 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(`${API_BASE}/accounts`);
-      if (response.ok) {
-        const data = await response.json();
-        const accountsArray = Array.isArray(data) ? data : (data.data || []);
-        const allowedTypes = ['cash', 'bank', 'mobileMoney', 'pettyCash'];
-        setAccounts(accountsArray.filter((a) => allowedTypes.includes(a.type) && !a.isGlAccount));
-      } else {
-        setAccounts([]);
-      }
+      const realAccounts = await fetchRealAccounts();
+      setAccounts(realAccounts);
     } catch (error) {
       console.error('Error fetching accounts:', error);
       setAccounts([]);
@@ -260,7 +254,7 @@ const ExpenseForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
             onChange={handleSmartSelectChange('accountId')}
             options={accounts.map(account => ({
               id: account.id,
-              name: `${account.name} (${account.type})${account.balance !== undefined ? ` - ${Number(account.balance).toFixed(2)}` : ''}`,
+              name: `${getAccountDisplayName(account)}${account.balance !== undefined ? ` - ${Number(account.balance).toFixed(2)}` : ''}`,
             }))}
             onAddNew={() => navigate('/settings/accounts/create')}
             addButtonText="Add Account"

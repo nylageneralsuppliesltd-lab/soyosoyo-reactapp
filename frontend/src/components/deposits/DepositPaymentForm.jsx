@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Upload, Plus, Check, AlertCircle, ChevronDown } from 'lucide-react';
 import '../../styles/deposits.css';
 import { API_BASE } from '../../utils/apiBase';
+import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import SmartSelect from '../common/SmartSelect';
 import { useSmartFormAction } from '../../hooks/useSmartFormAction';
+import MemberPicker from '../common/MemberPicker';
 
 const DepositPaymentForm = ({ onSuccess, onCancel }) => {
   const navigate = useNavigate();
@@ -28,7 +30,6 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
-  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
   const [depositCategories, setDepositCategories] = useState([]);
 
   useEffect(() => {
@@ -61,23 +62,13 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(`${API_BASE}/accounts`);
-      const data = await response.json();
-      const accountsArray = Array.isArray(data) ? data : (data.data || []);
-      setAccounts(accountsArray);
+      const realAccounts = await fetchRealAccounts();
+      setAccounts(realAccounts);
     } catch (err) {
       console.error('Failed to fetch accounts:', err);
       setAccounts([]);
     }
   };
-
-  const filteredMembers = memberSearch
-    ? members.filter(
-        (m) =>
-          m.name?.toLowerCase().includes(memberSearch.toLowerCase()) ||
-          m.phone?.includes(memberSearch),
-      )
-    : [];
 
   const handleMemberSelect = (member) => {
     setFormData({
@@ -86,7 +77,6 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
       memberName: member.name,
     });
     setMemberSearch('');
-    setShowMemberDropdown(false);
   };
 
   const handleChange = (e) => {
@@ -109,7 +99,8 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
     setSuccess(false);
 
     try {
-      if (!formData.memberName && !formData.memberId) {
+      const memberRequired = !['income', 'miscellaneous'].includes(formData.paymentType);
+      if (memberRequired && !formData.memberName && !formData.memberId) {
         throw new Error('Member name or ID is required');
       }
       if (!formData.amount || parseFloat(formData.amount) <= 0) {
@@ -120,7 +111,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
         payments: [
           {
             date: formData.date,
-            memberName: formData.memberName,
+            memberName: formData.memberName || undefined,
             memberId: formData.memberId ? parseInt(formData.memberId) : undefined,
             amount: parseFloat(formData.amount),
             paymentType: formData.paymentType,
@@ -223,48 +214,18 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
         </div>
 
         {/* Member Selection */}
-        <div className="form-group">
-          <label>Member Name *</label>
-          <div className="member-search-container">
-            <input
-              type="text"
-              placeholder="Search member by name or phone"
-              value={memberSearch || formData.memberName}
-              onChange={(e) => {
-                setMemberSearch(e.target.value);
-                setShowMemberDropdown(true);
-              }}
-              onFocus={() => setShowMemberDropdown(true)}
-              className="form-input"
-            />
-            {showMemberDropdown && (
-              <div className="member-dropdown">
-                {filteredMembers.length > 0 && filteredMembers.slice(0, 10).map((member) => (
-                  <button
-                    key={member.id}
-                    type="button"
-                    onClick={() => handleMemberSelect(member)}
-                    className="dropdown-item"
-                  >
-                    <span className="member-name">{member.name}</span>
-                    <span className="member-phone">{member.phone}</span>
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="dropdown-item add-member-option"
-                  onClick={() => navigate('/members/create')}
-                >
-                  <span className="member-name">+ Add New Member</span>
-                  <span className="member-phone">Register a new member</span>
-                </button>
-              </div>
-            )}
-          </div>
-          {formData.memberName && formData.memberId && (
-            <small className="form-hint">ID: {formData.memberId}</small>
-          )}
-        </div>
+        <MemberPicker
+          label="Member"
+          members={members}
+          value={memberSearch || formData.memberName}
+          onChange={setMemberSearch}
+          onSelect={handleMemberSelect}
+          onAddNew={() => navigate('/members/create')}
+          required
+        />
+        {formData.memberName && formData.memberId && (
+          <small className="form-hint">ID: {formData.memberId}</small>
+        )}
 
         {/* Payment Type */}
         <div className="form-group">
@@ -291,8 +252,9 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
               name="contributionType"
               value={formData.contributionType}
               onChange={handleSmartSelectChange('contributionType')}
-              options={depositCategories
-                .filter(cat => cat.type === 'contribution')
+              options={(depositCategories.length > 0
+                ? depositCategories.filter(cat => !cat.type || cat.type === 'contribution')
+                : [])
                 .map(cat => ({
                   id: cat.name,
                   name: cat.name,
@@ -348,7 +310,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
             onChange={handleSmartSelectChange('accountId')}
             options={accounts.map(account => ({
               id: account.id,
-              name: `${account.name} (${account.type})`,
+              name: getAccountDisplayName(account),
             }))}
             onAddNew={() => navigate('/settings/accounts/create')}
             addButtonText="Add Bank Account"

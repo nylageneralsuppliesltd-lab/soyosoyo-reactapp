@@ -38,6 +38,7 @@ async function bootstrap() {
     'https://soyosoyo-reactapp-0twy.onrender.com',
     'http://localhost:3000',
     'http://localhost:5173',
+    'http://localhost:5174',
   ];
 
   app.enableCors({

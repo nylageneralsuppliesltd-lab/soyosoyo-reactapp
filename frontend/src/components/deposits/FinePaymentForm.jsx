@@ -2,7 +2,9 @@
 import { useNavigate } from 'react-router-dom';
 import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import SmartSelect from '../common/SmartSelect';
+import MemberPicker from '../common/MemberPicker';
 
 const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const navigate = useNavigate();
@@ -21,8 +23,6 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
   const [members, setMembers] = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [filteredMembers, setFilteredMembers] = useState([]);
-  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -88,43 +88,19 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
       const data = await response.json();
       const membersArray = Array.isArray(data) ? data : (data.data || []);
       setMembers(membersArray);
-      setFilteredMembers(membersArray);
     } catch (error) {
       console.error('Error fetching members:', error);
       setMembers([]);
-      setFilteredMembers([]);
     }
   };
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(`${API_BASE}/accounts`);
-      const data = await response.json();
-      const accountsArray = Array.isArray(data) ? data : (data.data || []);
-      const realAccounts = accountsArray.filter((acc) => {
-        const type = String(acc.type || '').toLowerCase();
-        return ['cash', 'bank', 'mobilemoney', 'pettycash'].includes(type);
-      });
+      const realAccounts = await fetchRealAccounts();
       setAccounts(realAccounts);
     } catch (error) {
       console.error('Error fetching accounts:', error);
       setAccounts([]);
-    }
-  };
-
-  const handleMemberSearch = (searchTerm) => {
-    setMemberSearch(searchTerm);
-    if (searchTerm.length > 0) {
-      const filtered = members.filter(member =>
-        member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.phone?.includes(searchTerm) ||
-        member.idNumber?.includes(searchTerm)
-      );
-      setFilteredMembers(filtered);
-      setShowMemberDropdown(true);
-    } else {
-      setFilteredMembers(members);
-      setShowMemberDropdown(false);
     }
   };
 
@@ -135,7 +111,6 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
       memberName: `${member.name}`
     });
     setMemberSearch(`${member.name}`);
-    setShowMemberDropdown(false);
   };
 
   const handleSmartSelectChange = (field) => (valueOrEvent) => {
@@ -248,58 +223,15 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
             />
           </div>
 
-          <div className="form-group member-search-group">
-            <label>
-              <Search size={18} />
-              Member *
-            </label>
-            <input
-              type="text"
-              value={memberSearch}
-              onChange={(e) => handleMemberSearch(e.target.value)}
-              onFocus={() => setShowMemberDropdown(true)}
-              placeholder="Search by name, phone, or member number"
-              required
-            />
-            {showMemberDropdown && (
-              <div className="member-dropdown">
-                {filteredMembers.length > 0 && filteredMembers.slice(0, 10).map(member => (
-                  <button
-                    key={member.id}
-                    type="button"
-                    className="member-option"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      selectMember(member);
-                    }}
-                  >
-                    <div className="member-info">
-                      <span className="member-name">{member.name}</span>
-                      <span className="member-number">{member.idNumber || 'N/A'}</span>
-                    </div>
-                    <div className="member-details">
-                      <span className="member-phone">{member.phone}</span>
-                    </div>
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="member-option add-member-option"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    navigate('/members/create');
-                  }}
-                >
-                  <div className="member-info">
-                    <span className="member-name">+ Add New Member</span>
-                  </div>
-                  <div className="member-details">
-                    <span className="member-phone">Register a new member</span>
-                  </div>
-                </button>
-              </div>
-            )}
-          </div>
+          <MemberPicker
+            label="Member"
+            members={members}
+            value={memberSearch}
+            onChange={setMemberSearch}
+            onSelect={selectMember}
+            onAddNew={() => navigate('/members/create')}
+            required
+          />
         </div>
 
         <div className="form-grid-2">
@@ -374,7 +306,7 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
               name="accountId"
               value={formData.accountId}
               onChange={handleSmartSelectChange('accountId')}
-              options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
+              options={accounts.map(acc => ({ id: acc.id, name: getAccountDisplayName(acc) }))}
               onAddNew={() => navigate('/settings/accounts/create')}
               placeholder="Select account or create new..."
               showAddButton={true}

@@ -22,6 +22,7 @@ import {
   calculateDashboardStats,
   getMonthlyTrendData,
   getRecentActivity,
+  getAllLoans,
 } from '../utils/dashboardAPI';
 
 ChartJS.register(
@@ -42,6 +43,7 @@ const DashboardPage = () => {
   const [monthlyData, setMonthlyData] = useState([]);
   const [stats, setStats] = useState(null);
   const [recentActivities, setRecentActivities] = useState([]);
+  const [recentLoans, setRecentLoans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState('6months');
@@ -77,9 +79,16 @@ const DashboardPage = () => {
         getRecentActivity(10),
       ]);
 
+      const loansData = await getAllLoans();
+
       if (statsData) setStats(statsData);
       setMonthlyData(trendData);
       setRecentActivities(activityData);
+      setRecentLoans(
+        (Array.isArray(loansData) ? loansData : [])
+          .sort((a, b) => new Date(b.createdAt || b.disbursementDate || 0) - new Date(a.createdAt || a.disbursementDate || 0))
+          .slice(0, 5)
+      );
     } catch (err) {
       // Network errors are retried silently by axios interceptor
       // Only show UI error for non-recoverable client errors
@@ -206,13 +215,20 @@ const DashboardPage = () => {
             </tr>
           </thead>
           <tbody>
-            {/* Example row for Cypress, replace with real data if available */}
-            <tr>
-              <td>John Doe</td>
-              <td>Normal</td>
-              <td>KES 10,000</td>
-              <td>Active</td>
-            </tr>
+            {recentLoans.length > 0 ? (
+              recentLoans.map((loan) => (
+                <tr key={loan.id} onClick={() => navigate('/loans?tab=member-loans')} style={{ cursor: 'pointer' }}>
+                  <td>{loan.memberName || loan.member?.name || [loan.member?.firstName, loan.member?.lastName].filter(Boolean).join(' ') || 'N/A'}</td>
+                  <td>{loan.typeName || loan.type?.name || loan.category || 'Loan'}</td>
+                  <td>{formatCurrency(loan.amount || 0)}</td>
+                  <td>{loan.status || 'pending'}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={4} style={{ textAlign: 'center', color: '#6b7280' }}>No recent loans</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -251,7 +267,7 @@ const DashboardPage = () => {
 
         {/* Removed duplicate Outstanding Loans card to avoid Cypress confusion. Only 'Loans' heading/table is shown above. */}
 
-        <div className="metric-card-compact interest-metric" onClick={() => navigate('/dashboard')}>
+        <div className="metric-card-compact interest-metric" onClick={() => navigate('/api-reports')}>
           <div className="metric-header">
             <TrendUp size={18} />
             <span className="metric-label">Monthly Interest</span>
@@ -332,7 +348,7 @@ const DashboardPage = () => {
                     case 'loan':
                       return '/loans';
                     case 'member_registration':
-                      return '/members';
+                      return '/members/list';
                     default:
                       return '/dashboard';
                   }
@@ -376,7 +392,7 @@ const DashboardPage = () => {
         <div className="quick-actions-compact">
           <h3 className="section-title">Quick Actions</h3>
           <div className="action-buttons-compact">
-            <button className="action-btn-compact register-member" onClick={() => navigate('/members')}>
+            <button className="action-btn-compact register-member" onClick={() => navigate('/members/create')}>
               <UsersThree size={18} />
               <span>Register Member</span>
             </button>
@@ -388,7 +404,7 @@ const DashboardPage = () => {
               <Money size={18} />
               <span>Issue Loan</span>
             </button>
-            <button className="action-btn-compact view-reports" onClick={() => navigate('/dashboard')}>
+            <button className="action-btn-compact view-reports" onClick={() => navigate('/api-reports')}>
               <TrendUp size={18} />
               <span>View Reports</span>
             </button>

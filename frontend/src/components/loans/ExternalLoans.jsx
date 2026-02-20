@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Eye, Loader, AlertCircle, Trash2, FileText, Edit } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import ComprehensiveLoanStatement from './ComprehensiveLoanStatement';
 import '../../styles/loanStatement.css';
 
@@ -241,34 +242,28 @@ const ExternalLoans = ({ onError }) => {
       const [loansRes, typesRes, accountsRes] = await Promise.all([
         fetch(`${API_BASE}/loans?external=true`),
         fetch(`${API_BASE}/loan-types`),
-        fetch(`${API_BASE}/accounts`),
+        fetchRealAccounts(),
       ]);
 
-      if (!loansRes.ok || !typesRes.ok || !accountsRes.ok) throw new Error('Failed to fetch data');
+      if (!loansRes.ok || !typesRes.ok) throw new Error('Failed to fetch data');
 
       const loansData = await loansRes.json();
       const typesData = await typesRes.json();
-      const accountsData = await accountsRes.json();
+      const accountsData = accountsRes;
 
       // Handle both array and wrapped responses
       const loansArray = Array.isArray(loansData) ? loansData : (loansData.data || []);
       const typesArray = Array.isArray(typesData) ? typesData : (typesData.data || []);
       const accountsArray = Array.isArray(accountsData) ? accountsData : (accountsData.data || []);
-      // Filter to only bank/cash/mobile accounts (exclude GL accounts)
-      const bankAccounts = accountsArray.filter(a => 
-        ['cash', 'bank', 'mobileMoney', 'pettyCash'].includes(a.type) && 
-        !a.name.includes('GL:') && 
-        !a.name.includes('General Ledger')
-      );
 
       setLoans(loansArray);
       setLoanTypes(typesArray);
-      setAccounts(bankAccounts);
+      setAccounts(accountsArray);
       
       // Debug log
       if (import.meta.env.DEV) {
         console.log('Loan types loaded:', typesArray.length);
-        console.log('Accounts loaded:', bankAccounts.length);
+        console.log('Accounts loaded:', accountsArray.length);
       }
     } catch (err) {
       onError?.(err.message);
@@ -495,7 +490,7 @@ const ExternalLoans = ({ onError }) => {
                   {accounts && accounts.length > 0 ? (
                     accounts.map(acc => (
                       <option key={acc.id} value={String(acc.id)}>
-                        {acc.name} ({acc.type.toUpperCase()})
+                        {getAccountDisplayName(acc)}
                       </option>
                     ))
                   ) : (

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Eye, Loader, AlertCircle, Edit, Trash2, FileText } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import LoanDetailsFullPage from './LoanDetailsFullPage';
 import ComprehensiveLoanStatement from './ComprehensiveLoanStatement';
 import '../../styles/loanStatement.css';
@@ -62,13 +63,13 @@ const MemberLoans = ({ onError, onLoading }) => {
         fetch(`${API_BASE}/loans`),
         fetch(`${API_BASE}/members`),
         fetch(`${API_BASE}/loan-types`),
-        fetch(`${API_BASE}/accounts`),
+        fetchRealAccounts(),
       ]);
       const [loansData, membersData, loanTypesData, accountsData] = await Promise.all([
         loansRes.json(),
         membersRes.json(),
         loanTypesRes.json(),
-        accountsRes.json(),
+        accountsRes,
       ]);
       const allLoans = Array.isArray(loansData) ? loansData : loansData.data || [];
       if (import.meta.env.DEV) {
@@ -419,7 +420,7 @@ const MemberLoans = ({ onError, onLoading }) => {
                   {accounts && accounts.length > 0 ? (
                     accounts.map(acc => (
                       <option key={acc.id} value={String(acc.id)}>
-                        {acc.name} ({acc.type.toUpperCase()})
+                        {getAccountDisplayName(acc)}
                       </option>
                     ))
                   ) : (
@@ -749,7 +750,7 @@ const MemberLoans = ({ onError, onLoading }) => {
                   {accounts && accounts.length > 0 ? (
                     accounts.map(acc => (
                       <option key={acc.id} value={String(acc.id)}>
-                        {acc.name} ({acc.type.toUpperCase()})
+                        {getAccountDisplayName(acc)}
                       </option>
                     ))
                   ) : (

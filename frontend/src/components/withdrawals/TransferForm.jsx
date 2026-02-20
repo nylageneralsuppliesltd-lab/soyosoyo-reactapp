@@ -2,6 +2,7 @@
 import { ArrowRightLeft, Calendar, DollarSign, FileText, Hash } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../../utils/apiBase';
+import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import SmartSelect from '../common/SmartSelect';
 
 const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
@@ -40,15 +41,8 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(`${API_BASE}/accounts`);
-      if (response.ok) {
-        const data = await response.json();
-        const accountsArray = Array.isArray(data) ? data : (data.data || []);
-        const allowedTypes = ['cash', 'bank', 'mobileMoney', 'pettyCash'];
-        setAccounts(accountsArray.filter((a) => allowedTypes.includes(a.type) && !a.isGlAccount));
-      } else {
-        setAccounts([]);
-      }
+      const realAccounts = await fetchRealAccounts();
+      setAccounts(realAccounts);
     } catch (error) {
       console.error('Error fetching accounts:', error);
       setAccounts([]);
@@ -205,7 +199,7 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
               onChange={handleSmartSelectChange('fromAccountId')}
               options={accounts.map((account) => ({
                 id: account.id,
-                name: `${account.name} (${account.type}) - Balance: KES ${parseFloat(account.balance).toFixed(2)}`,
+                name: `${getAccountDisplayName(account)} - Balance: KES ${parseFloat(account.balance).toFixed(2)}`,
               }))}
               placeholder="Select account or create new..."
               onAddClick={() => navigate('/settings/accounts/create')}
@@ -231,7 +225,7 @@ const TransferForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
               onChange={handleSmartSelectChange('toAccountId')}
               options={accounts.map((account) => ({
                 id: account.id,
-                name: `${account.name} (${account.type}) - Balance: KES ${parseFloat(account.balance).toFixed(2)}`,
+                name: `${getAccountDisplayName(account)} - Balance: KES ${parseFloat(account.balance).toFixed(2)}`,
               }))}
               placeholder="Select account or create new..."
               onAddClick={() => navigate('/settings/accounts/create')}

@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, TransactionType } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { randomUUID } from 'crypto';
 
@@ -9,7 +9,7 @@ export interface BulkPaymentRecord {
   memberName: string;
   memberId?: number;
   amount: number;
-  paymentType: 'contribution' | 'fine' | 'loan_repayment' | 'income' | 'miscellaneous';
+  paymentType: 'contribution' | 'fine' | 'loan_repayment' | 'income' | 'miscellaneous' | 'share_capital';
   contributionType?: string; // For custom contribution types
   fineType?: string;
   reason?: string;
@@ -91,6 +91,23 @@ export class DepositsService {
     });
 
     return defaultCashAccount?.id ?? null;
+  }
+
+  private async ensureGlAccount(name: string, description: string): Promise<{ id: number }> {
+    return this.prisma.account.upsert({
+      where: { name },
+      update: {
+        type: 'gl',
+      },
+      create: {
+        name,
+        type: 'gl',
+        description,
+        currency: 'KES',
+        balance: new Prisma.Decimal(0),
+      },
+      select: { id: true },
+    });
   }
 
   private toAuditSnapshot(deposit: any) {
@@ -856,6 +873,15 @@ export class DepositsService {
    * Process a single payment with full double-entry bookkeeping
    */
   private async processPayment(payment: BulkPaymentRecord): Promise<number> {
+    const normalizedDepositType: TransactionType =
+      payment.paymentType === 'share_capital'
+        ? 'contribution'
+        : payment.paymentType === 'miscellaneous'
+          ? 'income'
+          : (payment.paymentType as TransactionType);
+
+    const memberRequiredPaymentTypes = new Set(['contribution', 'fine', 'loan_repayment', 'share_capital']);
+
     // Resolve member
     let memberId = payment.memberId;
     if (!memberId && payment.memberName) {
@@ -868,9 +894,12 @@ export class DepositsService {
         },
       });
       if (!member) {
-        throw new BadRequestException(`Member '${payment.memberName}' not found`);
+        if (memberRequiredPaymentTypes.has(payment.paymentType)) {
+          throw new BadRequestException(`Member '${payment.memberName}' not found`);
+        }
+      } else {
+        memberId = member.id;
       }
-      memberId = member.id;
     }
 
     // Validate required fields
@@ -906,7 +935,7 @@ export class DepositsService {
       data: {
         memberId: memberId || null,
         memberName: payment.memberName || null,
-        type: depositType as any,
+        type: normalizedDepositType,
         category: payment.contributionType || payment.paymentType,
         amount: amountDecimal,
         method: payment.paymentMethod as any,
@@ -922,7 +951,7 @@ export class DepositsService {
     // Ensure accounts and post double-entry
     await this.postDoubleEntryBookkeeping(
       deposit.id,
-      depositType,
+      depositType === 'share_capital' ? 'contribution' : depositType,
       memberId,
       amountDecimal,
       paymentDate,
@@ -969,7 +998,10 @@ export class DepositsService {
         }
 
         creditAccountName = description ? `${description} Received` : 'Contributions Received';
-        const creditAccount = await this.prisma.account.findFirst({ where: { name: creditAccountName, type: 'gl' } });
+        const creditAccount = await this.ensureGlAccount(
+          creditAccountName,
+          `GL account for contribution deposits (${description || 'general'})`,
+        );
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -989,7 +1021,7 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.prisma.account.findFirst({ where: { name: 'Fines Collected', type: 'gl' } });
+        const creditAccount = await this.ensureGlAccount('Fines Collected', 'GL account for fines collected');
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -1009,7 +1041,10 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.prisma.account.findFirst({ where: { name: 'Loan Repayments Received', type: 'gl' } });
+        const creditAccount = await this.ensureGlAccount(
+          'Loan Repayments Received',
+          'GL account for loan repayments received',
+        );
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -1029,7 +1064,7 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.prisma.account.findFirst({ where: { name: 'Other Income', type: 'gl' } });
+        const creditAccount = await this.ensureGlAccount('Other Income', 'GL account for other income receipts');
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -1050,7 +1085,10 @@ export class DepositsService {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.prisma.account.findFirst({ where: { name: 'Miscellaneous Receipts', type: 'gl' } });
+        const creditAccount = await this.ensureGlAccount(
+          'Miscellaneous Receipts',
+          'GL account for miscellaneous receipts',
+        );
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;

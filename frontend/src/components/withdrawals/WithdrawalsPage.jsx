@@ -4,6 +4,7 @@ import ExpenseForm from './ExpenseForm';
 import TransferForm from './TransferForm';
 import RefundForm from './RefundForm';
 import DividendForm from './DividendForm';
+import WithdrawalsBatchEntry from './WithdrawalsBatchEntry';
 import TransactionDetailModal from '../TransactionDetailModal';
 import '../../styles/withdrawals.css';
 import { API_BASE } from '../../utils/apiBase';
@@ -310,6 +311,13 @@ const WithdrawalsPage = () => {
           <TrendingUp size={18} />
           Dividend Payout
         </button>
+        <button
+          className={`menu-tab ${activeTab === 'batch' ? 'active' : ''}`}
+          onClick={() => setActiveTab('batch')}
+        >
+          <Upload size={18} />
+          Batch Entry & Import
+        </button>
       </div>
 
       <div className="withdrawals-content">
@@ -555,6 +563,7 @@ const WithdrawalsPage = () => {
         {activeTab === 'transfer' && <TransferForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
         {activeTab === 'refund' && <RefundForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
         {activeTab === 'dividend' && <DividendForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
+        {activeTab === 'batch' && <WithdrawalsBatchEntry onSuccess={handleSuccess} />}
       </div>
     </div>
   );

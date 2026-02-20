@@ -12,7 +12,10 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "lint": "eslint .",
-    "test": "jest --env=jsdom --passWithNoTests"
+    "test": "jest --env=jsdom --passWithNoTests",
+    "test:e2e": "cypress run",
+    "cypress:run": "cypress run",
+    "cypress:open": "cypress open"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

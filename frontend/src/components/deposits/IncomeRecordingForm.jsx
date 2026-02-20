@@ -2,6 +2,7 @@
 import { useNavigate } from 'react-router-dom';
 import { DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, TrendingUp, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
+import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import SmartSelect from '../common/SmartSelect';
 
 const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
@@ -53,7 +54,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
     { value: 'bank', label: 'Bank Transfer' },
     { value: 'mpesa', label: 'M-Pesa' },
     { value: 'cash', label: 'Cash' },
-    { value: 'check', label: 'Cheque' },
+    { value: 'check_off', label: 'Check-Off' },
     { value: 'other', label: 'Other' }
   ];
 
@@ -80,13 +81,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(`${API_BASE}/accounts`);
-      const data = await response.json();
-      const accountsArray = Array.isArray(data) ? data : (data.data || []);
-      const realAccounts = accountsArray.filter((acc) => {
-        const type = String(acc.type || '').toLowerCase();
-        return ['cash', 'bank', 'mobilemoney', 'pettycash'].includes(type);
-      });
+      const realAccounts = await fetchRealAccounts();
       setAccounts(realAccounts);
     } catch (error) {
       console.error('Error fetching accounts:', error);
@@ -287,7 +282,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
               name="accountId"
               value={formData.accountId}
               onChange={handleSmartSelectChange('accountId')}
-              options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
+              options={accounts.map(acc => ({ id: acc.id, name: getAccountDisplayName(acc) }))}
               onAddNew={() => navigate('/settings/accounts/create')}
               placeholder="Select account or create new..."
               required={true}

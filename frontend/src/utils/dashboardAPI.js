@@ -28,6 +28,15 @@ const API = axios.create({
 // Add automatic retry logic with exponential backoff for network failures
 createRetryInterceptor(API, { maxRetries: 3 });
 
+const toAmount = (value) => (typeof value === 'number' ? value : parseFloat(value) || 0);
+const toTimestamp = (item) => item?.recordedAt || item?.disbursementDate || item?.createdAt || item?.date || null;
+const memberDisplayName = (member) => {
+  if (!member) return 'Unknown';
+  if (member.name) return member.name;
+  const fullName = [member.firstName, member.lastName].filter(Boolean).join(' ').trim();
+  return fullName || 'Unknown';
+};
+
 /**
  * Fetch all members for total count and status breakdown
  */
@@ -177,24 +186,24 @@ export const getMonthlyTrendData = async (months = 6) => {
 
       const monthDeposits = deposits
         .filter(d => {
-          const dDate = new Date(d.createdAt);
+          const dDate = new Date(toTimestamp(d));
           return dDate >= monthStart && dDate <= monthEnd;
         })
-        .reduce((sum, d) => sum + (d.amount || 0), 0);
+        .reduce((sum, d) => sum + toAmount(d.amount), 0);
 
       const monthWithdrawals = withdrawals
         .filter(w => {
-          const wDate = new Date(w.createdAt);
+          const wDate = new Date(toTimestamp(w));
           return wDate >= monthStart && wDate <= monthEnd;
         })
-        .reduce((sum, w) => sum + (w.amount || 0), 0);
+        .reduce((sum, w) => sum + toAmount(w.amount), 0);
 
       const monthLoans = loans
         .filter(l => {
-          const lDate = new Date(l.createdAt);
+          const lDate = new Date(toTimestamp(l));
           return lDate >= monthStart && lDate <= monthEnd;
         })
-        .reduce((sum, l) => sum + (l.amount || 0), 0);
+        .reduce((sum, l) => sum + toAmount(l.amount), 0);
 
       trendData.push({
         month: monthDate.toLocaleString('default', { month: 'short' }),
@@ -232,9 +241,9 @@ export const getRecentActivity = async (limit = 10) => {
       activities.push({
         type: 'member_registration',
         description: `New Member Registration`,
-        memberName: `${member.firstName} ${member.lastName}`,
+        memberName: memberDisplayName(member),
         amount: '+1',
-        timestamp: member.createdAt,
+        timestamp: toTimestamp(member),
         icon: 'member',
       });
     });
@@ -242,12 +251,13 @@ export const getRecentActivity = async (limit = 10) => {
     // Add recent deposits
     deposits.slice(0, limit / 2).forEach(deposit => {
       const member = members.find(m => m.id === deposit.memberId);
+      const amount = toAmount(deposit.amount);
       activities.push({
         type: 'deposit',
         description: `Deposit - ${deposit.depositType || 'Regular Saving'}`,
-        memberName: member ? `${member.firstName} ${member.lastName}` : 'Unknown',
-        amount: `KES ${(deposit.amount / 1000).toFixed(0)}K`,
-        timestamp: deposit.createdAt,
+        memberName: memberDisplayName(member),
+        amount: `KES ${amount.toLocaleString('en-KE')}`,
+        timestamp: toTimestamp(deposit),
         icon: 'deposit',
       });
     });
@@ -255,12 +265,13 @@ export const getRecentActivity = async (limit = 10) => {
     // Add recent withdrawals
     withdrawals.slice(0, limit / 2).forEach(withdrawal => {
       const member = members.find(m => m.id === withdrawal.memberId);
+      const amount = toAmount(withdrawal.amount);
       activities.push({
         type: 'withdrawal',
         description: `Withdrawal - ${withdrawal.withdrawalType || 'Standard'}`,
-        memberName: member ? `${member.firstName} ${member.lastName}` : 'Unknown',
-        amount: `KES ${(withdrawal.amount / 1000).toFixed(0)}K`,
-        timestamp: withdrawal.createdAt,
+        memberName: memberDisplayName(member),
+        amount: `KES ${amount.toLocaleString('en-KE')}`,
+        timestamp: toTimestamp(withdrawal),
         icon: 'withdrawal',
       });
     });
@@ -268,18 +279,20 @@ export const getRecentActivity = async (limit = 10) => {
     // Add recent loans
     loans.slice(0, limit / 3).forEach(loan => {
       const member = members.find(m => m.id === loan.memberId);
+      const amount = toAmount(loan.amount);
       activities.push({
         type: 'loan',
         description: `Loan Disbursement`,
-        memberName: member ? `${member.firstName} ${member.lastName}` : 'Unknown',
-        amount: `KES ${(loan.amount / 1000).toFixed(0)}K`,
-        timestamp: loan.disbursementDate || loan.createdAt,
+        memberName: memberDisplayName(member),
+        amount: `KES ${amount.toLocaleString('en-KE')}`,
+        timestamp: toTimestamp(loan),
         icon: 'loan',
       });
     });
 
     // Sort by timestamp descending and limit
     return activities
+      .filter((item) => item.timestamp)
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       .slice(0, limit);
   } catch (error) {
