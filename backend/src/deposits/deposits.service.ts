@@ -11,6 +11,11 @@ export interface BulkPaymentRecord {
   amount: number;
   paymentType: 'contribution' | 'fine' | 'loan_repayment' | 'income' | 'miscellaneous';
   contributionType?: string; // For custom contribution types
+  fineType?: string;
+  reason?: string;
+  description?: string;
+  purpose?: string;
+  source?: string;
   paymentMethod: 'cash' | 'bank' | 'mpesa' | 'check_off' | 'bank_deposit' | 'other';
   accountId?: number;
   reference?: string;
@@ -881,7 +886,16 @@ export class DepositsService {
 
     // Determine deposit type and related accounts
     const depositType = payment.paymentType;
-    const description = payment.notes || '';
+    const description =
+      payment.notes ||
+      payment.description ||
+      payment.reason ||
+      payment.purpose ||
+      payment.source ||
+      payment.fineType ||
+      payment.contributionType ||
+      payment.paymentType ||
+      '';
 
     // Create the deposit record
     const externalRef = payment.reference?.trim() || null;

@@ -162,8 +162,8 @@ const FinePaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
         paymentMethod: formData.paymentMethod,
         accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
         reference: formData.reference,
-        description: formData.notes,
-        notes: formData.notes
+        description: formData.reason || formData.notes,
+        notes: formData.notes || formData.reason
       };
 
       let response;
