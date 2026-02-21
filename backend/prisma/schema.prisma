@@ -83,6 +83,7 @@ model Member {
   regNo              String?
   employerAddress    String?
   role               String?
+  adminCriteria      String?   // 'Member' or 'Admin'
   introducerName     String?
   introducerMemberNo String?
   balance            Float     @default(0)

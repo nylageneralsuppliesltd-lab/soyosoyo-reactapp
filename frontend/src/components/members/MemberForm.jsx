@@ -21,6 +21,7 @@ export default function MemberForm({ member = null, goBack }) {
     regNo: '',
     employerAddress: '',
     role: 'Member',
+    adminCriteria: 'Member',
     introducerName: '',
     introducerMemberNo: '',
   });
@@ -47,6 +48,7 @@ export default function MemberForm({ member = null, goBack }) {
         regNo: toSafeString(member.regNo),
         employerAddress: toSafeString(member.employerAddress),
         role: member.role || 'Member',
+        adminCriteria: member.adminCriteria || 'Member',
         introducerName: toSafeString(member.introducerName),
         introducerMemberNo: toSafeString(member.introducerMemberNo),
       });
@@ -196,6 +198,13 @@ export default function MemberForm({ member = null, goBack }) {
           type: 'select',
           options: ['Member', 'Chairman', 'Vice Chairman', 'Secretary', 'Treasurer', 'Admin'],
           required: true,
+        },
+        {
+          key: 'adminCriteria',
+          label: 'Admin Criteria',
+          type: 'select',
+          options: ['Member', 'Admin'],
+          required: false,
         },
         { key: 'introducerName', label: 'Introducer Name', type: 'text', required: true },
         { key: 'introducerMemberNo', label: 'Introducer Member Number', type: 'text', required: true },

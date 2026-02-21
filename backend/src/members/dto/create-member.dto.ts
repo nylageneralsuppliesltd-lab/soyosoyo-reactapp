@@ -113,6 +113,12 @@ export class CreateMemberDto {
   })
   role: string;
 
+  @IsOptional()
+  @IsIn(['Member', 'Admin'], {
+    message: 'Admin Criteria must be either Member or Admin',
+  })
+  adminCriteria?: string;
+
   @IsString({ message: 'Introducer name must be a string' })
   @MinLength(2, { message: 'Introducer name must be at least 2 characters' })
   @MaxLength(100, { message: 'Introducer name must not exceed 100 characters' })

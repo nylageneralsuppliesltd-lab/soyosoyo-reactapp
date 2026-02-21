@@ -41,6 +41,7 @@ export class MembersService {
         employerName: rest.employerName && rest.employerName.trim() ? rest.employerName : null,
         regNo: rest.regNo && rest.regNo.trim() ? rest.regNo : null,
         employerAddress: rest.employerAddress && rest.employerAddress.trim() ? rest.employerAddress : null,
+        adminCriteria: rest.adminCriteria && rest.adminCriteria.trim() ? rest.adminCriteria : null,
         nextOfKin: nextOfKin && nextOfKin.length > 0 ? JSON.parse(JSON.stringify(nextOfKin)) : null,
       };
 
@@ -222,6 +223,7 @@ export class MembersService {
     const directStrings: Array<keyof typeof rest> = [
       'name',
       'role',
+      'adminCriteria',
       'physicalAddress',
       'town',
       'introducerName',
