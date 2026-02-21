@@ -45,11 +45,82 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
     fiscalYearStart: '01-01',
   });
 
+  const toNumberOrZero = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const toIntegerOrZero = (value) => {
+    const parsed = parseInt(String(value), 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const sanitizePayloadByTab = (tab, rawFormData) => {
+    if (tab === 'contributions') {
+      return {
+        name: (rawFormData.name || '').trim(),
+        description: (rawFormData.description || '').trim() || null,
+        amount: toNumberOrZero(rawFormData.amount),
+        frequency: rawFormData.frequency || null,
+        typeCategory: rawFormData.typeCategory || null,
+        dayOfMonth: rawFormData.dayOfMonth ? String(rawFormData.dayOfMonth) : null,
+        invoiceDate: rawFormData.invoiceDate || null,
+        dueDate: rawFormData.dueDate || null,
+        smsNotifications: !!rawFormData.smsNotifications,
+        emailNotifications: !!rawFormData.emailNotifications,
+        finesEnabled: !!rawFormData.finesEnabled,
+        lateFineEnabled: !!rawFormData.lateFineEnabled,
+        lateFineAmount: toNumberOrZero(rawFormData.lateFineAmount),
+        lateFineGraceDays: toIntegerOrZero(rawFormData.lateFineGraceDays),
+        invoiceAllMembers: rawFormData.invoiceAllMembers !== false,
+        visibleInvoicing: rawFormData.visibleInvoicing !== false,
+      };
+    }
+
+    if (tab === 'expenses') {
+      return {
+        name: (rawFormData.name || '').trim(),
+        description: (rawFormData.description || '').trim() || null,
+        nature: rawFormData.nature || null,
+      };
+    }
+
+    if (tab === 'income') {
+      return {
+        name: (rawFormData.name || '').trim(),
+        description: (rawFormData.description || '').trim() || null,
+      };
+    }
+
+    if (tab === 'fines') {
+      return {
+        name: (rawFormData.name || '').trim(),
+      };
+    }
+
+    if (tab === 'roles') {
+      return {
+        name: (rawFormData.name || '').trim(),
+        description: (rawFormData.description || '').trim() || null,
+      };
+    }
+
+    if (tab === 'invoices') {
+      return {
+        type: (rawFormData.type || '').trim(),
+        amount: toNumberOrZero(rawFormData.amount),
+        sendTo: rawFormData.sendTo || 'All Members',
+        invoiceDate: rawFormData.invoiceDate || null,
+        dueDate: rawFormData.dueDate || null,
+        description: (rawFormData.description || '').trim() || null,
+      };
+    }
+
+    return rawFormData;
+  };
+
   useEffect(() => {
     loadData();
-    // Load system settings from localStorage
-    const saved = localStorage.getItem('systemSettings');
-    if (saved) setSystemSettings(JSON.parse(saved));
   }, []);
 
   const loadData = async () => {
@@ -71,6 +142,11 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
 
       const invoiceRes = await financeAPI.get('/settings/invoice-templates');
       setInvoiceTemplates(invoiceRes.data || []);
+
+      const systemRes = await financeAPI.get('/settings/system-settings');
+      if (systemRes?.data) {
+        setSystemSettings(systemRes.data);
+      }
     } catch (err) {
       console.error('Failed to load settings:', err);
     }
@@ -78,16 +154,21 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
 
   const handleSaveSystemSettings = async () => {
     try {
-      localStorage.setItem('systemSettings', JSON.stringify(systemSettings));
+      await financeAPI.patch('/settings/system-settings', systemSettings);
       alert('System settings saved successfully');
     } catch (err) {
       console.error('Failed to save system settings:', err);
+      alert(`Error: ${err.message}`);
     }
   };
 
   const handleAddNew = (tab) => {
     setActiveTab2(tab);
     // Preload sensible defaults for contribution scheduling so invoicing can auto-trigger.
+    const today = new Date();
+    const plus7Days = new Date(today);
+    plus7Days.setDate(today.getDate() + 7);
+
     const defaults =
       tab === 'contributions'
         ? {
@@ -102,6 +183,12 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
             lateFineGraceDays: 0,
             invoiceAllMembers: true,
             visibleInvoicing: true,
+          }
+        : tab === 'invoices'
+        ? {
+            sendTo: 'All Members',
+            invoiceDate: today.toISOString().substring(0, 10),
+            dueDate: plus7Days.toISOString().substring(0, 10),
           }
         : {};
     setFormData(defaults);
@@ -133,10 +220,24 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
         : activeTab2 === 'roles' ? 'group-roles'
         : 'invoice-templates';
 
+      const payload = sanitizePayloadByTab(activeTab2, formData);
+
+      if (!payload.name && ['contributions', 'expenses', 'income', 'fines', 'roles'].includes(activeTab2)) {
+        alert('Name is required for this configuration.');
+        return;
+      }
+
+      if (activeTab2 === 'invoices') {
+        if (!payload.type || !payload.sendTo || !payload.invoiceDate || !payload.dueDate) {
+          alert('Invoice type, recipient, invoice date, and due date are required.');
+          return;
+        }
+      }
+
       if (editingId) {
-        await financeAPI.patch(`/settings/${endpoint}/${editingId}`, formData);
+        await financeAPI.patch(`/settings/${endpoint}/${editingId}`, payload);
       } else {
-        await financeAPI.post(`/settings/${endpoint}`, formData);
+        await financeAPI.post(`/settings/${endpoint}`, payload);
       }
       loadData();
       setShowForm(false); // Collapse the form after successful save
@@ -428,7 +529,7 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                       <tr>
                         <th>Name</th>
                         <th>Description</th>
-                        <th>Admin Only</th>
+                        <th>Nature</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -437,7 +538,7 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                         <tr key={ec.id}>
                           <td><strong>{ec.name}</strong></td>
                           <td>{ec.description || '-'}</td>
-                          <td>{ec.isAdmin ? '✓' : '✗'}</td>
+                          <td>{ec.nature || '-'}</td>
                           <td>
                             <button className="btn-edit" onClick={() => {
                               setFormData(ec);
@@ -772,10 +873,12 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                     <input type="text" value={formData.name || ''} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g., Office Supplies" required/>
                   </div>
                   <div className="form-group">
-                    <label>Admin Only</label>
-                    <select value={formData.isAdmin ? 'yes' : 'no'} onChange={(e) => setFormData({...formData, isAdmin: e.target.value === 'yes'})}>
-                      <option value="yes">Yes (Admin Expense)</option>
-                      <option value="no">No (General Expense)</option>
+                    <label>Nature</label>
+                    <select value={formData.nature || ''} onChange={(e) => setFormData({...formData, nature: e.target.value})}>
+                      <option value="">Select nature</option>
+                      <option value="operational">Operational</option>
+                      <option value="administrative">Administrative</option>
+                      <option value="capital">Capital</option>
                     </select>
                   </div>
                   <div className="form-group full-width">
@@ -838,6 +941,32 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                       <option value="Active Only">Active Members Only</option>
                       <option value="Specific Members">Specific Members</option>
                     </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Invoice Date *</label>
+                    <input
+                      type="date"
+                      value={formatDateInput(formData.invoiceDate)}
+                      onChange={(e) => setFormData({...formData, invoiceDate: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Due Date *</label>
+                    <input
+                      type="date"
+                      value={formatDateInput(formData.dueDate)}
+                      onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="form-group full-width">
+                    <label>Description</label>
+                    <textarea
+                      value={formData.description || ''}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      placeholder="Optional template notes"
+                    />
                   </div>
                 </>
               )}

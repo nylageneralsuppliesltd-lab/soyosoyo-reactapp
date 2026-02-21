@@ -26,6 +26,17 @@ export class SettingsController {
     return this.settingsService.deleteAccount(+id);
   }
 
+  // ============== SYSTEM SETTINGS ==============
+  @Get('system-settings')
+  async getSystemSettings() {
+    return this.settingsService.getSystemSettings();
+  }
+
+  @Patch('system-settings')
+  async updateSystemSettings(@Body() data: any) {
+    return this.settingsService.updateSystemSettings(data);
+  }
+
   // ============== CONTRIBUTION TYPES ==============
   @Get('contribution-types')
   async getContributionTypes() {

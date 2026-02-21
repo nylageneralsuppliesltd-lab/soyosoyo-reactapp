@@ -9,6 +9,106 @@ export class SettingsService {
     private categoryLedgerService: CategoryLedgerService,
   ) {}
 
+  private toNumber(value: any, fallback?: number) {
+    if (value === null || value === undefined || value === '') return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private toInteger(value: any, fallback?: number) {
+    if (value === null || value === undefined || value === '') return fallback;
+    const parsed = parseInt(String(value), 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private toBoolean(value: any, fallback?: boolean) {
+    if (value === null || value === undefined || value === '') return fallback;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+      if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+    }
+    return fallback;
+  }
+
+  private toDate(value: any) {
+    if (!value) return undefined;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+
+  private cleanString(value: any) {
+    if (value === null || value === undefined) return undefined;
+    const cleaned = String(value).trim();
+    return cleaned.length ? cleaned : undefined;
+  }
+
+  private sanitizeContributionType(data: any) {
+    return {
+      name: this.cleanString(data?.name) || 'Unnamed',
+      amount: this.toNumber(data?.amount, 0),
+      description: this.cleanString(data?.description),
+      frequency: this.cleanString(data?.frequency),
+      typeCategory: this.cleanString(data?.typeCategory),
+      dayOfMonth: this.cleanString(data?.dayOfMonth),
+      invoiceDate: this.toDate(data?.invoiceDate),
+      dueDate: this.toDate(data?.dueDate),
+      smsNotifications: this.toBoolean(data?.smsNotifications, true),
+      emailNotifications: this.toBoolean(data?.emailNotifications, false),
+      finesEnabled: this.toBoolean(data?.finesEnabled, false),
+      lateFineEnabled: this.toBoolean(data?.lateFineEnabled, false),
+      lateFineAmount: this.toNumber(data?.lateFineAmount, 0),
+      lateFineGraceDays: this.toInteger(data?.lateFineGraceDays, 0),
+      invoiceAllMembers: this.toBoolean(data?.invoiceAllMembers, true),
+      visibleInvoicing: this.toBoolean(data?.visibleInvoicing, true),
+    };
+  }
+
+  private sanitizeExpenseCategory(data: any) {
+    return {
+      name: this.cleanString(data?.name) || 'Unnamed',
+      description: this.cleanString(data?.description),
+      nature: this.cleanString(data?.nature),
+    };
+  }
+
+  private sanitizeIncomeCategory(data: any) {
+    return {
+      name: this.cleanString(data?.name) || 'Unnamed',
+      description: this.cleanString(data?.description),
+    };
+  }
+
+  private sanitizeFineCategory(data: any) {
+    return {
+      name: this.cleanString(data?.name) || 'Unnamed',
+    };
+  }
+
+  private sanitizeGroupRole(data: any) {
+    return {
+      name: this.cleanString(data?.name) || 'Unnamed',
+      description: this.cleanString(data?.description),
+      permissions: Array.isArray(data?.permissions) ? data.permissions : undefined,
+    };
+  }
+
+  private sanitizeInvoiceTemplate(data: any) {
+    return {
+      type: this.cleanString(data?.type),
+      sendTo: this.cleanString(data?.sendTo),
+      amount: this.toNumber(data?.amount, 0),
+      invoiceDate: this.toDate(data?.invoiceDate),
+      dueDate: this.toDate(data?.dueDate),
+      description: this.cleanString(data?.description),
+    };
+  }
+
+  private stripUndefined<T extends Record<string, any>>(obj: T) {
+    return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
+  }
+
   // ============== ACCOUNTS ==============
   async getAccounts() {
     return this.prisma.account.findMany({
@@ -36,11 +136,14 @@ export class SettingsService {
   }
 
   async createContributionType(data: any) {
-    return this.prisma.contributionType.create({ data });
+    return this.prisma.contributionType.create({ data: this.sanitizeContributionType(data) });
   }
 
   async updateContributionType(id: number, data: any) {
-    return this.prisma.contributionType.update({ where: { id }, data });
+    return this.prisma.contributionType.update({
+      where: { id },
+      data: this.sanitizeContributionType(data),
+    });
   }
 
   async deleteContributionType(id: number) {
@@ -56,7 +159,9 @@ export class SettingsService {
   }
 
   async createExpenseCategory(data: any) {
-    const category = await this.prisma.expenseCategory.create({ data });
+    const category = await this.prisma.expenseCategory.create({
+      data: this.sanitizeExpenseCategory(data),
+    });
     
     // Auto-create category ledger
     await this.categoryLedgerService.createCategoryLedger(
@@ -72,7 +177,10 @@ export class SettingsService {
   }
 
   async updateExpenseCategory(id: number, data: any) {
-    return this.prisma.expenseCategory.update({ where: { id }, data });
+    return this.prisma.expenseCategory.update({
+      where: { id },
+      data: this.sanitizeExpenseCategory(data),
+    });
   }
 
   async deleteExpenseCategory(id: number) {
@@ -88,7 +196,9 @@ export class SettingsService {
   }
 
   async createIncomeCategory(data: any) {
-    const category = await this.prisma.incomeCategory.create({ data });
+    const category = await this.prisma.incomeCategory.create({
+      data: this.sanitizeIncomeCategory(data),
+    });
     
     // Auto-create category ledger
     await this.categoryLedgerService.createCategoryLedger(
@@ -104,7 +214,10 @@ export class SettingsService {
   }
 
   async updateIncomeCategory(id: number, data: any) {
-    return this.prisma.incomeCategory.update({ where: { id }, data });
+    return this.prisma.incomeCategory.update({
+      where: { id },
+      data: this.sanitizeIncomeCategory(data),
+    });
   }
 
   async deleteIncomeCategory(id: number) {
@@ -119,11 +232,14 @@ export class SettingsService {
   }
 
   async createFineCategory(data: any) {
-    return this.prisma.fineCategory.create({ data });
+    return this.prisma.fineCategory.create({ data: this.sanitizeFineCategory(data) });
   }
 
   async updateFineCategory(id: number, data: any) {
-    return this.prisma.fineCategory.update({ where: { id }, data });
+    return this.prisma.fineCategory.update({
+      where: { id },
+      data: this.sanitizeFineCategory(data),
+    });
   }
 
   async deleteFineCategory(id: number) {
@@ -157,11 +273,14 @@ export class SettingsService {
   }
 
   async createGroupRole(data: any) {
-    return this.prisma.groupRole.create({ data });
+    return this.prisma.groupRole.create({ data: this.sanitizeGroupRole(data) });
   }
 
   async updateGroupRole(id: number, data: any) {
-    return this.prisma.groupRole.update({ where: { id }, data });
+    return this.prisma.groupRole.update({
+      where: { id },
+      data: this.sanitizeGroupRole(data),
+    });
   }
 
   async deleteGroupRole(id: number) {
@@ -176,11 +295,75 @@ export class SettingsService {
   }
 
   async createInvoiceTemplate(data: any) {
-    return this.prisma.invoiceTemplate.create({ data });
+    return this.prisma.invoiceTemplate.create({
+      data: this.sanitizeInvoiceTemplate(data),
+    });
   }
 
   async updateInvoiceTemplate(id: number, data: any) {
-    return this.prisma.invoiceTemplate.update({ where: { id }, data });
+    return this.prisma.invoiceTemplate.update({
+      where: { id },
+      data: this.sanitizeInvoiceTemplate(data),
+    });
+  }
+
+  // ============== SYSTEM SETTINGS ==============
+  async getSystemSettings() {
+    const defaults = {
+      organizationName: 'SOYOSOYO MEDICARE COOPERATE SAVINGS AND CREDIT SOCIETY',
+      maxLoanMultiple: 3,
+      defaultLoanTermMonths: 12,
+      defaultInterestRate: 10,
+      enableFines: true,
+      finePercentage: 2,
+      currency: 'KES',
+      fiscalYearStart: '01-01',
+    };
+
+    const record = await this.prisma.iFRSConfig.findUnique({ where: { key: 'system_settings' } });
+    if (!record?.value) {
+      return defaults;
+    }
+
+    try {
+      const parsed = JSON.parse(record.value);
+      return {
+        ...defaults,
+        ...parsed,
+      };
+    } catch {
+      return defaults;
+    }
+  }
+
+  async updateSystemSettings(data: any) {
+    const payload = {
+      organizationName: this.cleanString(data?.organizationName) || 'SOYOSOYO MEDICARE COOPERATE SAVINGS AND CREDIT SOCIETY',
+      maxLoanMultiple: this.toNumber(data?.maxLoanMultiple, 3),
+      defaultLoanTermMonths: this.toInteger(data?.defaultLoanTermMonths, 12),
+      defaultInterestRate: this.toNumber(data?.defaultInterestRate, 10),
+      enableFines: this.toBoolean(data?.enableFines, true),
+      finePercentage: this.toNumber(data?.finePercentage, 2),
+      currency: this.cleanString(data?.currency) || 'KES',
+      fiscalYearStart: this.cleanString(data?.fiscalYearStart) || '01-01',
+    };
+
+    const upserted = await this.prisma.iFRSConfig.upsert({
+      where: { key: 'system_settings' },
+      create: {
+        key: 'system_settings',
+        value: JSON.stringify(payload),
+        description: 'Global system configuration settings',
+      },
+      update: {
+        value: JSON.stringify(payload),
+      },
+    });
+
+    return {
+      ...payload,
+      updatedAt: upserted.updatedAt,
+    };
   }
 
   async deleteInvoiceTemplate(id: number) {
