@@ -120,10 +120,6 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
     return rawFormData;
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   const loadData = async () => {
     try {
       const contribRes = await financeAPI.get('/settings/contribution-types');
@@ -152,6 +148,10 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
       console.error('Failed to load settings:', err);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const handleSaveSystemSettings = async () => {
     try {

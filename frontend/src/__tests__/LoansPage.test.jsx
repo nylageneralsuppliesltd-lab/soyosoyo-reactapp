@@ -7,10 +7,15 @@ jest.mock('../components/loans/BankLoans', () => () => null);
 import { render, screen } from '@testing-library/react';
 import LoansPage from '../pages/LoansPage';
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 
 describe('LoansPage', () => {
   it('renders Loans Management header', () => {
-    render(<LoansPage />);
+    render(
+      <MemoryRouter>
+        <LoansPage />
+      </MemoryRouter>
+    );
     expect(screen.getByText(/Loans Management/i)).toBeInTheDocument();
   });
 });

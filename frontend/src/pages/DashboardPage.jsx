@@ -18,6 +18,7 @@ import {
 import { UsersThree, PiggyBank, ArrowDownLeft, Money, TrendUp, Calendar, ArrowRight, Spinner } from '@phosphor-icons/react';
 import '../styles/dashboard-premium.css';
 import AccountBalanceCard from '../components/AccountBalanceCard';
+import WelcomeBanner from '../components/WelcomeBanner';
 import {
   calculateDashboardStats,
   getMonthlyTrendData,
@@ -181,6 +182,9 @@ const DashboardPage = () => {
           <button onClick={loadDashboardData}>Retry</button>
         </div>
       )}
+
+      {/* Welcome Banner */}
+      <WelcomeBanner />
 
       {/* Header */}
       <div className="dashboard-header">

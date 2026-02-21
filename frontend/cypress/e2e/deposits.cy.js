@@ -1,23 +1,17 @@
 const apiBase = Cypress.env('apiBase') || 'http://localhost:3000/api';
 
 const pickMember = () => {
-  return cy.contains('label', 'Member')
-    .parent()
-    .find('input')
-    .then(($input) => {
-      cy.wrap($input).clear().type('a');
-    })
-    .then(() => cy.wait(300))
-    .then(() => cy.get('body'))
-    .then(($body) => {
-      const options = $body.find('.member-dropdown .member-option:not(.add-member-option)');
-      if (options.length === 0) {
-        cy.log('No members available for selection');
-        return false;
-      }
-      cy.wrap(options[0]).click();
-      return true;
-    });
+  cy.contains('label', 'Member').parent().find('input').first().clear().type('a');
+  cy.wait(300);
+  return cy.get('body').then(($body) => {
+    const options = $body.find('.member-dropdown .member-option:not(.add-member-option)');
+    if (!options.length) {
+      cy.log('No members available for selection');
+      return false;
+    }
+
+    return cy.wrap(options[0]).click({ force: true }).then(() => true);
+  });
 };
 
 const selectSmartSelect = (labelText) => {
@@ -27,9 +21,35 @@ const selectSmartSelect = (labelText) => {
   });
 };
 
+const selectFirstAvailableAccount = () => {
+  cy.get('body').then(($body) => {
+    if ($body.find('.smart-select-wrapper:contains("Receiving Account")').length) {
+      selectSmartSelect('Receiving Account');
+    } else {
+      selectSmartSelect('Account');
+    }
+  });
+};
+
+const fillDescriptionField = (text) => {
+  cy.contains('label', 'Description')
+    .parent()
+    .then(($parent) => {
+      const textarea = $parent.find('textarea');
+      if (textarea.length) {
+        cy.wrap(textarea).first().clear().type(text);
+      } else {
+        cy.wrap($parent).find('input[type="text"]').first().clear().type(text);
+      }
+    });
+};
+
 describe('Deposits menus E2E', () => {
+  beforeEach(() => {
+    cy.visitAuthed('/deposits');
+  });
+
   it('records a contribution', () => {
-    cy.visit('/deposits');
     cy.contains('button.menu-tab', 'Contribution').click();
 
     pickMember().then((memberSelected) => {
@@ -39,9 +59,9 @@ describe('Deposits menus E2E', () => {
       }
 
       cy.contains('label', 'Amount').parent().find('input[type="number"]').clear().type('150');
-      selectSmartSelect('Account');
+      selectFirstAvailableAccount();
 
-      cy.intercept('POST', '**/deposits').as('createContribution');
+      cy.intercept('POST', '**/deposits/bulk/import-json').as('createContribution');
       cy.contains('button', 'Record Contribution').click();
       cy.wait('@createContribution').then((interception) => {
         expect(interception.response.statusCode).to.be.within(200, 299);
@@ -50,7 +70,6 @@ describe('Deposits menus E2E', () => {
   });
 
   it('records a fine payment', () => {
-    cy.visit('/deposits');
     cy.contains('button.menu-tab', 'Fine Payment').click();
 
     pickMember().then((memberSelected) => {
@@ -61,10 +80,10 @@ describe('Deposits menus E2E', () => {
 
       cy.contains('label', 'Fine Amount').parent().find('input[type="number"]').clear().type('50');
       cy.contains('label', 'Reason for Fine').parent().find('textarea').clear().type('QA fine');
-      selectSmartSelect('Account');
+      selectFirstAvailableAccount();
 
       cy.intercept('POST', '**/deposits/bulk/import-json').as('createFine');
-      cy.contains('button', 'Record Fine Payment').click();
+      cy.contains('button', /Record Fine/i).click();
       cy.wait('@createFine').then((interception) => {
         expect(interception.response.statusCode).to.be.within(200, 299);
       });
@@ -72,7 +91,6 @@ describe('Deposits menus E2E', () => {
   });
 
   it('records a loan repayment when a loan exists', () => {
-    cy.visit('/deposits');
     cy.contains('button.menu-tab', 'Loan Repayment').click();
 
     pickMember().then((memberSelected) => {
@@ -92,7 +110,7 @@ describe('Deposits menus E2E', () => {
           }
           cy.wrap($select).select(options.eq(1).text());
           cy.contains('label', 'Repayment Amount').parent().find('input[type="number"]').clear().type('200');
-          selectSmartSelect('Account');
+          selectFirstAvailableAccount();
 
           cy.intercept('POST', '**/deposits/bulk/import-json').as('createRepayment');
           cy.contains('button', 'Record Loan Repayment').click();
@@ -104,13 +122,12 @@ describe('Deposits menus E2E', () => {
   });
 
   it('records income', () => {
-    cy.visit('/deposits');
     cy.contains('button.menu-tab', 'Income').click();
 
     cy.contains('label', 'Amount').parent().find('input[type="number"]').clear().type('350');
     cy.contains('label', 'Income Source').parent().find('input[type="text"]').clear().type('QA income');
-    cy.contains('label', 'Description').parent().find('textarea').clear().type('QA income description');
-    selectSmartSelect('Receiving Account');
+    fillDescriptionField('QA income description');
+    selectFirstAvailableAccount();
 
     cy.intercept('POST', '**/deposits/bulk/import-json').as('createIncome');
     cy.contains('button', 'Record Income').click();
@@ -120,24 +137,22 @@ describe('Deposits menus E2E', () => {
   });
 
   it('records miscellaneous payment without member', () => {
-    cy.visit('/deposits');
     cy.contains('button.menu-tab', 'Miscellaneous').click();
 
     cy.contains('label', 'This payment is from a member').find('input').uncheck();
     cy.contains('label', 'Amount').parent().find('input[type="number"]').clear().type('75');
     cy.contains('label', 'Purpose').parent().find('input[type="text"]').clear().type('QA purpose');
-    cy.contains('label', 'Description').parent().find('textarea').clear().type('QA misc description');
-    selectSmartSelect('Account');
+    fillDescriptionField('QA misc description');
+    selectFirstAvailableAccount();
 
     cy.intercept('POST', '**/deposits/bulk/import-json').as('createMisc');
-    cy.contains('button', 'Record Miscellaneous Payment').click();
+    cy.contains('button', /Record Payment/i).click();
     cy.wait('@createMisc').then((interception) => {
       expect(interception.response.statusCode).to.be.within(200, 299);
     });
   });
 
   it('records share capital', () => {
-    cy.visit('/deposits');
     cy.contains('button.menu-tab', 'Share Capital').click();
 
     pickMember().then((memberSelected) => {
@@ -147,7 +162,7 @@ describe('Deposits menus E2E', () => {
       }
 
       cy.contains('label', 'Amount').parent().find('input[type="number"]').clear().type('500');
-      selectSmartSelect('Account');
+      selectFirstAvailableAccount();
 
       cy.intercept('POST', '**/deposits/bulk/import-json').as('createShare');
       cy.contains('button', 'Record Share Capital Payment').click();
@@ -158,10 +173,9 @@ describe('Deposits menus E2E', () => {
   });
 
   it('imports bulk payments', () => {
-    cy.visit('/deposits');
     cy.contains('button.menu-tab', 'Bulk Import').click();
 
-    cy.request('GET', `${apiBase}/members`).then((response) => {
+    cy.apiRequestAuth('GET', `${apiBase}/members`).then((response) => {
       const members = Array.isArray(response.body) ? response.body : (response.body.data || []);
       const member = members[0];
       if (!member) {

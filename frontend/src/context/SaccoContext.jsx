@@ -12,6 +12,12 @@ export const useSacco = () => {
 };
 
 export const SaccoProvider = ({ children }) => {
+  const getTrialEndIso = (startDate = new Date()) => {
+    const trialEnd = new Date(startDate);
+    trialEnd.setDate(trialEnd.getDate() + 90);
+    return trialEnd.toISOString();
+  };
+
   const getDeveloperMode = () => {
     try {
       const raw = localStorage.getItem('authSession');
@@ -48,7 +54,7 @@ export const SaccoProvider = ({ children }) => {
     },
     subscriptionStatus: 'trial',
     trialStartsAt: new Date().toISOString(),
-    trialEndsAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+    trialEndsAt: getTrialEndIso(),
     lastPaymentAt: null,
     createdAt: new Date().toISOString(),
   };

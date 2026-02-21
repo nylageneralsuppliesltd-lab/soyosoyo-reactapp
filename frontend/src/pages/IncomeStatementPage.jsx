@@ -54,7 +54,7 @@ export default function IncomeStatementPage() {
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [filters.period, filters.startDate, filters.endDate]);
 
   const revenue = data?.meta?.totalIncome || 0;

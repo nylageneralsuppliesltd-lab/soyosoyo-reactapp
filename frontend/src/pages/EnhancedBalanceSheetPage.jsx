@@ -34,7 +34,7 @@ export default function BalanceSheetPage() {
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [mode]);
 
   const formatCurrency = (amount) => {

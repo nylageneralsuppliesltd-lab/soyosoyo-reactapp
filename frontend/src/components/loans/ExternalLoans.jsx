@@ -232,6 +232,9 @@ const ExternalLoans = ({ onError }) => {
   });
   const [formErrors, setFormErrors] = useState({});
 
+  const isDevEnv = typeof window !== 'undefined'
+    && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -261,13 +264,13 @@ const ExternalLoans = ({ onError }) => {
       setAccounts(accountsArray);
       
       // Debug log
-      if (import.meta.env.DEV) {
+      if (isDevEnv) {
         console.log('Loan types loaded:', typesArray.length);
         console.log('Accounts loaded:', accountsArray.length);
       }
     } catch (err) {
       onError?.(err.message);
-      if (import.meta.env.DEV) {
+      if (isDevEnv) {
         console.error('Fetch error:', err);
       }
     } finally {

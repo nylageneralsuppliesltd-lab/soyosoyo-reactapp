@@ -691,7 +691,7 @@ const APIReportsPage = () => {
     if (expandedReport) {
       fetchReportData(expandedReport);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [filters.period, filters.startDate, filters.endDate]);
 
   if (loading) {

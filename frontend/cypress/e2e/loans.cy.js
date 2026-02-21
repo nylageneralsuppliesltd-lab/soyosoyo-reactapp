@@ -10,9 +10,13 @@ describe('Loans Module E2E - Comprehensive', () => {
   let createdLoanTypeId = null;
   let createdMemberLoanId = null;
 
+  beforeEach(() => {
+    cy.apiLogin();
+  });
+
   it('should create, edit, and delete a loan type, then create and delete a member loan', function () {
     cy.log('Visiting Loan Types tab');
-    cy.visit('/loans?tab=types');
+    cy.visitAuthed('/loans?tab=types');
     cy.contains('h1', 'Loan Types Management').should('be.visible');
     cy.contains('button', 'New Loan Type').click();
     cy.get('form').should('be.visible');
@@ -56,7 +60,7 @@ describe('Loans Module E2E - Comprehensive', () => {
     cy.get('.alert').should('contain.text', 'Loan type deleted');
 
     cy.log('Visiting Member Loans tab');
-    cy.visit('/loans');
+    cy.visitAuthed('/loans');
     cy.get('button.loans-tab-btn[title="Member Loans"]', { timeout: 15000 }).click({ force: true });
     cy.contains('h1', 'Member Loans', { timeout: 15000 }).should('be.visible');
     cy.contains('button', 'Create Loan', { timeout: 15000 }).should('be.visible').click();
@@ -124,7 +128,7 @@ describe('Loans Module E2E - Comprehensive', () => {
   });
 
   it('should create, view, approve, and delete a member loan', function () {
-    cy.visit('/loans');
+    cy.visitAuthed('/loans');
     cy.get('button.loans-tab-btn[title="Member Loans"]', { timeout: 15000 }).click({ force: true });
     cy.contains('h1', 'Member Loans', { timeout: 15000 }).should('be.visible');
     cy.contains('button', 'Create Loan', { timeout: 15000 }).should('be.visible').click();
@@ -197,9 +201,9 @@ describe('Loans Module E2E - Comprehensive', () => {
   });
 
   it('should view dashboard and member profile', () => {
-    cy.visit('/dashboard');
+    cy.visitAuthed('/dashboard');
     cy.get('body', { timeout: 10000 }).should('contain.text', 'Loans');
-    cy.visit('/members');
+    cy.visitAuthed('/members');
     cy.get('body').should('contain.text', 'Members');
     cy.get('body').then(($body) => {
       const rows = $body.find('table tbody tr');

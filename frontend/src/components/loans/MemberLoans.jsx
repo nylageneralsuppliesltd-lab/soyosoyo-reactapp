@@ -91,7 +91,7 @@ const MemberLoans = ({ onError, onLoading }) => {
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Handle form submission for creating or updating a loan

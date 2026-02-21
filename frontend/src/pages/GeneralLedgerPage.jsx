@@ -13,7 +13,7 @@ const GeneralLedgerPage = () => {
 
   useEffect(() => {
     loadLedger();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const loadLedger = async () => {

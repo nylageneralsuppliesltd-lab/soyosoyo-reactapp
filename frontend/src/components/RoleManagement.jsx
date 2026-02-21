@@ -18,10 +18,6 @@ const RoleManagement = () => {
 
   const permissionsByModule = getPermissionsByModule();
 
-  useEffect(() => {
-    loadRoles();
-  }, []);
-
   const loadRoles = async () => {
     try {
       const res = await financeAPI.get('/settings/group-roles');
@@ -30,6 +26,10 @@ const RoleManagement = () => {
       console.error('Failed to load roles:', err);
     }
   };
+
+  useEffect(() => {
+    loadRoles();
+  }, []);
 
   const handleAddRole = () => {
     setFormData({

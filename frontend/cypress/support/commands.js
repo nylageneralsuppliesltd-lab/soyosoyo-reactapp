@@ -1,25 +1,50 @@
-// ***********************************************
-// This example commands.js shows you how to
-// create various custom commands and overwrite
-// existing commands.
-//
-// For more comprehensive examples of custom
-// commands please read more here:
-// https://on.cypress.io/custom-commands
-// ***********************************************
-//
-//
-// -- This is a parent command --
-// Cypress.Commands.add('login', (email, password) => { ... })
-//
-//
-// -- This is a child command --
-// Cypress.Commands.add('drag', { prevSubject: 'element'}, (subject, options) => { ... })
-//
-//
-// -- This is a dual command --
-// Cypress.Commands.add('dismiss', { prevSubject: 'optional'}, (subject, options) => { ... })
-//
-//
-// -- This will overwrite an existing command --
-// Cypress.Commands.overwrite('visit', (originalFn, url, options) => { ... })
+const apiBase = Cypress.env('apiBase') || 'http://localhost:3000/api';
+const authIdentifier = Cypress.env('authIdentifier') || 'jncnyaboke@gmail.com';
+const authPassword = Cypress.env('authPassword') || 'SmokePass#2026';
+
+Cypress.Commands.add('apiLogin', () => {
+	return cy.request('POST', `${apiBase}/auth/login`, {
+		identifier: authIdentifier,
+		password: authPassword,
+	}).then((response) => {
+		expect(response.status).to.be.within(200, 299);
+		const session = response.body;
+		Cypress.env('authSession', session);
+		Cypress.env('authToken', session?.token);
+		return session;
+	});
+});
+
+Cypress.Commands.add('visitAuthed', (path) => {
+	const existingSession = Cypress.env('authSession');
+	if (existingSession?.token) {
+		cy.visit(path, {
+			timeout: 120000,
+			onBeforeLoad(win) {
+				win.localStorage.setItem('authSession', JSON.stringify(existingSession));
+			},
+		});
+		return;
+	}
+
+	return cy.apiLogin().then((session) => {
+		cy.visit(path, {
+			timeout: 120000,
+			onBeforeLoad(win) {
+				win.localStorage.setItem('authSession', JSON.stringify(session));
+			},
+		});
+	});
+});
+
+Cypress.Commands.add('apiRequestAuth', (method, url, body) => {
+	const token = Cypress.env('authToken');
+	return cy.request({
+		method,
+		url,
+		body,
+		headers: {
+			Authorization: `Bearer ${token}`,
+		},
+	});
+});

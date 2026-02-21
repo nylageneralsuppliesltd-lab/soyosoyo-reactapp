@@ -1,6 +1,11 @@
 // Centralized API base URL with enforced /api suffix
 export const API_BASE = (() => {
-  let base = import.meta.env.VITE_API_URL;
+  const runtimeEnvBase =
+    (typeof globalThis !== 'undefined' && globalThis.process?.env?.VITE_API_URL)
+    || (typeof window !== 'undefined' && window.__VITE_API_URL)
+    || '';
+
+  let base = runtimeEnvBase;
   if (!base) {
     const isLocal = typeof window !== 'undefined' && (
       window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'

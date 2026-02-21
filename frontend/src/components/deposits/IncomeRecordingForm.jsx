@@ -1,13 +1,13 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, TrendingUp, Tag } from 'lucide-react';
+import { DollarSign, FileText, Calendar, CreditCard, Hash, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import SmartSelect from '../common/SmartSelect';
 
 const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
+  const createEmptyRow = () => ({
     date: new Date().toISOString().split('T')[0],
     amount: '',
     incomeCategory: 'interest_income',
@@ -19,6 +19,7 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
     notes: ''
   });
 
+  const [rows, setRows] = useState([createEmptyRow()]);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -39,17 +40,6 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
     { value: 'other_income', label: 'Other Income' }
   ];
 
-  const fetchDepositCategories = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/settings/deposit-categories`);
-      const data = await response.json();
-      setDepositCategories(Array.isArray(data) ? data : (data.data || []));
-    } catch (err) {
-      console.error('Failed to fetch deposit categories:', err);
-      setDepositCategories([]);
-    }
-  };
-
   const paymentMethods = [
     { value: 'bank', label: 'Bank Transfer' },
     { value: 'mpesa', label: 'M-Pesa' },
@@ -65,19 +55,32 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
   useEffect(() => {
     if (editingDeposit) {
-      setFormData({
-        date: editingDeposit.date ? new Date(editingDeposit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        amount: editingDeposit.amount || '',
-        incomeCategory: editingDeposit.incomeCategory || 'interest_income',
-        source: editingDeposit.source || '',
-        description: editingDeposit.description || '',
-        paymentMethod: editingDeposit.method || 'bank',
-        accountId: editingDeposit.accountId || '',
-        reference: editingDeposit.reference || '',
-        notes: editingDeposit.notes || ''
-      });
+      setRows([
+        {
+          date: editingDeposit.date ? new Date(editingDeposit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          amount: editingDeposit.amount || '',
+          incomeCategory: editingDeposit.incomeCategory || 'interest_income',
+          source: editingDeposit.source || '',
+          description: editingDeposit.description || '',
+          paymentMethod: editingDeposit.method || 'bank',
+          accountId: editingDeposit.accountId || '',
+          reference: editingDeposit.reference || '',
+          notes: editingDeposit.notes || ''
+        }
+      ]);
     }
   }, [editingDeposit]);
+
+  const fetchDepositCategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/settings/deposit-categories`);
+      const data = await response.json();
+      setDepositCategories(Array.isArray(data) ? data : (data.data || []));
+    } catch (err) {
+      console.error('Failed to fetch deposit categories:', err);
+      setDepositCategories([]);
+    }
+  };
 
   const fetchAccounts = async () => {
     try {
@@ -89,9 +92,23 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
     }
   };
 
-  const handleSmartSelectChange = (field) => (valueOrEvent) => {
+  const updateRow = (index, patch) => {
+    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  };
+
+  const handleSmartSelectChange = (index, field) => (valueOrEvent) => {
     const value = valueOrEvent?.target ? valueOrEvent.target.value : valueOrEvent;
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    updateRow(index, { [field]: value });
+  };
+
+  const addRow = () => {
+    if (editingDeposit) return;
+    setRows((prev) => [...prev, createEmptyRow()]);
+  };
+
+  const removeRow = (index) => {
+    if (editingDeposit) return;
+    setRows((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e) => {
@@ -100,23 +117,44 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
     setMessage({ type: '', text: '' });
 
     try {
-      const payload = {
-        date: formData.date,
-        amount: parseFloat(formData.amount),
-        type: 'income',
-        paymentType: 'income',
-        incomeCategory: formData.incomeCategory,
-        source: formData.source,
-        description: formData.description,
-        method: formData.paymentMethod,
-        paymentMethod: formData.paymentMethod,
-        accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
-        reference: formData.reference,
-        notes: formData.notes
-      };
+      if (rows.length === 0) {
+        throw new Error('Please add at least one income row');
+      }
+
+      if (editingDeposit && rows.length > 1) {
+        throw new Error('Editing supports a single income row');
+      }
+
+      rows.forEach((row, index) => {
+        if (!row.amount || parseFloat(row.amount) <= 0) {
+          throw new Error(`Row ${index + 1}: Valid amount is required`);
+        }
+        if (!row.source) {
+          throw new Error(`Row ${index + 1}: Income source is required`);
+        }
+        if (!row.description) {
+          throw new Error(`Row ${index + 1}: Description is required`);
+        }
+      });
 
       let response;
       if (editingDeposit) {
+        const row = rows[0];
+        const payload = {
+          date: row.date,
+          amount: parseFloat(row.amount),
+          type: 'income',
+          paymentType: 'income',
+          incomeCategory: row.incomeCategory,
+          source: row.source,
+          description: row.description,
+          method: row.paymentMethod,
+          paymentMethod: row.paymentMethod,
+          accountId: row.accountId ? parseInt(row.accountId) : undefined,
+          reference: row.reference,
+          notes: row.notes
+        };
+
         const depositId = parseInt(editingDeposit.id, 10);
         if (isNaN(depositId)) {
           throw new Error('Invalid deposit ID');
@@ -127,10 +165,24 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
           body: JSON.stringify(payload)
         });
       } else {
+        const payments = rows.map((row) => ({
+          date: row.date,
+          amount: parseFloat(row.amount),
+          type: 'income',
+          paymentType: 'income',
+          incomeCategory: row.incomeCategory,
+          source: row.source,
+          description: row.description,
+          method: row.paymentMethod,
+          paymentMethod: row.paymentMethod,
+          accountId: row.accountId ? parseInt(row.accountId) : undefined,
+          reference: row.reference,
+          notes: row.notes
+        }));
         response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payments: [payload] })
+          body: JSON.stringify({ payments })
         });
       }
 
@@ -140,23 +192,11 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
       }
 
       setMessage({ type: 'success', text: `Income ${editingDeposit ? 'updated' : 'recorded'} successfully!` });
-      
-      // Reset form
-      setFormData({
-        date: new Date().toISOString().split('T')[0],
-        amount: '',
-        incomeCategory: 'interest_income',
-        source: '',
-        description: '',
-        paymentMethod: 'bank',
-        accountId: '',
-        reference: '',
-        notes: ''
-      });
+      setRows([createEmptyRow()]);
 
       if (onSuccess) onSuccess();
       if (onCancel) onCancel();
-      
+
       setTimeout(() => setMessage({ type: '', text: '' }), 5000);
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -164,8 +204,6 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
       setLoading(false);
     }
   };
-
-  const selectedAccount = accounts.find(acc => acc.id === parseInt(formData.accountId));
 
   return (
     <div className="form-container">
@@ -181,160 +219,182 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
       )}
 
       <form onSubmit={handleSubmit} className="form-card">
-        <div className="form-grid-2">
-          <div className="form-group">
-            <label>
-              <Calendar size={18} />
-              Date *
-            </label>
-            <input
-              type="date"
-              value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              required
-            />
-          </div>
+        <div className="form-batch-list">
+          {rows.map((row, index) => {
+            const selectedAccount = accounts.find(acc => acc.id === parseInt(row.accountId));
+            return (
+              <div key={`income-row-${index}`} className="form-batch-row">
+                <div className="form-group">
+                  <label>
+                    <Calendar size={18} />
+                    Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={row.date}
+                    onChange={(e) => updateRow(index, { date: e.target.value })}
+                    required
+                  />
+                </div>
 
-          <div className="form-group">
-            <label>
-              <DollarSign size={18} />
-              Amount (KSh) *
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              placeholder="0.00"
-              required
-            />
-          </div>
+                <div className="form-group">
+                  <label>
+                    <DollarSign size={18} />
+                    Amount (KSh) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={row.amount}
+                    onChange={(e) => updateRow(index, { amount: e.target.value })}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <SmartSelect
+                    label="Income Category"
+                    name="incomeCategory"
+                    value={row.incomeCategory}
+                    onChange={handleSmartSelectChange(index, 'incomeCategory')}
+                    options={depositCategories.length > 0 ? depositCategories.map(cat => ({ id: cat.id || cat.name, name: cat.name })) : incomeCategories.map(cat => ({ id: cat.value, name: cat.label }))}
+                    onAddNew={() => navigate('/settings/income/create')}
+                    placeholder="Select category or create new..."
+                    required={true}
+                    showAddButton={true}
+                    addButtonType="category"
+                    icon={Tag}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <FileText size={18} />
+                    Income Source *
+                  </label>
+                  <input
+                    type="text"
+                    value={row.source}
+                    onChange={(e) => updateRow(index, { source: e.target.value })}
+                    placeholder="e.g., ABC Bank, John Doe, Investment Corp"
+                    required
+                  />
+                </div>
+
+                <div className="form-group form-batch-span-full">
+                  <label>
+                    <FileText size={18} />
+                    Description *
+                  </label>
+                  <textarea
+                    value={row.description}
+                    onChange={(e) => updateRow(index, { description: e.target.value })}
+                    placeholder="Detailed description of the income..."
+                    rows="3"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <CreditCard size={18} />
+                    Payment Method *
+                  </label>
+                  <select
+                    value={row.paymentMethod}
+                    onChange={(e) => updateRow(index, { paymentMethod: e.target.value })}
+                    required
+                  >
+                    {paymentMethods.map(method => (
+                      <option key={method.value} value={method.value}>
+                        {method.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <SmartSelect
+                    label="Account"
+                    name="accountId"
+                    value={row.accountId}
+                    onChange={handleSmartSelectChange(index, 'accountId')}
+                    options={accounts.map(account => ({
+                      id: account.id,
+                      name: getAccountDisplayName(account),
+                    }))}
+                    onAddNew={() => navigate('/settings/accounts/create')}
+                    placeholder="Select account or create new..."
+                    showAddButton={true}
+                    addButtonType="account"
+                    icon={CreditCard}
+                  />
+                  {selectedAccount && (
+                    <div className="account-balance-info">
+                      Balance: KSh {selectedAccount.balance?.toLocaleString() || '0.00'}
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <Hash size={18} />
+                    Reference Number
+                  </label>
+                  <input
+                    type="text"
+                    value={row.reference}
+                    onChange={(e) => updateRow(index, { reference: e.target.value })}
+                    placeholder="Receipt number, transaction ID, etc."
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <FileText size={18} />
+                    Additional Notes
+                  </label>
+                  <input
+                    type="text"
+                    value={row.notes}
+                    onChange={(e) => updateRow(index, { notes: e.target.value })}
+                    placeholder="Optional notes about this income"
+                  />
+                </div>
+
+                {rows.length > 1 && !editingDeposit && (
+                  <div className="form-group form-batch-span-full">
+                    <button
+                      type="button"
+                      className="btn-form-remove-row"
+                      onClick={() => removeRow(index)}
+                    >
+                      Remove row
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        <div className="form-grid-2">
-          <div className="form-group">
-            <SmartSelect
-              label="Income Category"
-              name="incomeCategory"
-              value={formData.incomeCategory}
-              onChange={handleSmartSelectChange('incomeCategory')}
-              options={depositCategories.length > 0 ? depositCategories.map(cat => ({ id: cat.id || cat.name, name: cat.name })) : incomeCategories.map(cat => ({ id: cat.value, name: cat.label }))}
-              onAddNew={() => navigate('/settings/income/create')}
-              placeholder="Select category or create new..."
-              required={true}
-              showAddButton={true}
-              addButtonType="category"
-              icon={Tag}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>
-              <FileText size={18} />
-              Income Source *
-            </label>
-            <input
-              type="text"
-              value={formData.source}
-              onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-              placeholder="e.g., ABC Bank, John Doe, Investment Corp"
-              required
-            />
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label>
-            <FileText size={18} />
-            Description *
-          </label>
-          <textarea
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="Detailed description of the income..."
-            rows="3"
-            required
-          />
-        </div>
-
-        <div className="form-grid-2">
-          <div className="form-group">
-            <label>
-              <CreditCard size={18} />
-              Payment Method *
-            </label>
-            <select
-              value={formData.paymentMethod}
-              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-              required
-            >
-              {paymentMethods.map(method => (
-                <option key={method.value} value={method.value}>
-                  {method.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <SmartSelect
-              label="Receiving Account"
-              name="accountId"
-              value={formData.accountId}
-              onChange={handleSmartSelectChange('accountId')}
-              options={accounts.map(acc => ({ id: acc.id, name: getAccountDisplayName(acc) }))}
-              onAddNew={() => navigate('/settings/accounts/create')}
-              placeholder="Select account or create new..."
-              required={true}
-              showAddButton={true}
-              addButtonType="account"
-              icon={CreditCard}
-            />
-            {selectedAccount && (
-              <small className="account-balance">
-                Balance: KSh {selectedAccount.balance?.toLocaleString() || '0.00'}
-              </small>
-            )}
-          </div>
-        </div>
-
-        <div className="form-grid-2">
-          <div className="form-group">
-            <label>
-              <Hash size={18} />
-              Reference Number
-            </label>
-            <input
-              type="text"
-              value={formData.reference}
-              onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-              placeholder="Transaction reference"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>
-              <FileText size={18} />
-              Additional Notes
-            </label>
-            <input
-              type="text"
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Optional notes"
-            />
-          </div>
-        </div>
-
-        <div className="form-actions">
-          {onCancel && (
-            <button type="button" className="btn btn-secondary" onClick={onCancel}>
-              Cancel
+        <div className="form-batch-actions">
+          {!editingDeposit && (
+            <button type="button" className="btn-form-add-row" onClick={addRow}>
+              Add another field
             </button>
           )}
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? (editingDeposit ? 'Updating...' : 'Recording...') : (editingDeposit ? 'Update Income' : 'Record Income')}
-          </button>
+          <div className="form-actions">
+            {onCancel && (
+              <button type="button" className="btn btn-secondary" onClick={onCancel}>
+                Cancel
+              </button>
+            )}
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? (editingDeposit ? 'Updating...' : 'Recording...') : (editingDeposit ? 'Update Income' : 'Record Income')}
+            </button>
+          </div>
         </div>
       </form>
 
@@ -347,8 +407,6 @@ const IncomeRecordingForm = ({ onSuccess, onCancel, editingDeposit }) => {
           <li>Ensure bank statements match the recorded income</li>
         </ul>
       </div>
-
-
     </div>
   );
 };

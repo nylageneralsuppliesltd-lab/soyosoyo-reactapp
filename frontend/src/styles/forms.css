@@ -356,6 +356,71 @@
 }
 
 /* ─────────────────────────────────────────────────────────
+   BATCH ENTRY ROWS
+   ───────────────────────────────────────────────────────── */
+
+.form-batch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-batch-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--form-gap);
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.form-batch-row .form-group {
+  margin: 0;
+}
+
+.form-batch-span-full {
+  grid-column: 1 / -1;
+}
+
+.form-batch-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.btn-form-add-row {
+  background: #0ea5e9;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.btn-form-add-row:hover {
+  background: #0284c7;
+}
+
+.btn-form-remove-row {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* ─────────────────────────────────────────────────────────
    RESPONSIVE DESIGN
    ───────────────────────────────────────────────────────── */
 

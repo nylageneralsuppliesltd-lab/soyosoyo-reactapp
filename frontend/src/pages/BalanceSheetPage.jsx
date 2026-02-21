@@ -54,7 +54,7 @@ export default function BalanceSheetPage() {
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [filters.period, filters.startDate, filters.endDate]);
 
   const assetTotal = data?.meta?.assetTotal || 0;

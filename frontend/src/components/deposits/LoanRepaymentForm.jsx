@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, TrendingUp } from 'lucide-react';
+import { DollarSign, Calendar, CreditCard, Hash } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
 import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import SmartSelect from '../common/SmartSelect';
@@ -8,10 +8,11 @@ import MemberPicker from '../common/MemberPicker';
 
 const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
+  const createEmptyRow = () => ({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
     memberName: '',
+    memberSearch: '',
     loanId: '',
     amount: '',
     principalAmount: '',
@@ -22,13 +23,10 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
     notes: ''
   });
 
+  const [rows, setRows] = useState([createEmptyRow()]);
   const [members, setMembers] = useState([]);
-  const [memberLoans, setMemberLoans] = useState([]);
-
-  // Always treat memberLoans as an array
-  const safeMemberLoans = Array.isArray(memberLoans) ? memberLoans : [];
-  const [accounts, setAccounts] = useState([]); // Will hold all real bank accounts
-  const [memberSearch, setMemberSearch] = useState('');
+  const [memberLoansByMember, setMemberLoansByMember] = useState({});
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
@@ -48,52 +46,28 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
   useEffect(() => {
     if (editingDeposit) {
-      setFormData({
-        date: editingDeposit.date ? new Date(editingDeposit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        memberId: editingDeposit.memberId || '',
-        memberName: editingDeposit.memberName || '',
-        loanId: editingDeposit.loanId || '',
-        amount: editingDeposit.amount || '',
-        principalAmount: editingDeposit.principalAmount || '',
-        interestAmount: editingDeposit.interestAmount || '',
-        paymentMethod: editingDeposit.method || 'cash',
-        accountId: editingDeposit.accountId || '',
-        reference: editingDeposit.reference || '',
-        notes: editingDeposit.description || editingDeposit.notes || ''
-      });
-      setMemberSearch(editingDeposit.memberName || '');
-    }
-  }, [editingDeposit]);
-
-  useEffect(() => {
-    const memberIdInt = Number(formData.memberId);
-    if (formData.memberId && !isNaN(memberIdInt)) {
-      fetchMemberLoans(memberIdInt);
-    } else if (formData.memberId) {
-      console.warn('Invalid memberId for loan fetch:', formData.memberId);
-      setMemberLoans([]);
-    }
-  }, [formData.memberId]);
-
-  useEffect(() => {
-    // Auto-allocate payment between principal and interest
-    if (formData.amount && formData.loanId) {
-      const loan = memberLoans.find(l => l.id === parseInt(formData.loanId));
-      if (loan) {
-        const amount = parseFloat(formData.amount);
-        const outstandingInterest = loan.interestAmount - loan.interestPaid;
-        
-        let interest = Math.min(amount, outstandingInterest);
-        let principal = amount - interest;
-        
-        setFormData(prev => ({
-          ...prev,
-          interestAmount: interest.toFixed(2),
-          principalAmount: principal.toFixed(2)
-        }));
+      const memberId = editingDeposit.memberId || '';
+      setRows([
+        {
+          date: editingDeposit.date ? new Date(editingDeposit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          memberId,
+          memberName: editingDeposit.memberName || '',
+          memberSearch: editingDeposit.memberName || '',
+          loanId: editingDeposit.loanId || '',
+          amount: editingDeposit.amount || '',
+          principalAmount: editingDeposit.principalAmount || '',
+          interestAmount: editingDeposit.interestAmount || '',
+          paymentMethod: editingDeposit.method || 'cash',
+          accountId: editingDeposit.accountId || '',
+          reference: editingDeposit.reference || '',
+          notes: editingDeposit.description || editingDeposit.notes || ''
+        }
+      ]);
+      if (memberId) {
+        fetchMemberLoans(memberId);
       }
     }
-  }, [formData.amount, formData.loanId, memberLoans]);
+  }, [editingDeposit]);
 
   const fetchMembers = async () => {
     try {
@@ -109,20 +83,14 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
 
   const fetchMemberLoans = async (memberId) => {
     try {
-      if (!memberId || isNaN(Number(memberId))) {
-        console.warn('fetchMemberLoans called with invalid memberId:', memberId);
-        setMemberLoans([]);
+      const memberIdNum = Number(memberId);
+      if (!memberIdNum || Number.isNaN(memberIdNum)) {
         return;
       }
-      // Fetch all loans for the member, not just 'active', to allow repayment of any with a balance
-      const response = await fetch(`${API_BASE}/loans?memberId=${memberId}`);
+      const response = await fetch(`${API_BASE}/loans?memberId=${memberIdNum}`);
       const data = await response.json();
-      // Only show loans with a positive balance (fallback if principal/interest fields are missing)
       const loans = Array.isArray(data.data) ? data.data : [];
-      if (import.meta.env.DEV) {
-        loans.forEach(l => { if (!l.memberId) console.warn('Loan missing memberId:', l); });
-      }
-      const repayableLoans = loans.filter(loan => {
+      const repayableLoans = loans.filter((loan) => {
         if (typeof loan.balance === 'number') {
           return loan.balance > 0.01;
         }
@@ -130,14 +98,13 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
         const interestBal = (loan.interestAmount || 0) - (loan.interestPaid || 0);
         return principalBal > 0.01 || interestBal > 0.01;
       });
-      setMemberLoans(repayableLoans);
+      setMemberLoansByMember((prev) => ({ ...prev, [memberIdNum]: repayableLoans }));
     } catch (error) {
       console.error('Error fetching member loans:', error);
-      setMemberLoans([]);
+      setMemberLoansByMember((prev) => ({ ...prev, [memberId]: [] }));
     }
   };
 
-  // Fetch all real bank accounts only
   const fetchAccounts = async () => {
     try {
       const realAccounts = await fetchRealAccounts();
@@ -148,22 +115,64 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
     }
   };
 
-  const selectMember = (member) => {
-    setFormData({
-      ...formData,
-      memberId: member.id.toString(),
+  const autoAllocateAmounts = (row) => {
+    if (!row.amount || !row.loanId || !row.memberId) return row;
+    const memberIdNum = Number(row.memberId);
+    const loans = memberLoansByMember[memberIdNum] || [];
+    const loan = loans.find(l => l.id === parseInt(row.loanId));
+    if (!loan) return row;
+    const amountValue = parseFloat(row.amount);
+    if (Number.isNaN(amountValue)) return row;
+
+    const outstandingInterest = Math.max(0, (loan.interestAmount || 0) - (loan.interestPaid || 0));
+    const interest = Math.min(amountValue, outstandingInterest);
+    const principal = Math.max(0, amountValue - interest);
+
+    return {
+      ...row,
+      interestAmount: interest.toFixed(2),
+      principalAmount: principal.toFixed(2)
+    };
+  };
+
+  const updateRow = (index, patch) => {
+    setRows((prev) => prev.map((row, i) => {
+      if (i !== index) return row;
+      const next = { ...row, ...patch };
+      if (Object.prototype.hasOwnProperty.call(patch, 'amount') || Object.prototype.hasOwnProperty.call(patch, 'loanId')) {
+        return autoAllocateAmounts(next);
+      }
+      return next;
+    }));
+  };
+
+  const selectMember = (index, member) => {
+    const memberId = member.id.toString();
+    updateRow(index, {
+      memberId,
       memberName: `${member.name}`,
+      memberSearch: `${member.name}`,
       loanId: '',
       amount: '',
       principalAmount: '',
       interestAmount: ''
     });
-    setMemberSearch(`${member.name}`);
+    fetchMemberLoans(memberId);
   };
 
-  const handleSmartSelectChange = (field) => (valueOrEvent) => {
+  const handleSmartSelectChange = (index, field) => (valueOrEvent) => {
     const value = valueOrEvent?.target ? valueOrEvent.target.value : valueOrEvent;
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    updateRow(index, { [field]: value });
+  };
+
+  const addRow = () => {
+    if (editingDeposit) return;
+    setRows((prev) => [...prev, createEmptyRow()]);
+  };
+
+  const removeRow = (index) => {
+    if (editingDeposit) return;
+    setRows((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e) => {
@@ -172,23 +181,44 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
     setMessage({ type: '', text: '' });
 
     try {
-      const payload = {
-        date: formData.date,
-        memberId: parseInt(formData.memberId),
-        memberName: formData.memberName,
-        loanId: parseInt(formData.loanId),
-        amount: parseFloat(formData.amount),
-        type: 'loan_repayment',
-        category: 'loan_repayment',
-        method: formData.paymentMethod,
-        accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
-        reference: formData.reference,
-        description: formData.notes,
-        notes: formData.notes
-      };
+      if (rows.length === 0) {
+        throw new Error('Please add at least one loan repayment row');
+      }
+
+      if (editingDeposit && rows.length > 1) {
+        throw new Error('Editing supports a single loan repayment row');
+      }
+
+      rows.forEach((row, index) => {
+        if (!row.memberId) {
+          throw new Error(`Row ${index + 1}: Member is required`);
+        }
+        if (!row.loanId) {
+          throw new Error(`Row ${index + 1}: Loan is required`);
+        }
+        if (!row.amount || parseFloat(row.amount) <= 0) {
+          throw new Error(`Row ${index + 1}: Valid amount is required`);
+        }
+      });
 
       let response;
       if (editingDeposit) {
+        const row = rows[0];
+        const payload = {
+          date: row.date,
+          memberId: parseInt(row.memberId),
+          memberName: row.memberName,
+          loanId: parseInt(row.loanId),
+          amount: parseFloat(row.amount),
+          type: 'loan_repayment',
+          category: 'loan_repayment',
+          method: row.paymentMethod,
+          accountId: row.accountId ? parseInt(row.accountId) : undefined,
+          reference: row.reference,
+          description: row.notes,
+          notes: row.notes
+        };
+
         const depositId = parseInt(editingDeposit.id, 10);
         if (isNaN(depositId)) {
           throw new Error('Invalid deposit ID');
@@ -199,10 +229,25 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
           body: JSON.stringify(payload)
         });
       } else {
+        const payments = rows.map((row) => ({
+          date: row.date,
+          memberId: parseInt(row.memberId),
+          memberName: row.memberName,
+          loanId: parseInt(row.loanId),
+          amount: parseFloat(row.amount),
+          type: 'loan_repayment',
+          category: 'loan_repayment',
+          method: row.paymentMethod,
+          accountId: row.accountId ? parseInt(row.accountId) : undefined,
+          reference: row.reference,
+          description: row.notes,
+          notes: row.notes
+        }));
+
         response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payments: [payload] })
+          body: JSON.stringify({ payments })
         });
       }
 
@@ -212,27 +257,12 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
       }
 
       setMessage({ type: 'success', text: `Loan repayment ${editingDeposit ? 'updated' : 'recorded'} successfully!` });
-      
-      // Reset form
-      setFormData({
-        date: new Date().toISOString().split('T')[0],
-        memberId: '',
-        memberName: '',
-        loanId: '',
-        amount: '',
-        principalAmount: '',
-        interestAmount: '',
-        paymentMethod: 'cash',
-        accountId: '',
-        reference: '',
-        notes: ''
-      });
-      setMemberSearch('');
-      setMemberLoans([]);
+      setRows([createEmptyRow()]);
+      setMemberLoansByMember({});
 
       if (onSuccess) onSuccess();
       if (onCancel) onCancel();
-      
+
       setTimeout(() => setMessage({ type: '', text: '' }), 5000);
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -240,9 +270,6 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
       setLoading(false);
     }
   };
-
-  const selectedAccount = accounts.find(acc => acc.id === parseInt(formData.accountId));
-  const selectedLoan = safeMemberLoans.find(loan => loan.id === parseInt(formData.loanId));
 
   return (
     <div className="form-container">
@@ -258,159 +285,187 @@ const LoanRepaymentForm = ({ onSuccess, onCancel, editingDeposit }) => {
       )}
 
       <form onSubmit={handleSubmit} className="form-card">
-        <div className="form-grid-2">
-          <div className="form-group">
-            <label>
-              <Calendar size={18} />
-              Date *
-            </label>
-            <input
-              type="date"
-              value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              required
-            />
-          </div>
+        <div className="form-batch-list">
+          {rows.map((row, index) => {
+            const memberIdNum = Number(row.memberId);
+            const loans = memberLoansByMember[memberIdNum] || [];
+            const selectedAccount = accounts.find(acc => acc.id === parseInt(row.accountId));
+            return (
+              <div key={`loan-row-${index}`} className="form-batch-row">
+                <div className="form-group">
+                  <label>
+                    <Calendar size={18} />
+                    Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={row.date}
+                    onChange={(e) => updateRow(index, { date: e.target.value })}
+                    required
+                  />
+                </div>
 
-          <MemberPicker
-            label="Member"
-            members={members}
-            value={memberSearch}
-            onChange={setMemberSearch}
-            onSelect={selectMember}
-            onAddNew={() => navigate('/members/create')}
-            required
-          />
+                <div className="form-group form-batch-span-full">
+                  <MemberPicker
+                    label="Member"
+                    members={members}
+                    value={row.memberSearch}
+                    onChange={(value) => updateRow(index, { memberSearch: value })}
+                    onSelect={(member) => selectMember(index, member)}
+                    onAddNew={() => navigate('/members/create')}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Loan *</label>
+                  <select
+                    value={row.loanId}
+                    onChange={(e) => updateRow(index, { loanId: e.target.value })}
+                    required
+                  >
+                    <option value="">Select loan</option>
+                    {loans.map((loan) => (
+                      <option key={loan.id} value={loan.id}>
+                        {loan.loanType || 'Loan'} - Balance: {Number(loan.balance || 0).toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <DollarSign size={18} />
+                    Amount (KSh) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={row.amount}
+                    onChange={(e) => updateRow(index, { amount: e.target.value })}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Principal Amount</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={row.principalAmount}
+                    readOnly
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Interest Amount</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={row.interestAmount}
+                    readOnly
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <CreditCard size={18} />
+                    Payment Method *
+                  </label>
+                  <select
+                    value={row.paymentMethod}
+                    onChange={(e) => updateRow(index, { paymentMethod: e.target.value })}
+                    required
+                  >
+                    {paymentMethods.map(method => (
+                      <option key={method.value} value={method.value}>
+                        {method.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <SmartSelect
+                    label="Account"
+                    name="accountId"
+                    value={row.accountId}
+                    onChange={handleSmartSelectChange(index, 'accountId')}
+                    options={accounts.map(account => ({
+                      id: account.id,
+                      name: getAccountDisplayName(account),
+                    }))}
+                    onAddNew={() => navigate('/settings/accounts/create')}
+                    placeholder="Select account or create new..."
+                    showAddButton={true}
+                    addButtonType="account"
+                    icon={CreditCard}
+                  />
+                  {selectedAccount && (
+                    <div className="account-balance-info">
+                      Balance: KSh {selectedAccount.balance?.toLocaleString() || '0.00'}
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <Hash size={18} />
+                    Reference Number
+                  </label>
+                  <input
+                    type="text"
+                    value={row.reference}
+                    onChange={(e) => updateRow(index, { reference: e.target.value })}
+                    placeholder="Receipt number, transaction ID, etc."
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Notes</label>
+                  <input
+                    type="text"
+                    value={row.notes}
+                    onChange={(e) => updateRow(index, { notes: e.target.value })}
+                    placeholder="Optional notes"
+                  />
+                </div>
+
+                {rows.length > 1 && !editingDeposit && (
+                  <div className="form-group form-batch-span-full">
+                    <button
+                      type="button"
+                      className="btn-form-remove-row"
+                      onClick={() => removeRow(index)}
+                    >
+                      Remove row
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        <div className="form-group">
-          <label>
-            <TrendingUp size={18} />
-            Select Loan *
-          </label>
-          <select
-            value={formData.loanId}
-            onChange={(e) => setFormData({ ...formData, loanId: e.target.value })}
-            required
-            disabled={!formData.memberId}
-          >
-            <option value="">{formData.memberId ? 'Select a loan' : 'Select member first'}</option>
-            {safeMemberLoans.map(loan => (
-              <option key={loan.id} value={String(loan.id)}>
-                Loan #{loan.id} - KSh {(loan.principalAmount || 0).toLocaleString()} 
-                (Balance: KSh {((loan.principalAmount || 0) - (loan.principalPaid || 0)).toLocaleString()})
-              </option>
-            ))}
-          </select>
-          {selectedLoan && (
-            <div className="loan-details">
-              <small>
-                Principal Balance: KSh {((selectedLoan.principalAmount || 0) - (selectedLoan.principalPaid || 0)).toLocaleString()} | 
-                Interest Balance: KSh {((selectedLoan.interestAmount || 0) - (selectedLoan.interestPaid || 0)).toLocaleString()}
-              </small>
-            </div>
-          )}
-        </div>
-
-        <div className="form-grid-2">
-          <div className="form-group">
-            <label>
-              <DollarSign size={18} />
-              Repayment Amount (KSh) *
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              placeholder="Enter total repayment amount"
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label>
-              <CreditCard size={18} />
-              Payment Method *
-            </label>
-            <select
-              value={formData.paymentMethod}
-              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-              required
-            >
-              {paymentMethods.map(method => (
-                <option key={method.value} value={method.value}>
-                  {method.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="form-grid-2">
-          <div className="form-group">
-            <SmartSelect
-              label="Account"
-              name="accountId"
-              value={formData.accountId}
-              onChange={handleSmartSelectChange('accountId')}
-              options={accounts.map(account => ({
-                id: account.id,
-                name: getAccountDisplayName(account),
-              }))}
-              onAddNew={() => navigate('/settings/accounts/create')}
-              addButtonText="Add Bank Account"
-              addButtonType="bank_account"
-              placeholder="Select account or create new..."
-              icon={CreditCard}
-              showAddButton
-            />
-            {selectedAccount && (
-              <small className="account-balance">
-                Balance: KSh {selectedAccount.balance?.toLocaleString() || '0.00'}
-              </small>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label>
-              <Hash size={18} />
-              Reference Number
-            </label>
-            <input
-              type="text"
-              value={formData.reference}
-              onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-              placeholder="Receipt/Transaction ref"
-            />
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label>
-            <FileText size={18} />
-            Notes
-          </label>
-          <textarea
-            value={formData.notes}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            placeholder="Additional notes about this repayment..."
-            rows="2"
-          />
-        </div>
-
-        <div className="form-actions">
-          {onCancel && (
-            <button type="button" className="btn btn-secondary" onClick={onCancel}>
-              Cancel
+        <div className="form-batch-actions">
+          {!editingDeposit && (
+            <button type="button" className="btn-form-add-row" onClick={addRow}>
+              Add another field
             </button>
           )}
-          <button type="submit" className="btn-primary" disabled={loading || !formData.loanId}>
-            {loading ? (editingDeposit ? 'Updating...' : 'Recording...') : (editingDeposit ? 'Update Loan Repayment' : 'Record Loan Repayment')}
-          </button>
+          <div className="form-actions">
+            {onCancel && (
+              <button type="button" className="btn btn-secondary" onClick={onCancel}>
+                Cancel
+              </button>
+            )}
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? (editingDeposit ? 'Updating...' : 'Recording...') : (editingDeposit ? 'Update Loan Repayment' : 'Record Loan Repayment')}
+            </button>
+          </div>
         </div>
       </form>
-
-
     </div>
   );
 };
