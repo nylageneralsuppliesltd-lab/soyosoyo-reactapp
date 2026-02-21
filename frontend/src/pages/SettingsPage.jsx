@@ -322,7 +322,7 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
           className={`nav-btn ${activeTab === 'roles' ? 'active' : ''}`}
           onClick={() => setActiveTab('roles')}
         >
-          👥 Role Management
+          👥 User Roles & Permissions
         </button>
       </div>
 
@@ -430,49 +430,43 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
               className={`tab ${activeTab2 === 'accounts' ? 'active' : ''}`}
               onClick={() => setActiveTab2('accounts')}
             >
-              🏦 Accounts
+              🏦 Chart of Accounts
             </button>
             <button 
               className={`tab ${activeTab2 === 'contributions' ? 'active' : ''}`}
               onClick={() => setActiveTab2('contributions')}
             >
-              💳 Contributions
+              💳 Contribution Types
             </button>
             <button 
               className={`tab ${activeTab2 === 'expenses' ? 'active' : ''}`}
               onClick={() => setActiveTab2('expenses')}
             >
-              📤 Expenses
+              📤 Expense Categories
             </button>
             <button 
               className={`tab ${activeTab2 === 'income' ? 'active' : ''}`}
               onClick={() => setActiveTab2('income')}
             >
-              📥 Income
+              📥 Income Categories
             </button>
             <button 
               className={`tab ${activeTab2 === 'fines' ? 'active' : ''}`}
               onClick={() => setActiveTab2('fines')}
             >
-              ⚠️ Fines
-            </button>
-            <button 
-              className={`tab ${activeTab2 === 'roles' ? 'active' : ''}`}
-              onClick={() => setActiveTab2('roles')}
-            >
-              👥 Roles
+              ⚠️ Fine Types
             </button>
             <button 
               className={`tab ${activeTab2 === 'invoices' ? 'active' : ''}`}
               onClick={() => setActiveTab2('invoices')}
             >
-              📄 Invoices
+              📄 Invoice Templates
             </button>
             <button 
               className={`tab ${activeTab2 === 'assets' ? 'active' : ''}`}
               onClick={() => setActiveTab2('assets')}
             >
-              🏢 Assets
+              🏢 Asset Management
             </button>
           </div>
 
@@ -680,46 +674,7 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
             </div>
           )}
 
-          {/* GROUP ROLES */}
-          {activeTab2 === 'roles' && (
-            <div className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3>Group Roles & Permissions</h3>
-                <button className="btn-add" onClick={() => handleAddNew('roles')}>+ Add New</button>
-              </div>
-              {groupRoles.length === 0 ? (
-                <p style={{ color: '#999', textAlign: 'center', padding: '20px' }}>No group roles configured yet.</p>
-              ) : (
-                <div className="table-responsive">
-                  <table className="config-table">
-                    <thead>
-                      <tr>
-                        <th>Role Name</th>
-                        <th>Description</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groupRoles.map(gr => (
-                        <tr key={gr.id}>
-                          <td><strong>{gr.name}</strong></td>
-                          <td>{gr.description || '-'}</td>
-                          <td>
-                            <button className="btn-edit" onClick={() => {
-                              setFormData(gr);
-                              setEditingId(gr.id);
-                              setShowForm(true);
-                            }}>Edit</button>
-                            <button className="btn-delete" onClick={() => handleDelete(gr.id, 'group-roles')}>Delete</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
+
 
           {/* INVOICE TEMPLATES */}
           {activeTab2 === 'invoices' && (
@@ -954,18 +909,7 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                 </>
               )}
               
-              {activeTab2 === 'roles' && (
-                <>
-                  <div className="form-group">
-                    <label>Role Name *</label>
-                    <input type="text" value={formData.name || ''} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g., Treasurer, Secretary" required/>
-                  </div>
-                  <div className="form-group full-width">
-                    <label>Description</label>
-                    <textarea value={formData.description || ''} onChange={(e) => setFormData({...formData, description: e.target.value})} placeholder="Role responsibilities and permissions" />
-                  </div>
-                </>
-              )}
+
               
               {activeTab2 === 'invoices' && (
                 <>

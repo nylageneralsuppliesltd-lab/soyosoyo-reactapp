@@ -31,6 +31,81 @@
   --radius: 8px;
 }
 
+/* Premium Stats Cards */
+.premium-stats-card {
+  position: relative;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.premium-stats-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+
+.premium-stats-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.gradient-blue {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.gradient-green {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.gradient-purple {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+}
+
+.gradient-orange {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.gradient-red {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.premium-stats-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.premium-stats-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 8px 0;
+}
+
+.premium-stats-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+@media (min-width: 768px) {
+  .premium-stats-value {
+    font-size: 1.75rem;
+  }
+}
+
 /* Base Report Styles */
 .reports-container {
   min-height: 100vh;
@@ -252,9 +327,9 @@
 
 /* Report Card */
 .report-card {
-  background: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
   border: 1px solid var(--gray-200);
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -267,16 +342,16 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%);
+  height: 4px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
 .report-card:hover {
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.15), 0 0 0 1px rgba(37, 99, 235, 0.1);
-  border-color: #3b82f6;
-  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(102, 126, 234, 0.2), 0 0 0 1px rgba(102, 126, 234, 0.1);
+  border-color: #667eea;
+  transform: translateY(-4px);
 }
 
 .report-card:hover::before {
@@ -284,20 +359,21 @@
 }
 
 .report-card-header {
-  padding: 1rem;
+  padding: 1.25rem;
   cursor: pointer;
   user-select: none;
   transition: all 0.2s ease;
+  position: relative;
 }
 
 @media (min-width: 640px) {
   .report-card-header {
-    padding: 1.1rem;
+    padding: 1.5rem;
   }
 }
 
 .report-card-header:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.03) 0%, rgba(59, 130, 246, 0.01) 100%);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.02) 100%);
 }
 
 .report-card-title {
@@ -862,37 +938,55 @@
 /* ============== DASHBOARD-STYLE REPORT CARDS ============== */
 
 .report-card-dashboard {
-  background: white;
-  border-radius: 14px;
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
   border: 1px solid #e5e7eb;
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.report-card-dashboard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .report-card-dashboard:hover {
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
-  border-color: #bfdbfe;
+  box-shadow: 0 12px 30px rgba(102, 126, 234, 0.2), 0 0 0 1px rgba(102, 126, 234, 0.1);
+  border-color: #667eea;
+  transform: translateY(-4px);
+}
+
+.report-card-dashboard:hover::before {
+  opacity: 1;
 }
 
 .report-card-header-dashboard {
   width: 100%;
   text-align: left;
-  padding: 1rem;
+  padding: 1.25rem;
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
-  background: white;
+  background: transparent;
 }
 
 .report-card-header-dashboard:hover {
-  background: #f8fafc;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.02) 100%);
 }
 
 .report-content-area {
-  border-top: 1px solid #e5e7eb;
-  background: #ffffff;
-  padding: 1rem;
+  border-top: 2px solid #e5e7eb;
+  background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
+  padding: 1.25rem;
 }
 
 /* Report Table Styling - Compact Premium Design */

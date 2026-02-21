@@ -186,21 +186,25 @@ const FinancialPreview = ({ reportKey, reportData }) => {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="bg-white border border-gray-200 rounded-lg p-3">
-            <p className="text-xs font-semibold text-gray-600">Total Cash</p>
-            <p className="text-base font-bold text-gray-900">{formatMoney(meta.totalCash || 0)}</p>
+          <div className="premium-stats-card gradient-blue">
+            <div className="premium-stats-icon">\ud83d\udcb5</div>
+            <p className="premium-stats-label">Total Cash</p>
+            <p className="premium-stats-value">{formatMoney(meta.totalCash || 0)}</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-3">
-            <p className="text-xs font-semibold text-gray-600">Member Loans</p>
-            <p className="text-base font-bold text-gray-900">{formatMoney(meta.totalMemberLoans || 0)}</p>
+          <div className="premium-stats-card gradient-green">
+            <div className="premium-stats-icon">\ud83d\udcc8</div>
+            <p className="premium-stats-label">Member Loans</p>
+            <p className="premium-stats-value">{formatMoney(meta.totalMemberLoans || 0)}</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-3">
-            <p className="text-xs font-semibold text-gray-600">Bank Loans</p>
-            <p className="text-base font-bold text-gray-900">{formatMoney(meta.totalBankLoans || 0)}</p>
+          <div className="premium-stats-card gradient-purple">
+            <div className="premium-stats-icon">\ud83c\udfe6</div>
+            <p className="premium-stats-label">Bank Loans</p>
+            <p className="premium-stats-value">{formatMoney(meta.totalBankLoans || 0)}</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-3">
-            <p className="text-xs font-semibold text-gray-600">Liquidity Ratio</p>
-            <p className="text-base font-bold text-gray-900">{Number(meta.liquidityRatio || 0).toFixed(4)}</p>
+          <div className="premium-stats-card gradient-orange">
+            <div className="premium-stats-icon">\ud83d\udca7</div>
+            <p className="premium-stats-label">Liquidity Ratio</p>
+            <p className="premium-stats-value">{Number(meta.liquidityRatio || 0).toFixed(4)}</p>
           </div>
         </div>
 
@@ -250,17 +254,20 @@ const FinancialPreview = ({ reportKey, reportData }) => {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="bg-white border border-gray-200 rounded-lg p-3">
-            <p className="text-xs font-semibold text-gray-600">Total Debit</p>
-            <p className="text-base font-bold text-gray-900">{formatMoney(meta.debit || 0)}</p>
+          <div className="premium-stats-card gradient-green">
+            <div className="premium-stats-icon">\u2795</div>
+            <p className="premium-stats-label">Total Debit</p>
+            <p className="premium-stats-value">{formatMoney(meta.debit || 0)}</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-3">
-            <p className="text-xs font-semibold text-gray-600">Total Credit</p>
-            <p className="text-base font-bold text-gray-900">{formatMoney(meta.credit || 0)}</p>
+          <div className="premium-stats-card gradient-red">
+            <div className="premium-stats-icon">\u2796</div>
+            <p className="premium-stats-label">Total Credit</p>
+            <p className="premium-stats-value">{formatMoney(meta.credit || 0)}</p>
           </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-3">
-            <p className="text-xs font-semibold text-gray-600">Variance</p>
-            <p className="text-base font-bold text-gray-900">{formatMoney(meta.balanceVariance || 0)}</p>
+          <div className="premium-stats-card gradient-purple">
+            <div className="premium-stats-icon">\u2696\ufe0f</div>
+            <p className="premium-stats-label">Variance</p>
+            <p className="premium-stats-value">{formatMoney(meta.balanceVariance || 0)}</p>
           </div>
         </div>
         <div className="report-table-container">
