@@ -311,10 +311,103 @@
 .trial-balance-container {
   width: 100%;
   overflow-x: auto !important;
-  overflow-y: visible;
+  overflow-y: auto !important;
+  max-height: 70vh;
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
   position: relative;
+}
+
+/* Desktop: Keep scrollbars always visible */
+@media (min-width: 769px) {
+  .table-container,
+  .report-table-container,
+  .table-responsive,
+  .table-wrapper,
+  .deposits-table-wrapper,
+  .members-table-wrapper,
+  .statement-table-container,
+  .statement-table-wrapper,
+  .transactions-table-wrapper,
+  .amortization-table-wrapper,
+  .assets-table-container,
+  .roles-table-container,
+  .loans-table-container,
+  .withdrawals-table-container,
+  .account-ledger-block,
+  .ledger-table-wrapper,
+  .balance-sheet-container,
+  .income-statement-container,
+  .trial-balance-container {
+    /* Make container scrollable in both directions */
+    overflow: auto !important;
+    /* Ensure scrollbars are always visible on desktop */
+    scrollbar-width: thin;
+  }
+  
+  /* Force scrollbar visibility on Webkit browsers (Chrome, Safari, Edge) */
+  .table-container::-webkit-scrollbar,
+  .report-table-container::-webkit-scrollbar,
+  .table-responsive::-webkit-scrollbar,
+  .deposits-table-wrapper::-webkit-scrollbar,
+  .members-table-wrapper::-webkit-scrollbar,
+  .statement-table-container::-webkit-scrollbar,
+  .transactions-table-wrapper::-webkit-scrollbar,
+  .amortization-table-wrapper::-webkit-scrollbar,
+  .assets-table-container::-webkit-scrollbar,
+  .roles-table-container::-webkit-scrollbar,
+  .loans-table-container::-webkit-scrollbar,
+  .withdrawals-table-container::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  
+  .table-container::-webkit-scrollbar-track,
+  .report-table-container::-webkit-scrollbar-track,
+  .table-responsive::-webkit-scrollbar-track,
+  .deposits-table-wrapper::-webkit-scrollbar-track,
+  .members-table-wrapper::-webkit-scrollbar-track,
+  .statement-table-container::-webkit-scrollbar-track,
+  .transactions-table-wrapper::-webkit-scrollbar-track,
+  .amortization-table-wrapper::-webkit-scrollbar-track,
+  .assets-table-container::-webkit-scrollbar-track,
+  .roles-table-container::-webkit-scrollbar-track,
+  .loans-table-container::-webkit-scrollbar-track,
+  .withdrawals-table-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+  }
+  
+  .table-container::-webkit-scrollbar-thumb,
+  .report-table-container::-webkit-scrollbar-thumb,
+  .table-responsive::-webkit-scrollbar-thumb,
+  .deposits-table-wrapper::-webkit-scrollbar-thumb,
+  .members-table-wrapper::-webkit-scrollbar-thumb,
+  .statement-table-container::-webkit-scrollbar-thumb,
+  .transactions-table-wrapper::-webkit-scrollbar-thumb,
+  .amortization-table-wrapper::-webkit-scrollbar-thumb,
+  .assets-table-container::-webkit-scrollbar-thumb,
+  .roles-table-container::-webkit-scrollbar-thumb,
+  .loans-table-container::-webkit-scrollbar-thumb,
+  .withdrawals-table-container::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+  }
+  
+  .table-container::-webkit-scrollbar-thumb:hover,
+  .report-table-container::-webkit-scrollbar-thumb:hover,
+  .table-responsive::-webkit-scrollbar-thumb:hover,
+  .deposits-table-wrapper::-webkit-scrollbar-thumb:hover,
+  .members-table-wrapper::-webkit-scrollbar-thumb:hover,
+  .statement-table-container::-webkit-scrollbar-thumb:hover,
+  .transactions-table-wrapper::-webkit-scrollbar-thumb:hover,
+  .amortization-table-wrapper::-webkit-scrollbar-thumb:hover,
+  .assets-table-container::-webkit-scrollbar-thumb:hover,
+  .roles-table-container::-webkit-scrollbar-thumb:hover,
+  .loans-table-container::-webkit-scrollbar-thumb:hover,
+  .withdrawals-table-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
 }
 
 /* Ensure tables trigger horizontal scroll */
