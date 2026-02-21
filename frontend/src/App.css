@@ -21,7 +21,7 @@
 /* App Container - Now a column with header at top */
 .app-container {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 260px 1fr;
   grid-template-rows: auto 1fr;
   min-height: 100vh;
   background: var(--light);
@@ -40,16 +40,30 @@
 
 /* Premium user header spans full width at top */
 .user-profile-header {
-  grid-column: 1 / -1;
+  grid-column: 2;
   grid-row: 1;
   z-index: 100;
+}
+
+@media (max-width: 768px) {
+  .user-profile-header {
+    grid-column: 1;
+    grid-row: 1;
+  }
 }
 
 /* Sidebar positioning */
 .app-container > nav.sidebar {
   grid-column: 1;
-  grid-row: 2;
-  z-index: 50;
+  grid-row: 1 / -1;
+}
+
+@media (max-width: 768px) {
+  .app-container > nav.sidebar {
+    position: fixed;
+    grid-column: unset;
+    grid-row: unset;
+  }
 }
 
 /* Main Content */
@@ -59,65 +73,28 @@
   width: 100%;
   padding: var(--pad-content);
   overflow-y: auto;
-  transition: all 0.3s ease;
+  min-height: calc(100vh - 80px);
 }
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
   .app-container {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr;
-  }
-
-  .user-profile-header {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .app-container > nav.sidebar {
-    grid-column: 1;
-    grid-row: 2 / 4;
+    grid-template-rows: auto 1fr;
   }
 
   .main-content {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 2;
     padding: var(--pad-mobile);
     padding-top: var(--pad-mobile-top);
+    min-height: calc(100vh - 80px);
   }
 }
 
-/* Mobile Hamburger Button */
+/* Mobile Hamburger Button - Only on mobile */
 .mobile-hamburger {
   display: none;
-  position: fixed;
-  top: 16px;
-  left: 16px;
-  z-index: 1100;
-  background: white;
-  border: 2px solid var(--primary);
-  border-radius: 8px;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 8px 10px;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: var(--shadow-md);
-}
-
-.mobile-hamburger:active {
-  background: var(--light);
-  transform: scale(0.95);
-}
-
-.hamburger-line {
-  display: block;
-  width: 24px;
-  height: 2px;
-  background: var(--primary);
-  margin: 5px 0;
-  border-radius: 2px;
-  transition: all 0.3s;
 }
 
 @media (max-width: 768px) {
@@ -126,9 +103,37 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    position: fixed;
     top: 80px; /* Below the premium header on mobile */
+    left: 16px;
+    z-index: 1100;
+    background: white;
+    border: 2px solid var(--primary);
+    border-radius: 8px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: var(--shadow-md);
   }
 
+  .mobile-hamburger:active {
+    background: var(--light);
+    transform: scale(0.95);
+  }
+
+  .hamburger-line {
+    display: block;
+    width: 24px;
+    height: 2px;
+    background: var(--primary);
+    margin: 5px 0;
+    border-radius: 2px;
+    transition: all 0.3s;
+  }
+
+  /* Touch-friendly button sizes on mobile */
   .btn,
   .btn-primary,
   .btn-secondary,
