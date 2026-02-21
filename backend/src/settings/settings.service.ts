@@ -45,9 +45,17 @@ export class SettingsService {
   }
 
   private sanitizeContributionType(data: any) {
+    const name = this.cleanString(data?.name);
+    const amount = this.toNumber(data?.amount);
+    
+    // Validate required fields
+    if (!name) throw new Error('Contribution type name is required');
+    if (!Number.isFinite(amount) || amount === 0) throw new Error('Contribution type amount is required and must be greater than 0');
+    
+    // Return object with all fields - undefined optional fields will be filtered by Prisma
     return {
-      name: this.cleanString(data?.name) || 'Unnamed',
-      amount: this.toNumber(data?.amount, 0),
+      name,
+      amount,
       description: this.cleanString(data?.description),
       frequency: this.cleanString(data?.frequency),
       typeCategory: this.cleanString(data?.typeCategory),
@@ -66,41 +74,67 @@ export class SettingsService {
   }
 
   private sanitizeExpenseCategory(data: any) {
+    const name = this.cleanString(data?.name);
+    
+    if (!name) throw new Error('Expense category name is required');
+    
     return {
-      name: this.cleanString(data?.name) || 'Unnamed',
+      name,
       description: this.cleanString(data?.description),
       nature: this.cleanString(data?.nature),
     };
   }
 
   private sanitizeIncomeCategory(data: any) {
+    const name = this.cleanString(data?.name);
+    
+    if (!name) throw new Error('Income category name is required');
+    
     return {
-      name: this.cleanString(data?.name) || 'Unnamed',
+      name,
       description: this.cleanString(data?.description),
     };
   }
 
   private sanitizeFineCategory(data: any) {
+    const name = this.cleanString(data?.name);
+    
+    if (!name) throw new Error('Fine category name is required');
+    
     return {
-      name: this.cleanString(data?.name) || 'Unnamed',
+      name,
     };
   }
 
   private sanitizeGroupRole(data: any) {
+    const name = this.cleanString(data?.name);
+    
+    if (!name) throw new Error('Group role name is required');
+    
     return {
-      name: this.cleanString(data?.name) || 'Unnamed',
+      name,
       description: this.cleanString(data?.description),
       permissions: Array.isArray(data?.permissions) ? data.permissions : undefined,
     };
   }
 
   private sanitizeInvoiceTemplate(data: any) {
+    const type = this.cleanString(data?.type);
+    const sendTo = this.cleanString(data?.sendTo);
+    const invoiceDate = this.toDate(data?.invoiceDate);
+    const dueDate = this.toDate(data?.dueDate);
+    
+    if (!type) throw new Error('Invoice template type is required');
+    if (!sendTo) throw new Error('Invoice recipient (sendTo) is required');
+    if (!invoiceDate) throw new Error('Invoice date is required');
+    if (!dueDate) throw new Error('Due date is required');
+    
     return {
-      type: this.cleanString(data?.type),
-      sendTo: this.cleanString(data?.sendTo),
+      type,
+      sendTo,
       amount: this.toNumber(data?.amount, 0),
-      invoiceDate: this.toDate(data?.invoiceDate),
-      dueDate: this.toDate(data?.dueDate),
+      invoiceDate,
+      dueDate,
       description: this.cleanString(data?.description),
     };
   }

@@ -222,14 +222,51 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
 
       const payload = sanitizePayloadByTab(activeTab2, formData);
 
-      if (!payload.name && ['contributions', 'expenses', 'income', 'fines', 'roles'].includes(activeTab2)) {
-        alert('Name is required for this configuration.');
-        return;
-      }
-
-      if (activeTab2 === 'invoices') {
-        if (!payload.type || !payload.sendTo || !payload.invoiceDate || !payload.dueDate) {
-          alert('Invoice type, recipient, invoice date, and due date are required.');
+      // Comprehensive validation for each setting type
+      if (activeTab2 === 'contributions') {
+        if (!payload.name || !payload.name.trim()) {
+          alert('Contribution type name is required.');
+          return;
+        }
+        if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
+          alert('Contribution amount is required and must be greater than 0.');
+          return;
+        }
+      } else if (activeTab2 === 'expenses') {
+        if (!payload.name || !payload.name.trim()) {
+          alert('Expense category name is required.');
+          return;
+        }
+      } else if (activeTab2 === 'income') {
+        if (!payload.name || !payload.name.trim()) {
+          alert('Income category name is required.');
+          return;
+        }
+      } else if (activeTab2 === 'fines') {
+        if (!payload.name || !payload.name.trim()) {
+          alert('Fine category name is required.');
+          return;
+        }
+      } else if (activeTab2 === 'roles') {
+        if (!payload.name || !payload.name.trim()) {
+          alert('Group role name is required.');
+          return;
+        }
+      } else if (activeTab2 === 'invoices') {
+        if (!payload.type || !payload.type.trim()) {
+          alert('Invoice type is required.');
+          return;
+        }
+        if (!payload.sendTo || !payload.sendTo.trim()) {
+          alert('Invoice recipient is required.');
+          return;
+        }
+        if (!payload.invoiceDate) {
+          alert('Invoice date is required.');
+          return;
+        }
+        if (!payload.dueDate) {
+          alert('Due date is required.');
           return;
         }
       }
