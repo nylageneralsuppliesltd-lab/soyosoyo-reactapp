@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { financeAPI } from '../components/members/financeAPI';
 import AccountsSettings from '../components/settings/AccountsSettings';
 import AssetsSettings from '../components/settings/AssetsSettings';
+import RoleManagement from '../components/RoleManagement';
 import '../styles/settings.css';
 
 import { useEffect as useReactEffect } from 'react';
@@ -316,6 +317,12 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
           onClick={() => setActiveTab('financial')}
         >
           💰 Financial Configuration
+        </button>
+        <button 
+          className={`nav-btn ${activeTab === 'roles' ? 'active' : ''}`}
+          onClick={() => setActiveTab('roles')}
+        >
+          👥 Role Management
         </button>
       </div>
 
@@ -1014,6 +1021,13 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
               <button className="btn-save" onClick={handleSave}>Save Configuration</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ROLE MANAGEMENT TAB */}
+      {activeTab === 'roles' && (
+        <div className="settings-section">
+          <RoleManagement />
         </div>
       )}
     </div>
