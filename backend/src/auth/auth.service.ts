@@ -1,0 +1,290 @@
+import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcryptjs';
+import { PrismaService } from '../prisma.service';
+import { LoginDto } from './dto/login.dto';
+import { RegisterProfileDto } from './dto/register-profile.dto';
+import { DeveloperModeDto } from './dto/developer-mode.dto';
+import { CreateSaccoDto } from './dto/create-sacco.dto';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  private normalizeEmail(email?: string | null): string | null {
+    if (!email) return null;
+    const value = String(email).trim().toLowerCase();
+    return value || null;
+  }
+
+  private normalizePhone(phone?: string | null): string | null {
+    if (!phone) return null;
+    const compact = String(phone).trim().replace(/[\s()-]/g, '');
+    if (!/^\+[1-9]\d{7,14}$/.test(compact)) {
+      throw new BadRequestException('Phone must be in international format, e.g. +254712345678');
+    }
+    return compact;
+  }
+
+  private async resolveMemberByIdentifier(identifier: string): Promise<any> {
+    const prismaAny = this.prisma as any;
+    const id = String(identifier || '').trim();
+    if (!id) throw new BadRequestException('Identifier is required');
+
+    if (id.includes('@')) {
+      const email = this.normalizeEmail(id);
+      return prismaAny.member.findFirst({ where: { email: email! } });
+    }
+
+    const phone = this.normalizePhone(id);
+    return prismaAny.member.findUnique({ where: { phone: phone! } });
+  }
+
+  private async ensureProfile(member: any) {
+    const prismaAny = this.prisma as any;
+    const fallbackPassword = await bcrypt.hash(`member-${member.id}-${Date.now()}`, 10);
+    const hash = member.passwordHash || fallbackPassword;
+
+    return prismaAny.appProfile.upsert({
+      where: { memberId: member.id },
+      create: {
+        fullName: member.name,
+        phone: member.phone,
+        email: member.email,
+        passwordHash: hash,
+        memberId: member.id,
+        role: member.role || 'Member',
+        isPlatformAdmin: member.adminCriteria === 'Admin' || member.role === 'Admin',
+        isSystemDeveloper: Boolean(member.isSystemDeveloper),
+        developerModeEnabled: Boolean(member.developerMode),
+      },
+      update: {
+        fullName: member.name,
+        phone: member.phone,
+        email: member.email,
+        role: member.role || 'Member',
+        isPlatformAdmin: member.adminCriteria === 'Admin' || member.role === 'Admin',
+        isSystemDeveloper: Boolean(member.isSystemDeveloper),
+        developerModeEnabled: Boolean(member.developerMode),
+        passwordHash: hash,
+      },
+    });
+  }
+
+  private sign(member: any) {
+    const payload = {
+      sub: member.id,
+      phone: member.phone,
+      email: member.email,
+      role: member.role,
+      adminCriteria: member.adminCriteria,
+      isSystemDeveloper: member.isSystemDeveloper,
+      developerMode: member.developerMode,
+    };
+
+    const token = this.jwtService.sign(payload, {
+      secret: process.env.JWT_SECRET || 'change-this-secret',
+      expiresIn: (process.env.JWT_EXPIRES_IN || '12h') as any,
+    });
+
+    return {
+      token,
+      user: {
+        id: member.id,
+        name: member.name,
+        phone: member.phone,
+        email: member.email,
+        role: member.role,
+        adminCriteria: member.adminCriteria,
+        isSystemDeveloper: member.isSystemDeveloper,
+        developerMode: member.developerMode,
+      },
+    };
+  }
+
+  private async getMemberById(memberId: number): Promise<any> {
+    const member = await (this.prisma as any).member.findUnique({ where: { id: memberId } });
+    if (!member) {
+      throw new UnauthorizedException('Member account not found');
+    }
+    return member;
+  }
+
+  async registerProfile(dto: RegisterProfileDto) {
+    let member: any = null;
+
+    if (dto.memberId) {
+      member = await (this.prisma as any).member.findUnique({ where: { id: dto.memberId } });
+    } else if (dto.identifier) {
+      member = await this.resolveMemberByIdentifier(dto.identifier);
+    }
+
+    if (!member) {
+      throw new NotFoundError('Member not found for profile registration');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password.trim(), 10);
+    const accessKey = process.env.DEVELOPER_ACCESS_KEY || 'CHANGE_ME';
+    const isSystemDeveloper = dto.developerAccessKey && dto.developerAccessKey === accessKey;
+
+    member = await (this.prisma as any).member.update({
+      where: { id: member.id },
+      data: {
+        passwordHash,
+        canLogin: true,
+        isSystemDeveloper: isSystemDeveloper ? true : member.isSystemDeveloper,
+      } as any,
+    });
+
+    await this.ensureProfile(member);
+
+    return this.sign(member);
+  }
+
+  async login(dto: LoginDto) {
+    const member: any = await this.resolveMemberByIdentifier(dto.identifier);
+    if (!member) throw new UnauthorizedException('Invalid credentials');
+    if (!member.canLogin || !member.passwordHash) {
+      throw new UnauthorizedException('Profile login is not enabled for this member');
+    }
+
+    const match = await bcrypt.compare(dto.password, member.passwordHash);
+    if (!match) throw new UnauthorizedException('Invalid credentials');
+
+    await this.ensureProfile(member);
+    return this.sign(member);
+  }
+
+  async setDeveloperMode(memberId: number, enabled: boolean) {
+    const member: any = await this.getMemberById(memberId);
+
+    if (!member.isSystemDeveloper) {
+      throw new ForbiddenException('Developer mode can only be toggled by a system developer');
+    }
+
+    const updated = await (this.prisma as any).member.update({
+      where: { id: member.id },
+      data: { developerMode: enabled } as any,
+    });
+
+    await (this.prisma as any).appProfile.updateMany({
+      where: { memberId: member.id },
+      data: { developerModeEnabled: enabled },
+    });
+
+    return this.sign(updated);
+  }
+
+  async createSacco(memberId: number, dto: CreateSaccoDto) {
+    const member: any = await this.getMemberById(memberId);
+
+    const profile = await this.ensureProfile(member);
+
+    const now = new Date();
+    const trialEndsAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+    const prismaAny = this.prisma as any;
+    const sacco = await prismaAny.saccoOrganization.create({
+      data: {
+        name: dto.name.trim(),
+        registrationNumber: dto.registrationNumber?.trim() || null,
+        ownerProfileId: profile.id,
+        trialStartsAt: now,
+        trialEndsAt,
+        billingStatus: 'trial',
+      },
+    });
+
+    await prismaAny.saccoMembership.create({
+      data: {
+        profileId: profile.id,
+        saccoId: sacco.id,
+        role: member.role || 'Member',
+        isAdmin: true,
+      },
+    });
+
+    return sacco;
+  }
+
+  async listSaccosForUser(memberId: number) {
+    const member: any = await this.getMemberById(memberId);
+
+    const profile = await this.ensureProfile(member);
+
+    const now = new Date();
+
+    if (member.isSystemDeveloper && member.developerMode) {
+      const saccos = await (this.prisma as any).saccoOrganization.findMany({
+        include: { memberships: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return {
+        developerMode: true,
+        saccos,
+      };
+    }
+
+    const memberships = await (this.prisma as any).saccoMembership.findMany({
+      where: { profileId: profile.id, isActive: true },
+      include: { sacco: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const visible = memberships.map((item) => {
+      const expired = item.sacco.trialEndsAt < now && item.sacco.billingStatus !== 'active';
+      return {
+        ...item,
+        sacco: {
+          ...item.sacco,
+          isHiddenForNonPayment: expired,
+          hiddenDetails: expired
+            ? {
+                name: item.sacco.name,
+                trialEndsAt: item.sacco.trialEndsAt,
+                billingStatus: item.sacco.billingStatus,
+              }
+            : null,
+        },
+      };
+    });
+
+    return {
+      developerMode: false,
+      saccos: visible,
+    };
+  }
+
+  async developerOverview(memberId: number) {
+    const member: any = await this.getMemberById(memberId);
+    if (!member.isSystemDeveloper || !member.developerMode) {
+      throw new ForbiddenException('Enable developer mode to access full platform overview');
+    }
+
+    const [profiles, saccos] = await Promise.all([
+      (this.prisma as any).appProfile.findMany({ orderBy: { createdAt: 'desc' } }),
+      (this.prisma as any).saccoOrganization.findMany({ include: { memberships: true }, orderBy: { createdAt: 'desc' } }),
+    ]);
+
+    return {
+      profiles,
+      saccos,
+    };
+  }
+
+  async getSession(memberId: number) {
+    const member = await this.getMemberById(memberId);
+    await this.ensureProfile(member);
+    return this.sign(member);
+  }
+}
+
+class NotFoundError extends BadRequestException {
+  constructor(message: string) {
+    super(message);
+  }
+}

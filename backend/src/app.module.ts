@@ -1,6 +1,7 @@
 
 
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma.module';
 import { AuditModule } from './audit/audit.module';
@@ -23,6 +24,9 @@ import { AppController } from './app.controller';
 import { LoanTypesModule } from './loan-types/loan-types.module';
 import { DiagnosticsModule } from './diagnostics/diagnostics.module';
 import { IfrsModule } from './ifrs/ifrs.module';
+import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { AccessGuard } from './auth/access.guard';
 
 @Module({
   imports: [
@@ -47,7 +51,18 @@ import { IfrsModule } from './ifrs/ifrs.module';
     ReportsModule,
     DiagnosticsModule,
     IfrsModule,
+    AuthModule,
   ],
   controllers: [AppController],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: AccessGuard,
+    },
+  ],
 })
 export class AppModule {}

@@ -1,7 +1,9 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
 import { SettingsService } from './settings.service';
+import { Access } from '../auth/access.decorator';
 
 @Controller('settings')
+@Access('settings', 'read')
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
@@ -12,16 +14,19 @@ export class SettingsController {
   }
 
   @Post('accounts')
+  @Access('settings', 'write')
   async createAccount(@Body() data: any) {
     return this.settingsService.createAccount(data);
   }
 
   @Patch('accounts/:id')
+  @Access('settings', 'write')
   async updateAccount(@Param('id') id: string, @Body() data: any) {
     return this.settingsService.updateAccount(+id, data);
   }
 
   @Delete('accounts/:id')
+  @Access('settings', 'admin')
   async deleteAccount(@Param('id') id: string) {
     return this.settingsService.deleteAccount(+id);
   }
@@ -33,6 +38,7 @@ export class SettingsController {
   }
 
   @Patch('system-settings')
+  @Access('settings', 'admin')
   async updateSystemSettings(@Body() data: any) {
     return this.settingsService.updateSystemSettings(data);
   }
@@ -176,16 +182,19 @@ export class SettingsController {
   }
 
   @Post('group-roles')
+  @Access('settings', 'admin')
   async createGroupRole(@Body() data: any) {
     return this.settingsService.createGroupRole(data);
   }
 
   @Patch('group-roles/:id')
+  @Access('settings', 'admin')
   async updateGroupRole(@Param('id') id: string, @Body() data: any) {
     return this.settingsService.updateGroupRole(+id, data);
   }
 
   @Delete('group-roles/:id')
+  @Access('settings', 'admin')
   async deleteGroupRole(@Param('id') id: string) {
     return this.settingsService.deleteGroupRole(+id);
   }

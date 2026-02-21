@@ -7,8 +7,19 @@ import '../../../src/styles/members.css';
 export default function MemberForm({ member = null, goBack }) {
   const navigate = useNavigate();
   const handleGoBack = typeof goBack === 'function' ? goBack : () => navigate(-1);
+  const [countryCodes, setCountryCodes] = useState([
+    { label: 'Kenya (+254)', value: '+254' },
+    { label: 'Uganda (+256)', value: '+256' },
+    { label: 'Tanzania (+255)', value: '+255' },
+    { label: 'Rwanda (+250)', value: '+250' },
+    { label: 'South Africa (+27)', value: '+27' },
+    { label: 'United States (+1)', value: '+1' },
+    { label: 'United Kingdom (+44)', value: '+44' },
+  ]);
+
   const [form, setForm] = useState({
     name: '',
+    countryCode: '+254',
     phone: '',
     email: '',
     idNumber: '',
@@ -22,6 +33,7 @@ export default function MemberForm({ member = null, goBack }) {
     employerAddress: '',
     role: 'Member',
     adminCriteria: 'Member',
+    password: '',
     introducerName: '',
     introducerMemberNo: '',
   });
@@ -32,11 +44,50 @@ export default function MemberForm({ member = null, goBack }) {
   const [submitMessage, setSubmitMessage] = useState(null);
 
   useEffect(() => {
+    let mounted = true;
+    const loadCountryCodes = async () => {
+      try {
+        const res = await fetch('https://restcountries.com/v3.1/all?fields=name,idd');
+        if (!res.ok) return;
+        const countries = await res.json();
+        const mapped = countries
+          .map((c) => {
+            const root = c?.idd?.root || '';
+            const suffix = Array.isArray(c?.idd?.suffixes) && c.idd.suffixes.length ? c.idd.suffixes[0] : '';
+            const value = `${root}${suffix}`;
+            if (!/^\+[1-9]\d{0,3}$/.test(value)) return null;
+            return {
+              label: `${c?.name?.common || 'Unknown'} (${value})`,
+              value,
+            };
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.label.localeCompare(b.label));
+
+        if (mounted && mapped.length > 0) {
+          const unique = Array.from(new Map(mapped.map((c) => [c.value, c])).values());
+          setCountryCodes(unique);
+        }
+      } catch (error) {
+        console.warn('Unable to fetch country codes, using fallback list.');
+      }
+    };
+
+    loadCountryCodes();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (member) {
       const toSafeString = (value) => (value === undefined || value === null ? '' : String(value));
+      const phoneValue = toSafeString(member.phone).replace(/[\s()-]/g, '');
+      const phoneMatch = phoneValue.match(/^(\+\d{1,4})(\d{4,14})$/);
       setForm({
         name: toSafeString(member.name),
-        phone: toSafeString(member.phone),
+        countryCode: phoneMatch ? phoneMatch[1] : '+254',
+        phone: phoneMatch ? phoneMatch[2] : phoneValue.replace(/^\+/, ''),
         email: toSafeString(member.email),
         idNumber: toSafeString(member.idNumber),
         dob: member.dob ? String(member.dob).split('T')[0] : '',
@@ -49,6 +100,7 @@ export default function MemberForm({ member = null, goBack }) {
         employerAddress: toSafeString(member.employerAddress),
         role: member.role || 'Member',
         adminCriteria: member.adminCriteria || 'Member',
+        password: '',
         introducerName: toSafeString(member.introducerName),
         introducerMemberNo: toSafeString(member.introducerMemberNo),
       });
@@ -71,9 +123,10 @@ export default function MemberForm({ member = null, goBack }) {
       newErrors.name = 'Name must be at least 2 characters';
     }
 
-    // Phone validation (basic Kenyan format)
-    if (!form.phone || !/^(\+254|254|0)[7-9]\d{8}$/.test(form.phone)) {
-      newErrors.phone = 'Phone must be a valid Kenyan number (07..., +254..., or 254...)';
+    const sanitizedPhone = String(form.phone || '').replace(/\D/g, '');
+    const fullPhone = `${form.countryCode || ''}${sanitizedPhone}`;
+    if (!sanitizedPhone || !/^\+[1-9]\d{7,14}$/.test(fullPhone)) {
+      newErrors.phone = 'Phone must be valid in international format with country code';
     }
 
     // Email validation (optional but if provided, must be valid)
@@ -120,7 +173,17 @@ export default function MemberForm({ member = null, goBack }) {
 
     try {
       const nextOfKin = nominees.length > 0 ? nominees : undefined;
-      const payload = { ...form, ...(nextOfKin ? { nextOfKin } : {}) };
+      const payload = {
+        ...form,
+        phone: `${form.countryCode}${String(form.phone || '').replace(/\D/g, '')}`,
+        ...(nextOfKin ? { nextOfKin } : {}),
+      };
+
+      delete payload.countryCode;
+
+      if (!payload.password || !payload.password.trim()) {
+        delete payload.password;
+      }
 
       if (member) {
         await updateMember(member.id, payload);
@@ -154,7 +217,15 @@ export default function MemberForm({ member = null, goBack }) {
       title: 'Personal Information',
       fields: [
         { key: 'name', label: 'Full Name', type: 'text', required: true },
-        { key: 'phone', label: 'Phone Number', type: 'tel', required: true },
+        {
+          key: 'countryCode',
+          label: 'Country Code',
+          type: 'select',
+          options: countryCodes.map((c) => c.value),
+          optionLabels: Object.fromEntries(countryCodes.map((c) => [c.value, c.label])),
+          required: true,
+        },
+        { key: 'phone', label: 'Mobile Number', type: 'tel', required: true },
         { key: 'email', label: 'Email Address', type: 'email', required: false },
         { key: 'idNumber', label: 'ID Number', type: 'text', required: false },
         { key: 'dob', label: 'Date of Birth', type: 'date', required: false },
@@ -206,6 +277,7 @@ export default function MemberForm({ member = null, goBack }) {
           options: ['Member', 'Admin'],
           required: false,
         },
+        { key: 'password', label: 'Profile Password (optional)', type: 'password', required: false },
         { key: 'introducerName', label: 'Introducer Name', type: 'text', required: true },
         { key: 'introducerMemberNo', label: 'Introducer Member Number', type: 'text', required: true },
       ],
@@ -250,7 +322,7 @@ export default function MemberForm({ member = null, goBack }) {
                       <option value="">Select {fieldConfig.label}</option>
                       {fieldConfig.options.map((opt) => (
                         <option key={opt} value={opt}>
-                          {opt}
+                          {fieldConfig.optionLabels?.[opt] || opt}
                         </option>
                       ))}
                     </select>

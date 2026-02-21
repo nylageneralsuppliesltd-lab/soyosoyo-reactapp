@@ -3,6 +3,8 @@
  * Handles network errors gracefully without showing errors to users
  */
 
+import { getAuthToken, notifyAuthExpired } from './authSession';
+
 export const fetchWithRetry = async (
   url,
   options = {}
@@ -25,10 +27,21 @@ export const fetchWithRetry = async (
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       try {
+        const token = getAuthToken();
+        const headers = new Headers(fetchOptions.headers || {});
+        if (token && !headers.has('Authorization')) {
+          headers.set('Authorization', `Bearer ${token}`);
+        }
+
         const response = await fetch(url, {
           ...fetchOptions,
+          headers,
           signal: controller.signal,
         });
+
+        if (response.status === 401) {
+          notifyAuthExpired();
+        }
 
         clearTimeout(timeoutId);
         return response;

@@ -12,6 +12,23 @@ export const useSacco = () => {
 };
 
 export const SaccoProvider = ({ children }) => {
+  const getDeveloperMode = () => {
+    try {
+      const raw = localStorage.getItem('authSession');
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      return Boolean(parsed?.user?.isSystemDeveloper && parsed?.user?.developerMode);
+    } catch {
+      return false;
+    }
+  };
+
+  const isSaccoExpired = (sacco) => {
+    if (!sacco?.trialEndsAt) return false;
+    if (sacco.subscriptionStatus === 'active') return false;
+    return new Date(sacco.trialEndsAt) < new Date();
+  };
+
   // Default SACCO configuration
   const defaultSacco = {
     id: 'sacco_001',
@@ -29,6 +46,10 @@ export const SaccoProvider = ({ children }) => {
       warning: '#f59e0b',
       danger: '#ef4444',
     },
+    subscriptionStatus: 'trial',
+    trialStartsAt: new Date().toISOString(),
+    trialEndsAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+    lastPaymentAt: null,
     createdAt: new Date().toISOString(),
   };
 
@@ -75,6 +96,9 @@ export const SaccoProvider = ({ children }) => {
   const switchSacco = (saccoId) => {
     const sacco = saccos.find((s) => s.id === saccoId);
     if (sacco) {
+      if (isSaccoExpired(sacco) && !getDeveloperMode()) {
+        return;
+      }
       setCurrentSacco(sacco);
     }
   };
@@ -84,6 +108,10 @@ export const SaccoProvider = ({ children }) => {
     const newSacco = {
       id: `sacco_${Date.now()}`,
       ...saccoData,
+      subscriptionStatus: 'trial',
+      trialStartsAt: new Date().toISOString(),
+      trialEndsAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      lastPaymentAt: null,
       createdAt: new Date().toISOString(),
     };
     setSaccos([...saccos, newSacco]);
@@ -112,6 +140,7 @@ export const SaccoProvider = ({ children }) => {
       value={{
         currentSacco,
         saccos,
+        isSaccoExpired,
         switchSacco,
         createSacco,
         updateSacco,

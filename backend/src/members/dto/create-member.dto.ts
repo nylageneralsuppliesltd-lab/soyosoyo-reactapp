@@ -11,6 +11,7 @@ import {
   MaxLength,
   Matches,
   IsIn,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -49,8 +50,8 @@ export class CreateMemberDto {
   name: string;
 
   @IsString({ message: 'Phone must be a string' })
-  @Matches(/^(\+254|254|0)[7-9]\d{8}$/, {
-    message: 'Phone must be a valid Kenyan number (07..., +254..., or 254...)',
+  @Matches(/^\+[1-9]\d{7,14}$/, {
+    message: 'Phone must be in valid international format, e.g. +254712345678',
   })
   phone: string;
 
@@ -118,6 +119,16 @@ export class CreateMemberDto {
     message: 'Admin Criteria must be either Member or Admin',
   })
   adminCriteria?: string;
+
+  @IsOptional()
+  @IsString({ message: 'Password must be a string' })
+  @MinLength(6, { message: 'Password must be at least 6 characters' })
+  @MaxLength(128, { message: 'Password must not exceed 128 characters' })
+  password?: string;
+
+  @IsOptional()
+  @IsBoolean({ message: 'System developer flag must be true or false' })
+  isSystemDeveloper?: boolean;
 
   @IsString({ message: 'Introducer name must be a string' })
   @MinLength(2, { message: 'Introducer name must be at least 2 characters' })

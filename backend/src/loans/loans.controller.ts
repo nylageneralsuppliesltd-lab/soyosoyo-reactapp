@@ -1,7 +1,9 @@
 import { Controller, Get, Post, Body, Param, Put, Delete, Patch } from '@nestjs/common';
 import { LoansService } from './loans.service';
+import { Access } from '../auth/access.decorator';
 
 @Controller('loans')
+@Access('loans', 'read')
 export class LoansController {
   constructor(private readonly loansService: LoansService) {}
 
@@ -16,21 +18,25 @@ export class LoansController {
   }
 
   @Post()
+  @Access('loans', 'write')
   create(@Body() createLoanDto: any) {
     return this.loansService.create(createLoanDto);
   }
 
   @Put(':id')
+  @Access('loans', 'write')
     update(@Param('id') id: string, @Body() updateLoanDto: any) {
       return this.loansService.update(Number(id), updateLoanDto);
   }
 
   @Patch(':id/approve')
+  @Access('loans', 'approve')
     approve(@Param('id') id: string) {
       return this.loansService.approveLoan(Number(id));
   }
 
   @Delete(':id')
+  @Access('loans', 'admin')
     remove(@Param('id') id: string) {
       return this.loansService.remove(Number(id));
   }
@@ -51,11 +57,13 @@ export class LoansController {
   }
 
   @Post('process-late-fines')
+  @Access('loans', 'approve')
   async processLateFines() {
     return this.loansService.processAllOverdueLoans();
   }
 
   @Post(':id/process-fines')
+  @Access('loans', 'approve')
   async processLoanFines(@Param('id') id: string) {
     const loan = await this.loansService.findOne(Number(id));
     if (!loan) {

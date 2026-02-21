@@ -67,12 +67,19 @@ enum PermissionType {
   view_ledger
 }
 
+enum BillingStatus {
+  trial
+  active
+  overdue
+  suspended
+}
+
 // ============== CORE MODELS ==============
 model Member {
   id                 Int       @id @default(autoincrement())
   name               String
   phone              String    @unique
-  email              String?
+  email              String?   @unique
   idNumber           String?
   dob                DateTime?
   gender             String?
@@ -86,6 +93,10 @@ model Member {
   adminCriteria      String?   // 'Member' or 'Admin'
   introducerName     String?
   introducerMemberNo String?
+  passwordHash       String?
+  canLogin           Boolean   @default(false)
+  isSystemDeveloper  Boolean   @default(false)
+  developerMode      Boolean   @default(false)
   balance            Float     @default(0)
   loanBalance        Float     @default(0)
   active             Boolean   @default(true)
@@ -97,6 +108,7 @@ model Member {
   repayments         Repayment[]
   fines              Fine[]
   invoices           MemberInvoice[]
+  profile            AppProfile?
   
   nextOfKin          Json?     
   createdAt          DateTime  @default(now())
@@ -288,6 +300,59 @@ model GroupRole {
   permissions Json?     // Store as JSON array of permission strings
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+model AppProfile {
+  id                   Int               @id @default(autoincrement())
+  fullName             String
+  phone                String            @unique
+  email                String?           @unique
+  passwordHash         String
+  member               Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  memberId             Int?              @unique
+  role                 String?           @default("Member")
+  isPlatformAdmin      Boolean           @default(false)
+  isSystemDeveloper    Boolean           @default(false)
+  developerModeEnabled Boolean           @default(false)
+  memberships          SaccoMembership[]
+  ownedSaccos          SaccoOrganization[] @relation("SaccoOwner")
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+}
+
+model SaccoOrganization {
+  id                   Int               @id @default(autoincrement())
+  name                 String
+  registrationNumber   String?
+  ownerProfile         AppProfile        @relation("SaccoOwner", fields: [ownerProfileId], references: [id], onDelete: Restrict)
+  ownerProfileId       Int
+  billingStatus        BillingStatus     @default(trial)
+  trialStartsAt        DateTime          @default(now())
+  trialEndsAt          DateTime
+  lastPaidAt           DateTime?
+  isHiddenForNonPayment Boolean          @default(false)
+  memberships          SaccoMembership[]
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  @@index([billingStatus])
+  @@index([trialEndsAt])
+}
+
+model SaccoMembership {
+  id              Int               @id @default(autoincrement())
+  profile         AppProfile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId       Int
+  sacco           SaccoOrganization @relation(fields: [saccoId], references: [id], onDelete: Cascade)
+  saccoId         Int
+  role            String            @default("Member")
+  isAdmin         Boolean           @default(false)
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([profileId, saccoId])
+  @@index([saccoId])
 }
 
 model Account {

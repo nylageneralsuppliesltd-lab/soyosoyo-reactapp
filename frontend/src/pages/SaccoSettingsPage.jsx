@@ -5,7 +5,15 @@ import { Plus, Trash, Check } from '@phosphor-icons/react';
 import '../styles/sacco-settings.css';
 
 export default function SaccoSettingsPage() {
-  const { currentSacco, saccos, switchSacco, createSacco, updateSacco, deleteSacco } = useSacco();
+  const { currentSacco, saccos, switchSacco, createSacco, updateSacco, deleteSacco, isSaccoExpired } = useSacco();
+  const authSession = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('authSession') || '{}');
+    } catch {
+      return {};
+    }
+  })();
+  const developerOverride = Boolean(authSession?.user?.isSystemDeveloper && authSession?.user?.developerMode);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -172,6 +180,11 @@ export default function SaccoSettingsPage() {
       {/* SACCOs List */}
       <div className="saccos-grid">
         {saccos.map((sacco) => (
+          (() => {
+            const expired = isSaccoExpired(sacco);
+            const hideDetails = expired && !developerOverride;
+
+            return (
           <div
             key={sacco.id}
             className={`sacco-card ${currentSacco.id === sacco.id ? 'active' : ''}`}
@@ -184,18 +197,33 @@ export default function SaccoSettingsPage() {
             </div>
 
             <div className="sacco-details">
-              <p><strong>Slogan:</strong> {sacco.slogan || '-'}</p>
-              <p><strong>Registration:</strong> {sacco.registrationNumber || '-'}</p>
-              <p><strong>Phone:</strong> {sacco.phone}</p>
-              <p><strong>Email:</strong> {sacco.email}</p>
-              <p><strong>Website:</strong> {sacco.website || '-'}</p>
-              <p><strong>Address:</strong> {sacco.address || '-'}</p>
+              {hideDetails ? (
+                <>
+                  <p><strong>Status:</strong> Hidden (Trial expired / non-payment)</p>
+                  <p><strong>Trial Ended:</strong> {new Date(sacco.trialEndsAt).toLocaleDateString()}</p>
+                </>
+              ) : (
+                <>
+                  <p><strong>Slogan:</strong> {sacco.slogan || '-'}</p>
+                  <p><strong>Registration:</strong> {sacco.registrationNumber || '-'}</p>
+                  <p><strong>Phone:</strong> {sacco.phone}</p>
+                  <p><strong>Email:</strong> {sacco.email}</p>
+                  <p><strong>Website:</strong> {sacco.website || '-'}</p>
+                  <p><strong>Address:</strong> {sacco.address || '-'}</p>
+                  <p><strong>Trial Ends:</strong> {sacco.trialEndsAt ? new Date(sacco.trialEndsAt).toLocaleDateString() : '-'}</p>
+                </>
+              )}
             </div>
 
             <div className="sacco-actions">
-              {currentSacco.id !== sacco.id && (
+              {currentSacco.id !== sacco.id && !hideDetails && (
                 <button className="btn-switch" onClick={() => switchSacco(sacco.id)}>
                   <Check size={16} /> Switch to this SACCO
+                </button>
+              )}
+              {hideDetails && (
+                <button className="btn-danger" disabled>
+                  Trial Expired - Payment Required
                 </button>
               )}
               {currentSacco.id === sacco.id && (
@@ -210,6 +238,8 @@ export default function SaccoSettingsPage() {
               )}
             </div>
           </div>
+            );
+          })()
         ))}
       </div>
 

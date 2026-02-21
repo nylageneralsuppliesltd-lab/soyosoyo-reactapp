@@ -12,8 +12,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { WithdrawalsService } from './withdrawals.service';
+import { Access } from '../auth/access.decorator';
 
 @Controller('withdrawals')
+@Access('withdrawals', 'read')
 export class WithdrawalsController {
   constructor(private readonly withdrawalsService: WithdrawalsService) {}
 
@@ -30,6 +32,7 @@ export class WithdrawalsController {
 
   // POST routes for creating specific types
   @Post('expense')
+  @Access('withdrawals', 'write')
   async createExpense(@Body() data: any) {
     try {
       // Validate required fields
@@ -54,6 +57,7 @@ export class WithdrawalsController {
   }
 
   @Post('transfer')
+  @Access('withdrawals', 'write')
   async createTransfer(@Body() data: any) {
     try {
       // Validate required fields
@@ -74,6 +78,7 @@ export class WithdrawalsController {
   }
 
   @Post('refund')
+  @Access('withdrawals', 'write')
   async createRefund(@Body() data: any) {
     try {
       // Validate required fields
@@ -94,6 +99,7 @@ export class WithdrawalsController {
   }
 
   @Post('dividend')
+  @Access('withdrawals', 'write')
   async createDividend(@Body() data: any) {
     try {
       // Validate required fields
@@ -141,6 +147,7 @@ export class WithdrawalsController {
   }
 
   @Patch(':id')
+  @Access('withdrawals', 'write')
   async update(
     @Param('id') id: string,
     @Body() data: any,
@@ -189,6 +196,7 @@ export class WithdrawalsController {
   }
 
   @Post(':id/void')
+  @Access('withdrawals', 'approve')
   async voidWithdrawal(
     @Param('id') id: string,
     @Body() data: any,
@@ -211,6 +219,7 @@ export class WithdrawalsController {
   }
 
   @Delete(':id')
+  @Access('withdrawals', 'admin')
   async remove(@Param('id') id: string) {
     return this.withdrawalsService.remove(parseInt(id));
   }

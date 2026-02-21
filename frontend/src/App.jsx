@@ -23,6 +23,8 @@ import LandingPage from './pages/LandingPage';
 import MembersList from './components/members/MembersList';
 import MemberForm from './components/members/MemberForm';
 import SaccoSettingsPage from './pages/SaccoSettingsPage';
+import LoginPage from './pages/LoginPage';
+import ProfileHubPage from './pages/ProfileHubPage';
 import DepositsPage from './pages/DepositsPage';
 import WithdrawalsPage from './pages/WithdrawalsPage';
 import LoansPage from './pages/LoansPage';
@@ -98,6 +100,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/landing" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/profile-hub" element={<ProfileHubPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
 
           {/* Member routes */}

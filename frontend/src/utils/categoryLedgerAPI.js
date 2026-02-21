@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { createRetryInterceptor } from './retryFetch';
+import { getAuthToken, notifyAuthExpired } from './authSession';
 
 const API_URL = import.meta.env.VITE_API_URL || 
   (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -11,6 +12,25 @@ const api = axios.create({
   withCredentials: true,
   timeout: 15000,
 });
+
+api.interceptors.request.use((config) => {
+  const token = getAuthToken();
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      notifyAuthExpired();
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Add automatic retry logic with exponential backoff for network failures
 createRetryInterceptor(api, { maxRetries: 3 });

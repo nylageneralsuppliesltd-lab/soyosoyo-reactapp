@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import * as bcrypt from 'bcryptjs';
 
 interface ListOptions {
   skip?: number;
@@ -16,25 +17,53 @@ interface ListOptions {
 export class MembersService {
   constructor(private prisma: PrismaService) {}
 
+  private normalizeEmail(email?: string | null): string | null {
+    if (!email) return null;
+    const value = String(email).trim().toLowerCase();
+    return value || null;
+  }
+
+  private normalizePhone(phone?: string | null): string | null {
+    if (!phone) return null;
+    const compact = String(phone).trim().replace(/[\s()-]/g, '');
+    if (!/^\+[1-9]\d{7,14}$/.test(compact)) {
+      throw new BadRequestException('Phone must be in international format, e.g. +254712345678');
+    }
+    return compact;
+  }
+
   async create(dto: CreateMemberDto) {
     try {
       console.log('[MembersService.create] Starting with dto:', JSON.stringify(dto));
 
+      const normalizedPhone = this.normalizePhone(dto.phone);
+      const normalizedEmail = this.normalizeEmail(dto.email);
+
       // Check if member exists
-      console.log('[MembersService.create] Checking if member with phone exists:', dto.phone);
-      const existing = await this.prisma.member.findUnique({ where: { phone: dto.phone } });
+      console.log('[MembersService.create] Checking if member with phone exists:', normalizedPhone);
+      const existing = await this.prisma.member.findUnique({ where: { phone: normalizedPhone! } });
       if (existing) {
-        console.warn('[MembersService.create] Member already exists with phone:', dto.phone);
+        console.warn('[MembersService.create] Member already exists with phone:', normalizedPhone);
         throw new BadRequestException('Member with this phone number already exists.');
       }
 
+      if (normalizedEmail) {
+        const existingEmail = await this.prisma.member.findUnique({ where: { email: normalizedEmail } });
+        if (existingEmail) {
+          throw new BadRequestException('Member with this email already exists.');
+        }
+      }
+
       // Prepare data and convert empty strings to null for optional fields
-      const { nextOfKin, ...rest } = dto;
+      const { nextOfKin, password, isSystemDeveloper, ...rest } = dto as CreateMemberDto & { password?: string; isSystemDeveloper?: boolean };
+
+      const passwordHash = password?.trim() ? await bcrypt.hash(password.trim(), 10) : null;
 
       const dataToCreate = {
         ...rest,
+        phone: normalizedPhone,
         dob: rest.dob && rest.dob.trim() ? rest.dob : null,
-        email: rest.email && rest.email.trim() ? rest.email : null,
+        email: normalizedEmail,
         idNumber: rest.idNumber && rest.idNumber.trim() ? rest.idNumber : null,
         gender: rest.gender && rest.gender.trim() ? rest.gender : null,
         employmentStatus: rest.employmentStatus && rest.employmentStatus.trim() ? rest.employmentStatus : null,
@@ -42,13 +71,36 @@ export class MembersService {
         regNo: rest.regNo && rest.regNo.trim() ? rest.regNo : null,
         employerAddress: rest.employerAddress && rest.employerAddress.trim() ? rest.employerAddress : null,
         adminCriteria: rest.adminCriteria && rest.adminCriteria.trim() ? rest.adminCriteria : null,
+        passwordHash,
+        canLogin: Boolean(passwordHash),
+        isSystemDeveloper: Boolean(isSystemDeveloper),
+        developerMode: false,
         nextOfKin: nextOfKin && nextOfKin.length > 0 ? JSON.parse(JSON.stringify(nextOfKin)) : null,
       };
 
       delete (dataToCreate as any).customRole;
       console.log('[MembersService.create] Prepared data for creation:', JSON.stringify(dataToCreate));
 
-      const result = await this.prisma.member.create({ data: dataToCreate });
+      const result = await this.prisma.$transaction(async (tx) => {
+        const createdMember = await tx.member.create({ data: dataToCreate });
+
+        if (passwordHash) {
+          await tx.appProfile.create({
+            data: {
+              fullName: createdMember.name,
+              phone: createdMember.phone,
+              email: createdMember.email,
+              passwordHash,
+              memberId: createdMember.id,
+              role: createdMember.role || 'Member',
+              isPlatformAdmin: createdMember.adminCriteria === 'Admin' || createdMember.role === 'Admin',
+              isSystemDeveloper: createdMember.isSystemDeveloper,
+            },
+          });
+        }
+
+        return createdMember;
+      });
       console.log('[MembersService.create] Member created with id:', result.id);
       return result;
     } catch (err) {
@@ -204,7 +256,9 @@ export class MembersService {
       return trimmed === '' ? null : trimmed;
     };
 
-    const sanitizedPhone = trimToUndefined(dto.phone);
+    const sanitizedPhoneRaw = trimToUndefined(dto.phone);
+    const sanitizedPhone = sanitizedPhoneRaw ? this.normalizePhone(sanitizedPhoneRaw) : undefined;
+    const normalizedEmail = dto.email === undefined ? undefined : this.normalizeEmail(dto.email);
 
     // Check for duplicate phone if phone is being updated
     if (sanitizedPhone) {
@@ -216,7 +270,14 @@ export class MembersService {
       }
     }
 
-    const { nextOfKin, balance, loanBalance, active, ...rest } = dto;
+    if (normalizedEmail) {
+      const existingEmail = await this.prisma.member.findUnique({ where: { email: normalizedEmail } });
+      if (existingEmail && existingEmail.id !== id) {
+        throw new BadRequestException('This email is already in use by another member.');
+      }
+    }
+
+    const { nextOfKin, balance, loanBalance, active, password, isSystemDeveloper, ...rest } = dto;
 
     const dataToUpdate: any = {};
 
@@ -240,13 +301,22 @@ export class MembersService {
     if (sanitizedPhone !== undefined) dataToUpdate.phone = sanitizedPhone;
 
     dataToUpdate.dob = nullIfEmpty(rest.dob);
-    dataToUpdate.email = nullIfEmpty(rest.email);
+    dataToUpdate.email = normalizedEmail;
     dataToUpdate.idNumber = nullIfEmpty(rest.idNumber);
     dataToUpdate.gender = nullIfEmpty(rest.gender);
     dataToUpdate.employmentStatus = nullIfEmpty(rest.employmentStatus);
     dataToUpdate.employerName = nullIfEmpty(rest.employerName);
     dataToUpdate.regNo = nullIfEmpty(rest.regNo);
     dataToUpdate.employerAddress = nullIfEmpty(rest.employerAddress);
+
+    if (password !== undefined) {
+      const pwd = String(password || '').trim();
+      if (pwd.length < 6) {
+        throw new BadRequestException('Password must be at least 6 characters');
+      }
+      dataToUpdate.passwordHash = await bcrypt.hash(pwd, 10);
+      dataToUpdate.canLogin = true;
+    }
 
     if (balance !== undefined) {
       const bal = typeof balance === 'string' ? parseFloat(balance) : balance;
@@ -268,16 +338,50 @@ export class MembersService {
       dataToUpdate.active = Boolean(active);
     }
 
+    if (isSystemDeveloper !== undefined) {
+      dataToUpdate.isSystemDeveloper = Boolean(isSystemDeveloper);
+    }
+
     if (nextOfKin !== undefined) {
       dataToUpdate.nextOfKin = nextOfKin ? JSON.parse(JSON.stringify(nextOfKin)) : null;
     }
 
     delete (dataToUpdate as any).customRole;
 
-    return this.prisma.member.update({
+    const updatedMember = await this.prisma.member.update({
       where: { id },
       data: dataToUpdate,
     });
+
+    const hasLogin = Boolean(updatedMember.passwordHash && updatedMember.canLogin);
+    if (hasLogin) {
+      await this.prisma.appProfile.upsert({
+        where: { memberId: updatedMember.id },
+        create: {
+          fullName: updatedMember.name,
+          phone: updatedMember.phone,
+          email: updatedMember.email,
+          passwordHash: updatedMember.passwordHash!,
+          memberId: updatedMember.id,
+          role: updatedMember.role || 'Member',
+          isPlatformAdmin: updatedMember.adminCriteria === 'Admin' || updatedMember.role === 'Admin',
+          isSystemDeveloper: updatedMember.isSystemDeveloper,
+          developerModeEnabled: updatedMember.developerMode,
+        },
+        update: {
+          fullName: updatedMember.name,
+          phone: updatedMember.phone,
+          email: updatedMember.email,
+          passwordHash: updatedMember.passwordHash!,
+          role: updatedMember.role || 'Member',
+          isPlatformAdmin: updatedMember.adminCriteria === 'Admin' || updatedMember.role === 'Admin',
+          isSystemDeveloper: updatedMember.isSystemDeveloper,
+          developerModeEnabled: updatedMember.developerMode,
+        },
+      });
+    }
+
+    return updatedMember;
   }
 
   async suspend(id: number) {

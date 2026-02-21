@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { createRetryInterceptor } from './retryFetch';
+import { getAuthToken, notifyAuthExpired } from './authSession';
 
 // Centralized API base URL with local-first, proxy-friendly resolution
 let API_BASE = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
@@ -24,6 +25,25 @@ const API = axios.create({
   withCredentials: true,
   timeout: 15000, // Increased to allow for slow server startups
 });
+
+API.interceptors.request.use((config) => {
+  const token = getAuthToken();
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      notifyAuthExpired();
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Add automatic retry logic with exponential backoff for network failures
 createRetryInterceptor(API, { maxRetries: 3 });

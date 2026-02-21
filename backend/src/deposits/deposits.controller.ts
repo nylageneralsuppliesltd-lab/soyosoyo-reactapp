@@ -15,12 +15,15 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DepositsService, BulkPaymentRecord, BulkImportResult } from './deposits.service';
+import { Access } from '../auth/access.decorator';
 
 @Controller('deposits')
+@Access('deposits', 'read')
 export class DepositsController {
   constructor(private readonly depositsService: DepositsService) {}
 
   @Post()
+  @Access('deposits', 'write')
   async create(@Body() data: any) {
     try {
       console.log('[DepositsController] Creating deposit with data:', data);
@@ -80,6 +83,7 @@ export class DepositsController {
   }
 
   @Patch(':id')
+  @Access('deposits', 'write')
   async update(
     @Param('id') id: string,
     @Body() data: any,
@@ -127,6 +131,7 @@ export class DepositsController {
   }
 
   @Post(':id/void')
+  @Access('deposits', 'approve')
   async voidDeposit(
     @Param('id') id: string,
     @Body() data: any,
@@ -149,6 +154,7 @@ export class DepositsController {
   }
 
   @Delete(':id')
+  @Access('deposits', 'admin')
   async remove(@Param('id') id: string) {
     return this.depositsService.remove(parseInt(id));
   }
@@ -158,6 +164,7 @@ export class DepositsController {
    * POST /deposits/bulk/import-json
    */
   @Post('bulk/import-json')
+  @Access('deposits', 'write')
   async bulkImportJson(@Body() body: { payments: BulkPaymentRecord[] }): Promise<BulkImportResult> {
     try {
       if (!body.payments || !Array.isArray(body.payments)) {

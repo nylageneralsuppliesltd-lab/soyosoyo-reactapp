@@ -3,8 +3,10 @@ import { Response } from 'express';
 import { ReportsService } from './reports.service';
 import { FinancialStatementsService } from './financial-statements.service';
 import { CashPositionService } from './cash-position.service';
+import { Access } from '../auth/access.decorator';
 
 @Controller('reports')
+@Access('reports', 'read')
 export class ReportsController {
   constructor(
     private readonly reportsService: ReportsService,
@@ -171,13 +173,5 @@ export class ReportsController {
     const start = startDate ? new Date(startDate) : new Date('2020-01-01');
     const end = endDate ? new Date(endDate) : new Date();
     return this.reportsService.incomeBreakdown(start, end);
-  }
-
-  @Get('balance-sheet-diagnostics')
-  async balanceSheetDiagnostics(
-    @Query('asOf') asOf?: string,
-  ) {
-    const date = asOf ? new Date(asOf) : new Date();
-    return this.reportsService.getBalanceSheetDiagnostics(date);
   }
 }
