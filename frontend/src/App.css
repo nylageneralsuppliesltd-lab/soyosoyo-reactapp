@@ -73,6 +73,7 @@
   width: 100%;
   padding: var(--pad-content);
   overflow-y: auto;
+  overflow-x: hidden;
   min-height: calc(100vh - 80px);
 }
 
@@ -89,6 +90,7 @@
     padding: var(--pad-mobile);
     padding-top: var(--pad-mobile-top);
     min-height: calc(100vh - 80px);
+    overflow-x: visible !important;
   }
 }
 
@@ -284,3 +286,101 @@
   background: rgba(37, 99, 235, 0.08);
 }
 
+/* ===== UNIVERSAL TABLE SCROLLING (MOBILE & DESKTOP) ===== */
+/* Ensure all tables are horizontally scrollable on all screen sizes */
+
+/* All table wrapper containers */
+.table-container,
+.report-table-container,
+.table-responsive,
+.table-wrapper,
+.deposits-table-wrapper,
+.members-table-wrapper,
+.statement-table-container,
+.statement-table-wrapper,
+.transactions-table-wrapper,
+.amortization-table-wrapper,
+.assets-table-container,
+.roles-table-container,
+.loans-table-container,
+.withdrawals-table-container,
+.account-ledger-block,
+.ledger-table-wrapper,
+.balance-sheet-container,
+.income-statement-container,
+.trial-balance-container {
+  width: 100%;
+  overflow-x: auto !important;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  position: relative;
+}
+
+/* Ensure tables trigger horizontal scroll */
+.table-container table,
+.report-table-container table,
+.table-responsive table,
+.table-wrapper table,
+.deposits-table-wrapper table,
+.members-table-wrapper table,
+.statement-table-container table,
+.statement-table-wrapper table,
+.transactions-table-wrapper table,
+.amortization-table-wrapper table,
+.assets-table-container table,
+.roles-table-container table,
+.loans-table-container table,
+.withdrawals-table-container table,
+.account-ledger-block table,
+.ledger-table-wrapper table,
+table.report-table,
+table.members-table,
+table.deposits-table,
+table.loans-table,
+table.withdrawals-table,
+table.statement-table,
+table.ledger-table,
+table.assets-table {
+  min-width: 800px;
+  width: max-content;
+  border-collapse: collapse;
+}
+
+/* Mobile-specific table adjustments */
+@media (max-width: 768px) {
+  /* Force horizontal scroll on smaller screens */
+  .table-container,
+  .report-table-container,
+  .table-responsive,
+  .table-wrapper,
+  .deposits-table-wrapper,
+  .members-table-wrapper,
+  .statement-table-container,
+  .statement-table-wrapper,
+  .transactions-table-wrapper,
+  .amortization-table-wrapper,
+  .assets-table-container,
+  .roles-table-container,
+  .loans-table-container,
+  .withdrawals-table-container,
+  .account-ledger-block,
+  .ledger-table-wrapper,
+  .balance-sheet-container,
+  .income-statement-container,
+  .trial-balance-container {
+    display: block !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+  }
+
+  /* Ensure minimum width for scrolling */
+  .table-container table,
+  .report-table-container table,
+  .table-responsive table,
+  .deposits-table-wrapper table,
+  .members-table-wrapper table {
+    min-width: 950px !important;
+  }
+}
