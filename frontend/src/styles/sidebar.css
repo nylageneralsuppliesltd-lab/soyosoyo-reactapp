@@ -30,7 +30,7 @@
   background: #ffffff;
   box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
   overflow-y: auto;
-  z-index: 999;
+  z-index: 1000;
   transition: transform 0.3s ease;
   display: flex;
   flex-direction: column;
@@ -41,7 +41,7 @@
   .sidebar {
     transform: translateX(-100%);
     width: min(86vw, 320px);
-    z-index: 999;
+    z-index: 1000;
   }
 
   .sidebar.open {
