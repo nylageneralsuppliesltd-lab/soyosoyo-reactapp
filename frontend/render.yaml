@@ -1,0 +1,4 @@
+routes:
+  - type: rewrite
+    source: ^(?!.*\.(js|css|svg|png|jpg|jpeg|gif|ico|json|txt|woff|woff2|ttf|eot)$).*$
+    destination: /index.html
