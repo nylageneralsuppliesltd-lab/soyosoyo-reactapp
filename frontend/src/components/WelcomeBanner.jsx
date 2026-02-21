@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Gift, CheckCircle } from 'phosphor-react';
+import { Gift, CheckCircle } from '@phosphor-icons/react';
 import '../styles/welcome-banner.css';
 
 const WelcomeBanner = () => {
