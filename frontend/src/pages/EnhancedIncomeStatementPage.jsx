@@ -101,7 +101,7 @@ export default function IncomeStatementPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-4">
           <ReportHeader 
             title="Income Statement - Profit & Loss Account" 
             subtitle={`Comparative ${mode === 'monthly' ? 'Monthly' : 'Annual'} Analysis`}
@@ -152,7 +152,7 @@ export default function IncomeStatementPage() {
 
       {/* Content */}
       {data && (
-        <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8">
           {/* Net Surplus Summary */}
           {data.summary?.netSurplus && (
             <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg p-4 mb-4 text-white">
@@ -201,27 +201,27 @@ export default function IncomeStatementPage() {
                     {category.name}
                   </h3>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                  <div className="report-table-container">
+                    <table className="report-table">
                       <thead>
-                        <tr className="text-xs font-semibold text-gray-700 border-b border-gray-200">
-                          <th className="text-left py-2 px-1">Description</th>
-                          <th className="text-right py-2 px-1 w-[25%]">Current</th>
-                          <th className="text-right py-2 px-1 w-[25%]">Previous</th>
-                          <th className="text-right py-2 px-1 w-[30%]">Change</th>
+                        <tr>
+                          <th>Description</th>
+                          <th className="text-right">Current</th>
+                          <th className="text-right">Previous</th>
+                          <th className="text-right">Change</th>
                         </tr>
                       </thead>
                       <tbody>
                         {category.items?.map((item, itemIdx) => (
-                          <tr key={itemIdx} className="border-b border-gray-100 hover:bg-gray-50 transition">
-                            <td className="py-2 px-1 text-gray-800 text-xs">{item.label}</td>
-                            <td className="py-2 px-1 text-right font-medium text-gray-900">
+                          <tr key={itemIdx}>
+                            <td>{item.label}</td>
+                            <td className="text-right font-medium text-gray-900">
                               {formatCurrency(item.current)}
                             </td>
-                            <td className="py-2 px-1 text-right text-gray-600">
+                            <td className="text-right text-gray-600">
                               {formatCurrency(item.previous)}
                             </td>
-                            <td className="py-2 px-1 text-right">
+                            <td className="text-right">
                               {formatChange(item.change, item.percentChange)}
                             </td>
                           </tr>
@@ -229,14 +229,14 @@ export default function IncomeStatementPage() {
                         
                         {/* Subtotal */}
                         <tr className="bg-blue-50 font-bold text-gray-900">
-                          <td className="py-2 px-1 text-xs">Subtotal</td>
-                          <td className="py-2 px-1 text-right">
+                          <td>Subtotal</td>
+                          <td className="text-right">
                             {formatCurrency(category.subtotal?.current)}
                           </td>
-                          <td className="py-2 px-1 text-right">
+                          <td className="text-right">
                             {formatCurrency(category.subtotal?.previous)}
                           </td>
-                          <td className="py-2 px-1 text-right">
+                          <td className="text-right">
                             {formatChange((category.subtotal?.current || 0) - (category.subtotal?.previous || 0))}
                           </td>
                         </tr>

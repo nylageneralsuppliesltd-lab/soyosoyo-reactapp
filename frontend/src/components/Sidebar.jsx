@@ -1,4 +1,4 @@
-﻿import { Link, useLocation } from 'react-router-dom';
+﻿import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   House,
   UsersThree,
@@ -142,28 +142,28 @@ export default function Sidebar({ isOpen, onClose }) {
               onClick={() => toggleSubmenu('reports')}
             >
               <ChartBar size={20} weight="bold" />
-              <span>Reports & Ledgers</span>
+              <span>Reports</span>
               <CaretDown size={16} className={openSubmenu === 'reports' ? 'open' : ''} />
             </button>
             {openSubmenu === 'reports' && (
               <ul className="submenu">
                 <li>
-                  <Link to="/api-reports" onClick={onClose}>Download Reports</Link>
+                  <NavLink to="/api-reports" onClick={onClose} className={({ isActive }) => `submenu-link ${isActive ? 'active' : ''}`}>Download Reports</NavLink>
                 </li>
                 <li>
-                  <Link to="/general-ledger-detail" onClick={onClose}>General Ledger</Link>
+                  <NavLink to="/general-ledger-detail" onClick={onClose} className={({ isActive }) => `submenu-link ${isActive ? 'active' : ''}`}>General Ledger</NavLink>
                 </li>
                 <li>
-                  <Link to="/account-statement" onClick={onClose}>Account Statements</Link>
+                  <NavLink to="/account-statement" onClick={onClose} className={({ isActive }) => `submenu-link ${isActive ? 'active' : ''}`}>Account Statements</NavLink>
                 </li>
                 <li>
-                  <Link to="/reports/enhanced-balance-sheet" onClick={onClose}>Balance Sheet</Link>
+                  <NavLink to="/reports/enhanced-balance-sheet" onClick={onClose} className={({ isActive }) => `submenu-link ${isActive ? 'active' : ''}`}>Balance Sheet</NavLink>
                 </li>
                 <li>
-                  <Link to="/reports/enhanced-income-statement" onClick={onClose}>Income Statement</Link>
+                  <NavLink to="/reports/enhanced-income-statement" onClick={onClose} className={({ isActive }) => `submenu-link ${isActive ? 'active' : ''}`}>Income Statement</NavLink>
                 </li>
                 <li>
-                  <Link to="/reports/trial-balance" onClick={onClose}>Trial Balance</Link>
+                  <NavLink to="/reports/trial-balance" onClick={onClose} className={({ isActive }) => `submenu-link ${isActive ? 'active' : ''}`}>Trial Balance</NavLink>
                 </li>
               </ul>
             )}

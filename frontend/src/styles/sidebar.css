@@ -27,8 +27,8 @@
   top: 0;
   height: 100vh;
   width: 260px;
-  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
-  box-shadow: var(--shadow-md);
+  background: #ffffff;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
   overflow-y: auto;
   z-index: 999;
   transition: transform 0.3s ease;
@@ -40,7 +40,7 @@
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
-    width: 280px;
+    width: min(86vw, 320px);
     z-index: 999;
   }
 
@@ -85,14 +85,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 44px;
+    height: 44px;
   }
 }
 
 /* Logo Section */
 .sidebar-logo {
-  padding: 12px 12px;
+  padding: 14px 14px;
   text-align: center;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
   margin-bottom: 6px;
 }
 
@@ -100,7 +102,7 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--success) 100%);
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
   color: white;
   display: flex;
   align-items: center;
@@ -113,7 +115,7 @@
 
 .sidebar-logo h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--dark);
   line-height: 1.2;
@@ -142,13 +144,13 @@
 }
 
 .sidebar-menu > li.active > .menu-item {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-  color: white;
-  border-left: 4px solid var(--success);
+  background: rgba(37, 99, 235, 0.1);
+  color: #1e40af;
+  border-left: 3px solid #2563eb;
 }
 
 .sidebar-menu > li.active > .menu-item svg {
-  color: white;
+  color: #1e40af;
 }
 
 /* Menu Item Link/Button */
@@ -162,7 +164,7 @@
   color: var(--dark);
   text-decoration: none;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 10px;
   transition: all 0.2s;
   font-size: 14px;
   font-weight: 500;
@@ -172,7 +174,7 @@
 
 .menu-item:hover {
   background: rgba(37, 99, 235, 0.08);
-  color: var(--primary);
+  color: #1e40af;
 }
 
 .menu-item svg {
@@ -198,12 +200,14 @@
 /* Submenu */
 .submenu {
   list-style: none;
-  margin: 0;
-  padding: 8px 8px 8px 48px;
+  margin: 4px 0 0 0;
+  padding: 8px 8px 8px 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   animation: slideDown 0.2s ease-out;
+  border-left: 2px solid #dbeafe;
+  margin-left: 16px;
 }
 
 @keyframes slideDown {
@@ -221,20 +225,49 @@
   margin: 0;
 }
 
-.submenu > li > a {
+.submenu > li > a,
+.submenu-link {
   display: block;
   padding: 8px 12px;
   color: #6b7280;
   text-decoration: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   transition: all 0.2s;
+  text-align: left;
 }
 
-.submenu > li > a:hover {
+@media (max-width: 768px) {
+  .sidebar-logo {
+    text-align: left;
+    padding: 14px 16px;
+  }
+
+  .logo-circle {
+    margin: 0 0 10px 0;
+  }
+
+  .menu-item {
+    min-height: 44px;
+  }
+
+  .submenu {
+    padding: 8px 8px 8px 12px;
+    margin-left: 10px;
+  }
+}
+
+.submenu > li > a:hover,
+.submenu-link:hover {
   background: rgba(37, 99, 235, 0.1);
   color: var(--primary);
+}
+
+.submenu-link.active {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
 }
 
 /* Footer */

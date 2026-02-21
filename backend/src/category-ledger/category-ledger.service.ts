@@ -7,6 +7,33 @@ export class CategoryLedgerService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  private normalizeText(value?: string | null): string {
+    return (value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  private appendNarrationMetadata(baseDescription?: string | null, reference?: string | null, narration?: string | null): string {
+    const cleanedBase = this.normalizeText(baseDescription) || 'Transaction';
+    const refTag = reference ? `Ref:${this.normalizeText(reference)}` : '';
+    const noteTag = narration ? `Note:${this.normalizeText(narration)}` : '';
+
+    const hasRef = refTag && cleanedBase.toLowerCase().includes(refTag.toLowerCase());
+    const hasNote = noteTag && cleanedBase.toLowerCase().includes(noteTag.toLowerCase());
+
+    const suffixes = [
+      refTag && !hasRef ? refTag : '',
+      noteTag && !hasNote ? noteTag : '',
+    ].filter(Boolean);
+
+    return suffixes.length ? `${cleanedBase} | ${suffixes.join(' | ')}` : cleanedBase;
+  }
+
+  private formatLedgerEntryNarration(entry: any) {
+    return {
+      ...entry,
+      description: this.appendNarrationMetadata(entry.description, entry.reference, entry.narration),
+    };
+  }
+
   /**
    * Create a category ledger when expense/income category is created
    */
@@ -80,11 +107,11 @@ export class CategoryLedgerService {
           categoryLedgerId,
           type,
           amount: amountNum,
-          description,
+          description: this.normalizeText(description) || `${type} transaction (${this.normalizeText(sourceType) || 'manual'})`,
           sourceType,
           sourceId: sourceId?.toString(),
-          reference,
-          narration,
+          reference: this.normalizeText(reference) || null,
+          narration: this.normalizeText(narration) || null,
           balanceAfter: newBalance,
         },
       });
@@ -103,7 +130,7 @@ export class CategoryLedgerService {
         `Posted ${type} transaction (${amountNum}) to ledger ${categoryLedgerId}`,
       );
 
-      return entry;
+      return this.formatLedgerEntryNarration(entry);
     } catch (error) {
       this.logger.error(
         `Failed to post transaction to category ledger`,
@@ -117,7 +144,7 @@ export class CategoryLedgerService {
    * Get category ledger with all entries
    */
   async getCategoryLedger(categoryLedgerId: number) {
-    return this.prisma.categoryLedger.findUnique({
+    const ledger = await this.prisma.categoryLedger.findUnique({
       where: { id: categoryLedgerId },
       include: {
         entries: {
@@ -127,6 +154,15 @@ export class CategoryLedgerService {
         incomeCategory: true,
       },
     });
+
+    if (!ledger) return ledger;
+
+    return {
+      ...ledger,
+      entries: Array.isArray(ledger.entries)
+        ? ledger.entries.map((entry) => this.formatLedgerEntryNarration(entry))
+        : [],
+    };
   }
 
   /**
@@ -134,7 +170,7 @@ export class CategoryLedgerService {
    */
   async getCategoryLedgerByName(categoryName: string) {
     // categoryName is not unique, use findFirst
-    return this.prisma.categoryLedger.findFirst({
+    const ledger = await this.prisma.categoryLedger.findFirst({
       where: { categoryName },
       include: {
         entries: {
@@ -142,13 +178,22 @@ export class CategoryLedgerService {
         },
       },
     });
+
+    if (!ledger) return ledger;
+
+    return {
+      ...ledger,
+      entries: Array.isArray(ledger.entries)
+        ? ledger.entries.map((entry) => this.formatLedgerEntryNarration(entry))
+        : [],
+    };
   }
 
   /**
    * Get all category ledgers with summary
    */
   async getAllCategoryLedgers(type?: 'income' | 'expense') {
-    return this.prisma.categoryLedger.findMany({
+    const ledgers = await this.prisma.categoryLedger.findMany({
       where: type ? { categoryType: type } : undefined,
       include: {
         entries: {
@@ -160,6 +205,13 @@ export class CategoryLedgerService {
       },
       orderBy: { categoryName: 'asc' },
     });
+
+    return ledgers.map((ledger) => ({
+      ...ledger,
+      entries: Array.isArray(ledger.entries)
+        ? ledger.entries.map((entry) => this.formatLedgerEntryNarration(entry))
+        : [],
+    }));
   }
 
   /**
@@ -183,7 +235,7 @@ export class CategoryLedgerService {
     ]);
 
     return {
-      entries,
+      entries: entries.map((entry) => this.formatLedgerEntryNarration(entry)),
       total,
       skip,
       take,

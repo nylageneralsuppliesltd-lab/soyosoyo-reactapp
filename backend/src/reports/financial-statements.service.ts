@@ -4,6 +4,37 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class FinancialStatementsService {
+  private classifyTrialBalanceAccount(accountName: string, accountType: string): 'Asset' | 'Liability' | 'Equity' | 'Income' | 'Expense' {
+    if (['cash', 'bank', 'mobileMoney', 'pettyCash'].includes(accountType)) {
+      return 'Asset';
+    }
+
+    const normalizedName = (accountName || '').toLowerCase();
+
+    if (normalizedName.includes('expense') || normalizedName.includes('cost')) {
+      return 'Expense';
+    }
+
+    if (
+      normalizedName.includes('income') ||
+      normalizedName.includes('received') ||
+      normalizedName.includes('repayment') ||
+      normalizedName.includes('fine')
+    ) {
+      return 'Income';
+    }
+
+    if (normalizedName.includes('payable') || normalizedName.includes('loan') || normalizedName.includes('contribution')) {
+      return 'Liability';
+    }
+
+    if (normalizedName.includes('equity') || normalizedName.includes('retained') || normalizedName.includes('capital')) {
+      return 'Equity';
+    }
+
+    return accountType === 'gl' ? 'Expense' : 'Asset';
+  }
+
     /**
      * Loan Repayment and Interest Summary for Financial Statements
      */
@@ -346,21 +377,41 @@ export class FinancialStatementsService {
     }
 
     // Format rows
+    const classOrder: Record<string, number> = {
+      Asset: 1,
+      Liability: 2,
+      Equity: 3,
+      Income: 4,
+      Expense: 5,
+    };
+
     const rows = accounts
-      .filter(acc => acc.type !== 'gl')
       .map(acc => {
         const bal = balances.get(acc.id) || { debit: 0, credit: 0 };
         const net = Number((bal.debit - bal.credit).toFixed(2));
         return {
           accountName: acc.name,
           accountType: acc.type,
+          accountClass: this.classifyTrialBalanceAccount(acc.name, acc.type),
           debit: net > 0 ? net : 0,
           credit: net < 0 ? Math.abs(net) : 0,
           balance: net,
           balanceType: net > 0 ? 'Debit' : (net < 0 ? 'Credit' : 'Zero')
         };
       })
-      .filter(r => r.debit > 0 || r.credit > 0 || r.balance !== 0);
+      .sort((a, b) => {
+        const classSort = (classOrder[a.accountClass] || 999) - (classOrder[b.accountClass] || 999);
+        if (classSort !== 0) return classSort;
+        return a.accountName.localeCompare(b.accountName);
+      });
+
+    const classTotals = rows.reduce((acc, row) => {
+      const current = acc[row.accountClass] || { debit: 0, credit: 0 };
+      current.debit += row.debit;
+      current.credit += row.credit;
+      acc[row.accountClass] = current;
+      return acc;
+    }, {} as Record<string, { debit: number; credit: number }>);
 
     let totalDebits = rows.reduce((s, r) => s + r.debit, 0);
     let totalCredits = rows.reduce((s, r) => s + r.credit, 0);
@@ -369,6 +420,7 @@ export class FinancialStatementsService {
       rows.push({
         accountName: 'Opening Balance Equity',
         accountType: 'equity' as any,
+        accountClass: 'Equity',
         debit: variance < 0 ? Math.abs(variance) : 0,
         credit: variance > 0 ? Math.abs(variance) : 0,
         balance: variance < 0 ? Math.abs(variance) : -Math.abs(variance),
@@ -381,6 +433,7 @@ export class FinancialStatementsService {
     rows.push({
       accountName: 'TOTALS',
       accountType: 'glAccount' as any,
+      accountClass: 'Total' as any,
       debit: totalDebits,
       credit: totalCredits,
       balance: 0,
@@ -394,7 +447,19 @@ export class FinancialStatementsService {
         totalDebits,
         totalCredits,
         balanced: Math.abs(totalDebits - totalCredits) < 0.01,
-        balanceVariance: Number((totalDebits - totalCredits).toFixed(2))
+        balanceVariance: Number((totalDebits - totalCredits).toFixed(2)),
+        accountCount: rows.filter(r => r.accountName !== 'TOTALS').length,
+        nonZeroCount: rows.filter(r => r.accountName !== 'TOTALS' && (r.debit !== 0 || r.credit !== 0)).length,
+        classTotals: Object.fromEntries(
+          Object.entries(classTotals).map(([className, totals]) => [
+            className,
+            {
+              debit: Number(totals.debit.toFixed(2)),
+              credit: Number(totals.credit.toFixed(2)),
+              net: Number((totals.debit - totals.credit).toFixed(2)),
+            },
+          ]),
+        ),
       }
     };
   }

@@ -835,36 +835,42 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+  border: 1px solid transparent;
 }
 
 .type-badge.type-contribution {
   background: #dbeafe;
-  color: #0c4a6e;
+  color: #0b3a5a;
+  border-color: #93c5fd;
 }
 
 .type-badge.type-fine {
   background: #fee2e2;
-  color: #991b1b;
+  color: #7f1d1d;
+  border-color: #fca5a5;
 }
 
 .type-badge.type-loan_repayment {
   background: #fef3c7;
-  color: #78350f;
+  color: #713f12;
+  border-color: #fcd34d;
 }
 
 .type-badge.type-income {
   background: #dcfce7;
-  color: #15803d;
+  color: #166534;
+  border-color: #86efac;
 }
 
 .type-badge.type-miscellaneous {
   background: #f3e8ff;
-  color: #6b21a8;
+  color: #581c87;
+  border-color: #d8b4fe;
 }
 
 .amount-cell {
   text-align: right;
-  color: #27ae60;
+  color: #166534;
   font-weight: 600;
   font-family: 'Courier New', monospace;
 }
@@ -888,16 +894,19 @@
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: 600;
+  border: 1px solid transparent;
 }
 
 .status-badge.status-completed {
   background: #dcfce7;
-  color: #15803d;
+  color: #166534;
+  border-color: #86efac;
 }
 
 .status-badge.status-pending {
   background: #fef3c7;
-  color: #78350f;
+  color: #713f12;
+  border-color: #fcd34d;
 }
 
 /* Summary Stats */
@@ -948,11 +957,16 @@
   .deposits-menu {
     margin: 1rem auto;
     gap: 0.5rem;
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
   }
 
   .menu-btn {
     padding: 0.6rem 1rem;
     font-size: 0.85rem;
+    flex-shrink: 0;
   }
 
   .menu-btn svg {
@@ -1014,13 +1028,9 @@
     font-size: 1.25rem;
   }
 
-  .deposits-menu {
-    flex-direction: column;
-  }
-
   .menu-btn {
-    width: 100%;
-    justify-content: center;
+    min-height: 44px;
+    justify-content: flex-start;
   }
 
   .import-content {

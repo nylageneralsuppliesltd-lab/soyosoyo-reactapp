@@ -28,6 +28,14 @@
     sans-serif;
 }
 
+.app-container,
+.app-container button,
+.app-container input,
+.app-container select,
+.app-container textarea {
+  font-family: inherit;
+}
+
 /* Main Content */
 .main-content {
   flex: 1;
@@ -64,7 +72,9 @@
   background: white;
   border: 2px solid var(--primary);
   border-radius: 8px;
-  padding: 10px 12px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 10px;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: var(--shadow-md);
@@ -91,6 +101,54 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+  }
+
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .btn-page,
+  .menu-btn,
+  .menu-tab,
+  .btn-action,
+  .btn-icon,
+  .btn-icon-edit,
+  .btn-icon-delete,
+  button[title='Edit'],
+  button[title='Delete'],
+  button[title='View'],
+  button[title='Update'] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .table-container,
+  .report-table-container,
+  .table-responsive,
+  .deposits-table-wrapper,
+  .members-table-wrapper,
+  .statement-table-container,
+  .statement-table-wrapper,
+  .transactions-table-wrapper,
+  .amortization-table-wrapper,
+  .assets-table-container,
+  .account-ledger-block {
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-container table,
+  .report-table-container table,
+  .table-responsive table,
+  .deposits-table-wrapper table,
+  .members-table-wrapper table,
+  .statement-table-container table,
+  .statement-table-wrapper table,
+  .transactions-table-wrapper table,
+  .amortization-table-wrapper table,
+  .assets-table-container table,
+  .account-ledger-block table {
+    min-width: 760px;
   }
 }
 

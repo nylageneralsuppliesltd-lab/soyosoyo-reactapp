@@ -21,15 +21,12 @@
   box-sizing: border-box;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  color: var(--text-dark);
-  line-height: 1.6;
-}
-
 .landing-container {
   width: 100%;
   overflow-x: hidden;
+  font-family: inherit;
+  color: var(--text-dark);
+  line-height: 1.6;
 }
 
 /* ─────────────────────────────────────────────────────────

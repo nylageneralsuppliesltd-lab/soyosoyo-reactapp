@@ -530,7 +530,7 @@
   padding: 16px;
   background: var(--light);
   min-height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: inherit;
   color: var(--text-dark);
 }
 
@@ -761,7 +761,7 @@
   padding: 16px;
   background: var(--light);
   min-height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: inherit;
   color: var(--text-dark);
 }
 
@@ -1104,7 +1104,9 @@
 .members-table-wrapper {
   background: white;
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
   box-shadow: var(--shadow-sm);
   margin-bottom: 24px;
 }

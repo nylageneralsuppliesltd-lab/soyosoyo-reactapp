@@ -132,6 +132,12 @@
   font-size: 16px;
 }
 
+.category-table-wrapper,
+.entries-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .category-table {
   width: 100%;
   border-collapse: collapse;
@@ -492,6 +498,11 @@
 
   .entries-table {
     font-size: 12px;
+    min-width: 760px;
+  }
+
+  .category-table {
+    min-width: 560px;
   }
 
   .entries-table th,

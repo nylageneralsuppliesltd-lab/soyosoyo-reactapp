@@ -111,6 +111,7 @@ const DashboardPage = () => {
     suspendedMembers: 0,
     totalSavings: 0,
     totalLoans: 0,
+    totalLoanBalance: 0,
     monthlyInterest: 0,
     memberGrowth: 0,
   };
@@ -172,6 +173,7 @@ const DashboardPage = () => {
 
   return (
     <div className="dashboard-container">
+      <div className="dashboard-shell">
       {/* Error Banner */}
       {error && (
         <div className="error-banner">
@@ -202,35 +204,115 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Loans Card/Table for Cypress */}
-      <div className="dashboard-loans-section">
-        <h1>Loans</h1>
-        <table className="dashboard-loans-table">
-          <thead>
-            <tr>
-              <th>Member</th>
-              <th>Type</th>
-              <th>Amount</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentLoans.length > 0 ? (
-              recentLoans.map((loan) => (
-                <tr key={loan.id} onClick={() => navigate('/loans?tab=member-loans')} style={{ cursor: 'pointer' }}>
-                  <td>{loan.memberName || loan.member?.name || [loan.member?.firstName, loan.member?.lastName].filter(Boolean).join(' ') || 'N/A'}</td>
-                  <td>{loan.typeName || loan.type?.name || loan.category || 'Loan'}</td>
-                  <td>{formatCurrency(loan.amount || 0)}</td>
-                  <td>{loan.status || 'pending'}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={4} style={{ textAlign: 'center', color: '#6b7280' }}>No recent loans</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      {/* Loans Showcase */}
+      <div className="dashboard-loans-showcase">
+        <div className="loans-showcase-header">
+          <div>
+            <h2>Loans Spotlight</h2>
+            <p>Recent disbursements and balances at a glance</p>
+          </div>
+          <button className="loans-showcase-link" onClick={() => navigate('/loans?tab=member-loans')}>
+            View all loans
+          </button>
+        </div>
+        <div className="loans-showcase-grid">
+          {recentLoans.length > 0 ? (
+            recentLoans.map((loan) => {
+              const amount = Number(loan.amount || 0);
+              const balance = Number(loan.balance || 0);
+              const repaid = amount > 0 ? Math.max(0, Math.min(1, (amount - balance) / amount)) : 0;
+              const disbursedAt = loan.disbursementDate || loan.createdAt;
+              const disbursedLabel = disbursedAt
+                ? new Date(disbursedAt).toLocaleDateString('en-KE', { month: 'short', day: 'numeric', year: 'numeric' })
+                : 'N/A';
+              const termLabel = loan.periodMonths || loan.termMonths
+                ? `${loan.periodMonths || loan.termMonths} mo`
+                : 'N/A';
+
+              // Calculate loan health
+              const now = new Date();
+              const disbursedDate = disbursedAt ? new Date(disbursedAt) : null;
+              const monthsSinceDisbursement = disbursedDate
+                ? Math.floor((now - disbursedDate) / (1000 * 60 * 60 * 24 * 30))
+                : 0;
+              const totalTermMonths = loan.periodMonths || loan.termMonths || 12;
+              const expectedRepaidFraction = Math.min(1, monthsSinceDisbursement / totalTermMonths);
+              const repaymentGap = expectedRepaidFraction - repaid;
+
+              let healthStatus = 'on-track';
+              let healthLabel = 'On Track';
+              let healthIcon = '✓';
+
+              if (loan.status === 'closed' || loan.status === 'written_off') {
+                healthStatus = 'closed';
+                healthLabel = loan.status === 'written_off' ? 'Written Off' : 'Closed';
+                healthIcon = '●';
+              } else if (repaymentGap > 0.15) {
+                healthStatus = 'overdue';
+                healthLabel = 'Overdue';
+                healthIcon = '⚠';
+              } else if (repaymentGap > 0.05) {
+                healthStatus = 'at-risk';
+                healthLabel = 'At Risk';
+                healthIcon = '⚡';
+              }
+
+              return (
+                <button
+                  key={loan.id}
+                  className={`loan-showcase-card status-${loan.status || 'pending'}`}
+                  onClick={() => navigate('/loans?tab=member-loans')}
+                >
+                  <div className="loan-card-top">
+                    <div>
+                      <p className="loan-member">
+                        {loan.memberName || loan.member?.name || [loan.member?.firstName, loan.member?.lastName].filter(Boolean).join(' ') || 'N/A'}
+                      </p>
+                      <p className="loan-type">{loan.typeName || loan.type?.name || loan.category || 'Loan'}</p>
+                    </div>
+                    <div className="loan-status-group">
+                      <span className="loan-pill">Loan #{loan.id}</span>
+                      <span className={`loan-status ${loan.status || 'pending'}`}>{loan.status || 'pending'}</span>
+                    </div>
+                  </div>
+                  <div className={`loan-health-banner health-${healthStatus}`}>
+                    <span className="health-icon">{healthIcon}</span>
+                    <span className="health-label">{healthLabel}</span>
+                    {healthStatus === 'overdue' && <span className="health-detail">Payments behind schedule</span>}
+                    {healthStatus === 'at-risk' && <span className="health-detail">Slightly behind</span>}
+                    {healthStatus === 'on-track' && <span className="health-detail">Progressing well</span>}
+                  </div>
+                  <div className="loan-card-metrics">
+                    <div>
+                      <span>Principal</span>
+                      <strong>{formatCurrency(amount)}</strong>
+                    </div>
+                    <div>
+                      <span>Balance</span>
+                      <strong>{formatCurrency(balance)}</strong>
+                    </div>
+                  </div>
+                  <div className="loan-card-boundary">
+                    <div>
+                      <span>Disbursed</span>
+                      <strong>{disbursedLabel}</strong>
+                    </div>
+                    <div>
+                      <span>Term</span>
+                      <strong>{termLabel}</strong>
+                    </div>
+                  </div>
+                  <div className="loan-progress">
+                    <div className="loan-progress-bar" style={{ width: `${Math.round(repaid * 100)}%` }}></div>
+                  </div>
+                  <p className="loan-progress-label">{Math.round(repaid * 100)}% repaid</p>
+                </button>
+              );
+            })
+          ) : (
+            <div className="loans-showcase-empty">No recent loans yet</div>
+          )}
+        </div>
       </div>
 
       {/* Loading State */}
@@ -265,7 +347,15 @@ const DashboardPage = () => {
           <p className="metric-link">View deposits <ArrowRight size={12} /></p>
         </div>
 
-        {/* Removed duplicate Outstanding Loans card to avoid Cypress confusion. Only 'Loans' heading/table is shown above. */}
+        <div className="metric-card-compact loan-metric" onClick={() => navigate('/loans?tab=member-loans')}>
+          <div className="metric-header">
+            <Money size={18} />
+            <span className="metric-label">Loan Book</span>
+          </div>
+          <h3 className="metric-value-compact">{formatCurrency(displayStats.totalLoans)}</h3>
+          <p className="metric-subtext-compact">Outstanding {formatCurrency(displayStats.totalLoanBalance)}</p>
+          <p className="metric-link">View loans <ArrowRight size={12} /></p>
+        </div>
 
         <div className="metric-card-compact interest-metric" onClick={() => navigate('/api-reports')}>
           <div className="metric-header">
@@ -273,7 +363,7 @@ const DashboardPage = () => {
             <span className="metric-label">Monthly Interest</span>
           </div>
           <h3 className="metric-value-compact">{formatCurrency(displayStats.monthlyInterest)}</h3>
-          <p className="metric-subtext-compact">This month</p>
+          <p className="metric-subtext-compact">From repayments this month</p>
           <p className="metric-link">View reports <ArrowRight size={12} /></p>
         </div>
       </div>
@@ -413,6 +503,7 @@ const DashboardPage = () => {
       </div>
       </>
       )}
+      </div>
     </div>
   );
 };

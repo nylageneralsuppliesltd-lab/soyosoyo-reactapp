@@ -59,6 +59,15 @@ function App() {
     closeSidebar();
   }, [location.pathname]);
 
+  useEffect(() => {
+    if (window.innerWidth <= 768) {
+      document.body.style.overflow = isSidebarOpen ? 'hidden' : '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isSidebarOpen]);
+
   // Routes handle landing page; always render app layout here
 
   return (

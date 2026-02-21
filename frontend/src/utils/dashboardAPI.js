@@ -98,11 +98,12 @@ export const getAllLoans = async () => {
  */
 export const calculateDashboardStats = async () => {
   try {
-    const [members, deposits, withdrawals, loans] = await Promise.all([
+    const [members, deposits, withdrawals, loans, interestIncome] = await Promise.all([
       getAllMembers(),
       getAllDeposits(),
       getAllWithdrawals(),
       getAllLoans(),
+      getInterestIncomeForPeriod(),
     ]);
 
     console.log('Dashboard Data:', { 
@@ -131,15 +132,23 @@ export const calculateDashboardStats = async () => {
       return sum + amount;
     }, 0);
 
-    // Calculate monthly interest (from deposits with rate)
-    const monthlyInterest = deposits.reduce((sum, d) => {
+    const totalLoanBalance = loans.reduce((sum, l) => {
+      const balance = typeof l.balance === 'number' ? l.balance : parseFloat(l.balance) || 0;
+      return sum + balance;
+    }, 0);
+
+    // Monthly interest income from reports; fallback to savings-rate estimate if needed
+    const fallbackInterest = deposits.reduce((sum, d) => {
       if (d.depositType === 'regular_savings' || d.depositType === 'share_capital') {
-        const rate = d.rate || 2; // Default 2% if not specified
+        const rate = d.rate || 2;
         const amount = typeof d.amount === 'number' ? d.amount : parseFloat(d.amount) || 0;
         return sum + (amount * rate / 100);
       }
       return sum;
     }, 0);
+    const monthlyInterest = Number.isFinite(interestIncome) && interestIncome > 0
+      ? interestIncome
+      : fallbackInterest;
 
     // Calculate member growth (% change from 30 days ago)
     const thirtyDaysAgo = new Date();
@@ -155,12 +164,30 @@ export const calculateDashboardStats = async () => {
       suspendedMembers,
       totalSavings: Math.round(totalSavings),
       totalLoans: Math.round(totalLoans),
+      totalLoanBalance: Math.round(totalLoanBalance),
       monthlyInterest: Math.round(monthlyInterest),
       memberGrowth: parseFloat(memberGrowth),
     };
   } catch (error) {
     console.error('Error calculating dashboard stats:', error);
     return null;
+  }
+};
+
+export const getInterestIncomeForPeriod = async () => {
+  try {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const response = await API.get('/reports/income-breakdown', {
+      params: {
+        startDate: start.toISOString().split('T')[0],
+        endDate: now.toISOString().split('T')[0],
+      },
+    });
+    const summary = response.data?.summary || {};
+    return Number(summary.interestIncome || 0);
+  } catch (error) {
+    return 0;
   }
 };
 
@@ -182,26 +209,26 @@ export const getMonthlyTrendData = async (months = 6) => {
     for (let i = months - 1; i >= 0; i--) {
       const monthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
       const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-      const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+      const monthEndExclusive = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1);
 
       const monthDeposits = deposits
         .filter(d => {
           const dDate = new Date(toTimestamp(d));
-          return dDate >= monthStart && dDate <= monthEnd;
+          return !Number.isNaN(dDate.getTime()) && dDate >= monthStart && dDate < monthEndExclusive;
         })
         .reduce((sum, d) => sum + toAmount(d.amount), 0);
 
       const monthWithdrawals = withdrawals
         .filter(w => {
           const wDate = new Date(toTimestamp(w));
-          return wDate >= monthStart && wDate <= monthEnd;
+          return !Number.isNaN(wDate.getTime()) && wDate >= monthStart && wDate < monthEndExclusive;
         })
         .reduce((sum, w) => sum + toAmount(w.amount), 0);
 
       const monthLoans = loans
         .filter(l => {
           const lDate = new Date(toTimestamp(l));
-          return lDate >= monthStart && lDate <= monthEnd;
+          return !Number.isNaN(lDate.getTime()) && lDate >= monthStart && lDate < monthEndExclusive;
         })
         .reduce((sum, l) => sum + toAmount(l.amount), 0);
 
@@ -213,7 +240,6 @@ export const getMonthlyTrendData = async (months = 6) => {
         interest: Math.round(monthDeposits * 0.02), // 2% monthly interest
       });
     }
-
     return trendData;
   } catch (error) {
     console.error('Error calculating monthly trends:', error);

@@ -22,6 +22,70 @@ export class ReportsService {
     return this.glAccountPatterns.some(pattern => pattern.test(accountName));
   }
 
+  private normalizeText(value?: string | null): string {
+    return (value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  private appendNarrationMetadata(baseDescription: string, reference?: string | null, narration?: string | null): string {
+    const cleanedBase = this.normalizeText(baseDescription) || 'Transaction';
+    const refTag = reference ? `Ref:${this.normalizeText(reference)}` : '';
+    const noteTag = narration ? `Note:${this.normalizeText(narration)}` : '';
+
+    const hasRef = refTag && cleanedBase.toLowerCase().includes(refTag.toLowerCase());
+    const hasNote = noteTag && cleanedBase.toLowerCase().includes(noteTag.toLowerCase());
+
+    const suffixes = [
+      refTag && !hasRef ? refTag : '',
+      noteTag && !hasNote ? noteTag : '',
+    ].filter(Boolean);
+
+    return suffixes.length ? `${cleanedBase} | ${suffixes.join(' | ')}` : cleanedBase;
+  }
+
+  private buildStandardNarration(input: {
+    direction: 'credit' | 'debit' | 'transfer';
+    actorName?: string | null;
+    transactionType?: string | null;
+    bankAccountName?: string | null;
+    bankAccountInfo?: string | null;
+    counterpartyAccountName?: string | null;
+    baseDescription?: string | null;
+    reference?: string | null;
+    note?: string | null;
+  }): string {
+    const actor = this.normalizeText(input.actorName);
+    const txType = this.normalizeText(input.transactionType);
+    const bankAccount = this.normalizeText(input.bankAccountName) || 'Bank Account';
+    const bankInfo = this.normalizeText(input.bankAccountInfo);
+    const counterparty = this.normalizeText(input.counterpartyAccountName) || 'Counterparty Account';
+    const baseDescription = this.normalizeText(input.baseDescription) || 'Journal entry';
+
+    const actorPrefix = actor ? `${actor} - ${txType || 'Transaction'} ` : '';
+    const bankLabel = bankInfo ? `${bankAccount} ${bankInfo}` : bankAccount;
+
+    if (input.direction === 'credit') {
+      return this.appendNarrationMetadata(
+        `${actorPrefix}credited in ${bankLabel} from ${counterparty} - ${baseDescription}`,
+        input.reference,
+        input.note,
+      );
+    }
+
+    if (input.direction === 'debit') {
+      return this.appendNarrationMetadata(
+        `${actorPrefix}debited from ${bankLabel} to ${counterparty} - ${baseDescription}`,
+        input.reference,
+        input.note,
+      );
+    }
+
+    return this.appendNarrationMetadata(
+      `Transfer from ${counterparty} to ${bankLabel} - ${baseDescription}`,
+      input.reference,
+      input.note,
+    );
+  }
+
   private async getContributionTypeNames() {
     const types = await this.prisma.contributionType.findMany({
       select: { name: true },
@@ -140,6 +204,7 @@ export class ReportsService {
   async handleReport(key: string, query: any, res: Response) {
     const format = (query.format || 'json').toLowerCase();
     const periodPreset = query.period || query.periodPreset;
+    const summaryOnly = query.summaryOnly === '1' || query.summaryOnly === 'true';
     const dateRange = this.buildDateRange(periodPreset, query.startDate, query.endDate);
 
     let result: { rows: any[]; meta?: any };
@@ -207,6 +272,10 @@ export class ReportsService {
         throw new BadRequestException('Unknown report');
     }
 
+    if (summaryOnly && key !== 'transactions' && key !== 'accountStatement') {
+      result = this.toSummaryResult(key, result);
+    }
+
     if (format === 'json') return { ...result, format: 'json' };
 
     if (format === 'csv') {
@@ -259,6 +328,94 @@ export class ReportsService {
     }
 
     throw new BadRequestException('Unsupported format');
+  }
+
+  private toSummaryResult(key: string, result: { rows: any[]; meta?: any }) {
+    const rows = Array.isArray(result.rows) ? result.rows : [];
+    const summaryRows = this.summarizeRowsByReportKey(key, rows);
+
+    return {
+      rows: summaryRows,
+      meta: {
+        ...(result.meta || {}),
+        summaryMode: true,
+        sourceRowCount: rows.length,
+        summaryRowCount: summaryRows.length,
+      },
+    };
+  }
+
+  private summarizeRowsByReportKey(key: string, rows: any[]) {
+    if (!rows.length) return [];
+
+    if (key === 'trialBalance') {
+      const grouped = new Map<string, { accountType: string; debitAmount: number; creditAmount: number; balance: number; accounts: number }>();
+      for (const row of rows) {
+        const accountType = row.accountType || 'other';
+        const item = grouped.get(accountType) || { accountType, debitAmount: 0, creditAmount: 0, balance: 0, accounts: 0 };
+        item.debitAmount += Number(row.debitAmount || 0);
+        item.creditAmount += Number(row.creditAmount || 0);
+        item.balance += Number(row.balance || 0);
+        item.accounts += 1;
+        grouped.set(accountType, item);
+      }
+      return Array.from(grouped.values()).sort((a, b) => a.accountType.localeCompare(b.accountType));
+    }
+
+    if (key === 'balanceSheet') {
+      const grouped = new Map<string, { category: string; section: string; amount: number; lineItems: number }>();
+      for (const row of rows) {
+        const category = row.category || 'Other';
+        const section = row.section || 'General';
+        const id = `${category}|${section}`;
+        const item = grouped.get(id) || { category, section, amount: 0, lineItems: 0 };
+        item.amount += Number(row.amount || 0);
+        item.lineItems += 1;
+        grouped.set(id, item);
+      }
+      return Array.from(grouped.values()).sort((a, b) => (a.category + a.section).localeCompare(b.category + b.section));
+    }
+
+    if (key === 'incomeStatement' || key === 'cashFlow') {
+      const grouped = new Map<string, { section: string; category: string; amount: number; lineItems: number }>();
+      for (const row of rows) {
+        const section = row.section || 'Other';
+        const category = row.category || row.type || 'General';
+        const id = `${section}|${category}`;
+        const item = grouped.get(id) || { section, category, amount: 0, lineItems: 0 };
+        item.amount += Number(row.amount || 0);
+        item.lineItems += 1;
+        grouped.set(id, item);
+      }
+      return Array.from(grouped.values()).sort((a, b) => (a.section + a.category).localeCompare(b.section + b.category));
+    }
+
+    if (key === 'sasra') {
+      const summaryRows = rows.filter(r => r.category === 'Summary');
+      const detailRows = rows.filter(r => r.category !== 'Summary');
+      const grouped = new Map<string, { category: string; metric: string; value: number; lineItems: number }>();
+      for (const row of detailRows) {
+        const category = row.category || 'Other';
+        const item = grouped.get(category) || { category, metric: `${category} Total`, value: 0, lineItems: 0 };
+        item.value += Number(row.value || 0);
+        item.lineItems += 1;
+        grouped.set(category, item);
+      }
+      return [...summaryRows, ...Array.from(grouped.values())];
+    }
+
+    const groupKeys = ['category', 'type', 'status', 'section', 'source', 'paymentMethod'];
+    const selectedKey = groupKeys.find(candidate => rows.some(r => r && r[candidate] !== undefined)) || 'type';
+    const grouped = new Map<string, { group: string; count: number; totalAmount: number }>();
+    for (const row of rows) {
+      const group = String(row?.[selectedKey] || 'Other');
+      const amount = Number(row?.amount || row?.value || 0);
+      const item = grouped.get(group) || { group, count: 0, totalAmount: 0 };
+      item.count += 1;
+      item.totalAmount += amount;
+      grouped.set(group, item);
+    }
+    return Array.from(grouped.values()).sort((a, b) => Math.abs(b.totalAmount) - Math.abs(a.totalAmount));
   }
 
   async referenceSearch(reference?: string) {
@@ -344,7 +501,11 @@ export class ReportsService {
       category: d.category || 'General Contribution',
       amount: Number(d.amount),
       paymentMethod: d.method || 'Unspecified',
-      description: d.description || 'Member Contribution',
+      description: this.appendNarrationMetadata(
+        d.description || 'Member Contribution',
+        d.reference,
+        d.narration,
+      ),
       reference: d.reference,
       depositId: d.id,
     }));
@@ -618,9 +779,6 @@ export class ReportsService {
             .join(' ');
         };
 
-        const refSuffix = entry.reference ? ` | Ref:${entry.reference}` : '';
-        const narrationSuffix = entry.narration ? ` | Note:${entry.narration}` : '';
-
         if (entry.debitAccountId === Number(accountId)) {
           // Money coming INTO this account
           moneyIn = Number(entry.debitAmount);
@@ -631,9 +789,27 @@ export class ReportsService {
           
           if (deposit && deposit.member) {
             const txType = deposit.type ? formatTransactionType(deposit.type) : 'Deposit';
-            fullDescription = `${deposit.member.name} - ${txType} - ${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}${refSuffix}${narrationSuffix}`;
+            fullDescription = this.buildStandardNarration({
+              direction: 'credit',
+              actorName: deposit.member.name,
+              transactionType: txType,
+              bankAccountName: bankAccount?.name,
+              bankAccountInfo,
+              counterpartyAccountName: entry.creditAccount?.name,
+              baseDescription: entry.description,
+              reference: entry.reference,
+              note: entry.narration,
+            });
           } else {
-            fullDescription = `${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}${refSuffix}${narrationSuffix}`;
+            fullDescription = this.buildStandardNarration({
+              direction: 'credit',
+              bankAccountName: bankAccount?.name,
+              bankAccountInfo,
+              counterpartyAccountName: entry.creditAccount?.name,
+              baseDescription: entry.description,
+              reference: entry.reference,
+              note: entry.narration,
+            });
           }
         } else {
           // Money going OUT of this account
@@ -645,9 +821,27 @@ export class ReportsService {
 
           if (withdrawal && withdrawal.member) {
             const txType = withdrawal.type ? formatTransactionType(withdrawal.type) : 'Withdrawal';
-            fullDescription = `${withdrawal.member.name} - ${txType} - ${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}${refSuffix}${narrationSuffix}`;
+            fullDescription = this.buildStandardNarration({
+              direction: 'debit',
+              actorName: withdrawal.member.name,
+              transactionType: txType,
+              bankAccountName: bankAccount?.name,
+              bankAccountInfo,
+              counterpartyAccountName: entry.debitAccount?.name,
+              baseDescription: entry.description,
+              reference: entry.reference,
+              note: entry.narration,
+            });
           } else {
-            fullDescription = `${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}${refSuffix}${narrationSuffix}`;
+            fullDescription = this.buildStandardNarration({
+              direction: 'debit',
+              bankAccountName: bankAccount?.name,
+              bankAccountInfo,
+              counterpartyAccountName: entry.debitAccount?.name,
+              baseDescription: entry.description,
+              reference: entry.reference,
+              note: entry.narration,
+            });
           }
         }
 
@@ -779,7 +973,6 @@ export class ReportsService {
       // Try to enrich with deposit/withdrawal data
       const deposit = depositsByRef.get(entry.reference);
       const withdrawal = withdrawalsByRef.get(entry.reference);
-
       if (debitIsBankAccount && !creditIsBankAccount) {
         // Money IN to a bank account
         moneyIn = Number(entry.debitAmount);
@@ -790,9 +983,27 @@ export class ReportsService {
         
         if (deposit && deposit.member) {
           const txType = deposit.type ? formatTransactionType(deposit.type) : 'Deposit';
-          fullDescription = `${deposit.member.name} - ${txType} - ${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
+          fullDescription = this.buildStandardNarration({
+            direction: 'credit',
+            actorName: deposit.member.name,
+            transactionType: txType,
+            bankAccountName: bankAccount?.name,
+            bankAccountInfo,
+            counterpartyAccountName: entry.creditAccount?.name,
+            baseDescription: entry.description,
+            reference: entry.reference,
+            note: entry.narration,
+          });
         } else {
-          fullDescription = `${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
+          fullDescription = this.buildStandardNarration({
+            direction: 'credit',
+            bankAccountName: bankAccount?.name,
+            bankAccountInfo,
+            counterpartyAccountName: entry.creditAccount?.name,
+            baseDescription: entry.description,
+            reference: entry.reference,
+            note: entry.narration,
+          });
         }
       } else if (creditIsBankAccount && !debitIsBankAccount) {
         // Money OUT of a bank account
@@ -804,9 +1015,27 @@ export class ReportsService {
 
         if (withdrawal && withdrawal.member) {
           const txType = withdrawal.type ? formatTransactionType(withdrawal.type) : 'Withdrawal';
-          fullDescription = `${withdrawal.member.name} - ${txType} - ${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
+          fullDescription = this.buildStandardNarration({
+            direction: 'debit',
+            actorName: withdrawal.member.name,
+            transactionType: txType,
+            bankAccountName: bankAccount?.name,
+            bankAccountInfo,
+            counterpartyAccountName: entry.debitAccount?.name,
+            baseDescription: entry.description,
+            reference: entry.reference,
+            note: entry.narration,
+          });
         } else {
-          fullDescription = `${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
+          fullDescription = this.buildStandardNarration({
+            direction: 'debit',
+            bankAccountName: bankAccount?.name,
+            bankAccountInfo,
+            counterpartyAccountName: entry.debitAccount?.name,
+            baseDescription: entry.description,
+            reference: entry.reference,
+            note: entry.narration,
+          });
         }
       } else if (debitIsBankAccount && creditIsBankAccount) {
         // Transfer between bank accounts
@@ -817,7 +1046,15 @@ export class ReportsService {
         
         const debitAccountInfo = entry.debitAccount ? `(${entry.debitAccount.type.toUpperCase()} - ${entry.debitAccount.accountNumber || entry.debitAccount.id})` : '(Bank)';
         const creditAccountInfo = entry.creditAccount ? `(${entry.creditAccount.type.toUpperCase()} - ${entry.creditAccount.accountNumber || entry.creditAccount.id})` : '(Bank)';
-        fullDescription = `Transfer: ${entry.creditAccount?.name} ${creditAccountInfo} → ${entry.debitAccount?.name} ${debitAccountInfo}`;
+        fullDescription = this.buildStandardNarration({
+          direction: 'transfer',
+          bankAccountName: entry.debitAccount?.name,
+          bankAccountInfo: debitAccountInfo,
+          counterpartyAccountName: `${entry.creditAccount?.name || 'Bank Account'} ${creditAccountInfo}`,
+          baseDescription: entry.description,
+          reference: entry.reference,
+          note: entry.narration,
+        });
       }
 
       // Only add rows that have money in or money out
@@ -862,7 +1099,13 @@ export class ReportsService {
     const deposits = await this.prisma.deposit.findMany({ 
       where: { 
         date: { gte: dateRange.start, lte: dateRange.end },
-        type: { in: ['contribution', 'income', 'loan_repayment', 'refund'] }
+        OR: [
+          { type: { in: ['contribution', 'loan_repayment', 'refund'] } },
+          {
+            type: 'income',
+            NOT: { category: { contains: 'loan', mode: 'insensitive' } },
+          },
+        ],
       },
       include: { member: true },
       orderBy: { date: 'asc' },
@@ -877,7 +1120,11 @@ export class ReportsService {
         source: deposit.memberName || deposit.member?.name || 'External Source',
         date: deposit.date,
         amount: amount,
-        description: `${deposit.type}: ${deposit.description || deposit.reference || ''}`,
+        description: this.appendNarrationMetadata(
+          `${deposit.type}: ${deposit.description || 'Cash inflow'}`,
+          deposit.reference,
+          deposit.narration,
+        ),
         depositId: deposit.id,
       });
       totalOperatingIn += amount;
@@ -904,7 +1151,11 @@ export class ReportsService {
         source: withdrawal.account?.name || 'Unspecified Account',
         date: withdrawal.date,
         amount: -amount, // Show as negative
-        description: `${withdrawal.category || 'Expense'}: ${withdrawal.description || withdrawal.method || ''}`,
+        description: this.appendNarrationMetadata(
+          `${withdrawal.category || 'Expense'}: ${withdrawal.description || withdrawal.method || 'Cash outflow'}`,
+          withdrawal.reference,
+          withdrawal.narration,
+        ),
         withdrawalId: withdrawal.id,
       });
       totalOperatingOut += amount;
@@ -931,7 +1182,11 @@ export class ReportsService {
         source: withdrawal.account?.name || 'Unspecified Account',
         date: withdrawal.date,
         amount: -amount, // Show as negative
-        description: `Asset Purchase: ${withdrawal.description || withdrawal.method || ''}`,
+        description: this.appendNarrationMetadata(
+          `Asset Purchase: ${withdrawal.description || withdrawal.method || 'Cash outflow'}`,
+          withdrawal.reference,
+          withdrawal.narration,
+        ),
         withdrawalId: withdrawal.id,
       });
       totalInvestingOut += amount;
@@ -959,7 +1214,11 @@ export class ReportsService {
         source: deposit.memberName || deposit.member?.name || 'Loan Source',
         date: deposit.date,
         amount: amount,
-        description: `Loan: ${deposit.description || deposit.reference || ''}`,
+        description: this.appendNarrationMetadata(
+          `Loan: ${deposit.description || 'Financing inflow'}`,
+          deposit.reference,
+          deposit.narration,
+        ),
         depositId: deposit.id,
       });
       totalFinancingIn += amount;
@@ -1176,7 +1435,11 @@ export class ReportsService {
         source: deposit.memberName || 'External Income',
         date: deposit.date,
         amount: amount,
-        description: deposit.description || 'Income',
+        description: this.appendNarrationMetadata(
+          deposit.description || 'Income',
+          deposit.reference,
+          deposit.narration,
+        ),
         depositId: deposit.id,
       });
       totalIncome += amount;
@@ -1226,7 +1489,11 @@ export class ReportsService {
         source: expense.account?.name || 'Unspecified Account',
         date: expense.date,
         amount: -amount, // Show as negative
-        description: expense.description || expense.method || 'Expense',
+        description: this.appendNarrationMetadata(
+          expense.description || expense.method || 'Expense',
+          expense.reference,
+          expense.narration,
+        ),
         withdrawalId: expense.id,
       });
       totalExpenses += amount;
@@ -1595,7 +1862,11 @@ export class ReportsService {
       memberName: d.memberName || d.member?.name || 'Unknown',
       amount: d.amount,
       paymentMethod: d.method,
-      description: d.description,
+      description: this.appendNarrationMetadata(
+        d.description || 'Dividend payout',
+        d.reference,
+        d.narration,
+      ),
     }));
     
     const total = dividends.reduce((s, d) => s + Number(d.amount), 0);
@@ -1702,7 +1973,7 @@ export class ReportsService {
           id: e.id,
           date: e.date,
           reference: e.reference,
-          description: e.description,
+          description: this.appendNarrationMetadata(e.description || 'Journal entry', e.reference, e.narration),
           oppositeAccount,
           moneyOut: moneyOut || null,
           moneyIn: moneyIn || null,
@@ -1921,6 +2192,49 @@ export class ReportsService {
     const currentData = await this.getBalanceSheetData(currentDate);
     const previousData = await this.getBalanceSheetData(previousDate);
 
+    const fixedAssetNames = Array.from(new Set([
+      ...currentData.fixedAssets.map(a => a.name),
+      ...previousData.fixedAssets.map(a => a.name),
+    ])).sort((a, b) => a.localeCompare(b));
+
+    const fixedAssetItems = fixedAssetNames.map((assetName) => {
+      const currentAsset = currentData.fixedAssets.find(a => a.name === assetName);
+      const previousAsset = previousData.fixedAssets.find(a => a.name === assetName);
+      const current = Number(currentAsset?.currentValue || 0);
+      const previous = Number(previousAsset?.currentValue || 0);
+      return {
+        label: assetName,
+        current,
+        previous,
+        change: current - previous,
+      };
+    });
+
+    const contributionTypeNames = Array.from(new Set([
+      ...Object.keys(currentData.memberSavingsByType || {}),
+      ...Object.keys(previousData.memberSavingsByType || {}),
+    ])).sort((a, b) => a.localeCompare(b));
+
+    const equityContributionItems = contributionTypeNames.map((typeName) => {
+      const current = Number(currentData.memberSavingsByType?.[typeName] || 0);
+      const previous = Number(previousData.memberSavingsByType?.[typeName] || 0);
+      return {
+        label: typeName,
+        current,
+        previous,
+        change: current - previous,
+      };
+    });
+
+    if (currentData.otherContributions !== 0 || previousData.otherContributions !== 0) {
+      equityContributionItems.push({
+        label: 'Other Contributions',
+        current: Number(currentData.otherContributions || 0),
+        previous: Number(previousData.otherContributions || 0),
+        change: Number(currentData.otherContributions || 0) - Number(previousData.otherContributions || 0),
+      });
+    }
+
     return {
       mode,
       currentPeriod: {
@@ -2007,12 +2321,7 @@ export class ReportsService {
             },
             {
               name: 'Fixed Assets',
-              items: currentData.fixedAssets.map((asset, idx) => ({
-                label: asset.name,
-                current: asset.currentValue,
-                previous: previousData.fixedAssets[idx]?.currentValue || 0,
-                change: asset.currentValue - (previousData.fixedAssets[idx]?.currentValue || 0),
-              })),
+              items: fixedAssetItems,
               subtotal: {
                 current: currentData.totalFixedAssets,
                 previous: previousData.totalFixedAssets,
@@ -2064,24 +2373,7 @@ export class ReportsService {
             {
               name: 'Share Capital and Reserves',
               items: [
-                {
-                  label: 'Members\' Share Capital (Contributions)',
-                  current: currentData.memberSavings,
-                  previous: previousData.memberSavings,
-                  change: currentData.memberSavings - previousData.memberSavings,
-                },
-                {
-                  label: 'Membership Fees',
-                  current: currentData.memberSavingsByType?.['Membership Fees'] || 0,
-                  previous: previousData.memberSavingsByType?.['Membership Fees'] || 0,
-                  change: (currentData.memberSavingsByType?.['Membership Fees'] || 0) - (previousData.memberSavingsByType?.['Membership Fees'] || 0),
-                },
-                {
-                  label: 'Share Capital',
-                  current: currentData.memberSavingsByType?.['Share Capital'] || 0,
-                  previous: previousData.memberSavingsByType?.['Share Capital'] || 0,
-                  change: (currentData.memberSavingsByType?.['Share Capital'] || 0) - (previousData.memberSavingsByType?.['Share Capital'] || 0),
-                },
+                ...equityContributionItems,
                 {
                   label: 'Retained Earnings',
                   current: currentData.retainedEarnings,
@@ -2121,8 +2413,8 @@ export class ReportsService {
           previous: previousData.totalLiabilities + previousData.totalEquity,
         },
         balanceCheck: {
-          current: currentData.totalAssets === (currentData.totalLiabilities + currentData.totalEquity),
-          previous: previousData.totalAssets === (previousData.totalLiabilities + previousData.totalEquity),
+          current: Math.abs(currentData.totalAssets - (currentData.totalLiabilities + currentData.totalEquity)) < 0.01,
+          previous: Math.abs(previousData.totalAssets - (previousData.totalLiabilities + previousData.totalEquity)) < 0.01,
         },
       },
     };
@@ -2276,6 +2568,16 @@ export class ReportsService {
     const currentData = await this.getIncomeStatementData(currentStart, currentEnd);
     const previousData = await this.getIncomeStatementData(previousStart, previousEnd);
 
+    const otherIncomeCategoryNames = Array.from(new Set([
+      ...currentData.otherIncomeCategories.map(c => c.category),
+      ...previousData.otherIncomeCategories.map(c => c.category),
+    ])).sort((a, b) => a.localeCompare(b));
+
+    const expenseCategoryNames = Array.from(new Set([
+      ...currentData.expenseCategories.map(c => c.category),
+      ...previousData.expenseCategories.map(c => c.category),
+    ])).sort((a, b) => a.localeCompare(b));
+
     return {
       mode,
       currentPeriod: {
@@ -2317,15 +2619,6 @@ export class ReportsService {
                     ? ((currentData.finesIncome - previousData.finesIncome) / previousData.finesIncome) * 100
                     : 0,
                 },
-                {
-                  label: 'Membership Fees',
-                  current: currentData.membershipFees,
-                  previous: previousData.membershipFees,
-                  change: currentData.membershipFees - previousData.membershipFees,
-                  percentChange: previousData.membershipFees > 0
-                    ? ((currentData.membershipFees - previousData.membershipFees) / previousData.membershipFees) * 100
-                    : 0,
-                },
               ],
               subtotal: {
                 current: currentData.totalOperatingIncome,
@@ -2334,17 +2627,19 @@ export class ReportsService {
             },
             {
               name: 'Other Income',
-              items: [
-                {
-                  label: 'Other Income',
-                  current: currentData.otherIncome,
-                  previous: previousData.otherIncome,
-                  change: currentData.otherIncome - previousData.otherIncome,
-                  percentChange: previousData.otherIncome > 0
-                    ? ((currentData.otherIncome - previousData.otherIncome) / previousData.otherIncome) * 100
-                    : 0,
-                },
-              ],
+              items: otherIncomeCategoryNames.map((categoryName) => {
+                const currentCategory = currentData.otherIncomeCategories.find(c => c.category === categoryName);
+                const previousCategory = previousData.otherIncomeCategories.find(c => c.category === categoryName);
+                const current = Number(currentCategory?.amount || 0);
+                const previous = Number(previousCategory?.amount || 0);
+                return {
+                  label: categoryName,
+                  current,
+                  previous,
+                  change: current - previous,
+                  percentChange: previous > 0 ? ((current - previous) / previous) * 100 : 0,
+                };
+              }),
               subtotal: {
                 current: currentData.otherIncome,
                 previous: previousData.otherIncome,
@@ -2363,15 +2658,17 @@ export class ReportsService {
           categories: [
             {
               name: 'Operating Expenses',
-              items: currentData.expenseCategories.map((cat, idx) => {
-                const prevCat = previousData.expenseCategories.find(c => c.category === cat.category);
-                const prevAmount = prevCat?.amount || 0;
+              items: expenseCategoryNames.map((categoryName) => {
+                const currentCategory = currentData.expenseCategories.find(c => c.category === categoryName);
+                const previousCategory = previousData.expenseCategories.find(c => c.category === categoryName);
+                const current = Number(currentCategory?.amount || 0);
+                const previous = Number(previousCategory?.amount || 0);
                 return {
-                  label: cat.category,
-                  current: cat.amount,
-                  previous: prevAmount,
-                  change: cat.amount - prevAmount,
-                  percentChange: prevAmount > 0 ? ((cat.amount - prevAmount) / prevAmount) * 100 : 0,
+                  label: categoryName,
+                  current,
+                  previous,
+                  change: current - previous,
+                  percentChange: previous > 0 ? ((current - previous) / previous) * 100 : 0,
                 };
               }),
               subtotal: {
@@ -2463,6 +2760,21 @@ export class ReportsService {
       .filter(d => !contributionLookup.has((d.category || '').toLowerCase()))
       .reduce((sum, d) => sum + Number(d.amount), 0);
 
+    const otherIncomeByCategory = otherIncomeDeposits
+      .filter(d => !contributionLookup.has((d.category || '').toLowerCase()))
+      .reduce((acc, d) => {
+        const category = d.category || 'Other Income';
+        if (!acc[category]) {
+          acc[category] = 0;
+        }
+        acc[category] += Number(d.amount);
+        return acc;
+      }, {} as Record<string, number>);
+
+    const otherIncomeCategories = Object.entries(otherIncomeByCategory)
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => a.category.localeCompare(b.category));
+
     const membershipFees = 0;
     const totalOperatingIncome = interestIncome + finesIncome + membershipFees;
     const totalIncome = totalOperatingIncome + otherIncome;
@@ -2519,6 +2831,7 @@ export class ReportsService {
       membershipFees,
       totalOperatingIncome,
       otherIncome,
+      otherIncomeCategories,
       totalIncome,
       expenseCategories,
       totalExpenses,

@@ -1,4 +1,5 @@
 /* Premium Dashboard Styling - SoyoSoyo SACCO Theme */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Manrope:wght@400;600;700&display=swap');
 
 :root {
   --primary: #2563eb;
@@ -6,7 +7,7 @@
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
-  --purple: #8b5cf6;
+  --purple: #5b21b6;
   --dark: #1f2937;
   --light: #f9fafb;
   --border: #e5e7eb;
@@ -19,7 +20,28 @@
   max-width: 1400px;
   margin: 0 auto;
   animation: fadeIn 0.3s ease-out;
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  position: relative;
+  padding: 24px 18px 40px;
 }
+
+.dashboard-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 55%),
+    radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.08), transparent 50%),
+    radial-gradient(circle at 20% 80%, rgba(245, 158, 11, 0.08), transparent 45%);
+  z-index: -2;
+}
+
+.dashboard-shell {
+  background: linear-gradient(145deg, #f8fafc 0%, #ffffff 45%, #f1f5f9 100%);
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+}
+
 
 @keyframes fadeIn {
   from {
@@ -119,6 +141,8 @@
   font-size: 28px;
   font-weight: 700;
   color: var(--dark);
+  font-family: 'Fraunces', 'Georgia', serif;
+  letter-spacing: -0.5px;
 }
 
 .dashboard-header .subtitle {
@@ -170,8 +194,9 @@
   background: white;
   border-radius: 10px;
   padding: 12px;
-  box-shadow: var(--shadow);
-  border-left: 3px solid var(--primary);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-left: 4px solid var(--primary);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -269,6 +294,283 @@
   text-decoration: underline;
 }
 
+/* Loans Showcase */
+.dashboard-loans-showcase {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+  margin-bottom: 22px;
+}
+
+.loans-showcase-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.loans-showcase-header h2 {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  color: var(--dark);
+  font-family: 'Fraunces', 'Georgia', serif;
+}
+
+.loans-showcase-header p {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.loans-showcase-link {
+  border: none;
+  background: #111827;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.loans-showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.loan-showcase-card {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(140deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 14px;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.loan-showcase-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.04), transparent 55%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.loan-showcase-card:hover::after {
+  opacity: 1;
+}
+
+.loan-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.loan-health-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  position: relative;
+  z-index: 1;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.loan-health-banner.health-on-track {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.2);
+  color: #047857;
+}
+
+.loan-health-banner.health-at-risk {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.2);
+  color: #92400e;
+}
+
+.loan-health-banner.health-overdue {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #991b1b;
+}
+
+.loan-health-banner.health-closed {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.2);
+  color: #4338ca;
+}
+
+.health-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.health-label {
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.health-detail {
+  font-size: 10px;
+  opacity: 0.75;
+  font-weight: 500;
+  margin-left: auto;
+}
+
+.loan-status-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.loan-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+.loan-member {
+  margin: 0;
+  font-weight: 600;
+  color: #111827;
+  font-size: 13px;
+}
+
+.loan-type {
+  margin: 4px 0 0 0;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.loan-status {
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #1f2937;
+  height: fit-content;
+}
+
+.loan-status.active {
+  background: rgba(16, 185, 129, 0.15);
+  color: #047857;
+}
+
+.loan-status.pending {
+  background: rgba(245, 158, 11, 0.2);
+  color: #92400e;
+}
+
+.loan-status.closed {
+  background: rgba(99, 102, 241, 0.15);
+  color: #4338ca;
+}
+
+.loan-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.loan-card-metrics span {
+  font-size: 10px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.loan-card-metrics strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #111827;
+}
+
+.loan-card-boundary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px dashed rgba(15, 23, 42, 0.1);
+  background: rgba(15, 23, 42, 0.02);
+  position: relative;
+  z-index: 1;
+}
+
+.loan-card-boundary span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #9ca3af;
+}
+
+.loan-card-boundary strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #111827;
+}
+
+.loan-progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.loan-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+}
+
+.loan-progress-label {
+  margin: 6px 0 0 0;
+  font-size: 11px;
+  color: #6b7280;
+  position: relative;
+  z-index: 1;
+}
+
+.loans-showcase-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 18px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
 /* Charts Grid - Compact */
 .charts-grid-compact {
   display: grid;
@@ -281,7 +583,7 @@
   background: white;
   border-radius: 10px;
   padding: 16px;
-  box-shadow: var(--shadow);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
   transition: all 0.2s;
 }
 
@@ -345,7 +647,7 @@
   background: white;
   border-radius: 10px;
   padding: 16px;
-  box-shadow: var(--shadow);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
 }
 
 .section-title {
@@ -439,7 +741,7 @@
   background: white;
   border-radius: 10px;
   padding: 16px;
-  box-shadow: var(--shadow);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
 }
 
 .action-buttons-compact {
@@ -454,10 +756,10 @@
   align-items: center;
   gap: 8px;
   padding: 12px 10px;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  border: 1px solid var(--primary);
-  border-radius: 8px;
-  color: var(--primary);
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 10px;
+  color: #1e293b;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;

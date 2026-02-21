@@ -220,24 +220,26 @@ const CategoryLedgerPage = () => {
           <div className="summary-section">
             <h3>Income Categories</h3>
             {summary.incomeCategories.length > 0 ? (
-              <table className="category-table">
-                <thead>
-                  <tr>
-                    <th>Category</th>
-                    <th>Balance</th>
-                    <th>Entries</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.incomeCategories.map((cat, idx) => (
-                    <tr key={idx}>
-                      <td>{cat.name}</td>
-                      <td className="amount">KES {parseFloat(cat.balance).toLocaleString()}</td>
-                      <td>{cat.entries}</td>
+              <div className="category-table-wrapper">
+                <table className="category-table">
+                  <thead>
+                    <tr>
+                      <th>Category</th>
+                      <th>Balance</th>
+                      <th>Entries</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {summary.incomeCategories.map((cat, idx) => (
+                      <tr key={idx}>
+                        <td>{cat.name}</td>
+                        <td className="amount">KES {parseFloat(cat.balance).toLocaleString()}</td>
+                        <td>{cat.entries}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               <p>No income categories</p>
             )}
@@ -246,24 +248,26 @@ const CategoryLedgerPage = () => {
           <div className="summary-section">
             <h3>Expense Categories</h3>
             {summary.expenseCategories.length > 0 ? (
-              <table className="category-table">
-                <thead>
-                  <tr>
-                    <th>Category</th>
-                    <th>Balance</th>
-                    <th>Entries</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.expenseCategories.map((cat, idx) => (
-                    <tr key={idx}>
-                      <td>{cat.name}</td>
-                      <td className="amount">KES {parseFloat(cat.balance).toLocaleString()}</td>
-                      <td>{cat.entries}</td>
+              <div className="category-table-wrapper">
+                <table className="category-table">
+                  <thead>
+                    <tr>
+                      <th>Category</th>
+                      <th>Balance</th>
+                      <th>Entries</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {summary.expenseCategories.map((cat, idx) => (
+                      <tr key={idx}>
+                        <td>{cat.name}</td>
+                        <td className="amount">KES {parseFloat(cat.balance).toLocaleString()}</td>
+                        <td>{cat.entries}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               <p>No expense categories</p>
             )}
@@ -344,36 +348,38 @@ const CategoryLedgerPage = () => {
                 <p>Loading ledger entries...</p>
               ) : entries.length > 0 ? (
                 <>
-                  <table className="entries-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Type</th>
-                        <th>Description</th>
-                        <th>Amount</th>
-                        <th>Balance After</th>
-                        <th>Source</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entries.map((entry) => (
-                        <tr key={entry.id}>
-                          <td>{new Date(entry.date).toLocaleDateString()}</td>
-                          <td>
-                            <span className={`badge ${entry.type}`}>{entry.type}</span>
-                          </td>
-                          <td>{entry.description}</td>
-                          <td className="amount">
-                            KES {parseFloat(entry.amount).toLocaleString()}
-                          </td>
-                          <td className="amount">
-                            KES {parseFloat(entry.balanceAfter).toLocaleString()}
-                          </td>
-                          <td>{entry.sourceType}</td>
+                  <div className="entries-table-wrapper">
+                    <table className="entries-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Type</th>
+                          <th>Description</th>
+                          <th>Amount</th>
+                          <th>Balance After</th>
+                          <th>Source</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {entries.map((entry) => (
+                          <tr key={entry.id}>
+                            <td>{new Date(entry.date).toLocaleDateString()}</td>
+                            <td>
+                              <span className={`badge ${entry.type}`}>{entry.type}</span>
+                            </td>
+                            <td>{entry.description}</td>
+                            <td className="amount">
+                              KES {parseFloat(entry.amount).toLocaleString()}
+                            </td>
+                            <td className="amount">
+                              KES {parseFloat(entry.balanceAfter).toLocaleString()}
+                            </td>
+                            <td>{entry.sourceType}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
                   {entriesTotalPages > 1 && (
                     <div className="pagination-controls">
