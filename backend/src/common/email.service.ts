@@ -5,6 +5,63 @@ import * as nodemailer from 'nodemailer';
 export class EmailService {
   private transporter: nodemailer.Transporter;
 
+  private async sleep(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async sendWithRetry(
+    mailOptions: nodemailer.SendMailOptions,
+    recipientEmail: string,
+    label: string,
+  ): Promise<boolean> {
+    if (!this.transporter) return true;
+
+    const maxAttempts = parseInt(process.env.EMAIL_MAX_ATTEMPTS || '3', 10);
+    const baseDelayMs = parseInt(process.env.EMAIL_RETRY_DELAY_MS || '1200', 10);
+    const normalizedRecipient = recipientEmail.trim().toLowerCase();
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const startTime = Date.now();
+        const result = await this.transporter.sendMail(mailOptions);
+        const elapsedMs = Date.now() - startTime;
+
+        const accepted = Array.isArray((result as any).accepted)
+          ? ((result as any).accepted as string[])
+          : [];
+        const rejected = Array.isArray((result as any).rejected)
+          ? ((result as any).rejected as string[])
+          : [];
+
+        const recipientAccepted = accepted.some(
+          (email) => String(email).trim().toLowerCase() === normalizedRecipient,
+        );
+
+        if (recipientAccepted) {
+          console.log(
+            `[EMAIL SENT] ${label} sent to ${recipientEmail} (Message ID: ${(result as any).messageId}, ${elapsedMs}ms)`,
+          );
+          return true;
+        }
+
+        console.warn(
+          `[EMAIL WARNING] ${label} not accepted by SMTP for ${recipientEmail} (attempt ${attempt}/${maxAttempts}). accepted=${JSON.stringify(accepted)} rejected=${JSON.stringify(rejected)}`,
+        );
+      } catch (error) {
+        const err = error as Error;
+        console.error(
+          `[EMAIL ERROR] ${label} failed for ${recipientEmail} (attempt ${attempt}/${maxAttempts}): ${err.message}`,
+        );
+      }
+
+      if (attempt < maxAttempts) {
+        await this.sleep(baseDelayMs * attempt);
+      }
+    }
+
+    return false;
+  }
+
   constructor() {
     // Configure email transporter based on environment variables
     if (process.env.EMAIL_PROVIDER === 'gmail') {
@@ -14,6 +71,9 @@ export class EmailService {
           user: process.env.GMAIL_USER,
           pass: process.env.GMAIL_APP_PASSWORD,
         },
+        connectionTimeout: parseInt(process.env.EMAIL_CONNECTION_TIMEOUT_MS || '10000', 10),
+        greetingTimeout: parseInt(process.env.EMAIL_GREETING_TIMEOUT_MS || '10000', 10),
+        socketTimeout: parseInt(process.env.EMAIL_SOCKET_TIMEOUT_MS || '20000', 10),
       });
     } else if (process.env.EMAIL_PROVIDER === 'ses' || process.env.EMAIL_SMTP_HOST) {
       // AWS SES SMTP or generic SMTP configuration
@@ -25,10 +85,27 @@ export class EmailService {
           user: process.env.EMAIL_SMTP_USER,
           pass: process.env.EMAIL_SMTP_PASS,
         },
+        pool: true,
+        maxConnections: parseInt(process.env.EMAIL_MAX_CONNECTIONS || '5', 10),
+        maxMessages: parseInt(process.env.EMAIL_MAX_MESSAGES || '100', 10),
+        connectionTimeout: parseInt(process.env.EMAIL_CONNECTION_TIMEOUT_MS || '10000', 10),
+        greetingTimeout: parseInt(process.env.EMAIL_GREETING_TIMEOUT_MS || '10000', 10),
+        socketTimeout: parseInt(process.env.EMAIL_SOCKET_TIMEOUT_MS || '20000', 10),
       });
     } else {
       // Fallback: log-only mode for development
       console.warn('[EMAIL] No email provider configured. Emails will be logged to console.');
+    }
+
+    if (this.transporter) {
+      this.transporter
+        .verify()
+        .then(() => {
+          console.log('[EMAIL] SMTP transport verified successfully');
+        })
+        .catch((error: Error) => {
+          console.error(`[EMAIL] SMTP transport verification failed: ${error.message}`);
+        });
     }
   }
 
@@ -89,16 +166,15 @@ If you didn't request this password reset, please ignore this email or contact o
         subject,
         text: textContent.trim(),
         html: htmlContent,
-        headers: {}
+        replyTo: process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM || undefined,
+        headers: {},
       };
       // Add Postmark stream header if configured
       if (process.env.EMAIL_SMTP_HEADER_X_PM_MESSAGE_STREAM) {
         mailOptions.headers['X-PM-Message-Stream'] = process.env.EMAIL_SMTP_HEADER_X_PM_MESSAGE_STREAM;
       }
 
-      const result = await this.transporter.sendMail(mailOptions);
-      console.log(`[EMAIL SENT] Password reset code sent to ${recipientEmail} (Message ID: ${result.messageId})`);
-      return true;
+      return this.sendWithRetry(mailOptions, recipientEmail, 'Password reset email');
     } catch (error) {
       console.error(`[EMAIL ERROR] Failed to send password reset email to ${recipientEmail}:`, error.message);
       // In production, you might want to log this to a monitoring service
@@ -140,12 +216,12 @@ If you didn't request this password reset, please ignore this email or contact o
         from: process.env.EMAIL_FROM || process.env.SMTP_USER || 'noreply@soyosoyobank.com',
         to: recipientEmail,
         subject,
+        text: `Hello ${memberName}, your email verification code is: ${verificationCode}. This code expires in 1 hour.`,
         html: htmlContent,
+        replyTo: process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM || undefined,
       };
 
-      const result = await this.transporter.sendMail(mailOptions);
-      console.log(`[EMAIL SENT] Verification email sent to ${recipientEmail}`);
-      return true;
+      return this.sendWithRetry(mailOptions, recipientEmail, 'Verification email');
     } catch (error) {
       console.error(`[EMAIL ERROR] Failed to send verification email to ${recipientEmail}:`, error.message);
       return false;
@@ -189,12 +265,12 @@ If you didn't request this password reset, please ignore this email or contact o
         from: process.env.EMAIL_FROM || process.env.SMTP_USER || 'noreply@soyosoyobank.com',
         to: recipientEmail,
         subject,
+        text: `Hello ${memberName}, welcome to SoyoSoyo Bank. Your account is active and ready to use.`,
         html: htmlContent,
+        replyTo: process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM || undefined,
       };
 
-      const result = await this.transporter.sendMail(mailOptions);
-      console.log(`[EMAIL SENT] Welcome email sent to ${recipientEmail}`);
-      return true;
+      return this.sendWithRetry(mailOptions, recipientEmail, 'Welcome email');
     } catch (error) {
       console.error(`[EMAIL ERROR] Failed to send welcome email to ${recipientEmail}:`, error.message);
       return false;
