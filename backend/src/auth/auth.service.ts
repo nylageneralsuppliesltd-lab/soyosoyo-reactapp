@@ -306,16 +306,16 @@ export class AuthService {
       },
     });
 
-    // Send email with reset code
+    // Send email with reset code (fire-and-forget - don't block API response)
     if (member.email) {
-      const emailSent = await this.emailService.sendPasswordResetEmail(
+      // Send email asynchronously without awaiting (non-blocking)
+      this.emailService.sendPasswordResetEmail(
         member.email,
         member.name || 'Member',
         code
-      );
-      if (!emailSent) {
-        console.warn(`[AUTH] Failed to send password reset email to ${member.email}, but code is valid for console testing`);
-      }
+      ).catch((err) => {
+        console.error(`[AUTH] Failed to send password reset email to ${member.email}:`, err.message);
+      });
     } else {
       console.warn(`[AUTH] Member ${member.id} has no email address`);
     }
