@@ -370,41 +370,58 @@ export class AuthService {
       },
     });
 
-    // Send email with reset code (fire-and-forget - don't block API response)
-    if (member.email) {
-      this.setResetDispatchStatus(requestId, 'pending', 'Dispatch started');
-      // Send email asynchronously without awaiting (non-blocking)
-      this.emailService.sendPasswordResetEmail(
-        member.email,
-        member.name || 'Member',
-        code
-      ).then((sent) => {
-        if (!sent) {
-          this.setResetDispatchStatus(requestId, 'failed', 'Provider rejected or delivery dispatch failed');
-          console.error(`[AUTH] Password reset email dispatch reported failure for ${member.email}`);
-          return;
-        }
-
-        this.setResetDispatchStatus(
-          requestId,
-          'sent',
-          'Provider accepted email for delivery (inbox placement not guaranteed)',
-        );
-      }).catch((err) => {
-        this.setResetDispatchStatus(requestId, 'failed', `Dispatch error: ${err.message}`);
-        console.error(`[AUTH] Failed to send password reset email to ${member.email}:`, err.message);
-      });
-    } else {
+    if (!member.email) {
       this.setResetDispatchStatus(requestId, 'failed', 'Member has no email address on file');
       console.warn(`[AUTH] Member ${member.id} has no email address`);
+      return {
+        success: true,
+        requestId,
+        dispatchStatus: 'failed',
+        message: 'No email address is registered for this account.',
+      };
     }
 
-    return {
-      success: true,
-      requestId,
-      dispatchStatus: member.email ? 'pending' : 'failed',
-      message: 'Reset code request accepted. Dispatch status can be checked with requestId.',
-    };
+    this.setResetDispatchStatus(requestId, 'pending', 'Dispatch started');
+
+    try {
+      const sent = await this.emailService.sendPasswordResetEmail(
+        member.email,
+        member.name || 'Member',
+        code,
+      );
+
+      if (!sent) {
+        this.setResetDispatchStatus(requestId, 'failed', 'Provider rejected or delivery dispatch failed');
+        return {
+          success: true,
+          requestId,
+          dispatchStatus: 'failed',
+          message: 'Reset email could not be dispatched. Please try again shortly.',
+        };
+      }
+
+      this.setResetDispatchStatus(
+        requestId,
+        'sent',
+        'Provider accepted email for delivery (inbox placement not guaranteed)',
+      );
+
+      return {
+        success: true,
+        requestId,
+        dispatchStatus: 'sent',
+        message: 'Reset code sent to your email.',
+      };
+    } catch (err) {
+      const error = err as Error;
+      this.setResetDispatchStatus(requestId, 'failed', `Dispatch error: ${error.message}`);
+      return {
+        success: true,
+        requestId,
+        dispatchStatus: 'failed',
+        message: 'Reset email dispatch failed. Please retry in a moment.',
+      };
+    }
   }
 
   async verifyResetCode(identifier: string, resetCode: string, newPassword: string) {
