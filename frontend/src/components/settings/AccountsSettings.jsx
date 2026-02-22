@@ -6,6 +6,7 @@ const AccountsSettings = () => {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
+  const [expandedRow, setExpandedRow] = useState({ tab: null, id: null });
   const [formData, setFormData] = useState({
     type: 'bank',
     name: '',
@@ -24,6 +25,51 @@ const AccountsSettings = () => {
   useEffect(() => {
     fetchAccounts();
   }, []);
+
+  const formatCurrency = (value) => {
+    return Number(value || 0).toLocaleString('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const getAccountIcon = (type) => {
+    switch (type) {
+      case 'bank':
+        return '🏦';
+      case 'mobileMoney':
+        return '📱';
+      case 'cash':
+        return '💵';
+      case 'pettyCash':
+        return '💰';
+      default:
+        return '💳';
+    }
+  };
+
+  const getAccountTypeName = (type) => {
+    const names = {
+      bank: 'Bank Account',
+      mobileMoney: 'Mobile Money',
+      cash: 'Cash',
+      pettyCash: 'Petty Cash',
+    };
+    return names[type] || type;
+  };
+
+  const formatAccountSummary = (account) => {
+    const parts = [
+      getAccountTypeName(account.type),
+      account.type === 'bank' ? account.bankName || '-' : account.provider || account.number || '-',
+      formatCurrency(account.balance),
+    ];
+    return parts.filter(Boolean).join(' | ');
+  };
+
+  const isRowExpanded = (tab, id) => expandedRow?.tab === tab && expandedRow?.id === id;
 
   const fetchAccounts = async () => {
     try {
@@ -91,6 +137,7 @@ const AccountsSettings = () => {
     });
     setEditingAccount(null);
     setShowForm(false);
+    setExpandedRow({ tab: null, id: null });
   };
 
   const getFormFields = () => {
@@ -100,23 +147,7 @@ const AccountsSettings = () => {
     } else if (type === 'mobileMoney') {
       return ['provider', 'number', 'description'];
     } else {
-      // cash, pettyCash - minimal fields
       return ['description'];
-    }
-  };
-
-  const getAccountIcon = (type) => {
-    switch (type) {
-      case 'bank':
-        return '🏦';
-      case 'mobileMoney':
-        return '📱';
-      case 'cash':
-        return '💵';
-      case 'pettyCash':
-        return '💰';
-      default:
-        return '💳';
     }
   };
 
@@ -125,207 +156,149 @@ const AccountsSettings = () => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Bank Accounts</h2>
-          <p className="text-gray-600 text-sm mt-1">
-            Manage MPESA, cash accounts, and bank accounts
-          </p>
+          <p className="text-gray-600 text-sm mt-1">Manage MPESA, cash, and bank accounts</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          onClick={() => { setShowForm(!showForm); if (showForm) resetForm(); }}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
-          <span className="text-xl">+</span>
-          <span>Add Account</span>
+          {showForm ? '✕ Close' : '+ Add Account'}
         </button>
       </div>
 
-      {/* Add/Edit Form */}
       {showForm && (
-        <div className="bg-gray-50 p-6 rounded-lg mb-6 border border-gray-200">
-          <h3 className="text-lg font-semibold mb-4">
-            {editingAccount ? 'Edit Account' : 'New Account'}
-          </h3>
+        <div className="card" style={{ marginBottom: '20px' }}>
+          <h3>{editingAccount ? 'Edit Account' : 'New Account'}</h3>
           <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              {/* Account Type */}
+            <div className="form-grid">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Account Type *
-                </label>
+                <label>Account Type *</label>
                 <select
                   required
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="bank">Bank Account</option>
-                  <option value="mobileMoney">Mobile Money (MPESA)</option>
+                  <option value="mobileMoney">Mobile Money</option>
                   <option value="cash">Cash</option>
                   <option value="pettyCash">Petty Cash</option>
                 </select>
               </div>
 
-              {/* Account Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Account Name *
-                </label>
+                <label>Account Name *</label>
                 <input
                   type="text"
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder={formData.type === 'bank' ? "e.g., Equity Bank Main" : formData.type === 'mobileMoney' ? "e.g., MPESA Main" : "e.g., Cash Box"}
+                  placeholder="e.g., Main Account"
                 />
               </div>
 
-              {/* BANK ACCOUNT SPECIFIC FIELDS */}
               {formData.type === 'bank' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Bank Name
-                    </label>
+                    <label>Bank Name</label>
                     <input
                       type="text"
                       value={formData.bankName}
                       onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., Equity Bank Kenya"
+                      placeholder="e.g., Equity Bank"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Branch
-                    </label>
+                    <label>Branch</label>
                     <input
                       type="text"
                       value={formData.branch}
                       onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       placeholder="e.g., Nairobi CBD"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Account Number
-                    </label>
+                    <label>Account Number</label>
                     <input
                       type="text"
                       value={formData.accountNumber}
                       onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       placeholder="e.g., 0012345678"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Account Holder Name
-                    </label>
+                    <label>Account Holder Name</label>
                     <input
                       type="text"
                       value={formData.accountName}
                       onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       placeholder="e.g., SOYOSOYO SACCO"
                     />
                   </div>
                 </>
               )}
 
-              {/* MPESA ACCOUNT SPECIFIC FIELDS */}
               {formData.type === 'mobileMoney' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Provider
-                    </label>
+                    <label>Provider</label>
                     <select
                       value={formData.provider}
                       onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">-- Select Provider --</option>
-                      <option value="MPESA">M-PESA (Safaricom)</option>
+                      <option value="">Select Provider</option>
+                      <option value="MPESA">M-PESA</option>
                       <option value="Airtel Money">Airtel Money</option>
-                      <option value="Equity Mobile">Equity Bank Mobile</option>
                     </select>
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number / Shortcode
-                    </label>
+                    <label>Phone/Shortcode</label>
                     <input
                       type="text"
                       value={formData.number}
                       onChange={(e) => setFormData({ ...formData, number: e.target.value })}
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., 0712345678 or 123456"
+                      placeholder="e.g., 0712345678"
                     />
                   </div>
                 </>
               )}
 
-              {/* OPENING BALANCE - shown for all */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Opening Balance (KES)
-                </label>
+                <label>Opening Balance</label>
                 <input
                   type="number"
                   step="0.01"
                   value={formData.balance}
                   onChange={(e) => setFormData({ ...formData, balance: parseFloat(e.target.value) || 0 })}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="0.00"
                 />
               </div>
 
-              {/* DESCRIPTION - optional for all */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description (Optional)
-                </label>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label>Description</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   rows="2"
-                  placeholder={formData.type === 'cash' ? "e.g., Cash petty box for office expenses" : "e.g., Main operational account for member transactions"}
+                  placeholder="Additional details about this account"
                 />
               </div>
 
-              {/* ACTIVE STATUS */}
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   id="isActive"
                   checked={formData.isActive}
                   onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  className="w-4 h-4 rounded"
                 />
-                <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
-                  Account is active
-                </label>
+                <label htmlFor="isActive">Account is active</label>
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                {editingAccount ? 'Update' : 'Create'} Account
+            <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+              <button type="submit" className="btn-primary">
+                {editingAccount ? 'Update Account' : 'Create Account'}
               </button>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors"
-              >
+              <button type="button" onClick={resetForm} className="btn-secondary">
                 Cancel
               </button>
             </div>
@@ -333,74 +306,119 @@ const AccountsSettings = () => {
         </div>
       )}
 
-      {/* Accounts List */}
       {loading ? (
-        <div className="text-center py-8">Loading accounts...</div>
+        <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>Loading accounts...</div>
       ) : accounts.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          No accounts configured yet. Add your first account to get started.
+        <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+          No accounts configured yet.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {accounts.map((account) => (
-            <div
-              key={account.id}
-              className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{getAccountIcon(account.type)}</span>
-                  <div>
-                    <h3 className="font-semibold text-gray-800">{account.name}</h3>
-                    <p className="text-xs text-gray-500 capitalize">{account.type.replace(/([A-Z])/g, ' $1')}</p>
-                  </div>
-                </div>
-                <span
-                  className={`px-2 py-1 text-xs rounded ${
-                    account.isActive
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  {account.isActive ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-
-              {account.type === 'bank' && (
-                <div className="text-sm text-gray-600 space-y-1 mb-3">
-                  {account.bankName && <p>🏦 {account.bankName}</p>}
-                  {account.accountNumber && <p>📝 {account.accountNumber}</p>}
-                  {account.branch && <p>📍 {account.branch}</p>}
-                </div>
-              )}
-
-              {account.type === 'mobileMoney' && (
-                <div className="text-sm text-gray-600 space-y-1 mb-3">
-                  {account.provider && <p>📱 {account.provider}</p>}
-                  {account.number && <p>☎️ {account.number}</p>}
-                </div>
-              )}
-
-              <div className="text-xl font-bold text-blue-600 mb-3">
-                {account.currency} {parseFloat(account.balance).toLocaleString()}
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleEdit(account)}
-                  className="flex-1 bg-blue-50 text-blue-600 px-3 py-1 rounded hover:bg-blue-100 transition-colors text-sm"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(account.id)}
-                  className="flex-1 bg-red-50 text-red-600 px-3 py-1 rounded hover:bg-red-100 transition-colors text-sm"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
+        <div className="card">
+          <div className="table-responsive">
+            <table className="config-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Summary</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {accounts.map((acc) => (
+                  <React.Fragment key={acc.id}>
+                    <tr>
+                      <td><strong>{getAccountIcon(acc.type)} {acc.name}</strong></td>
+                      <td>{formatAccountSummary(acc)}</td>
+                      <td><span className="status-badge">{acc.isActive ? '✓ Active' : 'Inactive'}</span></td>
+                      <td>
+                        <button
+                          className="btn-edit"
+                          onClick={() => setExpandedRow({ tab: 'accounts', id: acc.id })}
+                        >
+                          View
+                        </button>
+                        <button className="btn-edit" onClick={() => handleEdit(acc)}>
+                          Edit
+                        </button>
+                        <button
+                          className="btn-edit"
+                          onClick={() => setExpandedRow({ tab: null, id: null })}
+                          disabled={!isRowExpanded('accounts', acc.id)}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className="btn-delete"
+                          onClick={() => handleDelete(acc.id)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                    {isRowExpanded('accounts', acc.id) && (
+                      <tr>
+                        <td colSpan={4}>
+                          <div className="config-details">
+                            <div className="config-details-grid">
+                              <div className="config-detail-item">
+                                <span className="config-detail-label">Account Type</span>
+                                <div className="config-detail-value">{getAccountTypeName(acc.type)}</div>
+                              </div>
+                              {acc.type === 'bank' && (
+                                <>
+                                  <div className="config-detail-item">
+                                    <span className="config-detail-label">Bank Name</span>
+                                    <div className="config-detail-value">{acc.bankName || '-'}</div>
+                                  </div>
+                                  <div className="config-detail-item">
+                                    <span className="config-detail-label">Branch</span>
+                                    <div className="config-detail-value">{acc.branch || '-'}</div>
+                                  </div>
+                                  <div className="config-detail-item">
+                                    <span className="config-detail-label">Account Number</span>
+                                    <div className="config-detail-value">{acc.accountNumber || '-'}</div>
+                                  </div>
+                                  <div className="config-detail-item">
+                                    <span className="config-detail-label">Account Holder</span>
+                                    <div className="config-detail-value">{acc.accountName || '-'}</div>
+                                  </div>
+                                </>
+                              )}
+                              {acc.type === 'mobileMoney' && (
+                                <>
+                                  <div className="config-detail-item">
+                                    <span className="config-detail-label">Provider</span>
+                                    <div className="config-detail-value">{acc.provider || '-'}</div>
+                                  </div>
+                                  <div className="config-detail-item">
+                                    <span className="config-detail-label">Phone/Shortcode</span>
+                                    <div className="config-detail-value">{acc.number || '-'}</div>
+                                  </div>
+                                </>
+                              )}
+                              <div className="config-detail-item">
+                                <span className="config-detail-label">Balance</span>
+                                <div className="config-detail-value" style={{ fontSize: '16px', fontWeight: 'bold', color: '#2980b9' }}>
+                                  {formatCurrency(acc.balance)}
+                                </div>
+                              </div>
+                              {acc.description && (
+                                <div className="config-detail-item" style={{ gridColumn: '1 / -1' }}>
+                                  <span className="config-detail-label">Description</span>
+                                  <div className="config-detail-value">{acc.description}</div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

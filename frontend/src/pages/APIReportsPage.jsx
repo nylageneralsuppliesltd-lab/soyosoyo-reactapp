@@ -25,6 +25,8 @@ const REPORT_ENDPOINT_MAP = {
   balanceSheet: 'balance-sheet',
   sasra: 'sasra',
   dividends: 'dividends',
+  dividendRecommendation: 'dividend-recommendation',
+  dividendCategoryPayouts: 'dividend-category-payouts',
   generalLedger: 'general-ledger',
   accountStatement: 'account-statement',
 };
@@ -50,11 +52,23 @@ const formatColumnName = (key) => {
 // Helper function to format cell values
 const formatCellValue = (key, value, row) => {
   if (value === null || value === undefined) return '-';
+
+  if (Array.isArray(value)) {
+    return value.length ? value.join('; ') : '-';
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'Yes' : 'No';
+  }
   
   // Format amounts/money fields
-  if (key.toLowerCase().includes('amount') || key.toLowerCase().includes('balance') || key.toLowerCase().includes('principal') || key.toLowerCase().includes('interest')) {
+  if (key.toLowerCase().includes('amount') || key.toLowerCase().includes('balance') || key.toLowerCase().includes('principal') || key.toLowerCase().includes('interest') || key.toLowerCase().includes('arrears')) {
     const num = parseFloat(value);
     return isNaN(num) ? value : `KES ${num.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  if (key.toLowerCase() === 'payablestatus') {
+    return value === 'payable' ? 'Payable' : 'Not Payable';
   }
   
   // Format dates
@@ -99,7 +113,8 @@ const formatMetaMetricValue = (key, value) => {
   if (value === null || value === undefined) return '-';
 
   if (typeof value === 'number') {
-    return (key.toLowerCase().includes('amount') || key.toLowerCase().includes('total'))
+    const keyLower = key.toLowerCase();
+    return (keyLower.includes('amount') || keyLower.includes('total') || keyLower.includes('tax') || keyLower.includes('payable'))
       ? `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : value.toLocaleString();
   }
@@ -311,6 +326,18 @@ const FinancialPreview = ({ reportKey, reportData }) => {
 
     return (
       <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="premium-stats-card gradient-red">
+            <div className="premium-stats-icon">\ud83e\uddfe</div>
+            <p className="premium-stats-label">Anticipated Income Tax</p>
+            <p className="premium-stats-value">{formatMoney(meta.anticipatedIncomeTax ?? meta.externalInterestTax ?? 0)}</p>
+          </div>
+          <div className="premium-stats-card gradient-orange">
+            <div className="premium-stats-icon">\ud83e\udfbe</div>
+            <p className="premium-stats-label">External Interest Tax</p>
+            <p className="premium-stats-value">{formatMoney(meta.externalInterestTax ?? 0)}</p>
+          </div>
+        </div>
         {Object.entries(grouped).map(([sectionName, sectionRows]) => {
           const sectionTotal = sectionRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
           return (
@@ -357,6 +384,18 @@ const FinancialPreview = ({ reportKey, reportData }) => {
 
     return (
       <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="premium-stats-card gradient-purple">
+            <div className="premium-stats-icon">\ud83d\udd2a</div>
+            <p className="premium-stats-label">Withholding Tax Payable</p>
+            <p className="premium-stats-value">{formatMoney(meta.withholdingTaxPayable ?? 0)}</p>
+          </div>
+          <div className="premium-stats-card gradient-red">
+            <div className="premium-stats-icon">\ud83d\udcd8</div>
+            <p className="premium-stats-label">Income Tax Payable</p>
+            <p className="premium-stats-value">{formatMoney(meta.incomeTaxPayable ?? 0)}</p>
+          </div>
+        </div>
         {Object.entries(grouped).map(([sectionName, sectionRows]) => {
           const sectionTotal = sectionRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
           return (
@@ -414,12 +453,30 @@ const APIReportsPage = () => {
   const [reportErrorMap, setReportErrorMap] = useState({});
   const [reportFilterMap, setReportFilterMap] = useState({});
   const [reportSectionFilterMap, setReportSectionFilterMap] = useState({});
+  const [reportAdvancedFilterMap, setReportAdvancedFilterMap] = useState({
+    contributions: {
+      contributionType: '',
+      eligibleForDividend: 'all',
+      countsForLoanQualification: 'all',
+      source: 'all',
+    },
+  });
   const [referenceQuery, setReferenceQuery] = useState('');
   const [referenceResults, setReferenceResults] = useState(null);
   const [referenceLoading, setReferenceLoading] = useState(false);
   const [referenceError, setReferenceError] = useState(null);
 
   const getReportEndpoint = (reportKey) => REPORT_ENDPOINT_MAP[reportKey] || convertToKebabCase(reportKey);
+
+  const appendReportSpecificParams = (reportKey, params) => {
+    if (reportKey !== 'contributions') return;
+
+    const specific = reportAdvancedFilterMap.contributions || {};
+    if (specific.contributionType?.trim()) params.append('contributionType', specific.contributionType.trim());
+    if (specific.eligibleForDividend && specific.eligibleForDividend !== 'all') params.append('eligibleForDividend', specific.eligibleForDividend);
+    if (specific.countsForLoanQualification && specific.countsForLoanQualification !== 'all') params.append('countsForLoanQualification', specific.countsForLoanQualification);
+    if (specific.source && specific.source !== 'all') params.append('source', specific.source);
+  };
 
   const getAsOfDate = () => {
     const now = new Date();
@@ -512,6 +569,7 @@ const APIReportsPage = () => {
 
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
+      appendReportSpecificParams(reportKey, params);
 
   const response = await fetch(`${API_BASE}/reports/${endpoint}?${params}`);
 
@@ -605,6 +663,7 @@ const APIReportsPage = () => {
 
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
+      appendReportSpecificParams(reportKey, params);
 
       const response = await fetch(`${API_BASE}/reports/${endpoint}?${params}`);
       if (!response.ok) throw new Error(`Failed to fetch report: ${response.status}`);
@@ -700,6 +759,80 @@ const APIReportsPage = () => {
     }
      
   }, [filters.period, filters.startDate, filters.endDate]);
+
+  useEffect(() => {
+    if (expandedReport === 'contributions') {
+      fetchReportData('contributions');
+    }
+  }, [reportAdvancedFilterMap]);
+
+  const getContributionTypeOptions = (rows) => {
+    const uniqueTypes = Array.from(
+      new Set(
+        sanitizeRows(rows)
+          .map((row) => String(row.contributionType || '').trim())
+          .filter(Boolean),
+      ),
+    );
+
+    return uniqueTypes.sort((a, b) => a.localeCompare(b));
+  };
+
+  const renderContributionSummaryTable = (reportData) => {
+    const rows = sanitizeRows(reportData?.rows);
+    return (
+      <div className="report-table-container">
+        <table className="report-table min-w-[1280px]">
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th>Contribution Type</th>
+              <th>Accounting Group</th>
+              <th>Source</th>
+              <th className="text-right">Paid Amount</th>
+              <th className="text-right">Arrears (Regular)</th>
+              <th className="text-right">Invoices</th>
+              <th className="text-right">Unpaid Invoices</th>
+              <th>Dividend Eligible</th>
+              <th>Loan Qualifying</th>
+              <th>Payout Mode</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length > 0 ? (
+              rows.slice(0, 200).map((row, index) => (
+                <tr key={`${row.memberId || 'na'}-${row.contributionType || 'na'}-${index}`}>
+                  <td>{row.memberName || '-'}</td>
+                  <td>{row.contributionType || '-'}</td>
+                  <td>{formatColumnName(row.accountingGroup || '-')}</td>
+                  <td>{String(row.source || '-').toLowerCase()}</td>
+                  <td className="text-right">{formatCellValue('paidAmount', row.paidAmount, row)}</td>
+                  <td className="text-right">{row.regularContribution ? formatCellValue('arrears', row.arrears, row) : '-'}</td>
+                  <td className="text-right">{Number(row.invoiceCount || 0).toLocaleString()}</td>
+                  <td className="text-right">{Number(row.unpaidInvoiceCount || 0).toLocaleString()}</td>
+                  <td>{formatCellValue('eligibleForDividend', row.eligibleForDividend, row)}</td>
+                  <td>{formatCellValue('countsForLoanQualification', row.countsForLoanQualification, row)}</td>
+                  <td>{row.payoutMode || '-'}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="11" className="text-center py-12">
+                  <FileText size={48} className="mx-auto text-gray-400 mb-3" />
+                  <p className="text-gray-500 font-medium">No contribution summary rows match this filter</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {rows.length > 200 && (
+          <p className="text-sm text-gray-500 text-center py-3 bg-gray-50 border-t">
+            Showing first 200 of {rows.length} records
+          </p>
+        )}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -1060,6 +1193,85 @@ const APIReportsPage = () => {
                             </select>
                           </div>
                         )}
+
+                        {report.key === 'contributions' && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1">Contribution Type</label>
+                              <select
+                                value={reportAdvancedFilterMap.contributions?.contributionType || ''}
+                                onChange={(e) => setReportAdvancedFilterMap(prev => ({
+                                  ...prev,
+                                  contributions: {
+                                    ...(prev.contributions || {}),
+                                    contributionType: e.target.value,
+                                  },
+                                }))}
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="">All types</option>
+                                {getContributionTypeOptions(filteredReportData?.rows || reportData?.rows || []).map((typeOption) => (
+                                  <option key={typeOption} value={typeOption}>{typeOption}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1">Dividend Eligibility</label>
+                              <select
+                                value={reportAdvancedFilterMap.contributions?.eligibleForDividend || 'all'}
+                                onChange={(e) => setReportAdvancedFilterMap(prev => ({
+                                  ...prev,
+                                  contributions: {
+                                    ...(prev.contributions || {}),
+                                    eligibleForDividend: e.target.value,
+                                  },
+                                }))}
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="all">All</option>
+                                <option value="true">Eligible</option>
+                                <option value="false">Not Eligible</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1">Loan Qualification</label>
+                              <select
+                                value={reportAdvancedFilterMap.contributions?.countsForLoanQualification || 'all'}
+                                onChange={(e) => setReportAdvancedFilterMap(prev => ({
+                                  ...prev,
+                                  contributions: {
+                                    ...(prev.contributions || {}),
+                                    countsForLoanQualification: e.target.value,
+                                  },
+                                }))}
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="all">All</option>
+                                <option value="true">Qualifying</option>
+                                <option value="false">Non-Qualifying</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1">Source</label>
+                              <select
+                                value={reportAdvancedFilterMap.contributions?.source || 'all'}
+                                onChange={(e) => setReportAdvancedFilterMap(prev => ({
+                                  ...prev,
+                                  contributions: {
+                                    ...(prev.contributions || {}),
+                                    source: e.target.value,
+                                  },
+                                }))}
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="all">All</option>
+                                <option value="contribution">Contribution</option>
+                                <option value="income">Income</option>
+                                <option value="fine">Fine</option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                     {/* Report Loading State */}
@@ -1088,6 +1300,8 @@ const APIReportsPage = () => {
                       <div className="space-y-6">
                         {isFinancialPreviewKey(report.key) ? (
                           <FinancialPreview reportKey={report.key} reportData={filteredReportData} />
+                        ) : report.key === 'contributions' ? (
+                          renderContributionSummaryTable(filteredReportData)
                         ) : (
                           <div className="report-table-container">
                             <table className="report-table min-w-[980px]">

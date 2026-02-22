@@ -34,6 +34,7 @@ enum TransactionType {
   fine
   loan_repayment
   expense
+  interest
   dividend
   refund
   transfer
@@ -83,6 +84,9 @@ model Member {
   idNumber           String?
   dob                DateTime?
   gender             String?
+  documentType       String?   // 'ID' or 'Passport'
+  documentNumber     String?
+  kraPIN             String?
   physicalAddress    String?
   town               String?
   employmentStatus   String?
@@ -100,6 +104,7 @@ model Member {
   balance            Float     @default(0)
   loanBalance        Float     @default(0)
   active             Boolean   @default(true)
+  isResident         Boolean   @default(true)
   
   ledger             Ledger[]  
   deposits           Deposit[]
@@ -139,6 +144,7 @@ model IncomeCategory {
   id            Int              @id @default(autoincrement())
   name          String           @unique
   description   String?
+  isExternalInterest Boolean      @default(false)
   categoryLedger   CategoryLedger? @relation("IncomeCategoryToLedger")
   categoryLedgerId Int? @unique
   createdAt     DateTime         @default(now())
@@ -166,6 +172,12 @@ model ContributionType {
   amount              Decimal   @db.Decimal(14, 2)
   frequency           String?   // Monthly, Weekly, Quarterly
   typeCategory        String?   // Regular, OneTime
+  accountingGroup     String?   @default("member_savings") // member_savings, share_capital, non_withdrawable_fund, investment_deposit, fee
+  payoutMode          String?   @default("dividend") // dividend, interest, none
+  eligibleForDividend Boolean   @default(true)
+  countsForLoanQualification Boolean @default(true)
+  annualReturnRate    Decimal?  @db.Decimal(5, 2)
+  useDateWeightedEarnings Boolean @default(true)
   dayOfMonth          String?
   invoiceDate         DateTime? @db.Date
   dueDate             DateTime? @db.Date
@@ -426,6 +438,9 @@ model Withdrawal {
   type         TransactionType @default(expense)
   category     String?
   amount       Decimal         @db.Decimal(14, 2)
+  grossAmount  Decimal?        @db.Decimal(14, 2)
+  withholdingTaxAmount Decimal? @db.Decimal(14, 2)
+  withholdingTaxRate   Decimal? @db.Decimal(5, 2)
   description  String?
   narration    String?
   reference    String?        @unique

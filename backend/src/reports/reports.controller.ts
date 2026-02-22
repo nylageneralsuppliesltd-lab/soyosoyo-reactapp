@@ -94,6 +94,16 @@ export class ReportsController {
     return this.reportsService.handleReport('dividends', query, res);
   }
 
+  @Get('dividend-recommendation')
+  async dividendRecommendation(@Query() query: any, @Res({ passthrough: true }) res: Response) {
+    return this.reportsService.handleReport('dividendRecommendation', query, res);
+  }
+
+  @Get('dividend-category-payouts')
+  async dividendCategoryPayouts(@Query() query: any, @Res({ passthrough: true }) res: Response) {
+    return this.reportsService.handleReport('dividendCategoryPayouts', query, res);
+  }
+
   @Get('general-ledger')
   async generalLedger(@Query() query: any, @Res({ passthrough: true }) res: Response) {
     return this.reportsService.handleReport('generalLedger', query, res);

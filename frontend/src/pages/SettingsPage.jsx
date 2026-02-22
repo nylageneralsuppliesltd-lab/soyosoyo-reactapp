@@ -14,6 +14,7 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
   const [fineCategories, setFineCategories] = useState([]);
   const [groupRoles, setGroupRoles] = useState([]);
   const [invoiceTemplates, setInvoiceTemplates] = useState([]);
+  const [expandedRow, setExpandedRow] = useState({ tab: null, id: null });
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -44,6 +45,26 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
     finePercentage: 2,
     currency: 'KES',
     fiscalYearStart: '01-01',
+    disqualifyInactiveMembers: true,
+    maxConsecutiveMissedContributionMonths: 3,
+    disqualifyGuarantorOfDelinquentLoan: true,
+    requireFullShareCapitalForDividends: false,
+    minimumShareCapitalForDividends: 0,
+    allowDividendReinstatementAfterConsecutivePayments: true,
+    reinstatementConsecutivePaymentMonths: 3,
+    dividendAllocationMode: 'weighted',
+    shareCapitalDividendPercent: 50,
+    memberSavingsDividendPercent: 50,
+    dividendIndicativePrudencePercent: 90,
+    dividendDeclarationLocked: false,
+    dividendDeclarationDate: '',
+    dividendDeclaredAt: '',
+    dividendDeclaredBy: '',
+    dividendDeclarationNotes: '',
+    dividendDeclarationSnapshot: null,
+    dividendUnlockedAt: '',
+    dividendUnlockedBy: '',
+    dividendUnlockReason: '',
   });
 
   const toNumberOrZero = (value) => {
@@ -56,6 +77,31 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
+  const formatCurrency = (value) => {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return '-';
+    return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const formatAccountingGroup = (value) => String(value || 'member_savings').replace(/_/g, ' ');
+
+  const formatContributionSummary = (ct) => {
+    const amount = formatCurrency(ct.amount);
+    const payoutMode = ct.payoutMode || 'dividend';
+    const schedule = ct.frequency
+      ? `${ct.frequency}${ct.dayOfMonth ? ` (Day ${ct.dayOfMonth})` : ''}`
+      : 'No schedule';
+    return `${amount} | ${formatAccountingGroup(ct.accountingGroup)} | ${payoutMode} | ${schedule}`;
+  };
+
+  const formatInvoiceSummary = (it) => {
+    const amount = it.amount ? formatCurrency(it.amount) : '-';
+    const target = it.sendTo || 'All Members';
+    return `${amount} | ${target}`;
+  };
+
+  const isRowExpanded = (tab, id) => expandedRow?.tab === tab && expandedRow?.id === id;
+
   const sanitizePayloadByTab = (tab, rawFormData) => {
     if (tab === 'contributions') {
       return {
@@ -64,6 +110,12 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
         amount: toNumberOrZero(rawFormData.amount),
         frequency: rawFormData.frequency || null,
         typeCategory: rawFormData.typeCategory || null,
+        accountingGroup: rawFormData.accountingGroup || 'member_savings',
+        payoutMode: rawFormData.payoutMode || 'dividend',
+        eligibleForDividend: !!rawFormData.eligibleForDividend,
+        countsForLoanQualification: !!rawFormData.countsForLoanQualification,
+        annualReturnRate: toNumberOrZero(rawFormData.annualReturnRate),
+        useDateWeightedEarnings: rawFormData.useDateWeightedEarnings !== false,
         dayOfMonth: rawFormData.dayOfMonth ? String(rawFormData.dayOfMonth) : null,
         invoiceDate: rawFormData.invoiceDate || null,
         dueDate: rawFormData.dueDate || null,
@@ -163,6 +215,43 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
     }
   };
 
+  const handleLockDividendDeclaration = async () => {
+    const declaredBy = window.prompt('Declared by (admin name):', systemSettings.dividendDeclaredBy || 'Admin') || 'Admin';
+    const notes = window.prompt('Declaration notes (optional):', systemSettings.dividendDeclarationNotes || '') || '';
+    const declarationDate = window.prompt('Declaration date (YYYY-MM-DD):', systemSettings.dividendDeclarationDate || new Date().toISOString().split('T')[0])
+      || new Date().toISOString().split('T')[0];
+
+    try {
+      await financeAPI.post('/settings/dividend-declaration/lock', {
+        declaredBy,
+        notes,
+        dividendDeclarationDate: declarationDate,
+      });
+      await loadData();
+      alert('Dividend declaration locked and snapshot captured.');
+    } catch (err) {
+      console.error('Failed to lock dividend declaration:', err);
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  const handleUnlockDividendDeclaration = async () => {
+    const unlockedBy = window.prompt('Unlocked by (admin name):', 'Admin') || 'Admin';
+    const reason = window.prompt('Reason for unlock:', '') || '';
+
+    try {
+      await financeAPI.post('/settings/dividend-declaration/unlock', {
+        unlockedBy,
+        reason,
+      });
+      await loadData();
+      alert('Dividend declaration unlocked. You can now edit dividend setup.');
+    } catch (err) {
+      console.error('Failed to unlock dividend declaration:', err);
+      alert(`Error: ${err.message}`);
+    }
+  };
+
   const handleAddNew = (tab) => {
     setActiveTab2(tab);
     // Preload sensible defaults for contribution scheduling so invoicing can auto-trigger.
@@ -175,6 +264,12 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
         ? {
             frequency: 'Monthly',
             typeCategory: 'Regular Contribution',
+          accountingGroup: 'member_savings',
+          payoutMode: 'dividend',
+          eligibleForDividend: true,
+          countsForLoanQualification: true,
+          annualReturnRate: 0,
+          useDateWeightedEarnings: true,
             dayOfMonth: '3',
             smsNotifications: true,
             emailNotifications: true,
@@ -413,6 +508,168 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                 </div>
               )}
             </div>
+
+            <h3 style={{ marginTop: '30px' }}>Dividend Eligibility Policy</h3>
+            <div className="settings-card" style={{ marginBottom: '16px' }}>
+              <h4 style={{ marginTop: 0 }}>Dividend Declaration Control (Admin)</h4>
+              <p style={{ margin: '8px 0' }}>
+                Status: <strong>{systemSettings.dividendDeclarationLocked ? 'Locked (Declared)' : 'Unlocked (Draft)'}</strong>
+              </p>
+              {systemSettings.dividendDeclarationLocked && (
+                <p style={{ margin: '8px 0' }}>
+                  Declared by {systemSettings.dividendDeclaredBy || 'N/A'} on {systemSettings.dividendDeclarationDate || 'N/A'}.
+                </p>
+              )}
+              {!systemSettings.dividendDeclarationLocked && systemSettings.dividendUnlockedAt && (
+                <p style={{ margin: '8px 0' }}>
+                  Last unlock by {systemSettings.dividendUnlockedBy || 'N/A'} ({systemSettings.dividendUnlockReason || 'No reason provided'}).
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '10px' }}>
+                {!systemSettings.dividendDeclarationLocked ? (
+                  <button className="submit-btn" type="button" onClick={handleLockDividendDeclaration}>
+                    🔒 Lock Declaration Snapshot
+                  </button>
+                ) : (
+                  <button className="submit-btn" type="button" onClick={handleUnlockDividendDeclaration}>
+                    🔓 Unlock Declaration
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Dividend Allocation Method</label>
+                <select
+                  value={systemSettings.dividendAllocationMode || 'weighted'}
+                  onChange={(e) => setSystemSettings({ ...systemSettings, dividendAllocationMode: e.target.value })}
+                  disabled={!!systemSettings.dividendDeclarationLocked}
+                >
+                  <option value="weighted">Weighted by member balances</option>
+                  <option value="manual_percent">Management percentage split</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Indicative Dividend Prudence (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={systemSettings.dividendIndicativePrudencePercent ?? 90}
+                  onChange={(e) => setSystemSettings({
+                    ...systemSettings,
+                    dividendIndicativePrudencePercent: parseFloat(e.target.value || '0') || 0,
+                  })}
+                  disabled={!!systemSettings.dividendDeclarationLocked}
+                />
+              </div>
+              {systemSettings.dividendAllocationMode === 'manual_percent' && (
+                <>
+                  <div className="form-group">
+                    <label>Share Capital Dividend %</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={systemSettings.shareCapitalDividendPercent}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, shareCapitalDividendPercent: parseFloat(e.target.value || '0') || 0 })}
+                      disabled={!!systemSettings.dividendDeclarationLocked}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Member Savings Dividend %</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={systemSettings.memberSavingsDividendPercent}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, memberSavingsDividendPercent: parseFloat(e.target.value || '0') || 0 })}
+                      disabled={!!systemSettings.dividendDeclarationLocked}
+                    />
+                  </div>
+                </>
+              )}
+              <div className="form-group">
+                <label>Disqualify Inactive Members</label>
+                <select
+                  value={systemSettings.disqualifyInactiveMembers ? 'yes' : 'no'}
+                  onChange={(e) => setSystemSettings({ ...systemSettings, disqualifyInactiveMembers: e.target.value === 'yes' })}
+                  disabled={!!systemSettings.dividendDeclarationLocked}
+                >
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Consecutive Missed Contribution Months (disqualify at)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={systemSettings.maxConsecutiveMissedContributionMonths}
+                  onChange={(e) => setSystemSettings({ ...systemSettings, maxConsecutiveMissedContributionMonths: parseInt(e.target.value || '0', 10) || 0 })}
+                  disabled={!!systemSettings.dividendDeclarationLocked}
+                />
+              </div>
+              <div className="form-group">
+                <label>Disqualify Guarantor of Delinquent Loan</label>
+                <select
+                  value={systemSettings.disqualifyGuarantorOfDelinquentLoan ? 'yes' : 'no'}
+                  onChange={(e) => setSystemSettings({ ...systemSettings, disqualifyGuarantorOfDelinquentLoan: e.target.value === 'yes' })}
+                  disabled={!!systemSettings.dividendDeclarationLocked}
+                >
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Require Full Share Capital for Dividends</label>
+                <select
+                  value={systemSettings.requireFullShareCapitalForDividends ? 'yes' : 'no'}
+                  onChange={(e) => setSystemSettings({ ...systemSettings, requireFullShareCapitalForDividends: e.target.value === 'yes' })}
+                  disabled={!!systemSettings.dividendDeclarationLocked}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+              {systemSettings.requireFullShareCapitalForDividends && (
+                <div className="form-group">
+                  <label>Minimum Share Capital for Dividends (KES)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={systemSettings.minimumShareCapitalForDividends}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, minimumShareCapitalForDividends: parseFloat(e.target.value || '0') || 0 })}
+                    disabled={!!systemSettings.dividendDeclarationLocked}
+                  />
+                </div>
+              )}
+              <div className="form-group">
+                <label>Allow Reinstatement After Consistent Repayment</label>
+                <select
+                  value={systemSettings.allowDividendReinstatementAfterConsecutivePayments ? 'yes' : 'no'}
+                  onChange={(e) => setSystemSettings({ ...systemSettings, allowDividendReinstatementAfterConsecutivePayments: e.target.value === 'yes' })}
+                  disabled={!!systemSettings.dividendDeclarationLocked}
+                >
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+              {systemSettings.allowDividendReinstatementAfterConsecutivePayments && (
+                <div className="form-group">
+                  <label>Reinstatement Months Paid Consecutively</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={systemSettings.reinstatementConsecutivePaymentMonths}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, reinstatementConsecutivePaymentMonths: parseInt(e.target.value || '1', 10) || 1 })}
+                    disabled={!!systemSettings.dividendDeclarationLocked}
+                  />
+                </div>
+              )}
+            </div>
             
             <button className="submit-btn" onClick={handleSaveSystemSettings} style={{ marginTop: '20px' }}>
               💾 Save All Settings
@@ -492,57 +749,69 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                     <thead>
                       <tr>
                         <th>Name</th>
-                        <th>Amount</th>
-                        <th>Schedule</th>
-                        <th>Invoice & Due</th>
-                        <th>Notifications</th>
-                        <th>Late Fine</th>
+                        <th>Summary</th>
+                        <th>Status</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {contributionTypes.map(ct => (
-                        <tr key={ct.id}>
-                          <td>{ct.name}</td>
-                          <td>{ct.amount ? `KES ${parseInt(ct.amount).toLocaleString()}` : '-'}</td>
-                          <td>
-                            <div>{ct.typeCategory || 'Regular Contribution'}</div>
-                            <div style={{ color: '#666', fontSize: '12px' }}>
-                              {ct.frequency || '-'} {ct.dayOfMonth ? `(Day ${ct.dayOfMonth})` : ''}
-                            </div>
-                            <div style={{ color: '#666', fontSize: '12px' }}>
-                              {ct.invoiceAllMembers ? 'All members' : 'Segmented'} · {ct.visibleInvoicing ? 'Invoicing Active' : 'Hidden'}
-                            </div>
-                          </td>
-                          <td>
-                            <div>Invoice: {ct.invoiceDate ? formatDateInput(ct.invoiceDate) : '-'}</div>
-                            <div>Contribution: {ct.dueDate ? formatDateInput(ct.dueDate) : '-'}</div>
-                          </td>
-                          <td>
-                            <div>{ct.smsNotifications ? 'SMS ✓' : 'SMS ✗'}</div>
-                            <div>{ct.emailNotifications ? 'Email ✓' : 'Email ✗'}</div>
-                            <div>{ct.finesEnabled ? 'Fines On' : 'Fines Off'}</div>
-                          </td>
-                          <td>
-                            {ct.lateFineEnabled ? (
-                              <div>
-                                <div>{ct.lateFineAmount ? `KES ${Number(ct.lateFineAmount).toLocaleString()}` : '-'}</div>
-                                <div style={{ color: '#666', fontSize: '12px' }}>Grace: {ct.lateFineGraceDays || 0} day(s)</div>
-                              </div>
-                            ) : (
-                              'Off'
-                            )}
-                          </td>
-                          <td>
-                            <button className="btn-edit" onClick={() => {
-                              setFormData(ct);
-                              setEditingId(ct.id);
-                              setInvoiceDateManuallySet(true);
-                              setShowForm(true);
-                            }}>Edit</button>
-                            <button className="btn-delete" onClick={() => handleDelete(ct.id, 'contribution-types')}>Delete</button>
-                          </td>
-                        </tr>
+                        <React.Fragment key={ct.id}>
+                          <tr>
+                            <td>{ct.name}</td>
+                            <td>{formatContributionSummary(ct)}</td>
+                            <td>{ct.visibleInvoicing ? 'Active' : 'Hidden'}</td>
+                            <td>
+                              <button
+                                className="btn-edit"
+                                onClick={() => setExpandedRow({ tab: 'contributions', id: ct.id })}
+                              >
+                                View
+                              </button>
+                              <button
+                                className="btn-edit"
+                                onClick={() => {
+                                  setFormData(ct);
+                                  setEditingId(ct.id);
+                                  setInvoiceDateManuallySet(true);
+                                  setShowForm(true);
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="btn-cancel"
+                                onClick={() => setExpandedRow({ tab: null, id: null })}
+                                disabled={!isRowExpanded('contributions', ct.id)}
+                              >
+                                Cancel
+                              </button>
+                              <button className="btn-delete" onClick={() => handleDelete(ct.id, 'contribution-types')}>Delete</button>
+                            </td>
+                          </tr>
+                          {isRowExpanded('contributions', ct.id) && (
+                            <tr>
+                              <td colSpan={4}>
+                                <div className="config-details">
+                                  <div className="config-details-grid">
+                                    <div className="config-details-item"><strong>Accounting Group:</strong> {formatAccountingGroup(ct.accountingGroup)}</div>
+                                    <div className="config-details-item"><strong>Payout Mode:</strong> {ct.payoutMode || 'dividend'}</div>
+                                    <div className="config-details-item"><strong>Eligible for Dividend:</strong> {ct.eligibleForDividend ? 'Yes' : 'No'}</div>
+                                    <div className="config-details-item"><strong>Counts for Loan Qualification:</strong> {ct.countsForLoanQualification ? 'Yes' : 'No'}</div>
+                                    <div className="config-details-item"><strong>Return Rate:</strong> {Number(ct.annualReturnRate || 0).toFixed(2)}%</div>
+                                    <div className="config-details-item"><strong>Type:</strong> {ct.typeCategory || 'Regular Contribution'}</div>
+                                    <div className="config-details-item"><strong>Invoice Date:</strong> {ct.invoiceDate ? formatDateInput(ct.invoiceDate) : '-'}</div>
+                                    <div className="config-details-item"><strong>Due Date:</strong> {ct.dueDate ? formatDateInput(ct.dueDate) : '-'}</div>
+                                    <div className="config-details-item"><strong>Notifications:</strong> SMS {ct.smsNotifications ? 'On' : 'Off'}, Email {ct.emailNotifications ? 'On' : 'Off'}</div>
+                                    <div className="config-details-item"><strong>Late Fine:</strong> {ct.lateFineEnabled ? formatCurrency(ct.lateFineAmount) : 'Off'}</div>
+                                    <div className="config-details-item"><strong>Grace Days:</strong> {ct.lateFineGraceDays || 0}</div>
+                                    <div className="config-details-item"><strong>Invoicing:</strong> {ct.invoiceAllMembers ? 'All Members' : 'Segmented'} ({ct.visibleInvoicing ? 'Active' : 'Hidden'})</div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -566,26 +835,51 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                     <thead>
                       <tr>
                         <th>Name</th>
-                        <th>Description</th>
-                        <th>Nature</th>
+                        <th>Summary</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {expenseCategories.map(ec => (
-                        <tr key={ec.id}>
-                          <td><strong>{ec.name}</strong></td>
-                          <td>{ec.description || '-'}</td>
-                          <td>{ec.nature || '-'}</td>
-                          <td>
-                            <button className="btn-edit" onClick={() => {
-                              setFormData(ec);
-                              setEditingId(ec.id);
-                              setShowForm(true);
-                            }}>Edit</button>
-                            <button className="btn-delete" onClick={() => handleDelete(ec.id, 'expense-categories')}>Delete</button>
-                          </td>
-                        </tr>
+                        <React.Fragment key={ec.id}>
+                          <tr>
+                            <td><strong>{ec.name}</strong></td>
+                            <td>{[ec.nature, ec.description].filter(Boolean).join(' | ') || '-'}</td>
+                            <td>
+                              <button
+                                className="btn-edit"
+                                onClick={() => setExpandedRow({ tab: 'expenses', id: ec.id })}
+                              >
+                                View
+                              </button>
+                              <button className="btn-edit" onClick={() => {
+                                setFormData(ec);
+                                setEditingId(ec.id);
+                                setShowForm(true);
+                              }}>Edit</button>
+                              <button
+                                className="btn-cancel"
+                                onClick={() => setExpandedRow({ tab: null, id: null })}
+                                disabled={!isRowExpanded('expenses', ec.id)}
+                              >
+                                Cancel
+                              </button>
+                              <button className="btn-delete" onClick={() => handleDelete(ec.id, 'expense-categories')}>Delete</button>
+                            </td>
+                          </tr>
+                          {isRowExpanded('expenses', ec.id) && (
+                            <tr>
+                              <td colSpan={3}>
+                                <div className="config-details">
+                                  <div className="config-details-grid">
+                                    <div className="config-details-item"><strong>Description:</strong> {ec.description || '-'}</div>
+                                    <div className="config-details-item"><strong>Nature:</strong> {ec.nature || '-'}</div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -609,24 +903,51 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                     <thead>
                       <tr>
                         <th>Name</th>
-                        <th>Description</th>
+                        <th>Summary</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {incomeCategories.map(ic => (
-                        <tr key={ic.id}>
-                          <td><strong>{ic.name}</strong></td>
-                          <td>{ic.description || '-'}</td>
-                          <td>
-                            <button className="btn-edit" onClick={() => {
-                              setFormData(ic);
-                              setEditingId(ic.id);
-                              setShowForm(true);
-                            }}>Edit</button>
-                            <button className="btn-delete" onClick={() => handleDelete(ic.id, 'income-categories')}>Delete</button>
-                          </td>
-                        </tr>
+                        <React.Fragment key={ic.id}>
+                          <tr>
+                            <td><strong>{ic.name}</strong></td>
+                            <td>{ic.isExternalInterest ? 'External interest' : 'Standard income'}{ic.description ? ` | ${ic.description}` : ''}</td>
+                            <td>
+                              <button
+                                className="btn-edit"
+                                onClick={() => setExpandedRow({ tab: 'income', id: ic.id })}
+                              >
+                                View
+                              </button>
+                              <button className="btn-edit" onClick={() => {
+                                setFormData(ic);
+                                setEditingId(ic.id);
+                                setShowForm(true);
+                              }}>Edit</button>
+                              <button
+                                className="btn-cancel"
+                                onClick={() => setExpandedRow({ tab: null, id: null })}
+                                disabled={!isRowExpanded('income', ic.id)}
+                              >
+                                Cancel
+                              </button>
+                              <button className="btn-delete" onClick={() => handleDelete(ic.id, 'income-categories')}>Delete</button>
+                            </td>
+                          </tr>
+                          {isRowExpanded('income', ic.id) && (
+                            <tr>
+                              <td colSpan={3}>
+                                <div className="config-details">
+                                  <div className="config-details-grid">
+                                    <div className="config-details-item"><strong>Description:</strong> {ic.description || '-'}</div>
+                                    <div className="config-details-item"><strong>External Interest:</strong> {ic.isExternalInterest ? 'Yes' : 'No'}</div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -650,22 +971,50 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                     <thead>
                       <tr>
                         <th>Fine Type</th>
+                        <th>Summary</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {fineCategories.map(fc => (
-                        <tr key={fc.id}>
-                          <td><strong>{fc.name}</strong></td>
-                          <td>
-                            <button className="btn-edit" onClick={() => {
-                              setFormData(fc);
-                              setEditingId(fc.id);
-                              setShowForm(true);
-                            }}>Edit</button>
-                            <button className="btn-delete" onClick={() => handleDelete(fc.id, 'fine-categories')}>Delete</button>
-                          </td>
-                        </tr>
+                        <React.Fragment key={fc.id}>
+                          <tr>
+                            <td><strong>{fc.name}</strong></td>
+                            <td>Standard fine</td>
+                            <td>
+                              <button
+                                className="btn-edit"
+                                onClick={() => setExpandedRow({ tab: 'fines', id: fc.id })}
+                              >
+                                View
+                              </button>
+                              <button className="btn-edit" onClick={() => {
+                                setFormData(fc);
+                                setEditingId(fc.id);
+                                setShowForm(true);
+                              }}>Edit</button>
+                              <button
+                                className="btn-cancel"
+                                onClick={() => setExpandedRow({ tab: null, id: null })}
+                                disabled={!isRowExpanded('fines', fc.id)}
+                              >
+                                Cancel
+                              </button>
+                              <button className="btn-delete" onClick={() => handleDelete(fc.id, 'fine-categories')}>Delete</button>
+                            </td>
+                          </tr>
+                          {isRowExpanded('fines', fc.id) && (
+                            <tr>
+                              <td colSpan={3}>
+                                <div className="config-details">
+                                  <div className="config-details-grid">
+                                    <div className="config-details-item"><strong>Name:</strong> {fc.name}</div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -691,26 +1040,54 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                     <thead>
                       <tr>
                         <th>Type</th>
-                        <th>Amount</th>
-                        <th>Send To</th>
+                        <th>Summary</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {invoiceTemplates.map(it => (
-                        <tr key={it.id}>
-                          <td><strong>{it.type}</strong></td>
-                          <td>{it.amount ? `KES ${parseInt(it.amount).toLocaleString()}` : '-'}</td>
-                          <td>{it.sendTo || '-'}</td>
-                          <td>
-                            <button className="btn-edit" onClick={() => {
-                              setFormData(it);
-                              setEditingId(it.id);
-                              setShowForm(true);
-                            }}>Edit</button>
-                            <button className="btn-delete" onClick={() => handleDelete(it.id, 'invoice-templates')}>Delete</button>
-                          </td>
-                        </tr>
+                        <React.Fragment key={it.id}>
+                          <tr>
+                            <td><strong>{it.type}</strong></td>
+                            <td>{formatInvoiceSummary(it)}</td>
+                            <td>
+                              <button
+                                className="btn-edit"
+                                onClick={() => setExpandedRow({ tab: 'invoices', id: it.id })}
+                              >
+                                View
+                              </button>
+                              <button className="btn-edit" onClick={() => {
+                                setFormData(it);
+                                setEditingId(it.id);
+                                setShowForm(true);
+                              }}>Edit</button>
+                              <button
+                                className="btn-cancel"
+                                onClick={() => setExpandedRow({ tab: null, id: null })}
+                                disabled={!isRowExpanded('invoices', it.id)}
+                              >
+                                Cancel
+                              </button>
+                              <button className="btn-delete" onClick={() => handleDelete(it.id, 'invoice-templates')}>Delete</button>
+                            </td>
+                          </tr>
+                          {isRowExpanded('invoices', it.id) && (
+                            <tr>
+                              <td colSpan={3}>
+                                <div className="config-details">
+                                  <div className="config-details-grid">
+                                    <div className="config-details-item"><strong>Amount:</strong> {formatCurrency(it.amount)}</div>
+                                    <div className="config-details-item"><strong>Send To:</strong> {it.sendTo || '-'}</div>
+                                    <div className="config-details-item"><strong>Invoice Date:</strong> {it.invoiceDate ? formatDateInput(it.invoiceDate) : '-'}</div>
+                                    <div className="config-details-item"><strong>Due Date:</strong> {it.dueDate ? formatDateInput(it.dueDate) : '-'}</div>
+                                    <div className="config-details-item"><strong>Description:</strong> {it.description || '-'}</div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -763,6 +1140,58 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                       <option value="Entrance Fee">Entrance Fee</option>
                     </select>
                   </div>
+                  <div className="form-group">
+                    <label>Accounting Group</label>
+                    <select value={formData.accountingGroup || 'member_savings'} onChange={(e) => setFormData({...formData, accountingGroup: e.target.value})}>
+                      <option value="member_savings">Member Savings</option>
+                      <option value="share_capital">Share Capital</option>
+                      <option value="investment_deposit">Lump-sum Investment Deposit</option>
+                      <option value="non_withdrawable_fund">Risk/Benevolent Fund</option>
+                      <option value="fee">Registration / Service Fee</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Payout Mode</label>
+                    <select value={formData.payoutMode || 'dividend'} onChange={(e) => setFormData({...formData, payoutMode: e.target.value})}>
+                      <option value="dividend">Dividend</option>
+                      <option value="interest">Interest</option>
+                      <option value="none">No Payout</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Eligible for Dividends</label>
+                    <select value={formData.eligibleForDividend === false ? 'no' : 'yes'} onChange={(e) => setFormData({...formData, eligibleForDividend: e.target.value === 'yes'})}>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Counts for Loan Qualification</label>
+                    <select value={formData.countsForLoanQualification === false ? 'no' : 'yes'} onChange={(e) => setFormData({...formData, countsForLoanQualification: e.target.value === 'yes'})}>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Date-weighted Earnings</label>
+                    <select value={formData.useDateWeightedEarnings === false ? 'no' : 'yes'} onChange={(e) => setFormData({...formData, useDateWeightedEarnings: e.target.value === 'yes'})}>
+                      <option value="yes">Enabled (older deposits earn more)</option>
+                      <option value="no">Disabled (flat calculation)</option>
+                    </select>
+                  </div>
+                  {formData.payoutMode === 'interest' && (
+                    <div className="form-group">
+                      <label>Annual Return Rate (%)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.annualReturnRate ?? 0}
+                        onChange={(e) => setFormData({...formData, annualReturnRate: parseFloat(e.target.value) || 0})}
+                        placeholder="e.g., 8.50"
+                      />
+                    </div>
+                  )}
                   <div className="form-group">
                     <label>Day of Month (1-31)</label>
                     <input type="number" min="1" max="31" value={formData.dayOfMonth || ''} onChange={(e) => setFormData({...formData, dayOfMonth: e.target.value})} placeholder="e.g., 3 (every 3rd)" />

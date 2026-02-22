@@ -7,6 +7,7 @@ const RoleManagement = () => {
   const [roles, setRoles] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState(null);
+  const [expandedRow, setExpandedRow] = useState({ tab: null, id: null });
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -17,6 +18,8 @@ const RoleManagement = () => {
   const [showMuteManager, setShowMuteManager] = useState(false);
 
   const permissionsByModule = getPermissionsByModule();
+
+  const isRowExpanded = (tab, id) => expandedRow?.tab === tab && expandedRow?.id === id;
 
   const loadRoles = async () => {
     try {
@@ -63,7 +66,6 @@ const RoleManagement = () => {
           return acc;
         }, {}),
       };
-      // Check if all permissions in module are selected
       const modulePerms = permissionsByModule[module].map(p => p.key);
       modules[module].all = modulePerms.every(p => permissions.includes(p));
     });
@@ -77,7 +79,6 @@ const RoleManagement = () => {
 
     setFormData({ ...formData, permissions: newPermissions });
 
-    // Update module selection state
     const [module] = permissionKey.split('.');
     const modulePerms = permissionsByModule[module].map(p => p.key);
     const allSelected = modulePerms.every(p => newPermissions.includes(p));
@@ -141,6 +142,7 @@ const RoleManagement = () => {
 
       loadRoles();
       setShowForm(false);
+      setExpandedRow({ tab: null, id: null });
     } catch (err) {
       console.error('Failed to save role:', err);
       alert(`Error: ${err.message}`);
@@ -186,56 +188,97 @@ const RoleManagement = () => {
         </div>
       </div>
 
-      {/* ROLES TABLE */}
-      <div className="roles-table-container">
-        <table className="roles-table">
-          <thead>
-            <tr>
-              <th>Role Name</th>
-              <th>Description</th>
-              <th>Permissions</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {roles.map(role => (
-              <tr key={role.id} className={mutedRoles[role.id] ? 'muted-role' : ''}>
-                <td>
-                  <strong>{role.name}</strong>
-                </td>
-                <td>{role.description || '-'}</td>
-                <td>
-                  <span className="permission-badge">
-                    {role.permissions ? role.permissions.length : 0} permissions
-                  </span>
-                </td>
-                <td>
-                  {mutedRoles[role.id] ? (
-                    <span className="status-muted">🔇 Muted in Views</span>
-                  ) : (
-                    <span className="status-active">✓ Active</span>
-                  )}
-                </td>
-                <td>
-                  <button className="btn-small btn-edit" onClick={() => handleEditRole(role)}>
-                    Edit
-                  </button>
-                  <button
-                    className="btn-small btn-mute"
-                    onClick={() => handleMuteRole(role.id)}
-                    title={mutedRoles[role.id] ? 'Unmute' : 'Mute'}
-                  >
-                    {mutedRoles[role.id] ? '🔔' : '🔇'}
-                  </button>
-                  <button className="btn-small btn-delete" onClick={() => handleDeleteRole(role.id)}>
-                    Delete
-                  </button>
-                </td>
+      {/* ROLES TABLE - COMPACT SUMMARY */}
+      <div className="card">
+        <div className="table-responsive">
+          <table className="config-table">
+            <thead>
+              <tr>
+                <th>Role Name</th>
+                <th>Summary</th>
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {roles.map(role => (
+                <React.Fragment key={role.id}>
+                  <tr className={mutedRoles[role.id] ? 'muted-role' : ''}>
+                    <td><strong>{role.name}</strong></td>
+                    <td>{role.description || '-'} | {(role.permissions && role.permissions.length) || 0} permissions</td>
+                    <td>
+                      {mutedRoles[role.id] ? (
+                        <span className="status-muted">🔇 Muted</span>
+                      ) : (
+                        <span className="status-badge">✓ Active</span>
+                      )}
+                    </td>
+                    <td>
+                      <button
+                        className="btn-edit"
+                        onClick={() => setExpandedRow({ tab: 'roles', id: role.id })}
+                      >
+                        View
+                      </button>
+                      <button className="btn-edit" onClick={() => handleEditRole(role)}>
+                        Edit
+                      </button>
+                      <button
+                        className="btn-edit"
+                        onClick={() => setExpandedRow({ tab: null, id: null })}
+                        disabled={!isRowExpanded('roles', role.id)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="btn-edit"
+                        onClick={() => handleMuteRole(role.id)}
+                        title={mutedRoles[role.id] ? 'Unmute' : 'Mute'}
+                      >
+                        {mutedRoles[role.id] ? '🔔 Unmute' : '🔇 Mute'}
+                      </button>
+                      <button className="btn-delete" onClick={() => handleDeleteRole(role.id)}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                  {isRowExpanded('roles', role.id) && (
+                    <tr>
+                      <td colSpan={4}>
+                        <div className="config-details">
+                          <div className="config-details-grid">
+                            <div className="config-detail-item" style={{ gridColumn: '1 / -1' }}>
+                              <span className="config-detail-label">Description</span>
+                              <div className="config-detail-value">{role.description || 'No description'}</div>
+                            </div>
+                            <div className="config-detail-item">
+                              <span className="config-detail-label">Total Permissions</span>
+                              <div className="config-detail-value" style={{ fontSize: '18px', fontWeight: 'bold', color: '#2980b9' }}>
+                                {(role.permissions && role.permissions.length) || 0}
+                              </div>
+                            </div>
+                            {role.permissions && role.permissions.length > 0 && (
+                              <div className="config-detail-item" style={{ gridColumn: '1 / -1' }}>
+                                <span className="config-detail-label">Assigned Permissions</span>
+                                <div style={{ marginTop: '10px' }}>
+                                  {role.permissions.map(perm => (
+                                    <div key={perm} style={{ padding: '4px 8px', marginBottom: '4px', background: '#ecf0f1', borderRadius: '4px', fontSize: '12px', color: '#34495e' }}>
+                                      {getPermissionLabel(perm)}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* EDIT/CREATE FORM */}

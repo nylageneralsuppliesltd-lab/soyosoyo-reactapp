@@ -20,11 +20,37 @@ const AssetsSettings = () => {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [expandedRow, setExpandedRow] = useState({ tab: null, id: null });
   const [formData, setFormData] = useState(defaultAsset);
 
   useEffect(() => {
     loadAssets();
   }, []);
+
+  const formatCurrency = (value) => {
+    return Number(value || 0).toLocaleString('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const formatDate = (date) => {
+    if (!date) return '-';
+    return new Date(date).toLocaleDateString('en-KE');
+  };
+
+  const formatAssetSummary = (asset) => {
+    const parts = [
+      asset.category || 'Uncategorized',
+      formatCurrency(asset.purchasePrice),
+      asset.condition || 'Good',
+    ];
+    return parts.filter(Boolean).join(' | ');
+  };
+
+  const isRowExpanded = (tab, id) => expandedRow?.tab === tab && expandedRow?.id === id;
 
   const loadAssets = async () => {
     try {
@@ -67,6 +93,7 @@ const AssetsSettings = () => {
     setFormData(defaultAsset);
     setEditing(null);
     setShowForm(false);
+    setExpandedRow({ tab: null, id: null });
   };
 
   const startEdit = (asset) => {
@@ -94,178 +121,242 @@ const AssetsSettings = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
-          <h3 className="text-xl font-semibold text-gray-800">Assets</h3>
-          <p className="text-sm text-gray-600">Track SACCO assets: equipment, vehicles, properties, etc.</p>
+          <h3 style={{ fontSize: '20px', fontWeight: 'bold', margin: '0 0 5px 0' }}>Assets</h3>
+          <p style={{ fontSize: '14px', color: '#666', margin: '0' }}>Track equipment, vehicles, properties, etc.</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          onClick={() => { setShowForm(!showForm); if (showForm) resetForm(); }}
+          className="btn-add"
         >
-          <span className="text-lg">+</span>
-          <span>{showForm ? 'Close' : 'Add Asset'}</span>
+          {showForm ? '✕ Close' : '+ Add Asset'}
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Asset Name *</label>
-            <input
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., Office Laptop Dell XPS"
-            />
-          </div>
+        <div className="card" style={{ marginBottom: '20px' }}>
+          <h3>{editing ? 'Edit Asset' : 'New Asset'}</h3>
+          <form onSubmit={handleSubmit}>
+            <div className="form-grid">
+              <div>
+                <label>Asset Name *</label>
+                <input
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g., Office Laptop"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-            <input
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-              placeholder="Equipment, Vehicle, Building"
-            />
-          </div>
+              <div>
+                <label>Category</label>
+                <input
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  placeholder="Equipment, Vehicle, Building"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Date</label>
-            <input
-              type="date"
-              value={formData.purchaseDate}
-              onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+              <div>
+                <label>Purchase Date</label>
+                <input
+                  type="date"
+                  value={formData.purchaseDate}
+                  onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Price</label>
-            <input
-              type="number"
-              step="0.01"
-              value={formData.purchasePrice}
-              onChange={(e) => setFormData({ ...formData, purchasePrice: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., 120000"
-            />
-          </div>
+              <div>
+                <label>Purchase Price</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.purchasePrice}
+                  onChange={(e) => setFormData({ ...formData, purchasePrice: e.target.value })}
+                  placeholder="e.g., 120000"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Current Value</label>
-            <input
-              type="number"
-              step="0.01"
-              value={formData.currentValue}
-              onChange={(e) => setFormData({ ...formData, currentValue: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., 95000"
-            />
-          </div>
+              <div>
+                <label>Current Value</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.currentValue}
+                  onChange={(e) => setFormData({ ...formData, currentValue: e.target.value })}
+                  placeholder="e.g., 95000"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-            <input
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., Nairobi HQ"
-            />
-          </div>
+              <div>
+                <label>Location</label>
+                <input
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  placeholder="e.g., Nairobi HQ"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Serial / Reference</label>
-            <input
-              value={formData.serialNumber}
-              onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., SN-123456"
-            />
-          </div>
+              <div>
+                <label>Serial / Reference</label>
+                <input
+                  value={formData.serialNumber}
+                  onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
+                  placeholder="e.g., SN-123456"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
-            <select
-              value={formData.condition}
-              onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-            >
-              <option>Excellent</option>
-              <option>Good</option>
-              <option>Fair</option>
-              <option>Poor</option>
-            </select>
-          </div>
+              <div>
+                <label>Condition</label>
+                <select
+                  value={formData.condition}
+                  onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+                >
+                  <option>Excellent</option>
+                  <option>Good</option>
+                  <option>Fair</option>
+                  <option>Poor</option>
+                </select>
+              </div>
 
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-              rows={2}
-              placeholder="Maintenance history or comments"
-            />
-          </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label>Notes</label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows="2"
+                  placeholder="Maintenance history or comments"
+                />
+              </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              id="asset-active"
-              type="checkbox"
-              checked={formData.isActive}
-              onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-            />
-            <label htmlFor="asset-active" className="text-sm text-gray-700">Asset is active</label>
-          </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id="asset-active"
+                  type="checkbox"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                />
+                <label htmlFor="asset-active">Asset is active</label>
+              </div>
+            </div>
 
-          <div className="flex gap-2 md:col-span-2">
-            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-              {editing ? 'Update Asset' : 'Create Asset'}
-            </button>
-            <button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300">
-              Cancel
-            </button>
-          </div>
-        </form>
+            <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+              <button type="submit" className="btn-primary">
+                {editing ? 'Update Asset' : 'Create Asset'}
+              </button>
+              <button type="button" onClick={resetForm} className="btn-secondary">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {loading ? (
-        <div className="text-center py-8">Loading assets...</div>
+        <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>Loading assets...</div>
       ) : assets.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">No assets added yet. Start by adding your first asset.</div>
+        <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>No assets added yet.</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {assets.map((asset) => (
-            <div key={asset.id} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <h4 className="font-semibold text-gray-800">{asset.name}</h4>
-                  <p className="text-xs text-gray-500">{asset.category || 'Uncategorized'}</p>
-                </div>
-                <span className={`px-2 py-1 text-xs rounded ${asset.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                  {asset.isActive ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-
-              <div className="text-sm text-gray-700 space-y-1 mb-3">
-                {asset.purchasePrice && <p>Cost: KES {parseFloat(asset.purchasePrice).toLocaleString()}</p>}
-                {asset.currentValue && <p>Value: KES {parseFloat(asset.currentValue).toLocaleString()}</p>}
-                {asset.purchaseDate && <p>Purchased: {new Date(asset.purchaseDate).toLocaleDateString()}</p>}
-                {asset.location && <p>📍 {asset.location}</p>}
-                {asset.serialNumber && <p>🔖 {asset.serialNumber}</p>}
-                {asset.condition && <p>🛠️ Condition: {asset.condition}</p>}
-              </div>
-
-              {asset.notes && <p className="text-sm text-gray-600 mb-3">{asset.notes}</p>}
-
-              <div className="flex gap-2">
-                <button onClick={() => startEdit(asset)} className="flex-1 bg-blue-50 text-blue-600 px-3 py-1 rounded hover:bg-blue-100 text-sm">Edit</button>
-                <button onClick={() => handleDelete(asset.id)} className="flex-1 bg-red-50 text-red-600 px-3 py-1 rounded hover:bg-red-100 text-sm">Delete</button>
-              </div>
-            </div>
-          ))}
+        <div className="card">
+          <div className="table-responsive">
+            <table className="config-table">
+              <thead>
+                <tr>
+                  <th>Asset Name</th>
+                  <th>Summary</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assets.map((asset) => (
+                  <React.Fragment key={asset.id}>
+                    <tr>
+                      <td><strong>{asset.name}</strong></td>
+                      <td>{formatAssetSummary(asset)}</td>
+                      <td><span className="status-badge">{asset.isActive ? '✓ Active' : 'Inactive'}</span></td>
+                      <td>
+                        <button
+                          className="btn-edit"
+                          onClick={() => setExpandedRow({ tab: 'assets', id: asset.id })}
+                        >
+                          View
+                        </button>
+                        <button className="btn-edit" onClick={() => startEdit(asset)}>
+                          Edit
+                        </button>
+                        <button
+                          className="btn-edit"
+                          onClick={() => setExpandedRow({ tab: null, id: null })}
+                          disabled={!isRowExpanded('assets', asset.id)}
+                        >
+                          Cancel
+                        </button>
+                        <button className="btn-delete" onClick={() => handleDelete(asset.id)}>
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                    {isRowExpanded('assets', asset.id) && (
+                      <tr>
+                        <td colSpan={4}>
+                          <div className="config-details">
+                            <div className="config-details-grid">
+                              <div className="config-detail-item">
+                                <span className="config-detail-label">Category</span>
+                                <div className="config-detail-value">{asset.category || '-'}</div>
+                              </div>
+                              <div className="config-detail-item">
+                                <span className="config-detail-label">Purchase Date</span>
+                                <div className="config-detail-value">{formatDate(asset.purchaseDate)}</div>
+                              </div>
+                              <div className="config-detail-item">
+                                <span className="config-detail-label">Purchase Price</span>
+                                <div className="config-detail-value" style={{ fontSize: '16px', fontWeight: 'bold', color: '#2980b9' }}>
+                                  {formatCurrency(asset.purchasePrice)}
+                                </div>
+                              </div>
+                              <div className="config-detail-item">
+                                <span className="config-detail-label">Current Value</span>
+                                <div className="config-detail-value" style={{ fontSize: '16px', fontWeight: 'bold', color: '#27ae60' }}>
+                                  {formatCurrency(asset.currentValue)}
+                                </div>
+                              </div>
+                              <div className="config-detail-item">
+                                <span className="config-detail-label">Location</span>
+                                <div className="config-detail-value">{asset.location || '-'}</div>
+                              </div>
+                              <div className="config-detail-item">
+                                <span className="config-detail-label">Serial / Reference</span>
+                                <div className="config-detail-value">{asset.serialNumber || '-'}</div>
+                              </div>
+                              <div className="config-detail-item">
+                                <span className="config-detail-label">Condition</span>
+                                <div className="config-detail-value">{asset.condition || 'Good'}</div>
+                              </div>
+                              {asset.description && (
+                                <div className="config-detail-item" style={{ gridColumn: '1 / -1' }}>
+                                  <span className="config-detail-label">Description</span>
+                                  <div className="config-detail-value">{asset.description}</div>
+                                </div>
+                              )}
+                              {asset.notes && (
+                                <div className="config-detail-item" style={{ gridColumn: '1 / -1' }}>
+                                  <span className="config-detail-label">Notes</span>
+                                  <div className="config-detail-value">{asset.notes}</div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

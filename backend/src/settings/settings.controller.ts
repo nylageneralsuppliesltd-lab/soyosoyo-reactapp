@@ -43,6 +43,24 @@ export class SettingsController {
     return this.settingsService.updateSystemSettings(data);
   }
 
+  @Get('dividend-declaration')
+  @Access('settings', 'admin')
+  async getDividendDeclaration() {
+    return this.settingsService.getDividendDeclaration();
+  }
+
+  @Post('dividend-declaration/lock')
+  @Access('settings', 'admin')
+  async lockDividendDeclaration(@Body() data: any) {
+    return this.settingsService.lockDividendDeclaration(data);
+  }
+
+  @Post('dividend-declaration/unlock')
+  @Access('settings', 'admin')
+  async unlockDividendDeclaration(@Body() data: any) {
+    return this.settingsService.unlockDividendDeclaration(data);
+  }
+
   // ============== CONTRIBUTION TYPES ==============
   @Get('contribution-types')
   async getContributionTypes() {

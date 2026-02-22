@@ -532,6 +532,80 @@
   }
 }
 
+/* Configuration Details Expansion */
+.config-details {
+  padding: 20px;
+  background: #f9fafb;
+  border-left: 4px solid #3498db;
+  margin: 0;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+  }
+  to {
+    opacity: 1;
+    max-height: 2000px;
+    overflow: visible;
+  }
+}
+
+.config-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.config-detail-item {
+  background: white;
+  padding: 15px;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.config-detail-label {
+  font-size: 12px;
+  color: #7f8c8d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.config-detail-value {
+  font-size: 14px;
+  color: #2c3e50;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.config-detail-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: #ecf0f1;
+  color: #34495e;
+  margin-top: 8px;
+}
+
+.config-detail-badge.active {
+  background: #d5f4e6;
+  color: #27ae60;
+}
+
+.config-detail-badge.inactive {
+  background: #fadbd8;
+  color: #c0392b;
+}
+
 /* Empty State Message */
 .empty-state {
   text-align: center;

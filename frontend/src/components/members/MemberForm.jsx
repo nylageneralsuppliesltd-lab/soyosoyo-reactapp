@@ -25,6 +25,9 @@ export default function MemberForm({ member = null, goBack }) {
     idNumber: '',
     dob: '',
     gender: '',
+    documentType: '',
+    documentNumber: '',
+    kraPIN: '',
     physicalAddress: '',
     town: '',
     employmentStatus: '',
@@ -92,6 +95,9 @@ export default function MemberForm({ member = null, goBack }) {
         idNumber: toSafeString(member.idNumber),
         dob: member.dob ? String(member.dob).split('T')[0] : '',
         gender: toSafeString(member.gender),
+        documentType: toSafeString(member.documentType),
+        documentNumber: toSafeString(member.documentNumber),
+        kraPIN: toSafeString(member.kraPIN),
         physicalAddress: toSafeString(member.physicalAddress),
         town: toSafeString(member.town),
         employmentStatus: toSafeString(member.employmentStatus),
@@ -113,6 +119,18 @@ export default function MemberForm({ member = null, goBack }) {
     if (errors[field]) {
       setErrors({ ...errors, [field]: null });
     }
+  };
+
+  const calculateAge = (dobString) => {
+    if (!dobString) return null;
+    const dob = new Date(dobString);
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+    return age;
   };
 
   const validateForm = () => {
@@ -137,6 +155,33 @@ export default function MemberForm({ member = null, goBack }) {
     // ID Number validation (optional but if provided, must be 5-10 digits)
     if (form.idNumber && !/^\d{5,10}$/.test(form.idNumber)) {
       newErrors.idNumber = 'ID Number must be 5-10 digits';
+    }
+
+    // Date of Birth / Age validation (optional but if provided, must be 18+)
+    if (form.dob) {
+      const age = calculateAge(form.dob);
+      if (age !== null && age < 18) {
+        newErrors.dob = `Member must be 18 years or older (currently ${age} years old)`;
+      }
+    }
+
+    // Document Type validation (if document number is provided, document type must be selected)
+    if (form.documentNumber && !form.documentType) {
+      newErrors.documentType = 'Please select a document type when providing a document number';
+    }
+
+    // Document Number validation (optional but if provided, must be valid format)
+    if (form.documentNumber) {
+      if (form.documentType === 'ID' && !/^\d{5,10}$/.test(form.documentNumber)) {
+        newErrors.documentNumber = 'ID Number must be 5-10 digits';
+      } else if (form.documentType === 'Passport' && !/^[A-Z0-9]{6,10}$/.test(form.documentNumber)) {
+        newErrors.documentNumber = 'Passport number must be 6-10 alphanumeric characters';
+      }
+    }
+
+    // KRA PIN validation (optional but if provided, must match KRA PIN format: A0123456ZZZA)
+    if (form.kraPIN && !/^[A-Z]{1}\d{7}[A-Z]{3}[A-Z]$/.test(form.kraPIN.toUpperCase())) {
+      newErrors.kraPIN = 'KRA PIN must be in format: A0123456ZZZA (letter, 7 digits, 3 letters, 1 letter)';
     }
 
     // Introducer validation
@@ -227,7 +272,7 @@ export default function MemberForm({ member = null, goBack }) {
         },
         { key: 'phone', label: 'Mobile Number', type: 'tel', required: true },
         { key: 'email', label: 'Email Address', type: 'email', required: false },
-        { key: 'idNumber', label: 'ID Number', type: 'text', required: false },
+        { key: 'idNumber', label: 'Existing ID Number', type: 'text', required: false },
         { key: 'dob', label: 'Date of Birth', type: 'date', required: false },
         {
           key: 'gender',
@@ -236,6 +281,16 @@ export default function MemberForm({ member = null, goBack }) {
           options: ['Male', 'Female', 'Other'],
           required: false,
         },
+        {
+          key: 'documentType',
+          label: 'Provided Document Type',
+          type: 'select',
+          options: ['ID', 'Passport'],
+          required: false,
+          description: 'Type of document provided for SASRA membership (ID or Passport)',
+        },
+        { key: 'documentNumber', label: 'Document Number', type: 'text', required: false, description: 'ID or Passport number' },
+        { key: 'kraPIN', label: 'KRA PIN', type: 'text', required: false, description: 'Kenya Revenue Authority PIN (format: A0123456ZZZA)' },
       ],
     },
     {
@@ -336,6 +391,18 @@ export default function MemberForm({ member = null, goBack }) {
                       onChange={(e) => handleChange(fieldConfig.key, e.target.value)}
                       required={fieldConfig.required}
                     />
+                  )}
+
+                  {fieldConfig.description && (
+                    <small style={{ display: 'block', marginTop: '4px', color: '#666', fontSize: '12px' }}>
+                      {fieldConfig.description}
+                    </small>
+                  )}
+
+                  {fieldConfig.key === 'dob' && form.dob && (
+                    <small style={{ display: 'block', marginTop: '4px', fontSize: '12px', color: calculateAge(form.dob) < 18 ? '#e74c3c' : '#27ae60' }}>
+                      Age: {calculateAge(form.dob)} years {calculateAge(form.dob) < 18 && '⚠️ (Must be 18+)'}
+                    </small>
                   )}
 
                   {errors[fieldConfig.key] && (

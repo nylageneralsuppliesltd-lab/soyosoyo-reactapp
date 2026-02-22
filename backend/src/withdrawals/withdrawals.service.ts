@@ -48,6 +48,17 @@ export interface DividendPayoutRecord {
   notes?: string;
 }
 
+export interface InterestPayoutRecord {
+  date: string;
+  memberId: number;
+  memberName?: string;
+  amount: number;
+  accountId?: number;
+  paymentMethod: 'cash' | 'bank' | 'mpesa' | 'check_off' | 'bank_deposit' | 'other';
+  reference?: string;
+  notes?: string;
+}
+
 @Injectable()
 export class WithdrawalsService {
   constructor(
@@ -90,6 +101,11 @@ export class WithdrawalsService {
       memberId: withdrawal.memberId,
       memberName: withdrawal.memberName,
       amount: Number(withdrawal.amount),
+      grossAmount: withdrawal.grossAmount ? Number(withdrawal.grossAmount) : null,
+      withholdingTaxAmount: withdrawal.withholdingTaxAmount
+        ? Number(withdrawal.withholdingTaxAmount)
+        : null,
+      withholdingTaxRate: withdrawal.withholdingTaxRate ? Number(withdrawal.withholdingTaxRate) : null,
       method: withdrawal.method,
       reference: withdrawal.reference,
       date: withdrawal.date ? new Date(withdrawal.date).toISOString() : null,
@@ -122,6 +138,62 @@ export class WithdrawalsService {
         balance: new Prisma.Decimal(0),
       },
     });
+  }
+
+  private async getWithholdingSettings(
+    prismaClient: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    const defaults = {
+      dividendWithholdingResidentPercent: 0,
+      dividendWithholdingNonResidentPercent: 0,
+      interestWithholdingResidentPercent: 0,
+      interestWithholdingNonResidentPercent: 0,
+    };
+
+    const record = await prismaClient.iFRSConfig.findUnique({
+      where: { key: 'system_settings' },
+    });
+
+    if (!record?.value) {
+      return defaults;
+    }
+
+    try {
+      const parsed = JSON.parse(record.value);
+      return {
+        ...defaults,
+        ...parsed,
+      };
+    } catch {
+      return defaults;
+    }
+  }
+
+  private resolveWithholdingRate(
+    settings: any,
+    isResident: boolean,
+    type: 'dividend' | 'interest',
+  ) {
+    if (type === 'interest') {
+      return isResident
+        ? Number(settings.interestWithholdingResidentPercent || 0)
+        : Number(settings.interestWithholdingNonResidentPercent || 0);
+    }
+
+    return isResident
+      ? Number(settings.dividendWithholdingResidentPercent || 0)
+      : Number(settings.dividendWithholdingNonResidentPercent || 0);
+  }
+
+  private calculateWithholdingAmount(grossAmount: Prisma.Decimal, ratePercent: number) {
+    if (!ratePercent) {
+      return new Prisma.Decimal(0);
+    }
+
+    return grossAmount
+      .mul(new Prisma.Decimal(ratePercent))
+      .div(100)
+      .toDecimalPlaces(2);
   }
 
   /**
@@ -483,7 +555,7 @@ export class WithdrawalsService {
     }
 
     const parsedDate = new Date(date || new Date());
-    const amountDecimal = new Prisma.Decimal(amount);
+    const grossAmountDecimal = new Prisma.Decimal(amount);
 
     // Get member
     const member = await this.prisma.member.findUnique({ where: { id: memberId } });
@@ -505,12 +577,21 @@ export class WithdrawalsService {
     const effectiveReference = reference?.trim() || this.generateReference('DIV');
     await this.assertReferenceUnique(effectiveReference);
 
+    const settings = await this.getWithholdingSettings();
+    const isResident = member.isResident !== false;
+    const withholdingRate = this.resolveWithholdingRate(settings, isResident, 'dividend');
+    const withholdingAmount = this.calculateWithholdingAmount(grossAmountDecimal, withholdingRate);
+    const netAmountDecimal = grossAmountDecimal.minus(withholdingAmount);
+
     // Create withdrawal record
     const withdrawal = await this.prisma.withdrawal.create({
       data: {
         type: 'dividend',
         category: 'Dividend Payout',
-        amount: amountDecimal,
+        amount: netAmountDecimal,
+        grossAmount: grossAmountDecimal,
+        withholdingTaxAmount: withholdingAmount,
+        withholdingTaxRate: new Prisma.Decimal(withholdingRate),
         memberId,
         memberName: memberName || member.name,
         description: `Dividend payout to ${member.name}`,
@@ -543,6 +624,7 @@ export class WithdrawalsService {
     // Proper double-entry journal entry:
     // Debit: Dividends Payable GL Account (liability decreases)
     // Credit: Cash Account (asset decreases)
+    // Credit: Withholding Tax Payable (if applicable)
     const narrationParts = [
       `DividendId:${withdrawal.id}`,
       `MemberId:${memberId}`,
@@ -560,17 +642,39 @@ export class WithdrawalsService {
         description: `Dividend payout to ${member.name} (dividendId:${withdrawal.id})`,
         narration,
         debitAccountId: dividendGLAccount.id,
-        debitAmount: amountDecimal,
+        debitAmount: netAmountDecimal,
         creditAccountId: cashAccount.id,
-        creditAmount: amountDecimal,
+        creditAmount: netAmountDecimal,
         category: 'dividend',
       },
     });
 
+    if (withholdingAmount.gt(0)) {
+      const withholdingGLAccount = await this.ensureAccountByName(
+        'Withholding Tax Payable',
+        'gl',
+        'GL account for withholding tax payable',
+      );
+
+      await this.prisma.journalEntry.create({
+        data: {
+          date: parsedDate,
+          reference: effectiveReference,
+          description: `Dividend withholding tax for ${member.name} (dividendId:${withdrawal.id})`,
+          narration,
+          debitAccountId: dividendGLAccount.id,
+          debitAmount: withholdingAmount,
+          creditAccountId: withholdingGLAccount.id,
+          creditAmount: withholdingAmount,
+          category: 'dividend',
+        },
+      });
+    }
+
     // Update account balance
     await this.prisma.account.update({
       where: { id: cashAccount.id },
-      data: { balance: { decrement: amountDecimal } },
+      data: { balance: { decrement: netAmountDecimal } },
     });
 
     // Update member ledger (dividends don't affect contribution balance)
@@ -578,10 +682,142 @@ export class WithdrawalsService {
       data: {
         memberId,
         type: 'dividend',
-        amount: Number(amount),
+        amount: Number(netAmountDecimal),
         description: 'Dividend payout',
         reference: effectiveReference,
         balanceAfter: Number(member.balance), // Balance unchanged by dividends
+        date: parsedDate,
+      },
+    });
+
+    return withdrawal;
+  }
+
+  /**
+   * Record Interest Payout with double-entry
+   */
+  async createInterestPayout(data: InterestPayoutRecord) {
+    const { date, memberId, memberName, amount, accountId, paymentMethod, reference, notes } = data;
+
+    if (!amount || amount <= 0) {
+      throw new BadRequestException('Valid amount is required');
+    }
+
+    if (!memberId) {
+      throw new BadRequestException('Member is required');
+    }
+
+    const parsedDate = new Date(date || new Date());
+    const grossAmountDecimal = new Prisma.Decimal(amount);
+
+    const member = await this.prisma.member.findUnique({ where: { id: memberId } });
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    if (!accountId) {
+      throw new BadRequestException('Account is required');
+    }
+
+    const cashAccount = await this.prisma.account.findUnique({ where: { id: accountId } });
+
+    if (!cashAccount) {
+      throw new NotFoundException('Account not found');
+    }
+
+    const effectiveReference = reference?.trim() || this.generateReference('INT');
+    await this.assertReferenceUnique(effectiveReference);
+
+    const settings = await this.getWithholdingSettings();
+    const isResident = member.isResident !== false;
+    const withholdingRate = this.resolveWithholdingRate(settings, isResident, 'interest');
+    const withholdingAmount = this.calculateWithholdingAmount(grossAmountDecimal, withholdingRate);
+    const netAmountDecimal = grossAmountDecimal.minus(withholdingAmount);
+
+    const withdrawal = await this.prisma.withdrawal.create({
+      data: {
+        type: 'interest',
+        category: 'Interest Payout',
+        amount: netAmountDecimal,
+        grossAmount: grossAmountDecimal,
+        withholdingTaxAmount: withholdingAmount,
+        withholdingTaxRate: new Prisma.Decimal(withholdingRate),
+        memberId,
+        memberName: memberName || member.name,
+        description: `Interest payout to ${member.name}`,
+        narration: notes || null,
+        reference: effectiveReference,
+        method: paymentMethod,
+        accountId: cashAccount.id,
+        date: parsedDate,
+      },
+    });
+
+    const interestGLAccount = await this.ensureAccountByName(
+      'Interest Payable',
+      'gl',
+      'GL account for interest payable',
+    );
+
+    const narrationParts = [
+      `InterestId:${withdrawal.id}`,
+      `MemberId:${memberId}`,
+      `AccountId:${cashAccount.id}`,
+      `SourceRef:${effectiveReference ?? 'n/a'}`,
+    ];
+    const narration = notes
+      ? `${notes} | ${narrationParts.join(' | ')}`
+      : narrationParts.join(' | ');
+
+    await this.prisma.journalEntry.create({
+      data: {
+        date: parsedDate,
+        reference: effectiveReference,
+        description: `Interest payout to ${member.name} (interestId:${withdrawal.id})`,
+        narration,
+        debitAccountId: interestGLAccount.id,
+        debitAmount: netAmountDecimal,
+        creditAccountId: cashAccount.id,
+        creditAmount: netAmountDecimal,
+        category: 'interest',
+      },
+    });
+
+    if (withholdingAmount.gt(0)) {
+      const withholdingGLAccount = await this.ensureAccountByName(
+        'Withholding Tax Payable',
+        'gl',
+        'GL account for withholding tax payable',
+      );
+
+      await this.prisma.journalEntry.create({
+        data: {
+          date: parsedDate,
+          reference: effectiveReference,
+          description: `Interest withholding tax for ${member.name} (interestId:${withdrawal.id})`,
+          narration,
+          debitAccountId: interestGLAccount.id,
+          debitAmount: withholdingAmount,
+          creditAccountId: withholdingGLAccount.id,
+          creditAmount: withholdingAmount,
+          category: 'interest',
+        },
+      });
+    }
+
+    await this.prisma.account.update({
+      where: { id: cashAccount.id },
+      data: { balance: { decrement: netAmountDecimal } },
+    });
+
+    await this.prisma.ledger.create({
+      data: {
+        memberId,
+        type: 'interest',
+        amount: Number(netAmountDecimal),
+        description: 'Interest payout',
+        reference: effectiveReference,
+        balanceAfter: Number(member.balance),
         date: parsedDate,
       },
     });
@@ -705,6 +941,7 @@ export class WithdrawalsService {
       `TransferId:${withdrawal.id}`,
       `RefundId:${withdrawal.id}`,
       `DividendId:${withdrawal.id}`,
+      `InterestId:${withdrawal.id}`,
     ];
 
     return prismaClient.journalEntry.findMany({
@@ -913,6 +1150,22 @@ export class WithdrawalsService {
         );
       }
 
+      if (existingWithdrawal.type === 'interest') {
+        const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
+        if (cashAccountId) {
+          await tx.account.update({
+            where: { id: cashAccountId },
+            data: { balance: { increment: oldAmount } },
+          });
+        }
+        await this.deleteWithdrawalLedgerEntries(
+          existingWithdrawal.memberId,
+          oldReference,
+          oldDate,
+          tx,
+        );
+      }
+
       if (journalEntries.length > 0) {
         await tx.journalEntry.deleteMany({
           where: { id: { in: journalEntries.map((entry) => entry.id) } },
@@ -945,21 +1198,58 @@ export class WithdrawalsService {
       const newMethod = data.method ?? existingWithdrawal.method;
       const toAccountId = data.toAccountId ?? journalEntries[0]?.debitAccountId ?? null;
 
-      const updatedWithdrawal = await tx.withdrawal.update({
+      const isPayout = existingWithdrawal.type === 'dividend' || existingWithdrawal.type === 'interest';
+      let payoutGrossAmountDecimal: Prisma.Decimal | null = null;
+      let payoutNetAmountDecimal: Prisma.Decimal | null = null;
+      let payoutWithholdingAmountDecimal: Prisma.Decimal | null = null;
+      let payoutWithholdingRate = 0;
+
+      if (isPayout) {
+        if (!newMemberId) {
+          throw new BadRequestException('Member is required');
+        }
+
+        const payoutMember = await tx.member.findUnique({ where: { id: newMemberId } });
+        if (!payoutMember) {
+          throw new NotFoundException('Member not found');
+        }
+
+        const settings = await this.getWithholdingSettings(tx);
+        const isResident = payoutMember.isResident !== false;
+        const payoutType = existingWithdrawal.type === 'interest' ? 'interest' : 'dividend';
+        payoutWithholdingRate = this.resolveWithholdingRate(settings, isResident, payoutType);
+
+        payoutGrossAmountDecimal = new Prisma.Decimal(newAmount);
+        payoutWithholdingAmountDecimal = this.calculateWithholdingAmount(
+          payoutGrossAmountDecimal,
+          payoutWithholdingRate,
+        );
+        payoutNetAmountDecimal = payoutGrossAmountDecimal.minus(payoutWithholdingAmountDecimal);
+      }
+
+      const updateData: any = {
+        amount: isPayout && payoutNetAmountDecimal ? payoutNetAmountDecimal : newAmount,
+        date: newDate,
+        reference: newReference,
+        notes: newNotes,
+        description: newDescription,
+        narration: newNarration,
+        category: newCategory,
+        accountId: newAccountId,
+        memberId: newMemberId,
+        memberName: newMemberName,
+        method: newMethod,
+      };
+
+      if (isPayout) {
+        updateData.grossAmount = payoutGrossAmountDecimal;
+        updateData.withholdingTaxAmount = payoutWithholdingAmountDecimal;
+        updateData.withholdingTaxRate = new Prisma.Decimal(payoutWithholdingRate);
+      }
+
+      let updatedWithdrawal = await tx.withdrawal.update({
         where: { id },
-        data: {
-          amount: newAmount,
-          date: newDate,
-          reference: newReference,
-          notes: newNotes,
-          description: newDescription,
-          narration: newNarration,
-          category: newCategory,
-          accountId: newAccountId,
-          memberId: newMemberId,
-          memberName: newMemberName,
-          method: newMethod,
-        },
+        data: updateData,
         include: { member: true, account: true },
       });
 
@@ -1220,6 +1510,9 @@ export class WithdrawalsService {
           ? `${newNotes} | ${narrationParts.join(' | ')}`
           : narrationParts.join(' | ');
 
+        const netAmountDecimal = payoutNetAmountDecimal || new Prisma.Decimal(newAmount);
+        const withholdingAmountDecimal = payoutWithholdingAmountDecimal || new Prisma.Decimal(0);
+
         await tx.journalEntry.create({
           data: {
             date: newDate,
@@ -1227,24 +1520,133 @@ export class WithdrawalsService {
             description: `Dividend payout to ${newMemberName || 'Member'} (dividendId:${updatedWithdrawal.id})`,
             narration: journalNarration,
             debitAccountId: dividendGLAccount.id,
-            debitAmount: new Prisma.Decimal(newAmount),
+            debitAmount: netAmountDecimal,
             creditAccountId: cashAccount.id,
-            creditAmount: new Prisma.Decimal(newAmount),
+            creditAmount: netAmountDecimal,
             category: 'dividend',
           },
         });
 
+        if (withholdingAmountDecimal.gt(0)) {
+          const withholdingGLAccount = await this.ensureAccountByName(
+            'Withholding Tax Payable',
+            'gl',
+            'GL account for withholding tax payable',
+          );
+
+          await tx.journalEntry.create({
+            data: {
+              date: newDate,
+              reference: newReference,
+              description: `Dividend withholding tax for ${newMemberName || 'Member'} (dividendId:${updatedWithdrawal.id})`,
+              narration: journalNarration,
+              debitAccountId: dividendGLAccount.id,
+              debitAmount: withholdingAmountDecimal,
+              creditAccountId: withholdingGLAccount.id,
+              creditAmount: withholdingAmountDecimal,
+              category: 'dividend',
+            },
+          });
+        }
+
         await tx.account.update({
           where: { id: cashAccount.id },
-          data: { balance: { decrement: newAmount } },
+          data: { balance: { decrement: Number(netAmountDecimal) } },
         });
 
         await tx.ledger.create({
           data: {
             memberId: newMemberId,
             type: 'dividend',
-            amount: Number(newAmount),
+            amount: Number(netAmountDecimal),
             description: 'Dividend payout',
+            reference: newReference,
+            balanceAfter: Number(updatedWithdrawal.member?.balance || 0),
+            date: newDate,
+          },
+        });
+      }
+
+      if (existingWithdrawal.type === 'interest') {
+        if (!newAccountId) {
+          throw new BadRequestException('Account is required');
+        }
+
+        if (!newMemberId) {
+          throw new BadRequestException('Member is required');
+        }
+
+        const cashAccount = await tx.account.findUnique({ where: { id: newAccountId } });
+        if (!cashAccount) {
+          throw new NotFoundException('Account not found');
+        }
+
+        const interestGLAccount = await this.ensureAccountByName(
+          'Interest Payable',
+          'gl',
+          'GL account for interest payable',
+        );
+
+        const narrationParts = [
+          `InterestId:${updatedWithdrawal.id}`,
+          `MemberId:${newMemberId}`,
+          `AccountId:${cashAccount.id}`,
+          `SourceRef:${newReference ?? 'n/a'}`,
+        ];
+        const journalNarration = newNotes
+          ? `${newNotes} | ${narrationParts.join(' | ')}`
+          : narrationParts.join(' | ');
+
+        const netAmountDecimal = payoutNetAmountDecimal || new Prisma.Decimal(newAmount);
+        const withholdingAmountDecimal = payoutWithholdingAmountDecimal || new Prisma.Decimal(0);
+
+        await tx.journalEntry.create({
+          data: {
+            date: newDate,
+            reference: newReference,
+            description: `Interest payout to ${newMemberName || 'Member'} (interestId:${updatedWithdrawal.id})`,
+            narration: journalNarration,
+            debitAccountId: interestGLAccount.id,
+            debitAmount: netAmountDecimal,
+            creditAccountId: cashAccount.id,
+            creditAmount: netAmountDecimal,
+            category: 'interest',
+          },
+        });
+
+        if (withholdingAmountDecimal.gt(0)) {
+          const withholdingGLAccount = await this.ensureAccountByName(
+            'Withholding Tax Payable',
+            'gl',
+            'GL account for withholding tax payable',
+          );
+
+          await tx.journalEntry.create({
+            data: {
+              date: newDate,
+              reference: newReference,
+              description: `Interest withholding tax for ${newMemberName || 'Member'} (interestId:${updatedWithdrawal.id})`,
+              narration: journalNarration,
+              debitAccountId: interestGLAccount.id,
+              debitAmount: withholdingAmountDecimal,
+              creditAccountId: withholdingGLAccount.id,
+              creditAmount: withholdingAmountDecimal,
+              category: 'interest',
+            },
+          });
+        }
+
+        await tx.account.update({
+          where: { id: cashAccount.id },
+          data: { balance: { decrement: Number(netAmountDecimal) } },
+        });
+
+        await tx.ledger.create({
+          data: {
+            memberId: newMemberId,
+            type: 'interest',
+            amount: Number(netAmountDecimal),
+            description: 'Interest payout',
             reference: newReference,
             balanceAfter: Number(updatedWithdrawal.member?.balance || 0),
             date: newDate,
@@ -1363,6 +1765,22 @@ export class WithdrawalsService {
         }
 
         if (hasPostedEntries && existingWithdrawal.type === 'dividend') {
+          const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
+          if (cashAccountId) {
+            await tx.account.update({
+              where: { id: cashAccountId },
+              data: { balance: { increment: oldAmount } },
+            });
+          }
+          await this.deleteWithdrawalLedgerEntries(
+            existingWithdrawal.memberId,
+            oldReference,
+            oldDate,
+            tx,
+          );
+        }
+
+        if (hasPostedEntries && existingWithdrawal.type === 'interest') {
           const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
           if (cashAccountId) {
             await tx.account.update({
@@ -1510,6 +1928,33 @@ export class WithdrawalsService {
               amount: -oldAmount,
               description: `Void dividend ${existingWithdrawal.reference || `DIV-${existingWithdrawal.id}`}`,
               reference: existingWithdrawal.reference || `DIV-${existingWithdrawal.id}`,
+              balanceAfter: Number(member?.balance || 0),
+              date: new Date(),
+            },
+          });
+        }
+      }
+
+      if (existingWithdrawal.type === 'interest') {
+        const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
+        if (cashAccountId) {
+          await tx.account.update({
+            where: { id: cashAccountId },
+            data: { balance: { increment: oldAmount } },
+          });
+        }
+        if (existingWithdrawal.memberId) {
+          const member = await tx.member.findUnique({
+            where: { id: existingWithdrawal.memberId },
+          });
+
+          await tx.ledger.create({
+            data: {
+              memberId: existingWithdrawal.memberId,
+              type: 'interest_void',
+              amount: -oldAmount,
+              description: `Void interest ${existingWithdrawal.reference || `INT-${existingWithdrawal.id}`}`,
+              reference: existingWithdrawal.reference || `INT-${existingWithdrawal.id}`,
               balanceAfter: Number(member?.balance || 0),
               date: new Date(),
             },

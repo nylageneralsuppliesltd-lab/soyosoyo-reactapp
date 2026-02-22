@@ -119,6 +119,26 @@ export class WithdrawalsController {
     }
   }
 
+  @Post('interest')
+  @Access('withdrawals', 'write')
+  async createInterestPayout(@Body() data: any) {
+    try {
+      if (!data.amount || isNaN(parseFloat(data.amount)) || parseFloat(data.amount) <= 0) {
+        throw new BadRequestException('Valid amount is required');
+      }
+
+      return await this.withdrawalsService.createInterestPayout(data);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        error.message || 'Failed to create interest payout',
+        error.status || HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   // Generic routes after specific ones
   @Get()
   async findAll(

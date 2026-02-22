@@ -184,7 +184,7 @@ export class ReportsService {
 
   getCatalog() {
     return [
-      { key: 'contributions', name: 'Contribution Summary', filters: ['period', 'memberId'] },
+      { key: 'contributions', name: 'Contribution Summary', filters: ['period', 'memberId', 'contributionType', 'eligibleForDividend', 'countsForLoanQualification', 'source'] },
       { key: 'fines', name: 'Fines Summary', filters: ['period', 'status', 'memberId'] },
       { key: 'loans', name: 'Loans (Member) Portfolio', filters: ['period', 'status'] },
       { key: 'bankLoans', name: 'Bank Loans (External)', filters: ['period', 'status'] },
@@ -198,6 +198,8 @@ export class ReportsService {
       { key: 'balanceSheet', name: 'Balance Sheet', filters: ['asOf'] },
       { key: 'sasra', name: 'SASRA Compliance Snapshot', filters: ['asOf'] },
       { key: 'dividends', name: 'Dividends Report', filters: ['period'] },
+      { key: 'dividendRecommendation', name: 'Dividend Recommendation (SACCO Calculation)', filters: ['period'] },
+      { key: 'dividendCategoryPayouts', name: 'Dividend Category Payouts', filters: ['period'] },
     ];
   }
 
@@ -210,7 +212,14 @@ export class ReportsService {
     let result: { rows: any[]; meta?: any };
     switch (key) {
       case 'contributions':
-        result = await this.contributionReport(dateRange, query.memberId);
+        result = await this.contributionReport(
+          dateRange,
+          query.memberId,
+          query.contributionType,
+          query.eligibleForDividend,
+          query.countsForLoanQualification,
+          query.source,
+        );
         break;
       case 'fines':
         result = await this.finesReport(dateRange, query.status, query.memberId);
@@ -250,6 +259,11 @@ export class ReportsService {
         break;
       case 'dividends':
         result = await this.dividendReport(dateRange);
+        break;
+      case 'dividendRecommendation':
+        return await this.dividendRecommendation(dateRange);
+      case 'dividendCategoryPayouts':
+        result = await this.dividendCategoryPayoutReport(dateRange);
         break;
       case 'generalLedger': {
         const summaryOnly = query.summaryOnly === '1' || query.summaryOnly === 'true';
@@ -481,51 +495,259 @@ export class ReportsService {
     }
   }
 
-  private async contributionReport(dateRange: { start: Date; end: Date }, memberId?: string) {
-    const where: Prisma.DepositWhereInput = {
-      type: 'contribution',
+  private parseBooleanQuery(value?: string) {
+    if (value === undefined || value === null || value === '') return undefined;
+    const normalized = String(value).trim().toLowerCase();
+    if (['1', 'true', 'yes', 'y'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'n'].includes(normalized)) return false;
+    return undefined;
+  }
+
+  private isRegularContributionType(raw: any) {
+    const typeCategory = String(raw?.typeCategory || '').trim().toLowerCase();
+    const frequency = String(raw?.frequency || '').trim().toLowerCase();
+    const isOneOffCategory = ['one-time', 'one time', 'one_time', 'entrance fee', 'registration fee', 'once off', 'one off'].includes(typeCategory);
+    const isRegularFrequency = ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'yearly'].includes(frequency);
+    return isRegularFrequency && !isOneOffCategory;
+  }
+
+  private async contributionReport(
+    dateRange: { start: Date; end: Date },
+    memberId?: string,
+    contributionType?: string,
+    eligibleForDividend?: string,
+    countsForLoanQualification?: string,
+    source?: string,
+  ) {
+    const contributionTypes = await this.prisma.contributionType.findMany({
+      select: {
+        id: true,
+        name: true,
+        frequency: true,
+        typeCategory: true,
+        accountingGroup: true,
+        payoutMode: true,
+        eligibleForDividend: true,
+        countsForLoanQualification: true,
+      },
+    } as any);
+
+    const policyByType = new Map<string, any>();
+    for (const ct of contributionTypes as any[]) {
+      policyByType.set(String(ct.name || '').trim().toLowerCase(), this.normalizeContributionPolicy(ct));
+    }
+
+    const depositWhere: Prisma.DepositWhereInput = {
+      type: { in: ['contribution', 'income'] },
       date: { gte: dateRange.start, lte: dateRange.end },
       memberId: memberId ? Number(memberId) : undefined,
     };
-    const deposits = await this.prisma.deposit.findMany({ 
-      where, 
-      orderBy: [{ date: 'asc' }, { memberId: 'asc' }],
-      include: { member: true }
-    });
-    
-    // ITEMIZED: Show every contribution transaction with full detail
-    const rows = deposits.map(d => ({
-      date: d.date,
-      memberName: d.memberName || d.member?.name || 'Unknown',
-      memberId: d.memberId,
-      category: d.category || 'General Contribution',
-      amount: Number(d.amount),
-      paymentMethod: d.method || 'Unspecified',
-      description: this.appendNarrationMetadata(
-        d.description || 'Member Contribution',
-        d.reference,
-        d.narration,
-      ),
-      reference: d.reference,
-      depositId: d.id,
-    }));
-    
-    // Group by category for meta summary
-    const byCategory = {};
-    deposits.forEach(d => {
-      const cat = d.category || 'General Contribution';
-      if (!byCategory[cat]) byCategory[cat] = 0;
-      byCategory[cat] += Number(d.amount);
-    });
-    
-    const total = deposits.reduce((sum, r) => sum + Number(r.amount), 0);
-    return { 
-      rows, 
-      meta: { 
-        total, 
-        count: deposits.length,
-        byCategory,
-      } 
+
+    const fineWhere: Prisma.FineWhereInput = {
+      status: 'paid',
+      paidDate: { gte: dateRange.start, lte: dateRange.end },
+      memberId: memberId ? Number(memberId) : undefined,
+    };
+
+    const [deposits, fines, invoices] = await Promise.all([
+      this.prisma.deposit.findMany({
+        where: depositWhere,
+        orderBy: [{ date: 'asc' }, { memberId: 'asc' }],
+        include: { member: true },
+      }),
+      this.prisma.fine.findMany({
+        where: fineWhere,
+        orderBy: [{ paidDate: 'asc' }, { memberId: 'asc' }],
+        include: { member: true },
+      }),
+      this.prisma.memberInvoice.findMany({
+        where: {
+          dueDate: { lte: dateRange.end },
+          memberId: memberId ? Number(memberId) : undefined,
+        },
+        include: {
+          contributionType: {
+            select: { id: true, name: true, frequency: true, typeCategory: true },
+          },
+          member: {
+            select: { id: true, name: true },
+          },
+        },
+      }),
+    ]);
+
+    const summaryMap = new Map<string, any>();
+
+    const upsertSummaryRow = (
+      memberIdValue: number | null,
+      memberNameValue: string,
+      contributionTypeName: string,
+      sourceValue: string,
+      policy: any,
+      isRegularContribution: boolean,
+    ) => {
+      const safeMemberId = memberIdValue ?? 0;
+      const safeType = contributionTypeName || 'Uncategorized';
+      const key = `${safeMemberId}|${safeType.toLowerCase()}`;
+      const existing = summaryMap.get(key);
+      if (existing) return existing;
+
+      const row = {
+        memberId: memberIdValue,
+        memberName: memberNameValue || 'Unknown',
+        contributionType: safeType,
+        source: sourceValue,
+        accountingGroup: policy.accountingGroup,
+        payoutMode: policy.payoutMode,
+        eligibleForDividend: policy.eligibleForDividend,
+        countsForLoanQualification: policy.countsForLoanQualification,
+        regularContribution: isRegularContribution,
+        paidAmount: 0,
+        invoiceAmount: 0,
+        invoiceCount: 0,
+        unpaidInvoiceCount: 0,
+        arrears: isRegularContribution ? 0 : null,
+      };
+      summaryMap.set(key, row);
+      return row;
+    };
+
+    for (const d of deposits) {
+      const contributionTypeName = d.category || (d.type === 'income' ? 'Income Deposit' : 'General Contribution');
+      const policy = policyByType.get(String(contributionTypeName).toLowerCase()) || this.normalizeContributionPolicy({ name: contributionTypeName });
+      const configuredType = (contributionTypes as any[]).find(
+        ct => String(ct.name || '').trim().toLowerCase() === String(contributionTypeName || '').trim().toLowerCase(),
+      );
+      const isRegularContribution = configuredType ? this.isRegularContributionType(configuredType) : false;
+      const row = upsertSummaryRow(
+        d.memberId,
+        d.memberName || d.member?.name || 'Unknown',
+        contributionTypeName,
+        d.type,
+        policy,
+        isRegularContribution,
+      );
+      row.paidAmount += Number(d.amount || 0);
+    }
+
+    for (const f of fines) {
+      const contributionTypeName = `Fine - ${f.type || 'General'}`;
+      const policy = this.normalizeContributionPolicy({
+        name: contributionTypeName,
+        accountingGroup: 'non_withdrawable_fund',
+        payoutMode: 'none',
+        eligibleForDividend: false,
+        countsForLoanQualification: false,
+      });
+      const row = upsertSummaryRow(
+        f.memberId,
+        f.member?.name || 'Unknown',
+        contributionTypeName,
+        'fine',
+        policy,
+        false,
+      );
+      row.paidAmount += Number(f.paidAmount || f.amount || 0);
+    }
+
+    for (const inv of invoices) {
+      const contributionTypeName = inv.contributionType?.name || 'Uncategorized Invoice';
+      const policy = policyByType.get(String(contributionTypeName).toLowerCase()) || this.normalizeContributionPolicy({ name: contributionTypeName });
+      const isRegularContribution = inv.contributionType ? this.isRegularContributionType(inv.contributionType) : false;
+      const row = upsertSummaryRow(
+        inv.memberId,
+        inv.member?.name || 'Unknown',
+        contributionTypeName,
+        'contribution',
+        policy,
+        isRegularContribution,
+      );
+
+      const invoiceAmount = Number(inv.amount || 0);
+      const paidAmount = Number(inv.paidAmount || 0);
+      const outstanding = Math.max(0, invoiceAmount - paidAmount);
+
+      row.invoiceAmount += invoiceAmount;
+      row.invoiceCount += 1;
+      if (outstanding > 0) {
+        row.unpaidInvoiceCount += 1;
+      }
+      if (row.regularContribution) {
+        row.arrears = Number(row.arrears || 0) + outstanding;
+      }
+    }
+
+    const boolDividendFilter = this.parseBooleanQuery(eligibleForDividend);
+    const boolLoanFilter = this.parseBooleanQuery(countsForLoanQualification);
+    const normalizedTypeFilter = (contributionType || '').trim().toLowerCase();
+    const normalizedSourceFilter = (source || '').trim().toLowerCase();
+
+    const rows = Array.from(summaryMap.values())
+      .filter(row => {
+        if (normalizedTypeFilter && String(row.contributionType).toLowerCase() !== normalizedTypeFilter) {
+          return false;
+        }
+        if (boolDividendFilter !== undefined && row.eligibleForDividend !== boolDividendFilter) {
+          return false;
+        }
+        if (boolLoanFilter !== undefined && row.countsForLoanQualification !== boolLoanFilter) {
+          return false;
+        }
+        if (normalizedSourceFilter && String(row.source).toLowerCase() !== normalizedSourceFilter) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (String(a.memberName) !== String(b.memberName)) {
+          return String(a.memberName).localeCompare(String(b.memberName));
+        }
+        if (String(a.contributionType) !== String(b.contributionType)) {
+          return String(a.contributionType).localeCompare(String(b.contributionType));
+        }
+        return String(a.memberName).localeCompare(String(b.memberName));
+      });
+
+    const byContributionType: Record<string, number> = {};
+    const byEligibility = {
+      dividendEligibleTotal: 0,
+      nonDividendTotal: 0,
+      loanQualifyingTotal: 0,
+      nonLoanQualifyingTotal: 0,
+    };
+
+    for (const row of rows) {
+      byContributionType[row.contributionType] = (byContributionType[row.contributionType] || 0) + Number(row.paidAmount || 0);
+      if (row.eligibleForDividend) {
+        byEligibility.dividendEligibleTotal += Number(row.paidAmount || 0);
+      } else {
+        byEligibility.nonDividendTotal += Number(row.paidAmount || 0);
+      }
+      if (row.countsForLoanQualification) {
+        byEligibility.loanQualifyingTotal += Number(row.paidAmount || 0);
+      } else {
+        byEligibility.nonLoanQualifyingTotal += Number(row.paidAmount || 0);
+      }
+    }
+
+    const total = rows.reduce((sum, r) => sum + Number(r.paidAmount || 0), 0);
+    const totalArrears = rows.reduce((sum, r) => sum + Number(r.arrears || 0), 0);
+    return {
+      rows,
+      meta: {
+        total,
+        count: rows.length,
+        totalArrears,
+        byContributionType,
+        byEligibility,
+        filtersApplied: {
+          memberId: memberId ? Number(memberId) : null,
+          contributionType: contributionType || null,
+          eligibleForDividend: boolDividendFilter ?? null,
+          countsForLoanQualification: boolLoanFilter ?? null,
+          source: source || null,
+        },
+      },
     };
   }
 
@@ -1415,6 +1637,38 @@ export class ReportsService {
     
     // ===== INCOME SECTION =====
     let totalIncome = 0;
+
+    // 0. Loan interest income (itemized by repayment)
+    const repayments = await this.prisma.repayment.findMany({
+      where: {
+        date: { gte: dateRange.start, lte: dateRange.end },
+      },
+      include: {
+        loan: { include: { member: true, loanType: true } },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    for (const repayment of repayments) {
+      const interestAmount = Number(repayment.interest || 0);
+      if (interestAmount <= 0) continue;
+      const loanType = repayment.loan?.loanType?.name ? ` (${repayment.loan.loanType.name})` : '';
+      rows.push({
+        section: 'Income',
+        type: 'income',
+        category: 'Interest Income on Loans',
+        source: repayment.loan?.member?.name || 'Unknown Member',
+        date: repayment.date,
+        amount: interestAmount,
+        description: this.appendNarrationMetadata(
+          `Loan interest${loanType}`,
+          repayment.reference,
+          repayment.notes,
+        ),
+        repaymentId: repayment.id,
+      });
+      totalIncome += interestAmount;
+    }
     
     // 1. Income deposits (itemized by transaction)
     const incomeDeposits = await this.prisma.deposit.findMany({
@@ -1425,6 +1679,19 @@ export class ReportsService {
       include: { member: true },
       orderBy: { date: 'asc' },
     });
+
+    const systemSettings = await this.getSystemSettingsConfig();
+    const externalInterestTaxablePercent = Number(systemSettings.externalInterestTaxablePercent ?? 50);
+    const externalInterestTaxRatePercent = Number(systemSettings.externalInterestTaxRatePercent ?? 30);
+    const incomeCategories = await this.prisma.incomeCategory.findMany({
+      select: { name: true, isExternalInterest: true },
+    });
+    const externalInterestCategories = new Set(
+      incomeCategories
+        .filter((cat) => cat.isExternalInterest)
+        .map((cat) => String(cat.name || '').trim().toLowerCase())
+        .filter(Boolean),
+    );
     
     for (const deposit of incomeDeposits) {
       const amount = Number(deposit.amount);
@@ -1444,6 +1711,16 @@ export class ReportsService {
       });
       totalIncome += amount;
     }
+
+    const externalInterestIncome = incomeDeposits
+      .filter((deposit) => {
+        const categoryKey = String(deposit.category || '').trim().toLowerCase();
+        return categoryKey && externalInterestCategories.has(categoryKey);
+      })
+      .reduce((sum, deposit) => sum + Number(deposit.amount || 0), 0);
+
+    const externalInterestTaxablePortion = externalInterestIncome * (Math.max(0, externalInterestTaxablePercent) / 100);
+    const externalInterestTax = externalInterestTaxablePortion * (Math.max(0, externalInterestTaxRatePercent) / 100);
     
     // 2. Fines (itemized by transaction)
     const fines = await this.prisma.fine.findMany({
@@ -1471,7 +1748,7 @@ export class ReportsService {
     // Itemize all expenses by category and transaction
     const expenses = await this.prisma.withdrawal.findMany({
       where: {
-        type: 'expense',
+        type: { in: ['expense', 'interest'] },
         date: { gte: dateRange.start, lte: dateRange.end },
       },
       include: { account: true },
@@ -1497,6 +1774,18 @@ export class ReportsService {
         withdrawalId: expense.id,
       });
       totalExpenses += amount;
+    }
+
+    if (externalInterestTax > 0) {
+      rows.push({
+        section: 'Expenses',
+        type: 'tax',
+        category: 'Income Tax (External Interest)',
+        source: 'KRA',
+        amount: -externalInterestTax,
+        description: 'Income tax on external interest (50% taxable at 30%)',
+      });
+      totalExpenses += externalInterestTax;
     }
     
     // ===== NET INCOME =====
@@ -1525,6 +1814,9 @@ export class ReportsService {
       totalIncome,
       totalExpenses,
       totalImpairment,
+      externalInterestIncome,
+      externalInterestTax,
+      anticipatedIncomeTax: externalInterestTax,
       netSurplus,
       incomeTransactions: incomeDeposits.length + fines.length,
       expenseTransactions: expenses.length,
@@ -1635,6 +1927,87 @@ export class ReportsService {
       });
       totalLiabilities += amount;
     }
+
+    // Dividend declaration liability (if locked and declared)
+    const systemSettings = await this.getSystemSettingsConfig();
+    const declarationLocked = systemSettings.dividendDeclarationLocked === true;
+    const declarationDate = systemSettings.dividendDeclarationDate ? new Date(systemSettings.dividendDeclarationDate) : null;
+    const declarationSnapshot = systemSettings.dividendDeclarationSnapshot || null;
+    let declaredDividendTotal = 0;
+    let capitalReserveDeclared = 0;
+    let dividendsPaid = 0;
+
+    if (declarationLocked && declarationDate && !Number.isNaN(declarationDate.getTime()) && declarationDate <= dateRange.end) {
+      declaredDividendTotal = Number(
+        declarationSnapshot?.totals?.dividendPoolAvailable ?? declarationSnapshot?.dividendPoolAvailable ?? 0,
+      );
+      capitalReserveDeclared = Number(
+        declarationSnapshot?.totals?.capitalReserveAllocation ?? declarationSnapshot?.capitalReserveAllocation ?? 0,
+      );
+
+      if (declaredDividendTotal > 0) {
+        const dividendsPaidRows = await this.prisma.withdrawal.findMany({
+          where: {
+            type: 'dividend',
+            date: { gte: declarationDate, lte: dateRange.end },
+          },
+          select: { amount: true, grossAmount: true },
+        });
+        dividendsPaid = dividendsPaidRows.reduce((sum, row) => sum + Number(row.grossAmount || row.amount || 0), 0);
+        const dividendsPayable = Math.max(0, declaredDividendTotal - dividendsPaid);
+        if (dividendsPayable > 0) {
+          rows.push({
+            category: 'Liabilities',
+            section: 'Dividends Payable',
+            account: 'Declared Dividends',
+            amount: -dividendsPayable,
+            accountType: 'dividend-payable',
+          });
+          totalLiabilities += dividendsPayable;
+        }
+      }
+    }
+
+    const withholdingTaxRows = await this.prisma.withdrawal.findMany({
+      where: {
+        type: { in: ['dividend', 'interest'] },
+        date: { lte: dateRange.end },
+        withholdingTaxAmount: { not: null },
+      },
+      select: { withholdingTaxAmount: true },
+    });
+    const withholdingTaxPayable = withholdingTaxRows.reduce(
+      (sum, row) => sum + Number(row.withholdingTaxAmount || 0),
+      0,
+    );
+
+    const incomeTaxData = await this.getIncomeStatementData(
+      new Date(dateRange.end.getFullYear(), 0, 1),
+      dateRange.end,
+    );
+    const incomeTaxPayable = Number(incomeTaxData.externalInterestTax || 0);
+
+    if (withholdingTaxPayable > 0) {
+      rows.push({
+        category: 'Liabilities',
+        section: 'Withholding Tax Payable',
+        account: 'Withholding Tax',
+        amount: -withholdingTaxPayable,
+        accountType: 'withholding-tax',
+      });
+      totalLiabilities += withholdingTaxPayable;
+    }
+
+    if (incomeTaxPayable > 0) {
+      rows.push({
+        category: 'Liabilities',
+        section: 'Income Tax Payable',
+        account: 'Income Tax (External Interest)',
+        amount: -incomeTaxPayable,
+        accountType: 'income-tax',
+      });
+      totalLiabilities += incomeTaxPayable;
+    }
     
     // 2. Member savings/contributions (liability) broken down by contribution type
     const members = await this.prisma.member.findMany({
@@ -1692,14 +2065,35 @@ export class ReportsService {
     const currentYearSurplusData = await this.getIncomeStatementData(yearStart, dateRange.end);
     const retainedEarnings = allTimeSurplus.netSurplus;
     const currentYearSurplus = currentYearSurplusData.netSurplus;
-    const openingBalanceEquity = totalAssets - totalLiabilities - totalMemberEquity - retainedEarnings - currentYearSurplus;
+    const retainedEarningsAdjusted = retainedEarnings - capitalReserveDeclared;
+    const dividendAppropriation = declaredDividendTotal > 0 ? -declaredDividendTotal : 0;
+    const equityBase = retainedEarningsAdjusted + capitalReserveDeclared + dividendAppropriation + currentYearSurplus;
+    const openingBalanceEquity = totalAssets - totalLiabilities - totalMemberEquity - equityBase;
     rows.push({
       category: 'Equity',
       section: 'Retained Earnings / Surplus',
       account: 'Net Equity',
-      amount: retainedEarnings,
+      amount: retainedEarningsAdjusted,
       accountType: 'equity',
     });
+    if (capitalReserveDeclared !== 0) {
+      rows.push({
+        category: 'Equity',
+        section: 'Capital Reserve',
+        account: 'Capital Reserve (Declared)',
+        amount: capitalReserveDeclared,
+        accountType: 'equity',
+      });
+    }
+    if (dividendAppropriation !== 0) {
+      rows.push({
+        category: 'Equity',
+        section: 'Dividend Appropriation',
+        account: 'Declared Dividends',
+        amount: dividendAppropriation,
+        accountType: 'equity',
+      });
+    }
     rows.push({
       category: 'Equity',
       section: 'Current Year Surplus',
@@ -1727,12 +2121,17 @@ export class ReportsService {
       totalLiabilities,
       totalMemberSavings: totalMemberEquity,
       totalMemberReceivable,
-      retainedEarnings,
+      withholdingTaxPayable,
+      incomeTaxPayable,
+      retainedEarnings: retainedEarningsAdjusted,
+      declaredDividendTotal,
+      capitalReserveDeclared,
+      dividendsPaid,
       currentYearSurplus,
       openingBalanceEquity,
-      totalEquity: retainedEarnings + currentYearSurplus + openingBalanceEquity,
-      totalLiabilitiesAndEquity: totalLiabilities + totalMemberEquity + retainedEarnings + currentYearSurplus + openingBalanceEquity,
-      balanceVariance: totalAssets - (totalLiabilities + totalMemberEquity + retainedEarnings + currentYearSurplus + openingBalanceEquity),
+      totalEquity: equityBase + openingBalanceEquity,
+      totalLiabilitiesAndEquity: totalLiabilities + totalMemberEquity + equityBase + openingBalanceEquity,
+      balanceVariance: totalAssets - (totalLiabilities + totalMemberEquity + equityBase + openingBalanceEquity),
       totalLoanPrincipal: memberLoans.reduce((sum, l) => sum + Number(l.balance), 0),
       totalOutstandingFines,
       totalLoanImpairment: memberLoans.reduce((sum, l) => sum + Number(l.impairment || 0), 0),
@@ -1860,7 +2259,9 @@ export class ReportsService {
     const rows = dividends.map(d => ({
       date: d.date,
       memberName: d.memberName || d.member?.name || 'Unknown',
-      amount: d.amount,
+      grossAmount: d.grossAmount || d.amount,
+      withholdingTaxAmount: d.withholdingTaxAmount || 0,
+      netAmount: d.amount,
       paymentMethod: d.method,
       description: this.appendNarrationMetadata(
         d.description || 'Dividend payout',
@@ -1869,8 +2270,714 @@ export class ReportsService {
       ),
     }));
     
-    const total = dividends.reduce((s, d) => s + Number(d.amount), 0);
-    return { rows, meta: { total, count: dividends.length } };
+    const totalGross = dividends.reduce((s, d) => s + Number(d.grossAmount || d.amount || 0), 0);
+    const totalWithheld = dividends.reduce((s, d) => s + Number(d.withholdingTaxAmount || 0), 0);
+    const totalNet = dividends.reduce((s, d) => s + Number(d.amount || 0), 0);
+    return { rows, meta: { totalGross, totalWithheld, totalNet, count: dividends.length } };
+  }
+
+  private async dividendCategoryPayoutReport(dateRange: { start: Date; end: Date }) {
+    const recommendation = await this.dividendRecommendation(dateRange);
+    const rows = Array.isArray(recommendation?.categoryPayouts) ? recommendation.categoryPayouts : [];
+    const totalPayout = rows.reduce((sum, row) => sum + Number(row.payoutAmount || 0), 0);
+
+    return {
+      rows,
+      meta: {
+        totalPayout,
+        categoryCount: rows.length,
+        allocationMode: recommendation?.meta?.allocationMode || recommendation?.dividendPolicy?.dividendAllocationMode || 'weighted',
+        shareCapitalPool: recommendation?.dividends?.shareCapitalPool || 0,
+        memberSavingsPool: recommendation?.dividends?.memberSavingsPool || 0,
+      },
+    };
+  }
+
+  /**
+   * Calculate proper SACCO dividend recommendation following regulatory requirements:
+   * 1. Calculate actual operating surplus from real data
+   * 2. Allocate 20% to Capital Reserve (mandatory)
+   * 3. Split member returns by configured contribution policies:
+   *    - Dividend-eligible pools (share capital, member savings)
+   *    - Interest-bearing investment deposits
+   * 4. Apply date-weighted earnings where enabled
+   * 5. Exclude non-dividend / non-qualification funds (registration, risk, benevolent, etc.)
+   */
+  async dividendRecommendation(dateRange: { start: Date; end: Date }) {
+    const periodDays = this.getPeriodDays(dateRange.start, dateRange.end);
+
+    // 1) Operating income and expense base aligned with income statement logic
+    const incomeStatementData = await this.getIncomeStatementData(dateRange.start, dateRange.end);
+    const actualInterestIncome = incomeStatementData.interestIncome;
+    const finesIncome = incomeStatementData.finesIncome;
+    const otherIncome = incomeStatementData.otherIncome;
+    const totalOperatingIncome = incomeStatementData.totalOperatingIncome;
+    const operatingExpenses = incomeStatementData.totalExpenses;
+    const totalProvisions = incomeStatementData.totalProvisions;
+    const incomeTaxExpense = Number(incomeStatementData.externalInterestTax || 0);
+
+    // 2) Net operating surplus (after provisions)
+    const netOperatingSurplus = incomeStatementData.netSurplus;
+    const netOperatingSurplusAfterTax = netOperatingSurplus;
+
+    // 4) Mandatory reserve
+    const capitalReserveAllocation = netOperatingSurplusAfterTax * 0.20;
+    const distributableSurplus = netOperatingSurplusAfterTax * 0.80;
+
+    // 5) Load contribution policies from settings
+    const contributionTypesRaw = await this.prisma.contributionType.findMany();
+    const policiesByName = new Map<string, any>();
+    for (const ct of contributionTypesRaw as any[]) {
+      const policy = this.normalizeContributionPolicy(ct);
+      policiesByName.set(String(ct.name || '').trim().toLowerCase(), policy);
+    }
+
+    // 6) Build contribution events (deposits positive, refunds negative) up to period end
+    const contributionDeposits = await this.prisma.deposit.findMany({
+      where: {
+        type: 'contribution',
+        date: { lte: dateRange.end },
+      },
+      select: {
+        memberId: true,
+        memberName: true,
+        amount: true,
+        category: true,
+        date: true,
+      },
+    });
+
+    const contributionRefunds = await this.prisma.withdrawal.findMany({
+      where: {
+        type: 'refund',
+        date: { lte: dateRange.end },
+      },
+      select: {
+        memberId: true,
+        memberName: true,
+        amount: true,
+        category: true,
+        date: true,
+      },
+    });
+
+    const members = await this.prisma.member.findMany({
+      select: { id: true, name: true, active: true, isResident: true },
+    });
+
+    const memberState = new Map<number, {
+      memberName: string;
+      active: boolean;
+      isResident: boolean;
+      shareCapitalWeighted: number;
+      shareCapitalAmount: number;
+      savingsWeighted: number;
+      savingsAmount: number;
+      investmentWeighted: number;
+      investmentAmount: number;
+      loanQualificationBalance: number;
+      nonDividendBalance: number;
+      interestPayout: number;
+    }>();
+
+    const categoryDividendWeighted = new Map<string, {
+      contributionType: string;
+      accountingGroup: string;
+      weightedAmount: number;
+    }>();
+
+    for (const m of members) {
+      memberState.set(m.id, {
+        memberName: m.name,
+        active: m.active !== false,
+        isResident: m.isResident !== false,
+        shareCapitalWeighted: 0,
+        shareCapitalAmount: 0,
+        savingsWeighted: 0,
+        savingsAmount: 0,
+        investmentWeighted: 0,
+        investmentAmount: 0,
+        loanQualificationBalance: 0,
+        nonDividendBalance: 0,
+        interestPayout: 0,
+      });
+    }
+
+    const applyContributionEvent = (event: {
+      memberId: number | null;
+      memberName?: string | null;
+      amount: number;
+      category?: string | null;
+      date: Date;
+      isRefund?: boolean;
+    }) => {
+      if (!event.memberId) return;
+
+      const categoryName = (event.category || '').trim();
+      const categoryKey = categoryName.toLowerCase();
+      const policy = policiesByName.get(categoryKey) || this.normalizeContributionPolicy({ name: categoryName });
+
+      const signedAmount = event.isRefund ? -Math.abs(event.amount) : Math.abs(event.amount);
+      const weightedUnits = this.calculateWeightedUnits(
+        signedAmount,
+        event.date,
+        dateRange.start,
+        dateRange.end,
+        periodDays,
+        policy.useDateWeightedEarnings,
+      );
+
+      const current = memberState.get(event.memberId) || {
+        memberName: event.memberName || 'Unknown',
+        active: true,
+        isResident: true,
+        shareCapitalWeighted: 0,
+        shareCapitalAmount: 0,
+        savingsWeighted: 0,
+        savingsAmount: 0,
+        investmentWeighted: 0,
+        investmentAmount: 0,
+        loanQualificationBalance: 0,
+        nonDividendBalance: 0,
+        interestPayout: 0,
+      };
+
+      if (policy.countsForLoanQualification) {
+        current.loanQualificationBalance += signedAmount;
+      }
+
+      if (policy.payoutMode === 'dividend' && policy.eligibleForDividend) {
+        const categoryKeySafe = categoryName || 'General Contribution';
+        const existingCategory = categoryDividendWeighted.get(categoryKeySafe.toLowerCase()) || {
+          contributionType: categoryKeySafe,
+          accountingGroup: policy.accountingGroup,
+          weightedAmount: 0,
+        };
+        existingCategory.weightedAmount += weightedUnits;
+        categoryDividendWeighted.set(categoryKeySafe.toLowerCase(), existingCategory);
+
+        if (policy.accountingGroup === 'share_capital') {
+          current.shareCapitalWeighted += weightedUnits;
+          current.shareCapitalAmount += signedAmount;
+        } else {
+          current.savingsWeighted += weightedUnits;
+          current.savingsAmount += signedAmount;
+        }
+      } else if (policy.payoutMode === 'interest') {
+        current.investmentWeighted += weightedUnits;
+        current.investmentAmount += signedAmount;
+        const annualRate = Number(policy.annualReturnRate || 0) / 100;
+        const interestForEvent = annualRate > 0 ? (weightedUnits * annualRate * periodDays) / 365 : 0;
+        current.interestPayout += interestForEvent;
+      } else {
+        current.nonDividendBalance += signedAmount;
+      }
+
+      memberState.set(event.memberId, current);
+    };
+
+    for (const deposit of contributionDeposits) {
+      applyContributionEvent({
+        memberId: deposit.memberId,
+        memberName: deposit.memberName,
+        amount: Number(deposit.amount || 0),
+        category: deposit.category,
+        date: deposit.date,
+        isRefund: false,
+      });
+    }
+
+    for (const refund of contributionRefunds) {
+      const refundCategory = String(refund.category || '').replace(/^refund\s*-\s*/i, '').trim();
+      applyContributionEvent({
+        memberId: refund.memberId,
+        memberName: refund.memberName,
+        amount: Number(refund.amount || 0),
+        category: refundCategory,
+        date: refund.date,
+        isRefund: true,
+      });
+    }
+
+    const stateRows = Array.from(memberState.entries()).map(([memberId, state]) => ({ memberId, ...state }));
+
+    const systemSettings = await this.getSystemSettingsConfig();
+    const dividendPolicy = {
+      disqualifyInactiveMembers: systemSettings.disqualifyInactiveMembers !== false,
+      maxConsecutiveMissedContributionMonths: Number(systemSettings.maxConsecutiveMissedContributionMonths ?? 3),
+      disqualifyGuarantorOfDelinquentLoan: systemSettings.disqualifyGuarantorOfDelinquentLoan !== false,
+      requireFullShareCapitalForDividends: systemSettings.requireFullShareCapitalForDividends === true,
+      minimumShareCapitalForDividends: Number(systemSettings.minimumShareCapitalForDividends ?? 0),
+      allowDividendReinstatementAfterConsecutivePayments: systemSettings.allowDividendReinstatementAfterConsecutivePayments !== false,
+      reinstatementConsecutivePaymentMonths: Number(systemSettings.reinstatementConsecutivePaymentMonths ?? 3),
+      dividendAllocationMode: String(systemSettings.dividendAllocationMode || 'weighted'),
+      shareCapitalDividendPercent: Number(systemSettings.shareCapitalDividendPercent ?? 50),
+      memberSavingsDividendPercent: Number(systemSettings.memberSavingsDividendPercent ?? 50),
+    };
+
+    const dividendWhtResident = Number(systemSettings.dividendWithholdingResidentPercent ?? 0);
+    const dividendWhtNonResident = Number(systemSettings.dividendWithholdingNonResidentPercent ?? 0);
+    const interestWhtResident = Number(systemSettings.interestWithholdingResidentPercent ?? 0);
+    const interestWhtNonResident = Number(systemSettings.interestWithholdingNonResidentPercent ?? 0);
+
+    const declarationLocked = systemSettings.dividendDeclarationLocked === true;
+    const declarationSnapshot = systemSettings.dividendDeclarationSnapshot || null;
+    if (declarationLocked && declarationSnapshot) {
+      dividendPolicy.dividendAllocationMode = String(declarationSnapshot.dividendAllocationMode || dividendPolicy.dividendAllocationMode);
+      dividendPolicy.shareCapitalDividendPercent = Number(declarationSnapshot.shareCapitalDividendPercent ?? dividendPolicy.shareCapitalDividendPercent);
+      dividendPolicy.memberSavingsDividendPercent = Number(declarationSnapshot.memberSavingsDividendPercent ?? dividendPolicy.memberSavingsDividendPercent);
+      dividendPolicy.disqualifyInactiveMembers = declarationSnapshot.disqualifyInactiveMembers ?? dividendPolicy.disqualifyInactiveMembers;
+      dividendPolicy.maxConsecutiveMissedContributionMonths = Number(
+        declarationSnapshot.maxConsecutiveMissedContributionMonths ?? dividendPolicy.maxConsecutiveMissedContributionMonths,
+      );
+      dividendPolicy.disqualifyGuarantorOfDelinquentLoan = declarationSnapshot.disqualifyGuarantorOfDelinquentLoan ?? dividendPolicy.disqualifyGuarantorOfDelinquentLoan;
+      dividendPolicy.requireFullShareCapitalForDividends = declarationSnapshot.requireFullShareCapitalForDividends ?? dividendPolicy.requireFullShareCapitalForDividends;
+      dividendPolicy.minimumShareCapitalForDividends = Number(
+        declarationSnapshot.minimumShareCapitalForDividends ?? dividendPolicy.minimumShareCapitalForDividends,
+      );
+      dividendPolicy.allowDividendReinstatementAfterConsecutivePayments = declarationSnapshot.allowDividendReinstatementAfterConsecutivePayments ?? dividendPolicy.allowDividendReinstatementAfterConsecutivePayments;
+      dividendPolicy.reinstatementConsecutivePaymentMonths = Number(
+        declarationSnapshot.reinstatementConsecutivePaymentMonths ?? dividendPolicy.reinstatementConsecutivePaymentMonths,
+      );
+    }
+
+    const regularContributionTypeIds = new Set<number>(
+      (contributionTypesRaw as any[])
+        .filter((ct) => this.isRegularContributionType(ct))
+        .map((ct) => Number(ct.id)),
+    );
+
+    const memberInvoicesForPolicy = await this.prisma.memberInvoice.findMany({
+      where: {
+        dueDate: { lte: dateRange.end },
+        contributionTypeId: { not: null },
+      },
+      select: {
+        memberId: true,
+        amount: true,
+        paidAmount: true,
+        dueDate: true,
+        contributionTypeId: true,
+        status: true,
+      },
+      orderBy: [{ memberId: 'asc' }, { dueDate: 'asc' }],
+    });
+
+    const missedStreakByMember = new Map<number, { maxStreak: number; currentStreak: number }>();
+    for (const inv of memberInvoicesForPolicy) {
+      if (!inv.memberId || !inv.contributionTypeId) continue;
+      if (!regularContributionTypeIds.has(Number(inv.contributionTypeId))) continue;
+
+      const outstanding = Math.max(0, Number(inv.amount || 0) - Number(inv.paidAmount || 0));
+      const isUnpaid = outstanding > 0 || String(inv.status || '').toLowerCase() === 'overdue';
+
+      const streak = missedStreakByMember.get(inv.memberId) || { maxStreak: 0, currentStreak: 0 };
+      if (isUnpaid) {
+        streak.currentStreak += 1;
+      } else {
+        streak.currentStreak = 0;
+      }
+      streak.maxStreak = Math.max(streak.maxStreak, streak.currentStreak);
+      missedStreakByMember.set(inv.memberId, streak);
+    }
+
+    const defaultedLoans = await this.prisma.loan.findMany({
+      where: {
+        status: 'defaulted',
+      },
+      select: {
+        guarantorName: true,
+      },
+    });
+
+    const delinquentGuarantorNameSet = new Set<string>();
+    for (const loan of defaultedLoans) {
+      const raw = String(loan.guarantorName || '').trim();
+      if (!raw) continue;
+      raw
+        .split(',')
+        .map((name) => name.trim().toLowerCase())
+        .filter(Boolean)
+        .forEach((name) => delinquentGuarantorNameSet.add(name));
+    }
+
+    const totalShareCapitalWeighted = stateRows.reduce((sum, row) => sum + row.shareCapitalWeighted, 0);
+    const totalSavingsWeighted = stateRows.reduce((sum, row) => sum + row.savingsWeighted, 0);
+    const totalDividendWeighted = totalShareCapitalWeighted + totalSavingsWeighted;
+
+    const totalInterestPayout = stateRows.reduce((sum, row) => sum + row.interestPayout, 0);
+    const baseDividendPool = Math.max(0, distributableSurplus - totalInterestPayout);
+
+    const declarationDate = systemSettings.dividendDeclarationDate ? new Date(systemSettings.dividendDeclarationDate) : null;
+    const priorDeclaredTotal = Number(
+      systemSettings.dividendDeclarationSnapshot?.totals?.dividendPoolAvailable
+        ?? systemSettings.dividendDeclarationSnapshot?.dividendPoolAvailable
+        ?? 0,
+    );
+
+    let priorDeclaredOutstanding = 0;
+    if (declarationDate && !Number.isNaN(declarationDate.getTime()) && declarationDate < dateRange.start && priorDeclaredTotal > 0) {
+      const paidBeforePeriod = await this.prisma.withdrawal.aggregate({
+        where: {
+          type: 'dividend',
+          date: { gte: declarationDate, lt: dateRange.start },
+        },
+        _sum: { amount: true },
+      });
+      const paidTotal = Number(paidBeforePeriod._sum.amount || 0);
+      priorDeclaredOutstanding = Math.max(0, priorDeclaredTotal - paidTotal);
+    }
+
+    const prudencePercentRaw = Number(systemSettings.dividendIndicativePrudencePercent ?? 90);
+    const prudencePercent = Number.isFinite(prudencePercentRaw) ? Math.min(Math.max(prudencePercentRaw, 0), 100) : 90;
+    const prudenceFactor = declarationLocked ? 1 : prudencePercent / 100;
+    const dividendPoolAvailable = Math.max(0, baseDividendPool - priorDeclaredOutstanding) * prudenceFactor;
+
+    let shareCapitalPool = 0;
+    let memberSavingsPool = 0;
+
+    if (dividendPolicy.dividendAllocationMode === 'manual_percent') {
+      const sharePct = Math.max(0, Number(dividendPolicy.shareCapitalDividendPercent || 0));
+      const savingsPct = Math.max(0, Number(dividendPolicy.memberSavingsDividendPercent || 0));
+      const pctTotal = sharePct + savingsPct;
+
+      if (pctTotal > 0) {
+        shareCapitalPool = dividendPoolAvailable * (sharePct / pctTotal);
+        memberSavingsPool = dividendPoolAvailable * (savingsPct / pctTotal);
+      } else {
+        shareCapitalPool = totalDividendWeighted > 0
+          ? (dividendPoolAvailable * totalShareCapitalWeighted) / totalDividendWeighted
+          : 0;
+        memberSavingsPool = totalDividendWeighted > 0
+          ? (dividendPoolAvailable * totalSavingsWeighted) / totalDividendWeighted
+          : 0;
+      }
+    } else {
+      shareCapitalPool = totalDividendWeighted > 0
+        ? (dividendPoolAvailable * totalShareCapitalWeighted) / totalDividendWeighted
+        : 0;
+      memberSavingsPool = totalDividendWeighted > 0
+        ? (dividendPoolAvailable * totalSavingsWeighted) / totalDividendWeighted
+        : 0;
+    }
+
+    const shareRatePerWeightedShilling = totalShareCapitalWeighted > 0 ? (shareCapitalPool / totalShareCapitalWeighted) : 0;
+    const savingsRatePerWeightedShilling = totalSavingsWeighted > 0 ? (memberSavingsPool / totalSavingsWeighted) : 0;
+
+    const categoryPayouts = Array.from(categoryDividendWeighted.values())
+      .map((category) => {
+        const categoryRate = category.accountingGroup === 'share_capital'
+          ? shareRatePerWeightedShilling
+          : savingsRatePerWeightedShilling;
+        const payoutAmount = category.weightedAmount * categoryRate;
+        return {
+          contributionType: category.contributionType,
+          accountingGroup: category.accountingGroup,
+          weightedAmount: category.weightedAmount,
+          payoutAmount,
+          payoutRatePercent: categoryRate * 100,
+        };
+      })
+      .sort((a, b) => b.payoutAmount - a.payoutAmount);
+
+    const memberAllocations = stateRows
+      .map(row => {
+        const shareDividend = row.shareCapitalWeighted * shareRatePerWeightedShilling;
+        const savingsDividend = row.savingsWeighted * savingsRatePerWeightedShilling;
+        const totalDividend = shareDividend + savingsDividend;
+        const totalReturn = totalDividend + row.interestPayout;
+
+        const policyReasons: string[] = [];
+
+        if (dividendPolicy.disqualifyInactiveMembers && !row.active) {
+          policyReasons.push('Member is inactive');
+        }
+
+        const streakInfo = missedStreakByMember.get(row.memberId);
+        const maxMissedStreak = Number(streakInfo?.maxStreak || 0);
+        if (dividendPolicy.maxConsecutiveMissedContributionMonths > 0 && maxMissedStreak >= dividendPolicy.maxConsecutiveMissedContributionMonths) {
+          policyReasons.push(`Missed ${maxMissedStreak} consecutive contribution period(s)`);
+        }
+
+        const memberNameKey = String(row.memberName || '').trim().toLowerCase();
+        if (dividendPolicy.disqualifyGuarantorOfDelinquentLoan && memberNameKey && delinquentGuarantorNameSet.has(memberNameKey)) {
+          policyReasons.push('Guarantor on delinquent/defaulted loan');
+        }
+
+        if (
+          dividendPolicy.requireFullShareCapitalForDividends &&
+          row.shareCapitalAmount < dividendPolicy.minimumShareCapitalForDividends
+        ) {
+          policyReasons.push(
+            `Share capital below required minimum (${this.formatCurrency(dividendPolicy.minimumShareCapitalForDividends)})`,
+          );
+        }
+
+        const payable = policyReasons.length === 0;
+        const dividendWhtRate = row.isResident ? dividendWhtResident : dividendWhtNonResident;
+        const interestWhtRate = row.isResident ? interestWhtResident : interestWhtNonResident;
+        const dividendWhtAmount = payable ? (totalDividend * Math.max(0, dividendWhtRate) / 100) : 0;
+        const interestWhtAmount = payable ? (row.interestPayout * Math.max(0, interestWhtRate) / 100) : 0;
+        const withholdingTaxAmount = dividendWhtAmount + interestWhtAmount;
+        const netPayableAmount = payable ? Math.max(0, totalReturn - withholdingTaxAmount) : 0;
+        const reinstatementMonths = Math.max(1, dividendPolicy.reinstatementConsecutivePaymentMonths || 3);
+        const reinstatementOption = !payable && dividendPolicy.allowDividendReinstatementAfterConsecutivePayments
+          ? `Not payable now. Can be reinstated after ${reinstatementMonths} consecutive months of compliant contribution payments after declaration.`
+          : null;
+
+        return {
+          memberId: row.memberId,
+          memberName: row.memberName,
+          memberActive: row.active,
+          weightedShareCapital: row.shareCapitalWeighted,
+          shareCapitalAmount: row.shareCapitalAmount,
+          weightedSavings: row.savingsWeighted,
+          savingsAmount: row.savingsAmount,
+          weightedInvestmentDeposits: row.investmentWeighted,
+          investmentDepositAmount: row.investmentAmount,
+          loanQualificationBalance: row.loanQualificationBalance,
+          nonDividendBalance: row.nonDividendBalance,
+          shareDividend,
+          savingsDividend,
+          totalDividend,
+          interestPayout: row.interestPayout,
+          totalMemberReturn: totalReturn,
+          payableStatus: payable ? 'payable' : 'not_payable',
+          payableAmount: payable ? totalReturn : 0,
+          netPayableAmount,
+          withholdingTaxAmount,
+          dividendWithholdingRate: dividendWhtRate,
+          interestWithholdingRate: interestWhtRate,
+          withheldAmount: payable ? 0 : totalReturn,
+          policyContraventions: policyReasons,
+          maxConsecutiveMissedContributionMonths: maxMissedStreak,
+          reinstatementOption,
+        };
+      })
+      .filter(row => row.totalMemberReturn > 0 || row.loanQualificationBalance > 0 || row.nonDividendBalance !== 0)
+      .sort((a, b) => b.totalMemberReturn - a.totalMemberReturn);
+
+    const loanQualificationBaseTotal = stateRows.reduce((sum, row) => sum + row.loanQualificationBalance, 0);
+    const excludedFromLoanQualificationTotal = stateRows.reduce((sum, row) => sum + row.nonDividendBalance, 0);
+    const totalPayableDividends = memberAllocations.reduce((sum, row) => sum + Number(row.payableAmount || 0), 0);
+    const totalWithheldDividends = memberAllocations.reduce((sum, row) => sum + Number(row.withheldAmount || 0), 0);
+    const totalWithholdingTax = memberAllocations.reduce((sum, row) => sum + Number(row.withholdingTaxAmount || 0), 0);
+    const totalNetPayable = memberAllocations.reduce((sum, row) => sum + Number(row.netPayableAmount || 0), 0);
+
+    const contributionPolicySummary = (contributionTypesRaw as any[]).map(ct => {
+      const policy = this.normalizeContributionPolicy(ct);
+      return {
+        name: ct.name,
+        accountingGroup: policy.accountingGroup,
+        payoutMode: policy.payoutMode,
+        eligibleForDividend: policy.eligibleForDividend,
+        countsForLoanQualification: policy.countsForLoanQualification,
+        annualReturnRate: Number(policy.annualReturnRate || 0),
+        useDateWeightedEarnings: policy.useDateWeightedEarnings,
+      };
+    });
+
+    return {
+      rows: memberAllocations,
+      meta: {
+        totalOperatingIncome,
+        operatingExpenses,
+        incomeTaxExpense,
+        totalProvisions,
+        netOperatingSurplus,
+        netOperatingSurplusAfterTax,
+        capitalReserveAllocation,
+        distributableSurplus,
+        totalInterestPayout,
+        dividendPoolAvailable,
+        baseDividendPool,
+        priorDeclaredOutstanding,
+        prudencePercent,
+        prudenceFactor,
+        memberCount: memberAllocations.length,
+        payableCount: memberAllocations.filter((row) => row.payableStatus === 'payable').length,
+        notPayableCount: memberAllocations.filter((row) => row.payableStatus !== 'payable').length,
+        totalPayableDividends,
+        totalWithheldDividends,
+        totalWithholdingTax,
+        totalNetPayable,
+        allocationMode: dividendPolicy.dividendAllocationMode,
+        shareCapitalDividendPercent: dividendPolicy.shareCapitalDividendPercent,
+        memberSavingsDividendPercent: dividendPolicy.memberSavingsDividendPercent,
+        declarationLocked,
+        declarationDate: systemSettings.dividendDeclarationDate || null,
+        declaredBy: systemSettings.dividendDeclaredBy || null,
+      },
+      period: {
+        startDate: dateRange.start.toISOString().split('T')[0],
+        endDate: dateRange.end.toISOString().split('T')[0],
+        days: periodDays,
+      },
+      income: {
+        interestIncome: actualInterestIncome,
+        finesIncome,
+        otherIncome,
+        totalOperatingIncome,
+      },
+      expenses: {
+        operatingExpenses,
+        incomeTaxExpense,
+        totalProvisions,
+      },
+      surplus: {
+        netOperatingSurplus: netOperatingSurplusAfterTax,
+        capitalReserveAllocation,
+        capitalReservePercentage: 20,
+        distributableSurplus,
+        distributablePercentage: 80,
+      },
+      contributionPolicies: contributionPolicySummary,
+      dividends: {
+        totalWeightedShareCapital: totalShareCapitalWeighted,
+        totalWeightedSavings: totalSavingsWeighted,
+        totalWeightedDividendBase: totalDividendWeighted,
+        shareCapitalPool,
+        memberSavingsPool,
+        totalDividendAmount: dividendPoolAvailable,
+        baseDividendPool,
+        priorDeclaredOutstanding,
+        prudencePercent,
+        shareRatePerWeightedShilling,
+        savingsRatePerWeightedShilling,
+        dateWeightedMethod: true,
+        memberCount: memberAllocations.length,
+      },
+      categoryPayouts,
+      investmentInterest: {
+        totalInterestPayout,
+      },
+      loanQualification: {
+        qualifyingBaseTotal: loanQualificationBaseTotal,
+        excludedBaseTotal: excludedFromLoanQualificationTotal,
+      },
+      dividendPolicy,
+      memberAllocations,
+      summary: {
+        recommendation: `Allocate ${this.formatCurrency(capitalReserveAllocation)} to Capital Reserve (20%), pay ${this.formatCurrency(totalInterestPayout)} as investment-deposit interest, and distribute ${this.formatCurrency(dividendPoolAvailable)} as dividends using ${dividendPolicy.dividendAllocationMode === 'manual_percent' ? 'management percentage split' : 'weighted-balance split'}.`,
+        notes: [
+          'Capital reserve allocation is mandatory per SACCO regulations',
+          'Dividends are calculated using date-weighted balances so older deposits earn more',
+          'Only contribution types marked as dividend-eligible are included in dividend pools',
+          'Contribution types marked not eligible for loan qualification are excluded from qualification base',
+          'Net surplus used for dividends is after operating expenses, income tax, and loan loss provisions',
+          'Subject to AGM approval and final audit',
+        ],
+      },
+    };
+  }
+
+  private normalizeContributionPolicy(raw: any) {
+    const normalizedName = String(raw?.name || '').trim().toLowerCase();
+    const guessedNonDividend = /(registration|risk|benevolent|benovelent|fee|fine)/i.test(normalizedName);
+    const guessedShareCapital = /share\s*capital/i.test(normalizedName);
+    const guessedInvestment = /(lump|fixed\s*deposit|investment)/i.test(normalizedName);
+
+    const accountingGroup = raw?.accountingGroup || (guessedShareCapital
+      ? 'share_capital'
+      : guessedInvestment
+      ? 'investment_deposit'
+      : guessedNonDividend
+      ? 'non_withdrawable_fund'
+      : 'member_savings');
+
+    const payoutMode = raw?.payoutMode || (accountingGroup === 'investment_deposit'
+      ? 'interest'
+      : accountingGroup === 'non_withdrawable_fund' || accountingGroup === 'fee'
+      ? 'none'
+      : 'dividend');
+
+    const eligibleForDividend = raw?.eligibleForDividend ?? (payoutMode === 'dividend');
+    const countsForLoanQualification = raw?.countsForLoanQualification ?? !(accountingGroup === 'non_withdrawable_fund' || accountingGroup === 'fee');
+    const annualReturnRate = Number(raw?.annualReturnRate || 0);
+    const useDateWeightedEarnings = raw?.useDateWeightedEarnings ?? true;
+
+    return {
+      accountingGroup,
+      payoutMode,
+      eligibleForDividend: Boolean(eligibleForDividend),
+      countsForLoanQualification: Boolean(countsForLoanQualification),
+      annualReturnRate: Number.isFinite(annualReturnRate) ? annualReturnRate : 0,
+      useDateWeightedEarnings: Boolean(useDateWeightedEarnings),
+    };
+  }
+
+  private getPeriodDays(startDate: Date, endDate: Date) {
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const diff = Math.floor((endDate.getTime() - startDate.getTime()) / msPerDay) + 1;
+    return Math.max(diff, 1);
+  }
+
+  private calculateWeightedUnits(
+    amount: number,
+    txnDate: Date,
+    periodStart: Date,
+    periodEnd: Date,
+    periodDays: number,
+    useDateWeightedEarnings: boolean,
+  ) {
+    if (!amount) return 0;
+
+    if (!useDateWeightedEarnings) {
+      return amount;
+    }
+
+    const holdingStart = txnDate > periodStart ? txnDate : periodStart;
+    if (holdingStart > periodEnd) {
+      return 0;
+    }
+
+    const heldDays = this.getPeriodDays(holdingStart, periodEnd);
+    return amount * (heldDays / periodDays);
+  }
+
+  private formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  }
+
+  private async getSystemSettingsConfig() {
+    const defaults = {
+      disqualifyInactiveMembers: true,
+      maxConsecutiveMissedContributionMonths: 3,
+      disqualifyGuarantorOfDelinquentLoan: true,
+      requireFullShareCapitalForDividends: false,
+      minimumShareCapitalForDividends: 0,
+      allowDividendReinstatementAfterConsecutivePayments: true,
+      reinstatementConsecutivePaymentMonths: 3,
+      dividendAllocationMode: 'weighted',
+      shareCapitalDividendPercent: 50,
+      memberSavingsDividendPercent: 50,
+      dividendIndicativePrudencePercent: 90,
+      dividendWithholdingResidentPercent: 0,
+      dividendWithholdingNonResidentPercent: 0,
+      interestWithholdingResidentPercent: 0,
+      interestWithholdingNonResidentPercent: 0,
+      externalInterestTaxablePercent: 50,
+      externalInterestTaxRatePercent: 30,
+    };
+
+    const record = await this.prisma.iFRSConfig.findUnique({ where: { key: 'system_settings' } });
+    if (!record?.value) {
+      return defaults;
+    }
+
+    try {
+      const parsed = JSON.parse(record.value);
+      return {
+        ...defaults,
+        ...parsed,
+      };
+    } catch {
+      return defaults;
+    }
   }
 
   private async generalLedgerReport(
@@ -2353,6 +3460,24 @@ export class ReportsService {
                   previous: previousData.accruedExpenses,
                   change: currentData.accruedExpenses - previousData.accruedExpenses,
                 },
+                {
+                  label: 'Dividends Payable',
+                  current: currentData.dividendsPayable || 0,
+                  previous: previousData.dividendsPayable || 0,
+                  change: (currentData.dividendsPayable || 0) - (previousData.dividendsPayable || 0),
+                },
+                {
+                  label: 'Withholding Tax Payable',
+                  current: currentData.withholdingTaxPayable || 0,
+                  previous: previousData.withholdingTaxPayable || 0,
+                  change: (currentData.withholdingTaxPayable || 0) - (previousData.withholdingTaxPayable || 0),
+                },
+                {
+                  label: 'Income Tax Payable',
+                  current: currentData.incomeTaxPayable || 0,
+                  previous: previousData.incomeTaxPayable || 0,
+                  change: (currentData.incomeTaxPayable || 0) - (previousData.incomeTaxPayable || 0),
+                },
               ],
               subtotal: {
                 current: currentData.totalLiabilities,
@@ -2379,6 +3504,18 @@ export class ReportsService {
                   current: currentData.retainedEarnings,
                   previous: previousData.retainedEarnings,
                   change: currentData.retainedEarnings - previousData.retainedEarnings,
+                },
+                {
+                  label: 'Capital Reserve (Declared)',
+                  current: currentData.capitalReserveDeclared || 0,
+                  previous: previousData.capitalReserveDeclared || 0,
+                  change: (currentData.capitalReserveDeclared || 0) - (previousData.capitalReserveDeclared || 0),
+                },
+                {
+                  label: 'Declared Dividends (Appropriation)',
+                  current: (currentData.declaredDividendTotal || 0) * -1,
+                  previous: (previousData.declaredDividendTotal || 0) * -1,
+                  change: ((currentData.declaredDividendTotal || 0) - (previousData.declaredDividendTotal || 0)) * -1,
                 },
                 {
                   label: 'Current Year Surplus',
@@ -2493,6 +3630,37 @@ export class ReportsService {
       return sum + (balance < 0 ? Math.abs(balance) : 0);
     }, 0);
 
+    // Dividend declaration adjustments
+    const systemSettings = await this.getSystemSettingsConfig();
+    const declarationLocked = systemSettings.dividendDeclarationLocked === true;
+    const declarationDate = systemSettings.dividendDeclarationDate ? new Date(systemSettings.dividendDeclarationDate) : null;
+    const declarationSnapshot = systemSettings.dividendDeclarationSnapshot || null;
+    let declaredDividendTotal = 0;
+    let capitalReserveDeclared = 0;
+    let dividendsPaid = 0;
+    let dividendsPayable = 0;
+
+    if (declarationLocked && declarationDate && !Number.isNaN(declarationDate.getTime()) && declarationDate <= asOfDate) {
+      declaredDividendTotal = Number(
+        declarationSnapshot?.totals?.dividendPoolAvailable ?? declarationSnapshot?.dividendPoolAvailable ?? 0,
+      );
+      capitalReserveDeclared = Number(
+        declarationSnapshot?.totals?.capitalReserveAllocation ?? declarationSnapshot?.capitalReserveAllocation ?? 0,
+      );
+
+      if (declaredDividendTotal > 0) {
+        const dividendsPaidRows = await this.prisma.withdrawal.findMany({
+          where: {
+            type: 'dividend',
+            date: { gte: declarationDate, lte: asOfDate },
+          },
+          select: { amount: true, grossAmount: true },
+        });
+        dividendsPaid = dividendsPaidRows.reduce((sum, row) => sum + Number(row.grossAmount || row.amount || 0), 0);
+        dividendsPayable = Math.max(0, declaredDividendTotal - dividendsPaid);
+      }
+    }
+
     // Calculate income and expenses for the current year
     const yearStart = new Date(asOfDate.getFullYear(), 0, 1);
     const incomeData = await this.getIncomeStatementData(yearStart, asOfDate);
@@ -2503,14 +3671,31 @@ export class ReportsService {
     const allTimeSurplus = await this.getIncomeStatementData(new Date('2000-01-01'), previousYearEnd);
     
     const totalAssets = cashAtHand + cashAtBank + mobileMoney + memberLoansPrincipal + accruedInterest + outstandingFines + memberSavingsReceivable - loanLossProvision + totalFixedAssets;
-    const totalLiabilities = totalBankLoans;
+    const withholdingTaxRows = await this.prisma.withdrawal.findMany({
+      where: {
+        type: { in: ['dividend', 'interest'] },
+        date: { lte: asOfDate },
+        withholdingTaxAmount: { not: null },
+      },
+      select: { withholdingTaxAmount: true },
+    });
+    const withholdingTaxPayable = withholdingTaxRows.reduce(
+      (sum, row) => sum + Number(row.withholdingTaxAmount || 0),
+      0,
+    );
+
+    const totalLiabilities = totalBankLoans + dividendsPayable + withholdingTaxPayable;
     const accruedExpenses = 0; // TODO: Implement accrued expenses tracking
     
     const currentYearSurplus = incomeData.totalIncome - incomeData.totalExpenses - incomeData.totalProvisions;
+    const incomeTaxPayable = Number(incomeData.externalInterestTax || 0);
     // Retained Earnings = Prior years' accumulated surplus (current year shown separately)
     const retainedEarnings = allTimeSurplus.netSurplus;
-    const openingBalanceEquity = totalAssets - totalLiabilities - memberSavings - retainedEarnings - currentYearSurplus;
-    const totalEquity = memberSavings + retainedEarnings + currentYearSurplus + openingBalanceEquity;
+    const retainedEarningsAdjusted = retainedEarnings - capitalReserveDeclared;
+    const dividendAppropriation = declaredDividendTotal > 0 ? -declaredDividendTotal : 0;
+    const equityBase = retainedEarningsAdjusted + capitalReserveDeclared + dividendAppropriation + currentYearSurplus;
+    const openingBalanceEquity = totalAssets - totalLiabilities - memberSavings - equityBase;
+    const totalEquity = memberSavings + equityBase + openingBalanceEquity;
 
     return {
       cashAtHand,
@@ -2524,17 +3709,23 @@ export class ReportsService {
       totalFixedAssets,
       bankLoans: totalBankLoans,
       accruedExpenses,
+      withholdingTaxPayable,
+      incomeTaxPayable,
       memberSavings,
       memberSavingsByType,
       otherContributions,
       memberSavingsReceivable,
-      retainedEarnings,
+      retainedEarnings: retainedEarningsAdjusted,
+      declaredDividendTotal,
+      capitalReserveDeclared,
+      dividendsPaid,
+      dividendsPayable,
       openingBalanceEquity,
       currentYearSurplus,
       totalAssets,
-      totalLiabilities: totalLiabilities + accruedExpenses,
+      totalLiabilities: totalLiabilities + accruedExpenses + incomeTaxPayable,
       totalEquity,
-      balanceVariance: totalAssets - (totalLiabilities + accruedExpenses + totalEquity),
+      balanceVariance: totalAssets - (totalLiabilities + accruedExpenses + incomeTaxPayable + totalEquity),
     };
   }
 
@@ -2729,6 +3920,10 @@ export class ReportsService {
   }
 
   private async getIncomeStatementData(startDate: Date, endDate: Date) {
+    const systemSettings = await this.getSystemSettingsConfig();
+    const externalInterestTaxablePercent = Number(systemSettings.externalInterestTaxablePercent ?? 50);
+    const externalInterestTaxRatePercent = Number(systemSettings.externalInterestTaxRatePercent ?? 30);
+
     // Interest income (from repayments)
     const repayments = await this.prisma.repayment.findMany({
       where: {
@@ -2750,6 +3945,16 @@ export class ReportsService {
     const contributionLookup = new Set(contributionTypes.map(t => t.toLowerCase()));
 
     // Other income (exclude contribution categories)
+    const incomeCategories = await this.prisma.incomeCategory.findMany({
+      select: { name: true, isExternalInterest: true },
+    });
+    const externalInterestCategories = new Set(
+      incomeCategories
+        .filter((cat) => cat.isExternalInterest)
+        .map((cat) => String(cat.name || '').trim().toLowerCase())
+        .filter(Boolean),
+    );
+
     const otherIncomeDeposits = await this.prisma.deposit.findMany({
       where: {
         type: 'income',
@@ -2759,6 +3964,16 @@ export class ReportsService {
     const otherIncome = otherIncomeDeposits
       .filter(d => !contributionLookup.has((d.category || '').toLowerCase()))
       .reduce((sum, d) => sum + Number(d.amount), 0);
+
+    const externalInterestIncome = otherIncomeDeposits
+      .filter(d => {
+        const categoryKey = String(d.category || '').trim().toLowerCase();
+        return categoryKey && externalInterestCategories.has(categoryKey);
+      })
+      .reduce((sum, d) => sum + Number(d.amount), 0);
+
+    const externalInterestTaxablePortion = externalInterestIncome * (Math.max(0, externalInterestTaxablePercent) / 100);
+    const externalInterestTax = externalInterestTaxablePortion * (Math.max(0, externalInterestTaxRatePercent) / 100);
 
     const otherIncomeByCategory = otherIncomeDeposits
       .filter(d => !contributionLookup.has((d.category || '').toLowerCase()))
@@ -2782,7 +3997,7 @@ export class ReportsService {
     // Expenses by category
     const expenses = await this.prisma.withdrawal.findMany({
       where: {
-        type: 'expense',
+        type: { in: ['expense', 'interest'] },
         date: { gte: startDate, lte: endDate },
       },
     });
@@ -2801,7 +4016,14 @@ export class ReportsService {
       amount,
     }));
 
-    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+    if (externalInterestTax > 0) {
+      expenseCategories.push({
+        category: 'Income Tax (External Interest)',
+        amount: externalInterestTax,
+      });
+    }
+
+    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0) + externalInterestTax;
 
     // Provisions (ECL changes during the period - this is an EXPENSE flow, not a balance)
     // Calculate ECL at start of period
@@ -2831,6 +4053,9 @@ export class ReportsService {
       membershipFees,
       totalOperatingIncome,
       otherIncome,
+      externalInterestIncome,
+      externalInterestTaxablePortion,
+      externalInterestTax,
       otherIncomeCategories,
       totalIncome,
       expenseCategories,
