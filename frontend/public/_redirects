@@ -1,1 +1,6 @@
-/* /index.html 200
+/* Netlify SPA routing configuration */
+/* Preserve API calls to backend */
+/api/*  /api/:splat  200
+
+/* Rewrite all other routes to index.html for client-side routing */
+/*      /index.html   200

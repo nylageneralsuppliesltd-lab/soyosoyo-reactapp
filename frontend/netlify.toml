@@ -1,10 +1,14 @@
 # Netlify Configuration for SPA Routing
-# Redirects all non-file requests to index.html for React Router to handle
+# Only rewrite 404s to index.html for client-side routing
+# This preserves API calls and actual files
 
 [[redirects]]
 from = "/*"
 to = "/index.html"
 status = 200
+conditions = [
+  { role = "ERROR" }
+]
 
 # Cache settings
 [[headers]]
@@ -17,3 +21,5 @@ Cache-Control = "public, max-age=0, must-revalidate"
 for = "/*.[a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9].*"
 [headers.values]
 Cache-Control = "public, max-age=31536000, immutable"
+
+
