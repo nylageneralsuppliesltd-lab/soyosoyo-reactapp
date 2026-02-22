@@ -87,7 +87,6 @@ export class EmailService {
     this.postmarkToken =
       process.env.POSTMARK_SERVER_TOKEN ||
       process.env.EMAIL_POSTMARK_TOKEN ||
-      process.env.EMAIL_SMTP_PASS ||
       null;
     this.postmarkApiUrl = process.env.EMAIL_POSTMARK_API_URL || 'https://api.postmarkapp.com/email';
     this.preferPostmarkApi =
@@ -286,7 +285,7 @@ If you didn't request this password reset, please ignore this email or contact o
       `;
 
       const mailOptions = {
-        from: process.env.EMAIL_FROM || process.env.SMTP_USER || 'noreply@soyosoyobank.com',
+        from: process.env.EMAIL_FROM || process.env.EMAIL_SMTP_USER || 'noreply@soyosoyobank.com',
         to: recipientEmail,
         subject,
         text: textContent.trim(),
@@ -338,7 +337,7 @@ If you didn't request this password reset, please ignore this email or contact o
       `;
 
       const mailOptions = {
-        from: process.env.EMAIL_FROM || process.env.SMTP_USER || 'noreply@soyosoyobank.com',
+        from: process.env.EMAIL_FROM || process.env.EMAIL_SMTP_USER || 'noreply@soyosoyobank.com',
         to: recipientEmail,
         subject,
         text: `Hello ${memberName}, your email verification code is: ${verificationCode}. This code expires in 1 hour.`,
@@ -387,7 +386,7 @@ If you didn't request this password reset, please ignore this email or contact o
       `;
 
       const mailOptions = {
-        from: process.env.EMAIL_FROM || process.env.SMTP_USER || 'noreply@soyosoyobank.com',
+        from: process.env.EMAIL_FROM || process.env.EMAIL_SMTP_USER || 'noreply@soyosoyobank.com',
         to: recipientEmail,
         subject,
         text: `Hello ${memberName}, welcome to SoyoSoyo Bank. Your account is active and ready to use.`,
