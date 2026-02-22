@@ -1,0 +1,23 @@
+/* Netlify _redirects file for SPA routing */
+/* Redirect all requests to index.html */
+/* This fixes refresh errors for client-side routes */
+/* Place this file in your frontend build output directory */
+
+/* Catch-all rule */
+/* For Netlify, Render, Vercel, etc. */
+/* If using Vercel, use vercel.json rewrites instead */
+/* If using Render, use render.yaml rewrites */
+/* For Netlify: */
+/* /index.html is your SPA entry point */
+/* /api/* routes are NOT redirected */
+
+/* Actual rule: */
+/* All requests except /api/* go to index.html */
+/* If you have other static assets, adjust as needed */
+
+/* Netlify syntax: */
+/* /api/*  /api/:splat  200
+/* /*     /index.html   200 */
+
+/api/*  /api/:splat  200
+/*      /index.html   200
