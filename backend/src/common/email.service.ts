@@ -15,15 +15,15 @@ export class EmailService {
           pass: process.env.GMAIL_APP_PASSWORD,
         },
       });
-    } else if (process.env.SMTP_HOST) {
-      // Generic SMTP configuration
+    } else if (process.env.EMAIL_PROVIDER === 'ses' || process.env.EMAIL_SMTP_HOST) {
+      // AWS SES SMTP or generic SMTP configuration
       this.transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+        host: process.env.EMAIL_SMTP_HOST,
+        port: parseInt(process.env.EMAIL_SMTP_PORT || '587'),
+        secure: false, // SES supports STARTTLS on 587
         auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASSWORD,
+          user: process.env.EMAIL_SMTP_USER,
+          pass: process.env.EMAIL_SMTP_PASS,
         },
       });
     } else {
@@ -89,7 +89,12 @@ If you didn't request this password reset, please ignore this email or contact o
         subject,
         text: textContent.trim(),
         html: htmlContent,
+        headers: {}
       };
+      // Add Postmark stream header if configured
+      if (process.env.EMAIL_SMTP_HEADER_X_PM_MESSAGE_STREAM) {
+        mailOptions.headers['X-PM-Message-Stream'] = process.env.EMAIL_SMTP_HEADER_X_PM_MESSAGE_STREAM;
+      }
 
       const result = await this.transporter.sendMail(mailOptions);
       console.log(`[EMAIL SENT] Password reset code sent to ${recipientEmail} (Message ID: ${result.messageId})`);
