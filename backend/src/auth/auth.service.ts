@@ -9,6 +9,8 @@ import { CreateSaccoDto } from './dto/create-sacco.dto';
 
 @Injectable()
 export class AuthService {
+  private resetCodes = new Map<string, { code: string; expiresAt: number; memberId: number }>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -280,6 +282,69 @@ export class AuthService {
     const member = await this.getMemberById(memberId);
     await this.ensureProfile(member);
     return this.sign(member);
+  }
+
+  async requestPasswordReset(identifier: string) {
+    const member = await this.resolveMemberByIdentifier(identifier);
+    if (!member) {
+      // Don't reveal if user exists
+      return { success: true, message: 'If account exists, reset code was sent' };
+    }
+
+    // Generate 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store code for 15 minutes
+    const expiresAt = Date.now() + 15 * 60 * 1000;
+    this.resetCodes.set(identifier, { code, expiresAt, memberId: member.id });
+
+    // Log code to console for testing (in production, send via email)
+    console.log(`[PASSWORD RESET] Code for ${identifier}: ${code}`);
+
+    return { success: true, message: 'Reset code sent to your email or SMS' };
+  }
+
+  async verifyResetCode(identifier: string, resetCode: string, newPassword: string) {
+    const member = await this.resolveMemberByIdentifier(identifier);
+    if (!member) {
+      throw new UnauthorizedException('Invalid identifier');
+    }
+
+    const stored = this.resetCodes.get(identifier);
+    if (!stored) {
+      throw new BadRequestException('No reset code found. Please request a new one.');
+    }
+
+    if (Date.now() > stored.expiresAt) {
+      this.resetCodes.delete(identifier);
+      throw new BadRequestException('Reset code expired. Please request a new one.');
+    }
+
+    if (stored.code !== resetCode) {
+      throw new BadRequestException('Invalid reset code');
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // Update member password
+    const prismaAny = this.prisma as any;
+    const updated = await prismaAny.member.update({
+      where: { id: member.id },
+      data: { passwordHash },
+    });
+
+    // Update profile password hash
+    await prismaAny.appProfile.updateMany({
+      where: { memberId: member.id },
+      data: { passwordHash },
+    });
+
+    // Clear reset code
+    this.resetCodes.delete(identifier);
+
+    // Return signed session
+    return this.sign(updated);
   }
 }
 

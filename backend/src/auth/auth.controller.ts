@@ -59,4 +59,16 @@ export class AuthController {
   getSession(@CurrentUser() user: any) {
     return this.authService.getSession(user.sub);
   }
+
+  @Post('password/reset-request')
+  @Public()
+  requestPasswordReset(@Body() body: { identifier: string }) {
+    return this.authService.requestPasswordReset(body.identifier);
+  }
+
+  @Post('password/verify-reset')
+  @Public()
+  verifyResetCode(@Body() body: { identifier: string; resetCode: string; newPassword: string }) {
+    return this.authService.verifyResetCode(body.identifier, body.resetCode, body.newPassword);
+  }
 }

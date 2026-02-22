@@ -51,5 +51,7 @@ export const createSaccoProfile = (data) => authAPI.post('/auth/saccos/create', 
 export const listUserSaccos = () => authAPI.get('/auth/saccos/list');
 export const getDeveloperOverview = () => authAPI.get('/auth/developer/overview');
 export const getAuthSession = () => authAPI.get('/auth/session');
+export const resetPassword = (data) => authAPI.post('/auth/password/reset-request', data);
+export const verifyResetCode = (data) => authAPI.post('/auth/password/verify-reset', data);
 
 export default authAPI;

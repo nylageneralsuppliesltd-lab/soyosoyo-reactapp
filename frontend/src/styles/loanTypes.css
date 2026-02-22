@@ -656,6 +656,23 @@
   cursor: not-allowed;
 }
 
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.link-button:active {
+  opacity: 0.8;
+}
+
 /* ====== RESPONSIVE DESIGN ====== */
 @media (max-width: 1024px) {
   .card-content {
