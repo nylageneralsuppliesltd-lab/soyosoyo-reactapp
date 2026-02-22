@@ -19,11 +19,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'), // shortcut for imports
     },
   },
+  publicDir: 'public', // Copy contents of public/ to dist/ during build (includes _redirects)
   build: {
     outDir: 'dist', // production build output
     rollupOptions: {
       input: path.resolve(__dirname, 'index.html'),
     },
+    copyPublicDir: true, // Ensure public files are copied (for _redirects)
   },
   server: {
     port: 5173,  // dev server port
