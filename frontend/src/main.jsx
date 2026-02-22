@@ -14,16 +14,19 @@ if (typeof window !== 'undefined' && typeof window.fetch === 'function' && !wind
   window.fetch = async (input, init = {}) => {
     const token = getAuthToken();
     const headers = new Headers(init.headers || {});
+    const hadAuthHeader = headers.has('Authorization');
     if (token && !headers.has('Authorization')) {
       headers.set('Authorization', `Bearer ${token}`);
     }
+
+    const willSendAuth = hadAuthHeader || Boolean(token);
 
     const response = await originalFetch(input, {
       ...init,
       headers,
     });
 
-    if (response.status === 401) {
+    if (response.status === 401 && willSendAuth) {
       notifyAuthExpired();
     }
 

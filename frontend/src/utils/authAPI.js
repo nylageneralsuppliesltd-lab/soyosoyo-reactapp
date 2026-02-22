@@ -37,7 +37,10 @@ authAPI.interceptors.request.use((config) => {
 authAPI.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const hasAuthHeader = Boolean(
+      error?.config?.headers?.Authorization || error?.config?.headers?.authorization,
+    );
+    if (error.response?.status === 401 && hasAuthHeader) {
       notifyAuthExpired();
     }
     return Promise.reject(error);
