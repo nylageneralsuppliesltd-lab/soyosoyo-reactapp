@@ -18,6 +18,7 @@ import {
   updateRepayment,
   deleteRepayment,
 } from '../components/members/financeAPI';
+import { useAuth } from './AuthContext';
 
 const FinancialContext = createContext(null);
 
@@ -31,12 +32,22 @@ const defaultState = {
 };
 
 export const FinancialProvider = ({ children }) => {
+  const { isAuthenticated, session } = useAuth();
   const [data, setData] = useState(defaultState);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Load data from backend on mount
+  // Load protected financial data only when authenticated
   useEffect(() => {
+    if (!isAuthenticated || !session?.token) {
+      setData(defaultState);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
     const loadData = async () => {
       try {
         setLoading(true);
@@ -47,6 +58,8 @@ export const FinancialProvider = ({ children }) => {
           getRepayments(1000),
         ]);
 
+        if (cancelled) return;
+
         setData({
           deposits: Array.isArray(depositsRes?.data) ? depositsRes.data : [],
           withdrawals: Array.isArray(withdrawalsRes?.data) ? withdrawalsRes.data : [],
@@ -55,17 +68,23 @@ export const FinancialProvider = ({ children }) => {
         });
         setError(null);
       } catch (err) {
+        if (cancelled) return;
         console.error('[FinancialContext] Failed to load data:', err);
         setError(err.message);
         // Ensure data structure is maintained even on error
         setData(defaultState);
       } finally {
+        if (cancelled) return;
         setLoading(false);
       }
     };
 
     loadData();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, session?.token]);
 
   const addDeposit = async (payload) => {
     try {
