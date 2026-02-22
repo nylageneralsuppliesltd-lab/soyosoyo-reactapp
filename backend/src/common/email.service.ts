@@ -6,7 +6,7 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
   private readonly postmarkToken: string | null;
   private readonly postmarkApiUrl: string;
-  private readonly preferPostmarkApi: boolean;
+  private readonly deliveryMode: 'postmark-smtp' | 'postmark-api' | 'hybrid';
   private smtpVerified = false;
   private smtpVerifyError: string | null = null;
 
@@ -19,13 +19,22 @@ export class EmailService {
     recipientEmail: string,
     label: string,
   ): Promise<boolean> {
-    if (this.preferPostmarkApi) {
+    const canUsePostmarkApi = Boolean(this.postmarkToken);
+    const preferPostmarkApi =
+      this.deliveryMode === 'postmark-api' ||
+      (this.deliveryMode === 'hybrid' && canUsePostmarkApi);
+
+    if (preferPostmarkApi) {
       const apiSent = await this.sendViaPostmarkApi(mailOptions, recipientEmail, label);
       if (apiSent) return true;
     }
 
     if (!this.transporter) {
-      return this.sendViaPostmarkApi(mailOptions, recipientEmail, label);
+      if (canUsePostmarkApi) {
+        return this.sendViaPostmarkApi(mailOptions, recipientEmail, label);
+      }
+      console.error(`[EMAIL ERROR] ${label} failed for ${recipientEmail}: no SMTP transport and no Postmark API token`);
+      return false;
     }
 
     const maxAttempts = parseInt(process.env.EMAIL_MAX_ATTEMPTS || '3', 10);
@@ -71,11 +80,9 @@ export class EmailService {
       }
     }
 
-    const isPostmarkTransport =
-      (process.env.EMAIL_PROVIDER || '').toLowerCase() === 'postmark' ||
-      (process.env.EMAIL_SMTP_HOST || '').includes('postmarkapp.com');
+    const canFallbackToPostmarkApi = canUsePostmarkApi && this.deliveryMode !== 'postmark-smtp';
 
-    if (isPostmarkTransport) {
+    if (canFallbackToPostmarkApi) {
       console.warn(`[EMAIL WARNING] ${label} SMTP path failed for ${recipientEmail}; trying Postmark API fallback`);
       return this.sendViaPostmarkApi(mailOptions, recipientEmail, label);
     }
@@ -89,9 +96,13 @@ export class EmailService {
       process.env.EMAIL_POSTMARK_TOKEN ||
       null;
     this.postmarkApiUrl = process.env.EMAIL_POSTMARK_API_URL || 'https://api.postmarkapp.com/email';
-    this.preferPostmarkApi =
-      (process.env.EMAIL_PROVIDER || '').toLowerCase() === 'postmark' ||
-      (process.env.EMAIL_DELIVERY_MODE || '').toLowerCase() === 'postmark-api';
+    const mode = (process.env.EMAIL_DELIVERY_MODE || 'hybrid').toLowerCase();
+    if (mode === 'postmark-smtp' || mode === 'postmark-api' || mode === 'hybrid') {
+      this.deliveryMode = mode;
+    } else {
+      this.deliveryMode = 'hybrid';
+      console.warn(`[EMAIL] Unknown EMAIL_DELIVERY_MODE='${mode}', defaulting to 'hybrid'`);
+    }
 
     // Configure email transporter based on environment variables
     if (process.env.EMAIL_PROVIDER === 'gmail') {
@@ -141,6 +152,10 @@ export class EmailService {
           console.error(`[EMAIL] SMTP transport verification failed: ${error.message}`);
         });
     }
+
+    if (!this.transporter && !this.postmarkToken) {
+      console.error('[EMAIL] No usable email transport configured (missing SMTP config and Postmark API token)');
+    }
   }
 
   getHealth() {
@@ -148,6 +163,7 @@ export class EmailService {
     const smtpHost = process.env.EMAIL_SMTP_HOST || null;
     return {
       provider,
+      deliveryMode: this.deliveryMode,
       fromConfigured: Boolean(process.env.EMAIL_FROM),
       smtpConfigured: Boolean(this.transporter),
       smtpHost,
