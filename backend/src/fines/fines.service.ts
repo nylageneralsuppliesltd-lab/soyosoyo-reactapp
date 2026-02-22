@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Prisma } from '@prisma/client';
 
@@ -52,13 +52,27 @@ export class FinesService {
   }
 
   async createFine(data: any) {
+    const memberId = data.memberId ? Number(data.memberId) : null;
     const amountDecimal = new Prisma.Decimal(data.amount || 0);
+    const fineType = data.type || 'other';
+    const fineStatus = data.status || 'unpaid';
+    const reason = data.reason ? String(data.reason).trim() : 'Manual fine';
+
+    if (!memberId) {
+      throw new BadRequestException('Member is required');
+    }
+    if (amountDecimal.lte(0)) {
+      throw new BadRequestException('Valid amount is required');
+    }
 
     const fine = await this.prisma.fine.create({
       data: {
         ...data,
-        memberId: +data.memberId,
+        memberId,
         amount: amountDecimal,
+        type: fineType,
+        status: fineStatus,
+        reason,
       },
       include: {
         member: true,

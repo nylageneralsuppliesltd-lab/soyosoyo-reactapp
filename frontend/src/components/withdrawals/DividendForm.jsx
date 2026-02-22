@@ -108,6 +108,7 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
       amount: parseFloat(row.amount),
       memberId: parseInt(row.memberId),
       accountId: row.accountId ? parseInt(row.accountId) : undefined,
+      method: row.paymentMethod,
     };
 
     let url;
@@ -154,6 +155,9 @@ const DividendForm = ({ onSuccess, onCancel, editingWithdrawal }) => {
         }
         if (!row.memberId) {
           throw new Error(`Row ${index + 1}: Please select a member`);
+        }
+        if (!row.accountId) {
+          throw new Error(`Row ${index + 1}: Please select an account`);
         }
       });
 

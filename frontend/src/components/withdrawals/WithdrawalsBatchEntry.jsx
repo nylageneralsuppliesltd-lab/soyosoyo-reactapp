@@ -78,7 +78,10 @@ const validateRow = (row) => {
     if (!row.contributionType) return 'Contribution type is required for refund';
   }
 
-  if (row.type === 'dividend' && !row.memberId) return 'Member is required for dividend';
+  if (row.type === 'dividend') {
+    if (!row.memberId) return 'Member is required for dividend';
+    if (!row.accountId) return 'Account is required for dividend';
+  }
 
   return null;
 };

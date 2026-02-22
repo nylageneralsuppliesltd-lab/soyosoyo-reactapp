@@ -197,6 +197,9 @@ export class WithdrawalsController {
         data.accountId = data.accountId === null ? null : parseInt(data.accountId);
         if (data.accountId !== null && isNaN(data.accountId)) throw new BadRequestException('Invalid accountId');
       }
+      if (data.paymentMethod && !data.method) {
+        data.method = data.paymentMethod;
+      }
       if (data.toAccountId !== undefined) {
         data.toAccountId = data.toAccountId === null ? null : parseInt(data.toAccountId);
         if (data.toAccountId !== null && isNaN(data.toAccountId)) throw new BadRequestException('Invalid toAccountId');

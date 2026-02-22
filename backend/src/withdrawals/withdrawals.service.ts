@@ -1655,7 +1655,7 @@ export class WithdrawalsService {
       }
 
       return { updatedWithdrawal, beforeSnapshot };
-    });
+    }, { timeout: 15000 });
 
     const afterSnapshot = this.toAuditSnapshot(updatedWithdrawal);
     await this.auditService.log({
