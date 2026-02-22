@@ -4,6 +4,8 @@ import * as nodemailer from 'nodemailer';
 @Injectable()
 export class EmailService {
   private transporter: nodemailer.Transporter;
+  private readonly postmarkToken: string | null;
+  private readonly postmarkApiUrl: string;
 
   private async sleep(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
@@ -14,7 +16,9 @@ export class EmailService {
     recipientEmail: string,
     label: string,
   ): Promise<boolean> {
-    if (!this.transporter) return true;
+    if (!this.transporter) {
+      return this.sendViaPostmarkApi(mailOptions, recipientEmail, label);
+    }
 
     const maxAttempts = parseInt(process.env.EMAIL_MAX_ATTEMPTS || '3', 10);
     const baseDelayMs = parseInt(process.env.EMAIL_RETRY_DELAY_MS || '1200', 10);
@@ -59,10 +63,26 @@ export class EmailService {
       }
     }
 
+    const isPostmarkTransport =
+      (process.env.EMAIL_PROVIDER || '').toLowerCase() === 'postmark' ||
+      (process.env.EMAIL_SMTP_HOST || '').includes('postmarkapp.com');
+
+    if (isPostmarkTransport) {
+      console.warn(`[EMAIL WARNING] ${label} SMTP path failed for ${recipientEmail}; trying Postmark API fallback`);
+      return this.sendViaPostmarkApi(mailOptions, recipientEmail, label);
+    }
+
     return false;
   }
 
   constructor() {
+    this.postmarkToken =
+      process.env.POSTMARK_SERVER_TOKEN ||
+      process.env.EMAIL_POSTMARK_TOKEN ||
+      process.env.EMAIL_SMTP_PASS ||
+      null;
+    this.postmarkApiUrl = process.env.EMAIL_POSTMARK_API_URL || 'https://api.postmarkapp.com/email';
+
     // Configure email transporter based on environment variables
     if (process.env.EMAIL_PROVIDER === 'gmail') {
       this.transporter = nodemailer.createTransport({
@@ -107,6 +127,81 @@ export class EmailService {
           console.error(`[EMAIL] SMTP transport verification failed: ${error.message}`);
         });
     }
+  }
+
+  private async sendViaPostmarkApi(
+    mailOptions: nodemailer.SendMailOptions,
+    recipientEmail: string,
+    label: string,
+  ): Promise<boolean> {
+    if (!this.postmarkToken) {
+      console.warn(`[EMAIL WARNING] ${label} fallback skipped: no Postmark token configured`);
+      return false;
+    }
+
+    const to = String(mailOptions.to || '').trim();
+    const from = String(mailOptions.from || '').trim();
+    const subject = String(mailOptions.subject || '').trim();
+    const textBody = mailOptions.text ? String(mailOptions.text).trim() : '';
+    const htmlBody = mailOptions.html ? String(mailOptions.html).trim() : '';
+    const replyTo = mailOptions.replyTo ? String(mailOptions.replyTo).trim() : undefined;
+
+    if (!to || !from || !subject || (!textBody && !htmlBody)) {
+      console.error(`[EMAIL ERROR] ${label} Postmark fallback aborted: incomplete payload`);
+      return false;
+    }
+
+    const maxAttempts = parseInt(process.env.EMAIL_POSTMARK_MAX_ATTEMPTS || '3', 10);
+    const baseDelayMs = parseInt(process.env.EMAIL_POSTMARK_RETRY_DELAY_MS || '1000', 10);
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const startTime = Date.now();
+        const response = await fetch(this.postmarkApiUrl, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-Postmark-Server-Token': this.postmarkToken,
+          },
+          body: JSON.stringify({
+            From: from,
+            To: to,
+            Subject: subject,
+            TextBody: textBody || undefined,
+            HtmlBody: htmlBody || undefined,
+            ReplyTo: replyTo,
+            MessageStream: process.env.EMAIL_SMTP_HEADER_X_PM_MESSAGE_STREAM || 'outbound',
+          }),
+        });
+
+        const payload: any = await response.json().catch(() => ({}));
+        const elapsedMs = Date.now() - startTime;
+        const errorCode = typeof payload.ErrorCode === 'number' ? payload.ErrorCode : -1;
+
+        if (response.ok && errorCode === 0) {
+          console.log(
+            `[EMAIL SENT] ${label} sent via Postmark API to ${recipientEmail} (Message ID: ${payload.MessageID || 'n/a'}, ${elapsedMs}ms)`,
+          );
+          return true;
+        }
+
+        console.error(
+          `[EMAIL ERROR] ${label} Postmark API rejected for ${recipientEmail} (attempt ${attempt}/${maxAttempts}): status=${response.status}, ErrorCode=${errorCode}, Message=${payload.Message || 'unknown'}`,
+        );
+      } catch (error) {
+        const err = error as Error;
+        console.error(
+          `[EMAIL ERROR] ${label} Postmark API failed for ${recipientEmail} (attempt ${attempt}/${maxAttempts}): ${err.message}`,
+        );
+      }
+
+      if (attempt < maxAttempts) {
+        await this.sleep(baseDelayMs * attempt);
+      }
+    }
+
+    return false;
   }
 
   /**

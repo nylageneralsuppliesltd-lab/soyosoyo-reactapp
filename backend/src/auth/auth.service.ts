@@ -313,7 +313,11 @@ export class AuthService {
         member.email,
         member.name || 'Member',
         code
-      ).catch((err) => {
+      ).then((sent) => {
+        if (!sent) {
+          console.error(`[AUTH] Password reset email dispatch reported failure for ${member.email}`);
+        }
+      }).catch((err) => {
         console.error(`[AUTH] Failed to send password reset email to ${member.email}:`, err.message);
       });
     } else {
