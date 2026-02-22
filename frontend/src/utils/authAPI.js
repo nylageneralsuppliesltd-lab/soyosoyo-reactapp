@@ -52,6 +52,8 @@ export const listUserSaccos = () => authAPI.get('/auth/saccos/list');
 export const getDeveloperOverview = () => authAPI.get('/auth/developer/overview');
 export const getAuthSession = () => authAPI.get('/auth/session');
 export const resetPassword = (data) => authAPI.post('/auth/password/reset-request', data);
+export const getPasswordResetDispatchStatus = (requestId) => authAPI.get(`/auth/password/reset-request-status/${requestId}`);
+export const getEmailHealth = () => authAPI.get('/auth/email-health');
 export const verifyResetCode = (data) => authAPI.post('/auth/password/verify-reset', data);
 
 export default authAPI;

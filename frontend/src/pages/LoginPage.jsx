@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { resetPassword, verifyResetCode } from '../utils/authAPI';
+import { getPasswordResetDispatchStatus, resetPassword, verifyResetCode } from '../utils/authAPI';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -22,6 +22,37 @@ export default function LoginPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const pollResetDispatchStatus = async (requestId) => {
+    const maxChecks = 10;
+    const delayMs = 1500;
+
+    for (let attempt = 1; attempt <= maxChecks; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      try {
+        const response = await getPasswordResetDispatchStatus(requestId);
+        const status = response?.data?.status;
+        const detail = response?.data?.detail;
+
+        console.log(`[PasswordResetDispatch] attempt=${attempt} requestId=${requestId} status=${status} detail=${detail || ''}`);
+
+        if (status === 'sent') {
+          setMessage('✓ Reset email dispatch confirmed. Check your inbox (and spam).');
+          return;
+        }
+
+        if (status === 'failed') {
+          setMessage('Reset email failed to dispatch. Please try again in a moment.');
+          setMode('reset');
+          return;
+        }
+      } catch (error) {
+        console.warn('[PasswordResetDispatch] status check failed:', error?.message || error);
+      }
+    }
+
+    setMessage('Reset request accepted. Delivery is still pending confirmation; check inbox/spam and retry if needed.');
+  };
+
   const handleRequestReset = async (e) => {
     e.preventDefault();
     setMessage('');
@@ -30,10 +61,26 @@ export default function LoginPage() {
       if (!resetForm.identifier.trim()) {
         throw new Error('Please enter your email or phone number');
       }
-      await resetPassword({ identifier: resetForm.identifier });
-      setMessage('✓ Reset code sent! Check your email or SMS');
+      const response = await resetPassword({ identifier: resetForm.identifier });
+      const requestId = response?.data?.requestId;
+      const dispatchStatus = response?.data?.dispatchStatus;
+
+      console.log('[PasswordResetDispatch] reset-request response:', response?.data);
+
+      if (dispatchStatus === 'failed') {
+        setMessage('Reset request accepted, but dispatch failed. Please try again.');
+        return;
+      }
+
+      setMessage('✓ Reset request accepted. Checking delivery status...');
       setMode('verify-reset');
       setResetForm({ ...resetForm, resetCode: '', newPassword: '', confirmPassword: '' });
+
+      if (requestId) {
+        pollResetDispatchStatus(requestId);
+      } else {
+        console.warn('[PasswordResetDispatch] No requestId in reset-request response; cannot verify dispatch status');
+      }
     } catch (error) {
       setMessage(error?.response?.data?.message || error?.message || 'Failed to send reset code');
     } finally {

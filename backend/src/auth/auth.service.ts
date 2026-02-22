@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { EmailService } from '../common/email.service';
 import { LoginDto } from './dto/login.dto';
@@ -10,11 +11,32 @@ import { CreateSaccoDto } from './dto/create-sacco.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly resetDispatchStatus = new Map<
+    string,
+    { status: 'pending' | 'sent' | 'failed' | 'accepted'; detail: string; updatedAt: number }
+  >();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
   ) {}
+
+  private setResetDispatchStatus(
+    requestId: string,
+    status: 'pending' | 'sent' | 'failed' | 'accepted',
+    detail: string,
+  ) {
+    this.resetDispatchStatus.set(requestId, { status, detail, updatedAt: Date.now() });
+
+    // keep map bounded / auto-clean old records (30 minutes)
+    const maxAgeMs = 30 * 60 * 1000;
+    for (const [id, item] of this.resetDispatchStatus.entries()) {
+      if (Date.now() - item.updatedAt > maxAgeMs) {
+        this.resetDispatchStatus.delete(id);
+      }
+    }
+  }
 
   private normalizeEmail(email?: string | null): string | null {
     if (!email) return null;
@@ -284,11 +306,53 @@ export class AuthService {
     return this.sign(member);
   }
 
+  getEmailHealth() {
+    const health = this.emailService.getHealth();
+    return {
+      success: true,
+      ...health,
+      checkedAt: new Date().toISOString(),
+    };
+  }
+
+  getPasswordResetDispatchStatus(requestId: string) {
+    const key = String(requestId || '').trim();
+    if (!key) {
+      throw new BadRequestException('requestId is required');
+    }
+
+    const item = this.resetDispatchStatus.get(key);
+    if (!item) {
+      return {
+        success: false,
+        requestId: key,
+        status: 'unknown',
+        detail: 'No dispatch status found for this requestId',
+      };
+    }
+
+    return {
+      success: true,
+      requestId: key,
+      status: item.status,
+      detail: item.detail,
+      updatedAt: new Date(item.updatedAt).toISOString(),
+    };
+  }
+
   async requestPasswordReset(identifier: string) {
+    const requestId = randomUUID();
+
     const member = await this.resolveMemberByIdentifier(identifier);
     if (!member) {
       // Don't reveal if user exists
-      return { success: true, message: 'If account exists, reset code sent to your email' };
+      this.setResetDispatchStatus(requestId, 'accepted', 'Request accepted');
+      return {
+        success: true,
+        requestId,
+        dispatchStatus: 'accepted',
+        message: 'If account exists, reset code sent to your email',
+      };
     }
 
     // Generate 6-digit code
@@ -308,6 +372,7 @@ export class AuthService {
 
     // Send email with reset code (fire-and-forget - don't block API response)
     if (member.email) {
+      this.setResetDispatchStatus(requestId, 'pending', 'Dispatch started');
       // Send email asynchronously without awaiting (non-blocking)
       this.emailService.sendPasswordResetEmail(
         member.email,
@@ -315,16 +380,27 @@ export class AuthService {
         code
       ).then((sent) => {
         if (!sent) {
+          this.setResetDispatchStatus(requestId, 'failed', 'Provider rejected or delivery dispatch failed');
           console.error(`[AUTH] Password reset email dispatch reported failure for ${member.email}`);
+          return;
         }
+
+        this.setResetDispatchStatus(requestId, 'sent', 'Provider accepted email for delivery');
       }).catch((err) => {
+        this.setResetDispatchStatus(requestId, 'failed', `Dispatch error: ${err.message}`);
         console.error(`[AUTH] Failed to send password reset email to ${member.email}:`, err.message);
       });
     } else {
+      this.setResetDispatchStatus(requestId, 'failed', 'Member has no email address on file');
       console.warn(`[AUTH] Member ${member.id} has no email address`);
     }
 
-    return { success: true, message: 'Reset code sent to your email' };
+    return {
+      success: true,
+      requestId,
+      dispatchStatus: member.email ? 'pending' : 'failed',
+      message: 'Reset code request accepted. Dispatch status can be checked with requestId.',
+    };
   }
 
   async verifyResetCode(identifier: string, resetCode: string, newPassword: string) {

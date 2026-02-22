@@ -6,6 +6,8 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
   private readonly postmarkToken: string | null;
   private readonly postmarkApiUrl: string;
+  private smtpVerified = false;
+  private smtpVerifyError: string | null = null;
 
   private async sleep(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
@@ -121,12 +123,31 @@ export class EmailService {
       this.transporter
         .verify()
         .then(() => {
+          this.smtpVerified = true;
+          this.smtpVerifyError = null;
           console.log('[EMAIL] SMTP transport verified successfully');
         })
         .catch((error: Error) => {
+          this.smtpVerified = false;
+          this.smtpVerifyError = error.message;
           console.error(`[EMAIL] SMTP transport verification failed: ${error.message}`);
         });
     }
+  }
+
+  getHealth() {
+    const provider = process.env.EMAIL_PROVIDER || 'none';
+    const smtpHost = process.env.EMAIL_SMTP_HOST || null;
+    return {
+      provider,
+      fromConfigured: Boolean(process.env.EMAIL_FROM),
+      smtpConfigured: Boolean(this.transporter),
+      smtpHost,
+      smtpVerified: this.smtpVerified,
+      smtpVerifyError: this.smtpVerifyError,
+      postmarkApiConfigured: Boolean(this.postmarkToken),
+      postmarkApiUrl: this.postmarkApiUrl,
+    };
   }
 
   private async sendViaPostmarkApi(

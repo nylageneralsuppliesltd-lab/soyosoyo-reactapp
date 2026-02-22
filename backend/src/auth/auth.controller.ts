@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterProfileDto } from './dto/register-profile.dto';
@@ -64,6 +64,18 @@ export class AuthController {
   @Public()
   requestPasswordReset(@Body() body: { identifier: string }) {
     return this.authService.requestPasswordReset(body.identifier);
+  }
+
+  @Get('password/reset-request-status/:requestId')
+  @Public()
+  passwordResetRequestStatus(@Param('requestId') requestId: string) {
+    return this.authService.getPasswordResetDispatchStatus(requestId);
+  }
+
+  @Get('email-health')
+  @Public()
+  emailHealth() {
+    return this.authService.getEmailHealth();
   }
 
   @Post('password/verify-reset')
