@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, UnauthorizedExcept
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
+import { EmailService } from '../common/email.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterProfileDto } from './dto/register-profile.dto';
 import { DeveloperModeDto } from './dto/developer-mode.dto';
@@ -14,6 +15,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly emailService: EmailService,
   ) {}
 
   private normalizeEmail(email?: string | null): string | null {
@@ -288,7 +290,7 @@ export class AuthService {
     const member = await this.resolveMemberByIdentifier(identifier);
     if (!member) {
       // Don't reveal if user exists
-      return { success: true, message: 'If account exists, reset code was sent' };
+      return { success: true, message: 'If account exists, reset code sent to your email' };
     }
 
     // Generate 6-digit code
@@ -298,10 +300,21 @@ export class AuthService {
     const expiresAt = Date.now() + 15 * 60 * 1000;
     this.resetCodes.set(identifier, { code, expiresAt, memberId: member.id });
 
-    // Log code to console for testing (in production, send via email)
-    console.log(`[PASSWORD RESET] Code for ${identifier}: ${code}`);
+    // Send email with reset code
+    if (member.email) {
+      const emailSent = await this.emailService.sendPasswordResetEmail(
+        member.email,
+        member.name || 'Member',
+        code
+      );
+      if (!emailSent) {
+        console.warn(`[AUTH] Failed to send password reset email to ${member.email}, but code is valid for console testing`);
+      }
+    } else {
+      console.warn(`[AUTH] Member ${member.id} has no email address`);
+    }
 
-    return { success: true, message: 'Reset code sent to your email or SMS' };
+    return { success: true, message: 'Reset code sent to your email' };
   }
 
   async verifyResetCode(identifier: string, resetCode: string, newPassword: string) {
