@@ -1,4 +1,10 @@
 routes:
+  # Match all requests except files with known extensions
   - type: rewrite
-    source: ^(?!.*\.(js|css|svg|png|jpg|jpeg|gif|ico|json|txt|woff|woff2|ttf|eot)$).*$
+    source: /(?!.*\.(js|css|html|svg|png|jpg|jpeg|gif|ico|json|txt|woff|woff2|ttf|eot|webp|webm|mp4|map)$).*
+    destination: /index.html
+
+  # Also handle root path
+  - type: rewrite
+    source: ^/$
     destination: /index.html

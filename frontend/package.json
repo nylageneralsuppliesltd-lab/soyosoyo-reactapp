@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "vite preview",
+    "start": "node server.js",
+    "start:preview": "vite preview",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "lint": "eslint .",
@@ -18,6 +19,8 @@
     "cypress:open": "cypress open"
   },
   "dependencies": {
+    "compression": "^1.7.4",
+    "express": "^4.21.1",
     "@hookform/resolvers": "^5.2.2",
     "@phosphor-icons/react": "^2.1.10",
     "axios": "^1.13.2",
