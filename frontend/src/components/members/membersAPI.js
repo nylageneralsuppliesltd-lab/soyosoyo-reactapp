@@ -50,7 +50,11 @@ API.interceptors.request.use(
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const hasAuthHeader = Boolean(
+      error?.config?.headers?.Authorization || error?.config?.headers?.authorization,
+    );
+    const hasToken = Boolean(getAuthToken());
+    if (error.response?.status === 401 && (hasAuthHeader || hasToken)) {
       console.warn('Unauthorized - possibly session expired');
       notifyAuthExpired();
     }

@@ -385,7 +385,11 @@ export class AuthService {
           return;
         }
 
-        this.setResetDispatchStatus(requestId, 'sent', 'Provider accepted email for delivery');
+        this.setResetDispatchStatus(
+          requestId,
+          'sent',
+          'Provider accepted email for delivery (inbox placement not guaranteed)',
+        );
       }).catch((err) => {
         this.setResetDispatchStatus(requestId, 'failed', `Dispatch error: ${err.message}`);
         console.error(`[AUTH] Failed to send password reset email to ${member.email}:`, err.message);

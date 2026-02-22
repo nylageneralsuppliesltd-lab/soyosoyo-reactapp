@@ -6,6 +6,7 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
   private readonly postmarkToken: string | null;
   private readonly postmarkApiUrl: string;
+  private readonly preferPostmarkApi: boolean;
   private smtpVerified = false;
   private smtpVerifyError: string | null = null;
 
@@ -18,6 +19,11 @@ export class EmailService {
     recipientEmail: string,
     label: string,
   ): Promise<boolean> {
+    if (this.preferPostmarkApi) {
+      const apiSent = await this.sendViaPostmarkApi(mailOptions, recipientEmail, label);
+      if (apiSent) return true;
+    }
+
     if (!this.transporter) {
       return this.sendViaPostmarkApi(mailOptions, recipientEmail, label);
     }
@@ -84,6 +90,9 @@ export class EmailService {
       process.env.EMAIL_SMTP_PASS ||
       null;
     this.postmarkApiUrl = process.env.EMAIL_POSTMARK_API_URL || 'https://api.postmarkapp.com/email';
+    this.preferPostmarkApi =
+      (process.env.EMAIL_PROVIDER || '').toLowerCase() === 'postmark' ||
+      (process.env.EMAIL_DELIVERY_MODE || '').toLowerCase() === 'postmark-api';
 
     // Configure email transporter based on environment variables
     if (process.env.EMAIL_PROVIDER === 'gmail') {
