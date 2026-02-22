@@ -43,6 +43,18 @@ import BalanceSheetPage from './pages/EnhancedBalanceSheetPage';
 import IncomeStatementPage from './pages/EnhancedIncomeStatementPage';
 import TrialBalancePage from './pages/TrialBalancePage';
 
+const RootRoute = () => {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const redirectPath = params.get('redirect');
+
+  if (redirectPath && redirectPath.startsWith('/')) {
+    return <Navigate to={redirectPath} replace />;
+  }
+
+  return <Navigate to="/dashboard" replace />;
+};
+
 const NotFound = () => (
   <div className="flex flex-col items-center justify-center h-full text-center p-6">
     <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
@@ -112,7 +124,7 @@ function App() {
       {/* Main Content */}
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<RootRoute />} />
           <Route path="/landing" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           
