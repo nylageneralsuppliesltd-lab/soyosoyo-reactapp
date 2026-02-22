@@ -106,6 +106,10 @@ model Member {
   active             Boolean   @default(true)
   isResident         Boolean   @default(true)
   
+  // Password reset fields
+  resetCode          String?   @unique
+  resetCodeExpiresAt DateTime?
+  
   ledger             Ledger[]  
   deposits           Deposit[]
   withdrawals        Withdrawal[]

@@ -10,8 +10,6 @@ import { CreateSaccoDto } from './dto/create-sacco.dto';
 
 @Injectable()
 export class AuthService {
-  private resetCodes = new Map<string, { code: string; expiresAt: number; memberId: number }>();
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -296,9 +294,17 @@ export class AuthService {
     // Generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     
-    // Store code for 15 minutes
-    const expiresAt = Date.now() + 15 * 60 * 1000;
-    this.resetCodes.set(identifier, { code, expiresAt, memberId: member.id });
+    // Set expiration to 15 minutes from now
+    const resetCodeExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    
+    // Store code in database
+    await this.prisma.member.update({
+      where: { id: member.id },
+      data: {
+        resetCode: code,
+        resetCodeExpiresAt,
+      },
+    });
 
     // Send email with reset code
     if (member.email) {
@@ -323,17 +329,20 @@ export class AuthService {
       throw new UnauthorizedException('Invalid identifier');
     }
 
-    const stored = this.resetCodes.get(identifier);
-    if (!stored) {
+    if (!member.resetCode) {
       throw new BadRequestException('No reset code found. Please request a new one.');
     }
 
-    if (Date.now() > stored.expiresAt) {
-      this.resetCodes.delete(identifier);
+    if (!member.resetCodeExpiresAt || Date.now() > member.resetCodeExpiresAt.getTime()) {
+      // Clear expired code
+      await this.prisma.member.update({
+        where: { id: member.id },
+        data: { resetCode: null, resetCodeExpiresAt: null },
+      });
       throw new BadRequestException('Reset code expired. Please request a new one.');
     }
 
-    if (stored.code !== resetCode) {
+    if (member.resetCode !== resetCode) {
       throw new BadRequestException('Invalid reset code');
     }
 
@@ -344,7 +353,11 @@ export class AuthService {
     const prismaAny = this.prisma as any;
     const updated = await prismaAny.member.update({
       where: { id: member.id },
-      data: { passwordHash },
+      data: {
+        passwordHash,
+        resetCode: null, // Clear reset code
+        resetCodeExpiresAt: null,
+      },
     });
 
     // Update profile password hash
@@ -352,9 +365,6 @@ export class AuthService {
       where: { memberId: member.id },
       data: { passwordHash },
     });
-
-    // Clear reset code
-    this.resetCodes.delete(identifier);
 
     // Return signed session
     return this.sign(updated);
