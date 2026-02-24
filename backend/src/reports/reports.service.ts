@@ -185,6 +185,7 @@ export class ReportsService {
   getCatalog() {
     return [
       { key: 'contributions', name: 'Contribution Summary', filters: ['period', 'memberId', 'contributionType', 'eligibleForDividend', 'countsForLoanQualification', 'source'] },
+      { key: 'contributionMatrix', name: 'Member Contribution Matrix (Monthly)', filters: ['startDate', 'endDate'] },
       { key: 'fines', name: 'Fines Summary', filters: ['period', 'status', 'memberId'] },
       { key: 'loans', name: 'Loans (Member) Portfolio', filters: ['period', 'status'] },
       { key: 'bankLoans', name: 'Bank Loans (External)', filters: ['period', 'status'] },
@@ -220,6 +221,9 @@ export class ReportsService {
           query.countsForLoanQualification,
           query.source,
         );
+        break;
+      case 'contributionMatrix':
+        result = await this.contributionMatrixReport(query.startDate, query.endDate);
         break;
       case 'fines':
         result = await this.finesReport(dateRange, query.status, query.memberId);
@@ -511,6 +515,125 @@ export class ReportsService {
     return isRegularFrequency && !isOneOffCategory;
   }
 
+  private getMonthWindow(startDateInput?: string, endDateInput?: string) {
+    const parsedStart = startDateInput ? new Date(startDateInput) : null;
+    const safeStart = parsedStart && !Number.isNaN(parsedStart.getTime()) ? parsedStart : new Date();
+    const start = new Date(Date.UTC(safeStart.getFullYear(), safeStart.getMonth(), 1));
+    const rawEnd = endDateInput ? new Date(endDateInput) : new Date();
+    const end = Number.isNaN(rawEnd.getTime()) ? new Date() : rawEnd;
+    const normalizedEnd = new Date(Date.UTC(end.getFullYear(), end.getMonth(), 1));
+
+    const months: Array<{ key: string; label: string; monthStart: Date }> = [];
+    const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+
+    while (cursor <= normalizedEnd) {
+      const year = cursor.getUTCFullYear();
+      const month = cursor.getUTCMonth();
+      const key = `${year}-${String(month + 1).padStart(2, '0')}`;
+      const label = cursor.toLocaleString('en-KE', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+      months.push({ key, label, monthStart: new Date(cursor) });
+      cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    }
+
+    return {
+      start,
+      end: new Date(Date.UTC(normalizedEnd.getUTCFullYear(), normalizedEnd.getUTCMonth() + 1, 0, 23, 59, 59, 999)),
+      months,
+    };
+  }
+
+  private async contributionMatrixReport(startDateInput?: string, endDateInput?: string) {
+    const earliestContribution = await this.prisma.deposit.aggregate({
+      where: { type: 'contribution' },
+      _min: { date: true },
+    });
+
+    const fallbackStart = earliestContribution?._min?.date
+      ? new Date(earliestContribution._min.date)
+      : new Date(new Date().getFullYear(), 0, 1);
+
+    const effectiveStartInput = startDateInput || fallbackStart.toISOString().slice(0, 10);
+    const monthWindow = this.getMonthWindow(effectiveStartInput, endDateInput);
+    const monthLabelByKey = new Map(monthWindow.months.map((m) => [m.key, m.label]));
+
+    const deposits = await this.prisma.deposit.findMany({
+      where: {
+        type: 'contribution',
+        date: {
+          gte: monthWindow.start,
+          lte: monthWindow.end,
+        },
+      },
+      include: {
+        member: {
+          select: { id: true, name: true },
+        },
+      },
+      orderBy: [{ memberName: 'asc' }, { date: 'asc' }],
+    });
+
+    const rowsByMember = new Map<string, any>();
+
+    for (const deposit of deposits) {
+      const memberId = deposit.memberId ?? null;
+      const memberName = deposit.member?.name || deposit.memberName || `Member ${memberId ?? 'Unknown'}`;
+      const memberKey = `${memberId ?? 'no-id'}|${memberName.toLowerCase()}`;
+      const date = new Date(deposit.date);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = monthLabelByKey.get(monthKey);
+
+      if (!monthLabel) continue;
+
+      if (!rowsByMember.has(memberKey)) {
+        const baseRow: any = {
+          memberName,
+          memberId,
+        };
+        for (const month of monthWindow.months) {
+          baseRow[month.label] = 0;
+        }
+        baseRow.totalContributions = 0;
+        rowsByMember.set(memberKey, baseRow);
+      }
+
+      const row = rowsByMember.get(memberKey);
+      const amount = Number(deposit.amount || 0);
+      row[monthLabel] = Number((row[monthLabel] + amount).toFixed(2));
+      row.totalContributions = Number((row.totalContributions + amount).toFixed(2));
+    }
+
+    const rows = Array.from(rowsByMember.values()).sort((a, b) =>
+      String(a.memberName || '').localeCompare(String(b.memberName || '')),
+    );
+
+    const totalsRow: any = {
+      memberName: 'TOTAL',
+      memberId: null,
+      rowType: 'total',
+    };
+    for (const month of monthWindow.months) {
+      totalsRow[month.label] = Number(
+        rows.reduce((sum, row) => sum + Number(row[month.label] || 0), 0).toFixed(2),
+      );
+    }
+
+    const grandTotal = rows.reduce((sum, row) => sum + Number(row.totalContributions || 0), 0);
+    totalsRow.totalContributions = Number(grandTotal.toFixed(2));
+
+    const finalRows = [...rows, totalsRow];
+
+    return {
+      rows: finalRows,
+      meta: {
+        startMonth: monthWindow.months[0]?.key || '2024-01',
+        endMonth: monthWindow.months[monthWindow.months.length - 1]?.key || '2024-01',
+        months: monthWindow.months.map((m) => ({ key: m.key, label: m.label })),
+        memberCount: rows.length,
+        grandTotal: Number(grandTotal.toFixed(2)),
+      },
+    };
+  }
+
   private async contributionReport(
     dateRange: { start: Date; end: Date },
     memberId?: string,
@@ -796,16 +919,22 @@ export class ReportsService {
     const loans = await this.prisma.loan.findMany({ 
       where, 
       orderBy: { createdAt: 'asc' }, 
-      include: { member: true, loanType: true, repayments: true } 
+      include: { member: true, loanType: true, repayments: true, fines: true } 
     });
 
     // Add IFRS 9 fields: classification, impairment, ecl, and stage (if available)
     const rows = loans.map(l => ({
+      unpaidFines: (l.fines || []).reduce((sum, fine) => {
+        return sum + Math.max(0, Number(fine.amount || 0) - Number(fine.paidAmount || 0));
+      }, 0),
       memberName: l.member?.name || 'Non-member',
       loanType: l.loanType?.name || 'Other',
       principalAmount: l.amount,
       interestRate: l.interestRate,
       outstandingBalance: l.balance,
+      totalOutstanding: Number(l.balance || 0) + (l.fines || []).reduce((sum, fine) => {
+        return sum + Math.max(0, Number(fine.amount || 0) - Number(fine.paidAmount || 0));
+      }, 0),
       status: l.status,
       disbursementDate: l.disbursementDate,
       dueDate: l.dueDate,
@@ -825,7 +954,9 @@ export class ReportsService {
     const totals = loans.reduce(
       (acc, l) => {
         acc.principal += Number(l.amount);
-        acc.balance += Number(l.balance);
+        acc.balance += Number(l.balance || 0) + (l.fines || []).reduce((sum, fine) => {
+          return sum + Math.max(0, Number(fine.amount || 0) - Number(fine.paidAmount || 0));
+        }, 0);
         acc.impairment += Number(l.impairment || 0);
         acc.ecl += Number(l.ecl || 0);
         // Optionally, count by classification
@@ -969,6 +1100,14 @@ export class ReportsService {
         include: { member: { select: { id: true, name: true } } },
       });
 
+      const contributionTransfers = await (this.prisma as any).contributionTransfer.findMany({
+        where: { date: { gte: dateRange.start, lte: dateRange.end }, isVoided: false },
+        include: {
+          fromMember: { select: { id: true, name: true } },
+          toMember: { select: { id: true, name: true } },
+        },
+      });
+
       // Create lookup maps
       const depositsByRef = new Map();
       const withdrawalsByRef = new Map();
@@ -1074,6 +1213,26 @@ export class ReportsService {
           moneyIn: moneyIn,
           moneyOut: moneyOut,
           runningBalance: Number(balance.toFixed(2)),
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt,
+        });
+      }
+
+      for (const transfer of contributionTransfers) {
+        const fromName = transfer.fromMember?.name || transfer.fromMemberName || 'Member';
+        const toName = transfer.toMember?.name || transfer.toMemberName || transfer.toDestination || 'Target';
+        rows.push({
+          date: transfer.date,
+          reference: transfer.reference || '-',
+          description:
+            transfer.description ||
+            `Internal contribution transfer: ${fromName} → ${toName} (no bank impact)`,
+          moneyIn: null,
+          moneyOut: null,
+          runningBalance: Number(balance.toFixed(2)),
+          createdAt: transfer.createdAt,
+          updatedAt: transfer.updatedAt,
+          isInternalTransfer: true,
         });
       }
 
@@ -1160,6 +1319,14 @@ export class ReportsService {
     const withdrawals = await this.prisma.withdrawal.findMany({
       where: { date: { gte: dateRange.start, lte: dateRange.end } },
       include: { member: { select: { id: true, name: true } } },
+    });
+
+    const contributionTransfers = await (this.prisma as any).contributionTransfer.findMany({
+      where: { date: { gte: dateRange.start, lte: dateRange.end }, isVoided: false },
+      include: {
+        fromMember: { select: { id: true, name: true } },
+        toMember: { select: { id: true, name: true } },
+      },
     });
 
     // Create lookup maps
@@ -1288,8 +1455,28 @@ export class ReportsService {
           moneyIn: moneyIn,
           moneyOut: moneyOut,
           runningBalance: Number(runningBalance.toFixed(2)),
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt,
         });
       }
+    }
+
+    for (const transfer of contributionTransfers) {
+      const fromName = transfer.fromMember?.name || transfer.fromMemberName || 'Member';
+      const toName = transfer.toMember?.name || transfer.toMemberName || transfer.toDestination || 'Target';
+      rows.push({
+        date: transfer.date,
+        reference: transfer.reference || '-',
+        description:
+          transfer.description ||
+          `Internal contribution transfer: ${fromName} → ${toName} (no bank impact)`,
+        moneyIn: null,
+        moneyOut: null,
+        runningBalance: Number(runningBalance.toFixed(2)),
+        createdAt: transfer.createdAt,
+        updatedAt: transfer.updatedAt,
+        isInternalTransfer: true,
+      });
     }
 
     const totalMoneyIn = rows.reduce((sum, r) => sum + (r.moneyIn || 0), 0);
@@ -1887,7 +2074,9 @@ export class ReportsService {
     
     for (const loan of memberLoans) {
       const principalBalance = Number(loan.balance);
-      const outstandingFines = loan.fines.reduce((sum, f) => sum + Number(f.amount), 0);
+      const outstandingFines = loan.fines.reduce((sum, f) => {
+        return sum + Math.max(0, Number(f.amount || 0) - Number(f.paidAmount || 0));
+      }, 0);
       const totalLoanBalance = principalBalance + outstandingFines;
       
       rows.push({
@@ -3085,6 +3274,8 @@ export class ReportsService {
           moneyOut: moneyOut || null,
           moneyIn: moneyIn || null,
           runningBalance,
+          createdAt: e.createdAt,
+          updatedAt: e.updatedAt,
         };
       });
 

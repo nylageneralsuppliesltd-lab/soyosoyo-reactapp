@@ -39,11 +39,20 @@ const TransactionDetailModal = ({ isOpen, transaction, type, onClose, onEdit, on
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-KE', {
+      day: '2-digit',
+      month: '2-digit',
       year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
+    });
+  };
+
+  const formatDateTime = (dateString) => {
+    return new Date(dateString).toLocaleString('en-KE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: 'numeric',
       minute: '2-digit',
+      hour12: true,
     });
   };
 
@@ -101,10 +110,20 @@ const TransactionDetailModal = ({ isOpen, transaction, type, onClose, onEdit, on
               <div className="detail-item">
                 <div className="detail-label">
                   <Clock size={16} />
-                  Date & Time
+                  Transaction Date
                 </div>
                 <div className="detail-value">
                   {formatDate(transaction.date)}
+                </div>
+              </div>
+
+              <div className="detail-item">
+                <div className="detail-label">
+                  <Clock size={16} />
+                  Recorded On
+                </div>
+                <div className="detail-value" style={{fontSize: '0.9em', color: '#666'}}>
+                  {formatDateTime(transaction.createdAt)}
                 </div>
               </div>
 
@@ -253,11 +272,11 @@ const TransactionDetailModal = ({ isOpen, transaction, type, onClose, onEdit, on
                 </div>
               )}
 
-              {transaction.updatedAt && (
+              {transaction.updatedAt && new Date(transaction.updatedAt).getTime() !== new Date(transaction.createdAt).getTime() && (
                 <div className="detail-item">
-                  <div className="detail-label">Last Updated</div>
-                  <div className="detail-value">
-                    {formatDate(transaction.updatedAt)}
+                  <div className="detail-label">Last Modified</div>
+                  <div className="detail-value" style={{fontSize: '0.9em', color: '#888'}}>
+                    {formatDateTime(transaction.updatedAt)}
                   </div>
                 </div>
               )}

@@ -98,10 +98,24 @@ const AccountStatementPage = () => {
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-KE', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
+    });
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-KE', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
     });
   };
 
@@ -228,7 +242,7 @@ const AccountStatementPage = () => {
                 <table className="statement-table">
                   <thead>
                     <tr className="table-header">
-                      <th className="col-date">Date</th>
+                      <th className="col-date">Transaction Date / Recorded On</th>
                       <th className="col-ref">Reference</th>
                       <th className="col-desc">Description</th>
                       <th className="col-debit">Money Out (KES)</th>
@@ -239,7 +253,16 @@ const AccountStatementPage = () => {
                   <tbody>
                     {statement.rows.map((row, idx) => (
                       <tr key={idx} className={row.moneyIn ? 'credit-row' : row.moneyOut ? 'debit-row' : ''}>
-                        <td className="col-date">{formatDate(row.date)}</td>
+                        <td className="col-date">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div>
+                              <strong>Transaction:</strong> {formatDate(row.date)}
+                            </div>
+                            <div style={{ fontSize: '0.85em', color: '#666' }}>
+                              <strong>Recorded On:</strong> {formatDateTime(row.createdAt)}
+                            </div>
+                          </div>
+                        </td>
                         <td className="col-ref">{row.reference || '-'}</td>
                         <td className="col-desc">{row.description || '-'}</td>
                         <td className="col-debit amount">
@@ -259,7 +282,7 @@ const AccountStatementPage = () => {
                 <table className="statement-table">
                   <thead>
                     <tr className="table-header">
-                      <th className="col-date">Date</th>
+                      <th className="col-date">Transaction Date / Recorded On</th>
                       <th className="col-ref">Reference</th>
                       <th className="col-desc">Description</th>
                       <th className="col-debit">Money Out (KES)</th>
@@ -270,7 +293,16 @@ const AccountStatementPage = () => {
                   <tbody>
                     {statement.rows.map((row, idx) => (
                       <tr key={idx} className={row.moneyIn ? 'credit-row' : row.moneyOut ? 'debit-row' : ''}>
-                        <td className="col-date">{formatDate(row.date)}</td>
+                        <td className="col-date">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div>
+                              <strong>Transaction:</strong> {formatDate(row.date)}
+                            </div>
+                            <div style={{ fontSize: '0.85em', color: '#666' }}>
+                              <strong>Recorded On:</strong> {formatDateTime(row.createdAt)}
+                            </div>
+                          </div>
+                        </td>
                         <td className="col-ref">{row.reference || '-'}</td>
                         <td className="col-desc">{row.description || '-'}</td>
                         <td className="col-debit amount">{row.moneyOut ? formatCurrency(row.moneyOut) : '-'}</td>

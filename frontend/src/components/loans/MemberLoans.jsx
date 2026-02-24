@@ -848,7 +848,7 @@ const MemberLoans = ({ onError, onLoading }) => {
               <th>Balance</th>
               <th>Period</th>
               <th>Status</th>
-              <th>Disbursed</th>
+              <th>Disbursed / Recorded</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -869,7 +869,12 @@ const MemberLoans = ({ onError, onLoading }) => {
                   <td className="amount-cell">KES {(loan.balance || 0).toLocaleString()}</td>
                   <td>{loan.periodMonths} mo</td>
                   <td><span className={`status-badge ${loan.status}`}>{loan.status}</span></td>
-                  <td>{new Date(loan.disbursementDate).toLocaleDateString()}</td>
+                  <td>
+                    <div style={{lineHeight: '1.4'}}>
+                      <div><strong>Disbursed:</strong> {new Date(loan.disbursementDate).toLocaleDateString('en-KE', {day: '2-digit', month: '2-digit', year: 'numeric'})}</div>
+                      <div style={{fontSize: '0.85em', color: '#666'}}><strong>Recorded:</strong> {new Date(loan.createdAt).toLocaleString('en-KE', {day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true})}</div>
+                    </div>
+                  </td>
                   <td className="actions-cell">
                     <button
                       className="btn-icon"

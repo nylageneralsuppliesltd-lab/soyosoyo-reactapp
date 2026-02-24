@@ -25,6 +25,8 @@ import { LoanTypesModule } from './loan-types/loan-types.module';
 import { DiagnosticsModule } from './diagnostics/diagnostics.module';
 import { IfrsModule } from './ifrs/ifrs.module';
 import { AuthModule } from './auth/auth.module';
+import { ImportModule } from './import/import.module';
+import { ContributionTransfersModule } from './contribution-transfers/contribution-transfers.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { AccessGuard } from './auth/access.guard';
 
@@ -52,6 +54,8 @@ import { AccessGuard } from './auth/access.guard';
     DiagnosticsModule,
     IfrsModule,
     AuthModule,
+    ImportModule,
+    ContributionTransfersModule,
   ],
   controllers: [AppController],
   providers: [

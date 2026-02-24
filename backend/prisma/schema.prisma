@@ -105,6 +105,7 @@ model Member {
   loanBalance        Float     @default(0)
   active             Boolean   @default(true)
   isResident         Boolean   @default(true)
+  lastLoginAt        DateTime?
   
   // Password reset fields
   resetCode          String?   @unique
@@ -118,6 +119,8 @@ model Member {
   fines              Fine[]
   invoices           MemberInvoice[]
   profile            AppProfile?
+  transfersFrom      ContributionTransfer[] @relation("TransferFrom")
+  transfersTo        ContributionTransfer[] @relation("TransferTo")
   
   nextOfKin          Json?     
   createdAt          DateTime  @default(now())
@@ -464,6 +467,56 @@ model Withdrawal {
   @@index([memberId])
   @@index([date])
   @@index([type])
+}
+
+// Contribution Transfers: Internal member account movements
+// These are GL-level transactions that don't affect bank balances
+model ContributionTransfer {
+  id                Int       @id @default(autoincrement())
+  
+  // Transfer source
+  fromMember        Member?   @relation("TransferFrom", fields: [fromMemberId], references: [id], onDelete: SetNull)
+  fromMemberId      Int?
+  fromMemberName    String?   // For non-member transfers or historical data
+  fromSource        String    // 'contribution', 'loan', 'savings'
+  fromContributionType String? // e.g., 'Monthly Minimum Contribution'
+  fromLoanId        Int?      // If transferring from a specific loan
+  
+  // Transfer destination
+  toMember          Member?   @relation("TransferTo", fields: [toMemberId], references: [id], onDelete: SetNull)
+  toMemberId        Int?
+  toMemberName      String?   // For non-member transfers or historical data
+  toDestination     String    // 'contribution', 'loan', 'savings'
+  toContributionType String? // e.g., 'Emergency Contribution'
+  toLoanId          Int?      // If transferring to a specific loan
+  
+  // Transaction details
+  amount            Decimal   @db.Decimal(14, 2)
+  date              DateTime  @db.Date
+  reference         String?   @unique
+  description       String?   // e.g., "to reduce arrears", "member request"
+  notes             String?
+  category          String?   // 'contribution_to_loan', 'member_to_member', 'savings_transfer'
+  
+  // GL posting details
+  debitAccount      String?   // GL account debited
+  creditAccount     String?   // GL account credited
+  journalReference  String?   // Reference to journal entry
+  
+  // Audit fields
+  recordedBy        String?
+  isVoided          Boolean   @default(false)
+  voidedAt          DateTime?
+  voidedBy          String?
+  voidReason        String?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([fromMemberId])
+  @@index([toMemberId])
+  @@index([date])
+  @@index([category])
 }
 
 // ============== LOANS ==============

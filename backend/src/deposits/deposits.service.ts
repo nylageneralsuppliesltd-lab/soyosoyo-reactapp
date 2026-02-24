@@ -2,12 +2,14 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Prisma, TransactionType } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { RepaymentsService } from '../repayments/repayments.service';
 import { randomUUID } from 'crypto';
 
 export interface BulkPaymentRecord {
   date: string;
   memberName: string;
   memberId?: number;
+  loanId?: number;
   amount: number;
   paymentType: 'contribution' | 'fine' | 'loan_repayment' | 'income' | 'miscellaneous' | 'share_capital';
   contributionType?: string; // For custom contribution types
@@ -34,6 +36,7 @@ export class DepositsService {
   constructor(
     private prisma: PrismaService,
     private auditService: AuditService,
+    private repaymentsService: RepaymentsService,
   ) {}
 
   private generateReference(prefix: string) {
@@ -146,6 +149,25 @@ export class DepositsService {
 
   async create(data: any) {
     try {
+      const requestedType = (data.type || '').toString().toLowerCase();
+      const requestedLoanId = data.loanId ? parseInt(data.loanId, 10) : null;
+
+      if (requestedType === 'loan_repayment') {
+        if (!requestedLoanId || Number.isNaN(requestedLoanId)) {
+          throw new BadRequestException('Loan ID is required for loan_repayment deposits');
+        }
+
+        return this.repaymentsService.create({
+          loanId: requestedLoanId,
+          memberId: data.memberId ? parseInt(data.memberId, 10) : undefined,
+          accountId: data.accountId ? parseInt(data.accountId, 10) : undefined,
+          amount: data.amount,
+          date: data.date,
+          method: data.method,
+          notes: data.notes,
+        });
+      }
+
       // Transform and validate incoming data
       const depositData = {
         memberName: data.memberName?.trim() || null,
@@ -299,6 +321,8 @@ export class DepositsService {
       source: 'deposit',
       recordedAt: d.createdAt || d.date,
       isSystemGenerated: false,
+      createdAt: d.createdAt,
+      updatedAt: d.updatedAt,
     }));
 
     // Transform repayments to common format (as deposit entries)
@@ -913,6 +937,24 @@ export class DepositsService {
     const amountDecimal = new Prisma.Decimal(payment.amount);
     const paymentDate = new Date(payment.date);
 
+    if (payment.paymentType === 'loan_repayment') {
+      if (!payment.loanId || Number.isNaN(Number(payment.loanId))) {
+        throw new BadRequestException('loanId is required for loan_repayment bulk entries');
+      }
+
+      const repayment = await this.repaymentsService.create({
+        loanId: Number(payment.loanId),
+        memberId: memberId || undefined,
+        accountId: payment.accountId || undefined,
+        amount: payment.amount,
+        date: paymentDate,
+        method: payment.paymentMethod,
+        notes: payment.notes || payment.description || payment.reason || payment.purpose || null,
+      });
+
+      return Number(repayment.id);
+    }
+
     // Determine deposit type and related accounts
     const depositType = payment.paymentType;
     const description =
@@ -1032,7 +1074,7 @@ export class DepositsService {
 
       case 'loan_repayment': {
         // DR: Cash (money comes in)
-        // CR: Loan Repayments GL Account
+        // CR: Loans Receivable (reduce outstanding principal)
         const cashAccount = accountId
           ? await this.prisma.account.findUnique({ where: { id: accountId } })
           : await this.prisma.account.findFirst({ where: { type: 'cash' } });
@@ -1042,8 +1084,8 @@ export class DepositsService {
         }
 
         const creditAccount = await this.ensureGlAccount(
-          'Loan Repayments Received',
-          'GL account for loan repayments received',
+          'Loans Receivable',
+          'Loans disbursed to members (Asset account)',
         );
 
         debitAccountId = cashAccount.id;

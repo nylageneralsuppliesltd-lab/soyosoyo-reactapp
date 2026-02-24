@@ -2,6 +2,7 @@
 import { DollarSign, ArrowRightLeft, RefreshCcw, TrendingUp, List, Plus, Upload, Edit, Trash2, Search, Eye, Ban } from 'lucide-react';
 import ExpenseForm from './ExpenseForm';
 import TransferForm from './TransferForm';
+import ContributionTransferForm from './ContributionTransferForm';
 import RefundForm from './RefundForm';
 import DividendForm from './DividendForm';
 import WithdrawalsBatchEntry from './WithdrawalsBatchEntry';
@@ -66,21 +67,58 @@ const WithdrawalsPage = () => {
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       
-      const response = await fetch(`${API_BASE}/withdrawals?${params.toString()}`);
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Handle both paginated and non-paginated responses
+      const [withdrawalsResponse, contributionTransfersResponse] = await Promise.all([
+        fetch(`${API_BASE}/withdrawals?${params.toString()}`),
+        fetch(`${API_BASE}/contribution-transfers?${params.toString()}`),
+      ]);
+
+      let normalizedWithdrawals = [];
+      if (withdrawalsResponse.ok) {
+        const data = await withdrawalsResponse.json();
         if (data.data && Array.isArray(data.data)) {
-          setWithdrawals(data.data);
-          setTotalCount(data.total || data.data.length);
+          normalizedWithdrawals = data.data;
         } else if (Array.isArray(data)) {
-          setWithdrawals(data);
-          setTotalCount(data.length);
-        } else {
-          setWithdrawals([]);
-          setTotalCount(0);
+          normalizedWithdrawals = data;
         }
+      }
+
+      let normalizedTransfers = [];
+      if (contributionTransfersResponse.ok) {
+        const transferData = await contributionTransfersResponse.json();
+        const transferRows = transferData.data && Array.isArray(transferData.data)
+          ? transferData.data
+          : Array.isArray(transferData)
+            ? transferData
+            : [];
+
+        normalizedTransfers = transferRows.map((transfer) => ({
+          id: `ct-${transfer.id}`,
+          rawId: transfer.id,
+          type: 'contribution_transfer',
+          amount: transfer.amount,
+          date: transfer.date,
+          createdAt: transfer.createdAt,
+          updatedAt: transfer.updatedAt,
+          reference: transfer.reference,
+          description:
+            transfer.description ||
+            `Contribution transfer: ${transfer.fromMember?.name || transfer.fromMemberName || 'Member'} → ${transfer.toMember?.name || transfer.toMemberName || transfer.toDestination || 'Target'}`,
+          memberName: transfer.fromMember?.name || transfer.fromMemberName || '-',
+          category: transfer.category || 'Contribution Transfer',
+          method: 'internal',
+          isVoided: transfer.isVoided,
+          isSystemGenerated: false,
+          account: { name: 'GL Internal Transfer' },
+        }));
+      }
+
+      const merged = [...normalizedWithdrawals, ...normalizedTransfers].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      );
+
+      if (merged.length > 0) {
+        setWithdrawals(merged);
+        setTotalCount(merged.length);
       } else {
         setWithdrawals([]);
         setTotalCount(0);
@@ -206,6 +244,14 @@ const WithdrawalsPage = () => {
     }).format(amount);
   };
 
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-KE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  };
+
   const formatDateTime = (dateString) => {
     return new Date(dateString).toLocaleString('en-KE', {
       year: 'numeric',
@@ -216,12 +262,25 @@ const WithdrawalsPage = () => {
     });
   };
 
+  const formatDateWithTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-KE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
   const getRecordedAt = (withdrawal) => withdrawal.recordedAt || withdrawal.createdAt || withdrawal.date;
 
   const getTypeBadge = (type) => {
     const badges = {
       expense: { label: 'Expense', className: 'badge-expense' },
       transfer: { label: 'Transfer', className: 'badge-transfer' },
+      contribution_transfer: { label: 'Contribution Transfer', className: 'badge-transfer' },
       refund: { label: 'Refund', className: 'badge-refund' },
       dividend: { label: 'Dividend', className: 'badge-dividend' },
       loan_disbursement: { label: 'Loan Disbursement', className: 'badge-disbursement' },
@@ -296,6 +355,13 @@ const WithdrawalsPage = () => {
         >
           <ArrowRightLeft size={18} />
           Account Transfer
+        </button>
+        <button
+          className={`menu-tab ${activeTab === 'contribution-transfer' ? 'active' : ''}`}
+          onClick={() => setActiveTab('contribution-transfer')}
+        >
+          <ArrowRightLeft size={18} />
+          Contribution Transfer
         </button>
         <button
           className={`menu-tab ${activeTab === 'refund' ? 'active' : ''}`}
@@ -381,6 +447,7 @@ const WithdrawalsPage = () => {
                 <option value="all">All Types</option>
                 <option value="expense">Expenses</option>
                 <option value="transfer">Transfers</option>
+                <option value="contribution_transfer">Contribution Transfers</option>
                 <option value="refund">Refunds</option>
                 <option value="dividend">Dividends</option>
                 <option value="loan_disbursement">Loan Disbursements</option>
@@ -417,7 +484,7 @@ const WithdrawalsPage = () => {
                 <table className="withdrawals-table">
                   <thead>
                     <tr>
-                      <th>Date</th>
+                      <th>Transaction Date / Recorded On</th>
                       <th>Type</th>
                       <th>Member/Category</th>
                       <th>Description</th>
@@ -430,7 +497,16 @@ const WithdrawalsPage = () => {
                   <tbody>
                     {filteredWithdrawals.map((withdrawal) => (
                       <tr key={withdrawal.id} className={withdrawal.isVoided ? 'row-voided' : ''}>
-                        <td>{formatDateTime(getRecordedAt(withdrawal))}</td>
+                        <td>
+                          <div className="timestamp-cell">
+                            <div className="transaction-date">
+                              <strong>Withdrawal Date:</strong> {formatDate(withdrawal.date)}
+                            </div>
+                            <div className="recorded-at" style={{fontSize: '0.85em', color: '#666'}}>
+                              <strong>Recorded On:</strong> {formatDateWithTime(withdrawal.createdAt)}
+                            </div>
+                          </div>
+                        </td>
                         <td>
                           {getTypeBadge(withdrawal.type)}
                           {withdrawal.isVoided && <span className="void-badge">VOID</span>}
@@ -460,7 +536,7 @@ const WithdrawalsPage = () => {
                             >
                               <Eye size={16} />
                             </button>
-                            {!withdrawal.isVoided && (
+                            {!withdrawal.isVoided && withdrawal.type !== 'contribution_transfer' && (
                               <button
                                 className="btn-icon"
                                 title="Edit"
@@ -469,7 +545,7 @@ const WithdrawalsPage = () => {
                                 <Edit size={16} />
                               </button>
                             )}
-                            {canManage && (
+                            {canManage && withdrawal.type !== 'contribution_transfer' && (
                               <button
                                 className={`btn-icon warning ${withdrawal.isVoided ? 'disabled' : ''}`}
                                 title="Void"
@@ -479,7 +555,7 @@ const WithdrawalsPage = () => {
                                 <Ban size={16} />
                               </button>
                             )}
-                            {canManage && (
+                            {canManage && withdrawal.type !== 'contribution_transfer' && (
                               <button
                                 className="btn-icon danger"
                                 title="Delete"
@@ -561,6 +637,7 @@ const WithdrawalsPage = () => {
 
         {activeTab === 'expense' && <ExpenseForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
         {activeTab === 'transfer' && <TransferForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
+        {activeTab === 'contribution-transfer' && <ContributionTransferForm onSuccess={handleSuccess} onCancel={handleCancel} />}
         {activeTab === 'refund' && <RefundForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
         {activeTab === 'dividend' && <DividendForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
         {activeTab === 'batch' && <WithdrawalsBatchEntry onSuccess={handleSuccess} />}

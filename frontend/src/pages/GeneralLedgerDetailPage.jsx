@@ -137,10 +137,24 @@ const GeneralLedgerPage = () => {
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-KE', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
+    });
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-KE', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
     });
   };
 
@@ -267,7 +281,7 @@ const GeneralLedgerPage = () => {
                           <table className="ledger-table">
                             <thead>
                               <tr className="table-header">
-                                <th className="col-date">Date</th>
+                                <th className="col-date">Transaction Date / Recorded On</th>
                                 <th className="col-ref">Reference</th>
                                 <th className="col-desc">Description</th>
                                 <th className="col-opposite">Opposite Account</th>
@@ -293,7 +307,16 @@ const GeneralLedgerPage = () => {
                               {accountData.transactions && accountData.transactions.length > 0 ? (
                                 accountData.transactions.map((txn, txnIdx) => (
                                   <tr key={txn.id || txnIdx} className={txn.moneyOut ? 'debit-row' : 'credit-row'}>
-                                    <td className="col-date">{formatDate(txn.date)}</td>
+                                    <td className="col-date">
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div>
+                                          <strong>Entry Date:</strong> {formatDate(txn.date)}
+                                        </div>
+                                        <div style={{ fontSize: '0.85em', color: '#666' }}>
+                                          <strong>Recorded On:</strong> {formatDateTime(txn.createdAt)}
+                                        </div>
+                                      </div>
+                                    </td>
                                     <td className="col-ref">{txn.reference || '-'}</td>
                                     <td className="col-desc">{txn.description || '-'}</td>
                                     <td className="col-opposite">{txn.oppositeAccount || '-'}</td>

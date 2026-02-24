@@ -223,6 +223,14 @@ const DepositsPage = () => {
     }).format(amount);
   };
 
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-KE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  };
+
   const formatDateTime = (dateString) => {
     return new Date(dateString).toLocaleString('en-KE', {
       year: 'numeric',
@@ -230,6 +238,18 @@ const DepositsPage = () => {
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+    });
+  };
+
+  const formatDateWithTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-KE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
     });
   };
 
@@ -458,7 +478,7 @@ const DepositsPage = () => {
                 <table className="deposits-table">
                   <thead>
                     <tr>
-                      <th>Date</th>
+                      <th>Transaction Date / Recorded On</th>
                       <th>Type</th>
                       <th>Member</th>
                       <th>Description</th>
@@ -470,7 +490,16 @@ const DepositsPage = () => {
                   <tbody>
                     {filteredDeposits.map((deposit) => (
                       <tr key={deposit.id} className={deposit.isVoided ? 'row-voided' : ''}>
-                        <td>{formatDateTime(getRecordedAt(deposit))}</td>
+                        <td>
+                          <div className="timestamp-cell">
+                            <div className="transaction-date">
+                              <strong>Deposit Date:</strong> {formatDate(deposit.date)}
+                            </div>
+                            <div className="recorded-at" style={{fontSize: '0.85em', color: '#666'}}>
+                              <strong>Recorded On:</strong> {formatDateWithTime(deposit.createdAt)}
+                            </div>
+                          </div>
+                        </td>
                         <td>
                           {getTypeBadge(deposit.type)}
                           {deposit.isVoided && <span className="void-badge">VOID</span>}
