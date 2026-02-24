@@ -77,8 +77,8 @@ function parseLoanDisbursementDescription(description) {
 
 function extractAccountsFromDescription(description) {
   const desc = normalizeText(description);
-  const fromMatch = desc.match(/from\s+(.+?)(?:\s*-|\s*,|\s+for\s|\s+deposited\s+to|$)/i);
-  const toMatch = desc.match(/(?:to|deposited\s+to|withdrawn\s+from)\s+(.+?)(?:\s*-|\s*,|\s+for\s|$)/i);
+  const fromMatch = desc.match(/from\s+(.+?)(?:\s-\s|,\s|\s+for\s|\s+deposited\s+to|$)/i);
+  const toMatch = desc.match(/(?:to|deposited\s+to|withdrawn\s+from)\s+(.+?)(?:\s-\s|,\s|\s+for\s|$)/i);
   return {
     from: fromMatch ? normalizeText(fromMatch[1]) : null,
     to: toMatch ? normalizeText(toMatch[1]) : null,
@@ -100,6 +100,9 @@ function pickAccount(accounts, hint) {
   }
   if (/cytonn/.test(h)) {
     return accounts.find((a) => /cytonn/i.test(a.name)) || null;
+  }
+  if (/state\s+bank\s+of\s+mauritius|money\s+market\s+fund|collection\s+account/.test(h)) {
+    return accounts.find((a) => /cytonn|money\s+market|collection\s+account/i.test(a.name)) || null;
   }
   if (/cash at hand|cash/.test(h)) {
     return accounts.find((a) => /cash/i.test(a.name)) || null;

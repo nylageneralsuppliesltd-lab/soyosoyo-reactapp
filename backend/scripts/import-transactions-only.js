@@ -1,0 +1,226 @@
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+const path = require('path');
+const ExcelJS = require('exceljs');
+const { PrismaClient, Prisma } = require('@prisma/client');
+const { PrismaNeon } = require('@prisma/adapter-neon');
+
+const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
+const BACKEND_DIR = path.resolve(__dirname, '..');
+
+function normalizeText(value) {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function parseMoney(value) {
+  if (value === null || value === undefined) return 0;
+  const raw = String(value).replace(/,/g, '').trim();
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function parseDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === 'number') {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    return new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+  }
+
+  const text = normalizeText(value);
+  if (!text) return null;
+
+  const ddmmyyyy = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (ddmmyyyy) {
+    const [, dd, mm, yyyy] = ddmmyyyy;
+    return new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+  }
+
+  const cleaned = text.replace(/(\d+)(st|nd|rd|th)/gi, '$1').replace(/,/g, '');
+  const parsed = new Date(cleaned);
+  if (!Number.isNaN(parsed.getTime())) return parsed;
+
+  return null;
+}
+
+async function readWorkbook(filename) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(path.join(BACKEND_DIR, filename));
+  return workbook;
+}
+
+function getHeaders(ws, headerRow = 2, maxCols = 30) {
+  const headers = [];
+  for (let c = 1; c <= maxCols; c += 1) {
+    const value = normalizeText(ws.getRow(headerRow).getCell(c).value);
+    headers.push(value || `Column${c}`);
+  }
+  let last = headers.length;
+  while (last > 0 && /^Column\d+$/i.test(headers[last - 1])) last -= 1;
+  return headers.slice(0, last);
+}
+
+function extractMemberAndContribution(description) {
+  const desc = normalizeText(description);
+  const m = desc.match(/from\s+(.+?)\s+for\s+(.+?)\s+to\s+chamasoft/i);
+  if (!m) return { memberName: null, contributionName: null };
+  return { memberName: normalizeText(m[1]), contributionName: normalizeText(m[2]) };
+}
+
+function extractMemberGeneric(description) {
+  const desc = normalizeText(description);
+  const from = desc.match(/from\s+(.+?)\s+(to|for)\s+/i);
+  if (from) return normalizeText(from[1]);
+  const to = desc.match(/to\s+(.+?)\s+(for|on|at|:|$)/i);
+  if (to) return normalizeText(to[1]);
+  return null;
+}
+
+function mapContributionType(description, amount) {
+  const desc = normalizeText(description).toLowerCase();
+  if (desc.includes('registration fee')) return 'Registration Fee';
+  if (desc.includes('monthly minimum contribution')) return 'Monthly Minimum Contribution';
+  if (desc.includes('risk fund')) return 'Risk Fund';
+  if (desc.includes('share capital')) return 'Share Capital';
+  if (amount === 3000) return 'Share Capital';
+  if (amount === 50) return 'Risk Fund';
+  if (amount === 200) return 'Monthly Minimum Contribution';
+  return null;
+}
+
+function mapBankAccountId(description, accountMap) {
+  const desc = normalizeText(description).toLowerCase();
+  if (desc.includes('chamasoft e-wallet')) {
+    return accountMap.get('SOYOSOYO MEDICARE COOPERATE SAVINGS AND CREDIT SOCIETY C.E.W');
+  }
+  if (desc.includes('co-operative bank')) {
+    return accountMap.get('SOYOSOYO MEDICARE COOPERATIVE SAVINGS CREDIT SOCIETY');
+  }
+  if (desc.includes('state bank of mauritius') || desc.includes('cytonn')) {
+    return accountMap.get('Cytonn Money Market Fund - Collection Account');
+  }
+  if (desc.includes('cash at hand')) {
+    return accountMap.get('Cash at Hand');
+  }
+  return accountMap.get('SOYOSOYO MEDICARE COOPERATE SAVINGS AND CREDIT SOCIETY C.E.W');
+}
+
+async function main() {
+  try {
+    const reset = process.argv.includes('--reset');
+
+    const members = await prisma.member.findMany({ select: { id: true, name: true } });
+    const memberMap = new Map(members.map((m) => [m.name.toLowerCase(), m.id]));
+
+    if (reset) {
+      await prisma.deposit.deleteMany({});
+      await prisma.withdrawal.deleteMany({});
+      console.log('🧹 Existing deposits/withdrawals cleared');
+    }
+
+    const accounts = await prisma.account.findMany({ select: { id: true, name: true } });
+    const accountMap = new Map(accounts.map((a) => [a.name, a.id]));
+
+    const wb = await readWorkbook('SOYOSOYO  SACCO Transaction Statement (7).xlsx');
+    const ws = wb.worksheets[0];
+    const headers = getHeaders(ws, 2);
+
+    const dateIdx = headers.findIndex((h) => /^Date$/i.test(h));
+    const typeIdx = headers.findIndex((h) => /Transaction Type/i.test(h));
+    const descIdx = headers.findIndex((h) => /^Description$/i.test(h));
+    const wdIdx = headers.findIndex((h) => /Amount Withdrawn/i.test(h));
+    const dpIdx = headers.findIndex((h) => /Amount Deposited/i.test(h));
+
+    const rows = [];
+    for (let r = 3; r <= ws.rowCount; r += 1) {
+      const row = ws.getRow(r);
+      const dateText = normalizeText(row.getCell(dateIdx + 1).value);
+      if (!dateText || /balance b\/f/i.test(dateText)) continue;
+      const date = parseDate(dateText);
+      if (!date) continue;
+      rows.push({ row, date });
+    }
+
+    rows.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    let deposits = 0;
+    let withdrawals = 0;
+    const depositRows = [];
+    const withdrawalRows = [];
+
+    for (const { row, date } of rows) {
+      const txnType = normalizeText(row.getCell(typeIdx + 1).value);
+      const description = normalizeText(row.getCell(descIdx + 1).value);
+      const withdrawn = parseMoney(row.getCell(wdIdx + 1).value);
+      const deposited = parseMoney(row.getCell(dpIdx + 1).value);
+
+      const { memberName } = extractMemberAndContribution(description);
+      const genericMember = memberName || extractMemberGeneric(description);
+      const memberId = genericMember ? memberMap.get(genericMember.toLowerCase()) || null : null;
+      const accountId = mapBankAccountId(description, accountMap);
+
+      if (deposited > 0) {
+        let type = 'income';
+        if (/Contribution payment/i.test(txnType)) type = 'contribution';
+        else if (/Loan Repayment/i.test(txnType)) type = 'loan_repayment';
+        else if (/Incoming Bank Funds Transfer/i.test(txnType)) type = 'transfer';
+
+        const contributionType = type === 'contribution' ? mapContributionType(description, deposited) : null;
+        const category = contributionType || (type === 'income' ? extractMemberAndContribution(description).contributionName : null) || null;
+
+        depositRows.push({
+          memberId: memberId || null,
+          amount: new Prisma.Decimal(deposited),
+          type,
+          category,
+          date,
+          accountId,
+          description,
+        });
+
+        deposits += 1;
+      }
+
+      if (withdrawn > 0) {
+        let type = 'expense';
+        if (/Funds Transfer/i.test(txnType)) type = 'transfer';
+        else if (/Loan Disbursement|Bank Loan Disbursement/i.test(txnType)) type = 'loan_disbursement';
+
+        withdrawalRows.push({
+          memberId: memberId || null,
+          amount: new Prisma.Decimal(withdrawn),
+          type,
+          date,
+          accountId,
+          description,
+        });
+
+        withdrawals += 1;
+      }
+    }
+
+    const batchSize = 500;
+    for (let i = 0; i < depositRows.length; i += batchSize) {
+      await prisma.deposit.createMany({ data: depositRows.slice(i, i + batchSize) });
+    }
+
+    for (let i = 0; i < withdrawalRows.length; i += batchSize) {
+      await prisma.withdrawal.createMany({ data: withdrawalRows.slice(i, i + batchSize) });
+    }
+
+    const depositTotal = await prisma.deposit.aggregate({ _sum: { amount: true } });
+    const withdrawalTotal = await prisma.withdrawal.aggregate({ _sum: { amount: true } });
+
+    console.log(`🏦 Statement transactions imported: deposits=${deposits}, withdrawals=${withdrawals}`);
+    console.log(`💵 Deposit total: ${Number(depositTotal._sum.amount || 0).toFixed(2)} KES`);
+    console.log(`💸 Withdrawal total: ${Number(withdrawalTotal._sum.amount || 0).toFixed(2)} KES`);
+  } catch (error) {
+    console.error('❌ Import failed:', error.message);
+    console.error(error.stack);
+    process.exitCode = 1;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+main();
