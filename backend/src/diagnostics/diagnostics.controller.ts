@@ -1,10 +1,14 @@
 import { Controller, Get, Query, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { DiagnosticsService } from './diagnostics.service';
 
 @Controller('diagnostics')
 export class DiagnosticsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly diagnosticsService: DiagnosticsService,
+  ) {}
 
   private ensureEnabled() {
     if (process.env.DB_DIAGNOSTICS !== 'true') {
@@ -386,5 +390,11 @@ export class DiagnosticsController {
       duplicates: { journalReferences: duplicateReferences, categoryLedger: categoryDuplicates },
       accountMismatches,
     };
+  }
+
+  @Get('loan-ledger-drift')
+  async loanLedgerDrift() {
+    this.ensureEnabled();
+    return this.diagnosticsService.getLoanLedgerDrift();
   }
 }

@@ -1,0 +1,1629 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Loan Statements Index - SOYOSOYO SACCO</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px;
+      text-align: center;
+    }
+    .header h1 { font-size: 32px; margin-bottom: 10px; }
+    .header p { font-size: 16px; opacity: 0.9; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 20px;
+      padding: 30px 40px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .stat-item {
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #667eea;
+    }
+    .stat-label {
+      font-size: 13px;
+      color: #666;
+      margin-top: 5px;
+      text-transform: uppercase;
+    }
+    .content {
+      padding: 40px;
+    }
+    .search-box {
+      margin-bottom: 30px;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+    .search-box input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th {
+      background: #f8f9fa;
+      padding: 15px;
+      text-align: left;
+      border-bottom: 2px solid #e0e0e0;
+      font-weight: 600;
+      color: #333;
+    }
+    td {
+      padding: 15px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    tr:hover {
+      background: #f8f9fa;
+    }
+    a {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s;
+    }
+    a:hover {
+      color: #764ba2;
+      text-decoration: underline;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .badge-active { background: #d4edda; color: #155724; }
+    .badge-closed { background: #cce5ff; color: #004085; }
+    .badge-defaulted { background: #f8d7da; color: #721c24; }
+    .footer {
+      text-align: center;
+      padding: 30px;
+      border-top: 1px solid #e0e0e0;
+      color: #666;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📊 Loan Statements Portal</h1>
+      <p>SOYOSOYO SACCO - Member Loan Accounts</p>
+    </div>
+    
+    <div class="stats">
+      <div class="stat-item">
+        <div class="stat-value">144</div>
+        <div class="stat-label">Total Loans</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">KES 37362</div>
+        <div class="stat-label">Total Fines Accrued</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <div class="search-box">
+        <input type="text" id="search" placeholder="🔍 Search by member name or loan ID..." onkeyup="filterTable()">
+      </div>
+      
+      <table id="loansTable">
+        <thead>
+          <tr>
+            <th>Loan ID</th>
+            <th>Member Name</th>
+            <th>Loan Amount</th>
+            <th>Outstanding</th>
+            <th>Fines</th>
+            <th>Status</th>
+            <th>View</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr>
+              <td>#1</td>
+              <td>Emily Karembo JOLLAH</td>
+              <td>KES 30000.00</td>
+              <td>KES 33600.00</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-1-Emily_Karembo_JOLLAH.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#2</td>
+              <td>ALICE MBODZE</td>
+              <td>KES 200000.00</td>
+              <td>KES 223999.92</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-2-ALICE_MBODZE.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#3</td>
+              <td>Witness Tsuma</td>
+              <td>KES 10000.00</td>
+              <td>KES 10899.99</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-3-Witness_Tsuma.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#4</td>
+              <td>Judith Mramba</td>
+              <td>KES 48000.00</td>
+              <td>KES 52320.00</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-4-Judith_Mramba.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#5</td>
+              <td>Judith Mramba</td>
+              <td>KES 52000.00</td>
+              <td>KES 56679.99</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-5-Judith_Mramba.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#6</td>
+              <td>Paul Katana Mramba</td>
+              <td>KES 10000.00</td>
+              <td>KES 10899.99</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-6-Paul_Katana_Mramba.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#7</td>
+              <td>Christine Salame Lucky</td>
+              <td>KES 5000.00</td>
+              <td>KES 5449.98</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-7-Christine_Salame_Lucky.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#8</td>
+              <td>HAMISI CHIGAMBA</td>
+              <td>KES 21000.00</td>
+              <td>KES 23520.00</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-8-HAMISI_CHIGAMBA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#9</td>
+              <td>Kadzo Ngumbao</td>
+              <td>KES 20000.00</td>
+              <td>KES 20799.84</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-9-Kadzo_Ngumbao.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#10</td>
+              <td>HAMISI CHIGAMBA</td>
+              <td>KES 3000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-10-HAMISI_CHIGAMBA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#11</td>
+              <td>Lenus Kibogo</td>
+              <td>KES 10000.00</td>
+              <td>KES 6335.66</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-11-Lenus_Kibogo.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#12</td>
+              <td>Kwekwe Lwambi</td>
+              <td>KES 40000.00</td>
+              <td>KES 43890.66</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-12-Kwekwe_Lwambi.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#13</td>
+              <td>Samson Thoya</td>
+              <td>KES 40000.00</td>
+              <td>KES 41065.96</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-13-Samson_Thoya.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#14</td>
+              <td>Paul Katana Mramba</td>
+              <td>KES 5000.00</td>
+              <td>KES 0.02</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-14-Paul_Katana_Mramba.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#15</td>
+              <td>Frank Kombe</td>
+              <td>KES 2000.00</td>
+              <td>KES 2194.51</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-15-Frank_Kombe.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#16</td>
+              <td>Samson Thoya</td>
+              <td>KES 60000.00</td>
+              <td>KES 61585.76</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-16-Samson_Thoya.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#17</td>
+              <td>Lillian Pendo</td>
+              <td>KES 8000.00</td>
+              <td>KES 3778.11</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-17-Lillian_Pendo.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#18</td>
+              <td>Peris Charo Mwagona</td>
+              <td>KES 3000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-18-Peris_Charo_Mwagona.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#19</td>
+              <td>Thomas Ngowa Mwaringa</td>
+              <td>KES 3000.00</td>
+              <td>KES 2281.80</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-19-Thomas_Ngowa_Mwaringa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#20</td>
+              <td>Peris Charo Mwagona</td>
+              <td>KES 3000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-20-Peris_Charo_Mwagona.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#21</td>
+              <td>ESTHER NZAI</td>
+              <td>KES 20000.00</td>
+              <td>KES 22437.25</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-21-ESTHER_NZAI.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#22</td>
+              <td>Yeri Charo Joseph</td>
+              <td>KES 15000.00</td>
+              <td>KES 10568.00</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-22-Yeri_Charo_Joseph.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#23</td>
+              <td>Salama Karema</td>
+              <td>KES 65000.00</td>
+              <td>KES 54706.25</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-23-Salama_Karema.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#24</td>
+              <td>Sidi Saro Ngowa</td>
+              <td>KES 20000.00</td>
+              <td>KES 25013.02</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-24-Sidi_Saro_Ngowa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#25</td>
+              <td>Sidi Saro Ngowa</td>
+              <td>KES 8000.00</td>
+              <td>KES 6974.85</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-25-Sidi_Saro_Ngowa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#26</td>
+              <td>SIDI JEFWA</td>
+              <td>KES 9500.00</td>
+              <td>KES 8865.92</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-26-SIDI_JEFWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#27</td>
+              <td>SIDI JEFWA</td>
+              <td>KES 50500.00</td>
+              <td>KES 47133.96</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-27-SIDI_JEFWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#28</td>
+              <td>Ivan Safari</td>
+              <td>KES 45000.00</td>
+              <td>KES 50027.34</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-28-Ivan_Safari.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#29</td>
+              <td>Ivan Safari</td>
+              <td>KES 25000.00</td>
+              <td>KES 27793.53</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-29-Ivan_Safari.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#30</td>
+              <td>HASTINGS KALAMA JEFWA</td>
+              <td>KES 35000.00</td>
+              <td>KES 20728.25</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-30-HASTINGS_KALAMA_JEFWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#31</td>
+              <td>Emily Karembo JOLLAH</td>
+              <td>KES 15000.00</td>
+              <td>KES 150.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-31-Emily_Karembo_JOLLAH.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#32</td>
+              <td>Julius Mwaura Kamtu</td>
+              <td>KES 5000.00</td>
+              <td>KES 1914.03</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-32-Julius_Mwaura_Kamtu.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#33</td>
+              <td>Timothy Lewa</td>
+              <td>KES 35000.00</td>
+              <td>KES 32462.55</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-33-Timothy_Lewa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#34</td>
+              <td>Timothy Lewa</td>
+              <td>KES 15000.00</td>
+              <td>KES 13912.56</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-34-Timothy_Lewa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#35</td>
+              <td>James Ngari Charo</td>
+              <td>KES 20000.00</td>
+              <td>KES 16782.92</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-35-James_Ngari_Charo.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#36</td>
+              <td>Yeri Charo Joseph</td>
+              <td>KES 20000.00</td>
+              <td>KES 7384.21</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-36-Yeri_Charo_Joseph.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#37</td>
+              <td>Emmanuel Katana</td>
+              <td>KES 50000.00</td>
+              <td>KES 43813.51</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-37-Emmanuel_Katana.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#38</td>
+              <td>Emmanuel Katana</td>
+              <td>KES 40000.00</td>
+              <td>KES 33749.96</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-38-Emmanuel_Katana.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#39</td>
+              <td>Samson Thoya</td>
+              <td>KES 3000.00</td>
+              <td>KES 0.16</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-39-Samson_Thoya.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#40</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 80000.00</td>
+              <td>KES 80365.07</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-40-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#41</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 70000.00</td>
+              <td>KES 84104.58</td>
+              <td>-</td>
+              <td><span class="badge badge-active">ACTIVE</span></td>
+              <td><a href="loan-41-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#42</td>
+              <td>Jane Lewa</td>
+              <td>KES 50000.00</td>
+              <td>KES 0.02</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-42-Jane_Lewa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#43</td>
+              <td>Christine Salame Lucky</td>
+              <td>KES 20000.00</td>
+              <td>KES 0.02</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-43-Christine_Salame_Lucky.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#44</td>
+              <td>Emily Karembo JOLLAH</td>
+              <td>KES 10000.00</td>
+              <td>KES 90.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-44-Emily_Karembo_JOLLAH.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#45</td>
+              <td>Lillian Pendo</td>
+              <td>KES 3000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-45-Lillian_Pendo.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#46</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 3000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-46-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#47</td>
+              <td>Thomas Ngowa Mwaringa</td>
+              <td>KES 2000.00</td>
+              <td>KES 0.98</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-47-Thomas_Ngowa_Mwaringa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#48</td>
+              <td>Julius Mwaura Kamtu</td>
+              <td>KES 500.00</td>
+              <td>KES 1.69</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-48-Julius_Mwaura_Kamtu.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#49</td>
+              <td>NATHAN MWENI</td>
+              <td>KES 137000.00</td>
+              <td>KES 103266.32</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-49-NATHAN_MWENI.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#50</td>
+              <td>Christine Salame Lucky</td>
+              <td>KES 12000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-50-Christine_Salame_Lucky.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#51</td>
+              <td>James Ngari Charo</td>
+              <td>KES 3000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-51-James_Ngari_Charo.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#52</td>
+              <td>Jane Lewa</td>
+              <td>KES 10000.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-52-Jane_Lewa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#53</td>
+              <td>NATHAN MWENI</td>
+              <td>KES 10000.00</td>
+              <td>KES 0.04</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-53-NATHAN_MWENI.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#54</td>
+              <td>NATHAN MWENI</td>
+              <td>KES 16000.00</td>
+              <td>KES 0.04</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-54-NATHAN_MWENI.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#55</td>
+              <td>Samson Thoya</td>
+              <td>KES 5000.00</td>
+              <td>KES 0.10</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-55-Samson_Thoya.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#56</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 20000.00</td>
+              <td>KES 0.02</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-56-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#57</td>
+              <td>Sadah Musinda</td>
+              <td>KES 30000.00</td>
+              <td>KES 21759.12</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-57-Sadah_Musinda.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#58</td>
+              <td>Sidi Saro Ngowa</td>
+              <td>KES 40000.00</td>
+              <td>KES 39328.64</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-58-Sidi_Saro_Ngowa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#59</td>
+              <td>Sidi Saro Ngowa</td>
+              <td>KES 20000.00</td>
+              <td>KES 16474.58</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-59-Sidi_Saro_Ngowa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#60</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 8000.00</td>
+              <td>KES 0.02</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-60-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#61</td>
+              <td>Kwekwe Lwambi</td>
+              <td>KES 50000.00</td>
+              <td>KES 0.80</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-61-Kwekwe_Lwambi.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#62</td>
+              <td>Irene Jilani</td>
+              <td>KES 10000.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-62-Irene_Jilani.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#63</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 10000.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-63-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#64</td>
+              <td>JOY DAMA LEWA</td>
+              <td>KES 15000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-64-JOY_DAMA_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#65</td>
+              <td>Christine Salame Lucky</td>
+              <td>KES 17000.00</td>
+              <td>KES 0.98</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-65-Christine_Salame_Lucky.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#66</td>
+              <td>Frank Kombe</td>
+              <td>KES 5200.00</td>
+              <td>KES 4055.23</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-66-Frank_Kombe.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#67</td>
+              <td>Samson Thoya</td>
+              <td>KES 10000.00</td>
+              <td>KES 0.34</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-67-Samson_Thoya.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#68</td>
+              <td>Thomas Thoya Kitsao</td>
+              <td>KES 60000.00</td>
+              <td>KES 39200.00</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-68-Thomas_Thoya_Kitsao.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#69</td>
+              <td>Samson Thoya</td>
+              <td>KES 40000.00</td>
+              <td>KES 26687.11</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-69-Samson_Thoya.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#70</td>
+              <td>Margaret Baya Msanzu</td>
+              <td>KES 9000.00</td>
+              <td>KES 3484.80</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-70-Margaret_Baya_Msanzu.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#71</td>
+              <td>Julius Mwaura Kamtu</td>
+              <td>KES 3500.00</td>
+              <td>KES 0.38</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-71-Julius_Mwaura_Kamtu.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#72</td>
+              <td>NATHAN MWENI</td>
+              <td>KES 6500.00</td>
+              <td>KES 0.98</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-72-NATHAN_MWENI.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#73</td>
+              <td>Samson Thoya</td>
+              <td>KES 3000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-73-Samson_Thoya.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#74</td>
+              <td>HASTINGS KALAMA JEFWA</td>
+              <td>KES 25000.00</td>
+              <td>KES 0.46</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-74-HASTINGS_KALAMA_JEFWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#75</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 60000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-75-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#76</td>
+              <td>Karisa Shadrack</td>
+              <td>KES 10000.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-76-Karisa_Shadrack.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#77</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 4000.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-77-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#78</td>
+              <td>Rhoda Kadzo Chai</td>
+              <td>KES 12000.00</td>
+              <td>KES 8055.36</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-78-Rhoda_Kadzo_Chai.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#79</td>
+              <td>Thomas Ngowa Mwaringa</td>
+              <td>KES 10000.00</td>
+              <td>KES 3015.16</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-79-Thomas_Ngowa_Mwaringa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#80</td>
+              <td>Ivan Safari</td>
+              <td>KES 45000.00</td>
+              <td>KES 0.65</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-80-Ivan_Safari.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#81</td>
+              <td>HASTINGS KALAMA JEFWA</td>
+              <td>KES 3400.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-81-HASTINGS_KALAMA_JEFWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#82</td>
+              <td>Katore Charo</td>
+              <td>KES 15000.00</td>
+              <td>KES 11628.16</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-82-Katore_Charo.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#83</td>
+              <td>Salama Karema</td>
+              <td>KES 45000.00</td>
+              <td>KES 2.23</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-83-Salama_Karema.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#84</td>
+              <td>Jane Beauttah</td>
+              <td>KES 7000.00</td>
+              <td>KES 5.89</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-84-Jane_Beauttah.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#85</td>
+              <td>Jane Lewa</td>
+              <td>KES 30000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-85-Jane_Lewa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#86</td>
+              <td>Samson Thoya</td>
+              <td>KES 10000.00</td>
+              <td>KES 2.34</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-86-Samson_Thoya.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#87</td>
+              <td>Zawadi Ngumbao</td>
+              <td>KES 6000.00</td>
+              <td>KES 585.86</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-87-Zawadi_Ngumbao.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#88</td>
+              <td>Sidi Saro Ngowa</td>
+              <td>KES 17500.00</td>
+              <td>KES 0.05</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-88-Sidi_Saro_Ngowa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#89</td>
+              <td>Christine Salame Lucky</td>
+              <td>KES 10000.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-89-Christine_Salame_Lucky.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#90</td>
+              <td>Frank Kombe</td>
+              <td>KES 5200.00</td>
+              <td>KES 0.22</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-90-Frank_Kombe.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#91</td>
+              <td>NATHAN MWENI</td>
+              <td>KES 5000.00</td>
+              <td>KES 27.69</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-91-NATHAN_MWENI.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#92</td>
+              <td>Frank Kombe</td>
+              <td>KES 2500.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-92-Frank_Kombe.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#93</td>
+              <td>Rachael Musha</td>
+              <td>KES 60000.00</td>
+              <td>KES 8400.00</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-93-Rachael_Musha.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#94</td>
+              <td>Ivan Safari</td>
+              <td>KES 45000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-94-Ivan_Safari.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#95</td>
+              <td>Mercy Mangi</td>
+              <td>KES 26000.00</td>
+              <td>KES 29920.56</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-95-Mercy_Mangi.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#96</td>
+              <td>SIDI JEFWA</td>
+              <td>KES 30000.00</td>
+              <td>KES 450.83</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-96-SIDI_JEFWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#97</td>
+              <td>Samson Thoya</td>
+              <td>KES 2500.00</td>
+              <td>KES 119.07</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-97-Samson_Thoya.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#98</td>
+              <td>Ellen Mwaringa</td>
+              <td>KES 15000.00</td>
+              <td>KES 0.85</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-98-Ellen_Mwaringa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#99</td>
+              <td>Sidi Saro Ngowa</td>
+              <td>KES 13500.00</td>
+              <td>KES 213.63</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-99-Sidi_Saro_Ngowa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#100</td>
+              <td>Crispus Rama</td>
+              <td>KES 30000.00</td>
+              <td>KES 11860.71</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-100-Crispus_Rama.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#101</td>
+              <td>Emmanuel Katana</td>
+              <td>KES 30000.00</td>
+              <td>KES 0.32</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-101-Emmanuel_Katana.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#102</td>
+              <td>Stephen Charo</td>
+              <td>KES 15000.00</td>
+              <td>KES 4083.58</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-102-Stephen_Charo.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#103</td>
+              <td>Timothy Lewa</td>
+              <td>KES 15000.00</td>
+              <td>KES 0.12</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-103-Timothy_Lewa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#104</td>
+              <td>Mercy Mangi</td>
+              <td>KES 15000.00</td>
+              <td>KES 14711.73</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-104-Mercy_Mangi.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#105</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 15000.00</td>
+              <td>KES 0.24</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-105-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#106</td>
+              <td>Jane Lewa</td>
+              <td>KES 50000.00</td>
+              <td>KES 1.02</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-106-Jane_Lewa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#107</td>
+              <td>Salama Karema</td>
+              <td>KES 24600.00</td>
+              <td>KES 325.64</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-107-Salama_Karema.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#108</td>
+              <td>JOY DAMA LEWA</td>
+              <td>KES 15000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-108-JOY_DAMA_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#109</td>
+              <td>Barbra Tishi Jeff</td>
+              <td>KES 20000.00</td>
+              <td>KES 13143.19</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-109-Barbra_Tishi_Jeff.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#110</td>
+              <td>Jeff Chai</td>
+              <td>KES 15000.00</td>
+              <td>KES 4283.07</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-110-Jeff_Chai.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#111</td>
+              <td>David Andala Were</td>
+              <td>KES 500.00</td>
+              <td>KES 0.56</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-111-David_Andala_Were.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#112</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 9000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-112-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#113</td>
+              <td>Karisa Shadrack</td>
+              <td>KES 25000.00</td>
+              <td>KES 734.19</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-113-Karisa_Shadrack.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#114</td>
+              <td>Jane Lewa</td>
+              <td>KES 10000.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-114-Jane_Lewa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#115</td>
+              <td>Mercy Mangi</td>
+              <td>KES 12000.00</td>
+              <td>KES 244.91</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-115-Mercy_Mangi.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#116</td>
+              <td>Kwekwe Lwambi</td>
+              <td>KES 20000.00</td>
+              <td>KES 130.74</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-116-Kwekwe_Lwambi.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#117</td>
+              <td>Jane Beauttah</td>
+              <td>KES 15000.00</td>
+              <td>KES 5260.15</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-117-Jane_Beauttah.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#118</td>
+              <td>Rachael Musha</td>
+              <td>KES 29000.00</td>
+              <td>KES 1.29</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-118-Rachael_Musha.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#119</td>
+              <td>Philip Chai</td>
+              <td>KES 50000.00</td>
+              <td>KES 0.04</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-119-Philip_Chai.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#120</td>
+              <td>Sadah Musinda</td>
+              <td>KES 21000.00</td>
+              <td>KES 1.48</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-120-Sadah_Musinda.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#121</td>
+              <td>Yeri Charo Joseph</td>
+              <td>KES 8000.00</td>
+              <td>KES 0.46</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-121-Yeri_Charo_Joseph.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#122</td>
+              <td>SIDI JEFWA</td>
+              <td>KES 27000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-122-SIDI_JEFWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#123</td>
+              <td>Yeri Charo Joseph</td>
+              <td>KES 20000.00</td>
+              <td>KES 3535.62</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-123-Yeri_Charo_Joseph.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#124</td>
+              <td>Safari Kahindi</td>
+              <td>KES 25000.00</td>
+              <td>KES 9463.34</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-124-Safari_Kahindi.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#125</td>
+              <td>Samson Thoya</td>
+              <td>KES 19000.00</td>
+              <td>KES 57.91</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-125-Samson_Thoya.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#126</td>
+              <td>Yeri Charo Joseph</td>
+              <td>KES 5000.00</td>
+              <td>KES 0.02</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-126-Yeri_Charo_Joseph.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#127</td>
+              <td>Jane Beauttah</td>
+              <td>KES 5000.00</td>
+              <td>KES 487.69</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-127-Jane_Beauttah.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#128</td>
+              <td>Jane Lewa</td>
+              <td>KES 45000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-128-Jane_Lewa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#129</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 30000.00</td>
+              <td>KES 0.22</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-129-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#130</td>
+              <td>Yeri Charo Joseph</td>
+              <td>KES 16000.00</td>
+              <td>KES 0.30</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-130-Yeri_Charo_Joseph.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#131</td>
+              <td>Rachael Musha</td>
+              <td>KES 15000.00</td>
+              <td>KES 0.00</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-131-Rachael_Musha.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#132</td>
+              <td>Yeri Charo Joseph</td>
+              <td>KES 8000.00</td>
+              <td>KES 0.24</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-132-Yeri_Charo_Joseph.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#133</td>
+              <td>Yeri Charo Joseph</td>
+              <td>KES 10000.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-133-Yeri_Charo_Joseph.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#134</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 4000.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-134-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#135</td>
+              <td>Samson Thoya</td>
+              <td>KES 2000.00</td>
+              <td>KES 5.55</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-135-Samson_Thoya.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#136</td>
+              <td>Jane Beauttah</td>
+              <td>KES 2000.00</td>
+              <td>KES 0.02</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-136-Jane_Beauttah.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#137</td>
+              <td>Jane Lewa</td>
+              <td>KES 23000.00</td>
+              <td>KES 0.53</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-137-Jane_Lewa.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#138</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 2000.00</td>
+              <td>KES 0.02</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-138-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#139</td>
+              <td>Samson Thoya</td>
+              <td>KES 2000.00</td>
+              <td>KES 0.02</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-139-Samson_Thoya.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#140</td>
+              <td>Priscah Menza</td>
+              <td>KES 11500.00</td>
+              <td>KES 3654.32</td>
+              <td>-</td>
+              <td><span class="badge badge-defaulted">DEFAULTED</span></td>
+              <td><a href="loan-140-Priscah_Menza.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#141</td>
+              <td>Thomas Thoya Kitsao</td>
+              <td>KES 14000.00</td>
+              <td>KES 145.93</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-141-Thomas_Thoya_Kitsao.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#142</td>
+              <td>Katore Charo</td>
+              <td>KES 23000.00</td>
+              <td>KES 0.28</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-142-Katore_Charo.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#143</td>
+              <td>JEREMIAH LEWA</td>
+              <td>KES 1000.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-143-JEREMIAH_LEWA.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+            <tr>
+              <td>#144</td>
+              <td>James Ngari Charo</td>
+              <td>KES 1000.00</td>
+              <td>KES 0.01</td>
+              <td>-</td>
+              <td><span class="badge badge-closed">CLOSED</span></td>
+              <td><a href="loan-144-James_Ngari_Charo.html" target="_blank">View Statement →</a></td>
+            </tr>
+            
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="footer">
+      <p>Generated on 24/02/2026, 07:38:22 | Enhanced Statement Generator v2.0</p>
+      <p>Includes accurate fine calculation (2% monthly on outstanding balance)</p>
+    </div>
+  </div>
+  
+  <script>
+    function filterTable() {
+      const input = document.getElementById('search');
+      const filter = input.value.toLowerCase();
+      const table = document.getElementById('loansTable');
+      const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+      let visibleCount = 0;
+      
+      for (let row of rows) {
+        const text = row.textContent.toLowerCase();
+        if (text.includes(filter)) {
+          row.style.display = '';
+          visibleCount++;
+        } else {
+          row.style.display = 'none';
+        }
+      }
+    }
+  </script>
+</body>
+</html>
+  

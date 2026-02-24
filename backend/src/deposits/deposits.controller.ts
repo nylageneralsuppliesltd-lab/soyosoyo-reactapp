@@ -32,7 +32,8 @@ export class DepositsController {
       if (!data.amount || isNaN(parseFloat(data.amount)) || parseFloat(data.amount) <= 0) {
         throw new BadRequestException('Valid amount is required');
       }
-      if (!data.memberName && !data.memberId) {
+      const isLoanRepayment = String(data.type || '').toLowerCase() === 'loan_repayment';
+      if (!data.memberName && !data.memberId && !(isLoanRepayment && data.loanId)) {
         throw new BadRequestException('Member name or ID is required');
       }
 
@@ -203,6 +204,7 @@ export class DepositsController {
             date: '2026-01-22',
             memberName: 'John Doe',
             memberId: 1,
+            loanId: 101, // required for paymentType=loan_repayment
             amount: 5000,
             paymentType: 'contribution', // contribution | fine | loan_repayment | income | miscellaneous
             contributionType: 'Monthly Savings', // optional, for custom types
@@ -217,6 +219,7 @@ export class DepositsController {
         date: 'ISO 8601 date (YYYY-MM-DD)',
         memberName: 'Full name or phone number of member',
         memberId: 'Member ID (used to look up if name not found)',
+        loanId: 'Loan ID (required when paymentType = loan_repayment)',
         amount: 'Positive number, payment amount in KES',
         paymentType:
           'contribution | fine | loan_repayment | income | miscellaneous',

@@ -9,6 +9,132 @@ export class EclService {
 
   constructor(private prisma: PrismaService) {}
 
+  private normalizeDate(date: Date): Date {
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+  }
+
+  private parseSchedule(loan: any): Array<{ dueDate: Date; principal: number; interest: number }> | null {
+    if (!loan.schedule) return null;
+    let schedule: any = loan.schedule;
+    if (typeof schedule === 'string') {
+      try {
+        schedule = JSON.parse(schedule);
+      } catch {
+        return null;
+      }
+    }
+
+    if (schedule && Array.isArray(schedule.schedule)) {
+      schedule = schedule.schedule;
+    }
+
+    if (!Array.isArray(schedule)) return null;
+
+    return schedule
+      .filter((row) => row && row.dueDate)
+      .map((row) => ({
+        dueDate: new Date(row.dueDate),
+        principal: Number(row.principal || 0),
+        interest: Number(row.interest || 0),
+      }));
+  }
+
+  private buildCycles(schedule: Array<{ dueDate: Date; principal: number; interest: number }>) {
+    return schedule.map((row, idx) => ({
+      index: idx,
+      dueDate: new Date(row.dueDate),
+      principalDue: row.principal,
+      interestDue: row.interest,
+      penaltyDue: 0,
+      principalPaid: 0,
+      interestPaid: 0,
+      penaltyPaid: 0,
+    }));
+  }
+
+  private getOutstanding(cycle: any) {
+    const epsilon = 0.01;
+    const principal = Math.max(0, cycle.principalDue - cycle.principalPaid);
+    const interest = Math.max(0, cycle.interestDue - cycle.interestPaid);
+    const penalty = Math.max(0, cycle.penaltyDue - cycle.penaltyPaid);
+    return {
+      principal: principal < epsilon ? 0 : principal,
+      interest: interest < epsilon ? 0 : interest,
+      penalty: penalty < epsilon ? 0 : penalty,
+    };
+  }
+
+  private applyExistingFines(cycles: any[], fines: any[]) {
+    for (const fine of fines || []) {
+      const periodMatch = fine.notes?.match(/Period-(\d+)/);
+      const periodIndex = periodMatch ? Math.max(0, parseInt(periodMatch[1], 10) - 1) : 0;
+      const target = cycles[periodIndex] ?? cycles[0];
+      if (!target) continue;
+      const unpaid = Math.max(0, Number(fine.amount || 0) - Number(fine.paidAmount || 0));
+      if (unpaid > 0) {
+        target.penaltyDue += unpaid;
+      }
+    }
+  }
+
+  private applyPaymentFifo(cycles: any[], paymentAmount: number) {
+    let remaining = paymentAmount;
+
+    for (const cycle of cycles) {
+      if (remaining <= 0) break;
+      const outstanding = this.getOutstanding(cycle);
+
+      const principalPay = Math.min(remaining, outstanding.principal);
+      if (principalPay > 0) {
+        cycle.principalPaid += principalPay;
+        remaining -= principalPay;
+      }
+
+      const interestPay = Math.min(remaining, this.getOutstanding(cycle).interest);
+      if (interestPay > 0) {
+        cycle.interestPaid += interestPay;
+        remaining -= interestPay;
+      }
+
+      const penaltyPay = Math.min(remaining, this.getOutstanding(cycle).penalty);
+      if (penaltyPay > 0) {
+        cycle.penaltyPaid += penaltyPay;
+        remaining -= penaltyPay;
+      }
+    }
+  }
+
+  private calculateDpdFromSchedule(loan: any): number | null {
+    const schedule = this.parseSchedule(loan);
+    if (!schedule || schedule.length === 0) return null;
+
+    const cycles = this.buildCycles(schedule);
+    this.applyExistingFines(cycles, loan.fines || []);
+
+    const sortedRepayments = [...(loan.repayments || [])].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    for (const repayment of sortedRepayments) {
+      const paymentAmount = Number(repayment.amount || 0);
+      this.applyPaymentFifo(cycles, paymentAmount);
+    }
+
+    const today = this.normalizeDate(new Date());
+    const oldestUnpaid = cycles.find((cycle) => {
+      if (this.normalizeDate(cycle.dueDate) > today) return false;
+      const outstanding = this.getOutstanding(cycle);
+      return outstanding.principal > 0 || outstanding.interest > 0 || outstanding.penalty > 0;
+    });
+
+    if (!oldestUnpaid) return 0;
+    return Math.max(
+      0,
+      Math.floor((today.getTime() - this.normalizeDate(oldestUnpaid.dueDate).getTime()) / (1000 * 60 * 60 * 24))
+    );
+  }
+
   // Simple conservative PD/LGD defaults; these should be configurable via IFRSConfig
   private async getDefaults() {
     // Try to load from IFRSConfig table
@@ -30,10 +156,16 @@ export class EclService {
   }
 
   // Determine stage using simple rules (days past due or status)
-  private determineStage(loan: any) {
+  private determineStage(loan: any, dpd?: number | null) {
     if (!loan) return 1;
     // If status defaulted => stage 3
     if (loan.status === 'defaulted') return 3;
+
+    if (dpd != null) {
+      if (dpd > 90) return 3;
+      if (dpd > 30) return 2;
+      return 1;
+    }
 
     // If dueDate exists and past due > 90 days => stage 3
     if (loan.dueDate) {
@@ -52,7 +184,7 @@ export class EclService {
   async runEcl(dryRun = true, operator?: string) {
     const defaults = await this.getDefaults();
 
-    const loans = await this.prisma.loan.findMany({ where: {}, include: { repayments: true } });
+    const loans = await this.prisma.loan.findMany({ where: {}, include: { repayments: true, fines: true } });
     let totalEcl = new Prisma.Decimal(0);
     let updated = 0;
     let skipped = 0;
@@ -64,7 +196,8 @@ export class EclService {
         continue;
       }
 
-      const stage = this.determineStage(loan);
+      const dpd = this.calculateDpdFromSchedule(loan);
+      const stage = this.determineStage(loan, dpd);
       // Choose PD
       let pd = defaults.pdStage1;
       if (stage === 2) pd = defaults.pdStage2;

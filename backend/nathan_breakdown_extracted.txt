@@ -1,0 +1,66 @@
+
+--- PAGE 1 ---
+February 24, 2026, 7:24 am
+1 of 3 pages 1 of 3 pages
+SOYOSOYO SACCO
+Tezo, Kilifi COUNTY
+Telephone: 254786077257
+E-mail Address: info@soyosoyosacco.com
+LOAN DETAILS:
+Amount Borrowed: KES 137,000.00
+Loan Date: 17-10-2025 - 17-10-2026
+Loan Interest Rate: 12% Per Annum on Fixed Balance
+Loan Duration: 12 Months
+Loan Status: Unpaid
+Late Payment Fine: 2% fine per month on Total Unpaid Loan Amount
+Outstanding Loan Balance Fines: 2% fine per month on Total Unpaid Loan Amount
+Loan Fine Deferment: Inactive
+MEMBER DETAILS:
+Disbursed To: NATHAN MWENI
+Phone: 254757028681
+Email Address:
+Loan Installment Breakdown as at 24-02-2026:
+# Description Invoice Date Due Date Installment(KES) Paid(KES) Balance(KES) Status
+1 Installment invoice #1750712 10-11-2025 17-11-2025 12,786.66 12,786.66 0.00 Paid
+2 late payment fine #1750712 $1750724 18-11-2025 18-11-2025 2.73 2.73 0.00 Paid
+3 Installment invoice #1750713 10-12-2025 17-12-2025 12,786.66 12,786.66 0.00 Paid
+4 late payment fine #1750713 $1750725 18-12-2025 18-12-2025 8.52 8.52 0.00 Paid
+5 Installment invoice #1750714 10-01-2026 17-01-2026 12,786.66 12,786.66 0.00 Paid
+6 late payment fine #1750714 $1750726 18-01-2026 18-01-2026 56.42 56.42 0.00 Paid
+7 Installment invoice #1750715 10-02-2026 17-02-2026 12,786.66 12,059.35 727.31 Unpaid
+--- PAGE 2 ---
+February 24, 2026, 7:24 am
+2 of 3 pages 2 of 3 pages
+# Description Invoice Date Due Date Installment(KES) Paid(KES) Balance(KES) Status
+8 late payment fine #1750712 $1750833 18-02-2026 18-02-2026 245.73 0.00 245.73 Unpaid
+9 Installment invoice #1750716 10-03-2026 17-03-2026 12,786.66 0.00 12,786.66 Unpaid
+1
+0
+Installment invoice #1750717 10-04-2026 17-04-2026 12,786.66 0.00 12,786.66 Unpaid
+1
+1
+Installment invoice #1750718 10-05-2026 17-05-2026 12,786.66 0.00 12,786.66 Unpaid
+1
+2
+Installment invoice #1750719 10-06-2026 17-06-2026 12,786.66 0.00 12,786.66 Unpaid
+1
+3
+Installment invoice #1750720 10-07-2026 17-07-2026 12,786.66 0.00 12,786.66 Unpaid
+1
+4
+Installment invoice #1750721 10-08-2026 17-08-2026 12,786.66 0.00 12,786.66 Unpaid
+1
+5
+Installment invoice #1750722 10-09-2026 17-09-2026 12,786.66 0.00 12,786.66 Unpaid
+1
+6
+Installment invoice #1750723 10-10-2026 17-10-2026 12,786.66 0.00 12,786.66 Unpaid
+Totals 153,753.32 50,487.00 103,266.32
+Loan Guarantor Details:
+# Member Name Guaranteed Amount() Comments
+1 Samson Thoya 80,000.00 Agreed
+2 Frank Kombe 6,000.00 Agreed
+--- PAGE 3 ---
+February 24, 2026, 7:24 am
+3 of 3 pages 3 of 3 pages
+Powered by

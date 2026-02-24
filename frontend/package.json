@@ -14,9 +14,18 @@
     "deploy": "gh-pages -d dist",
     "lint": "eslint .",
     "test": "jest --env=jsdom --passWithNoTests",
-    "test:e2e": "cypress run",
-    "cypress:run": "cypress run",
-    "cypress:open": "cypress open"
+    "test:e2e": "npm run cypress:run:desktop",
+    "cypress:run": "npm run cypress:run:desktop",
+    "cypress:open": "cypress open",
+    "e2e:prep:user": "node ../backend/scripts/ensure-e2e-user.js",
+    "qa:start": "concurrently -k -n BACKEND,FRONTEND \"npm --prefix ../backend run start:dev\" \"vite --port 5174 --strictPort\"",
+    "cypress:run:desktop": "npm run e2e:prep:user && start-server-and-test \"npm run qa:start\" \"http://localhost:3000/api/health|http://localhost:5174/login\" \"cypress run --config baseUrl=http://localhost:5174 --env viewport=desktop\"",
+    "cypress:run:mobile": "npm run e2e:prep:user && start-server-and-test \"npm run qa:start\" \"http://localhost:3000/api/health|http://localhost:5174/login\" \"cypress run --config baseUrl=http://localhost:5174 --env viewport=mobile\"",
+    "test:a11y:desktop": "npm run e2e:prep:user && start-server-and-test \"npm run qa:start\" \"http://localhost:3000/api/health|http://localhost:5174/login\" \"cypress run --config baseUrl=http://localhost:5174 --spec cypress/a11y/accessibility.cy.js --env viewport=desktop\"",
+    "test:a11y:mobile": "npm run e2e:prep:user && start-server-and-test \"npm run qa:start\" \"http://localhost:3000/api/health|http://localhost:5174/login\" \"cypress run --config baseUrl=http://localhost:5174 --spec cypress/a11y/accessibility.cy.js --env viewport=mobile\"",
+    "test:a11y": "npm run test:a11y:desktop && npm run test:a11y:mobile",
+    "test:lighthouse": "lhci autorun --config=./lighthouserc.json",
+    "test:quality": "npm run cypress:run:desktop && npm run cypress:run:mobile && npm run test:a11y && npm run test:lighthouse"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -37,6 +46,7 @@
     "yup": "^1.7.1"
   },
   "devDependencies": {
+    "@lhci/cli": "^0.15.1",
     "@babel/preset-env": "^7.28.6",
     "@babel/preset-react": "^7.28.5",
     "@eslint/js": "^9.39.1",
@@ -48,7 +58,9 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "babel-jest": "^30.2.0",
+    "concurrently": "^9.2.1",
     "cypress": "^15.9.0",
+    "cypress-axe": "^1.7.0",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
@@ -58,6 +70,7 @@
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
     "tailwindcss": "^4.1.18",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "start-server-and-test": "^2.1.2"
   }
 }

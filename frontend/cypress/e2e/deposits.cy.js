@@ -148,6 +148,7 @@ describe('Deposits menus E2E', () => {
     cy.intercept('POST', '**/deposits/bulk/import-json').as('createMisc');
     cy.contains('button', /Record Payment/i).click();
     cy.wait('@createMisc').then((interception) => {
+      expect(interception.response, 'createMisc response').to.exist;
       expect(interception.response.statusCode).to.be.within(200, 299);
     });
   });
@@ -206,6 +207,7 @@ describe('Deposits menus E2E', () => {
       cy.intercept('POST', '**/deposits/bulk/import-json').as('bulkImport');
       cy.contains('button', 'Import Payments').click();
       cy.wait('@bulkImport').then((interception) => {
+        expect(interception.response, 'bulkImport response').to.exist;
         expect(interception.response.statusCode).to.be.within(200, 299);
       });
     });

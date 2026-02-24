@@ -365,6 +365,61 @@
   background: #fff5f5;
 }
 
+.loan-arrears-banner {
+  background: rgba(244, 67, 54, 0.08);
+  color: #b71c1c;
+  border: 1px solid rgba(244, 67, 54, 0.25);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+}
+
+.ifrs-risk-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 14px;
+  margin: 0 0 20px 0;
+}
+
+.ifrs-risk-card h3 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.ifrs-risk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.ifrs-risk-item {
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ifrs-risk-item .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.ifrs-risk-item .value {
+  font-size: 14px;
+  color: #1e293b;
+  font-weight: 700;
+}
+
 .card-icon {
   width: 48px;
   height: 48px;

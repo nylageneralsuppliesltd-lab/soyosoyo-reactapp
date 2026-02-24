@@ -172,6 +172,11 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
     totalFines: Number(summary?.totalFinesImposed ?? summary?.totalFines ?? 0),
     outstandingBalance: Number(summary?.outstandingBalance || 0),
     completionPercentage: Number(summary?.completionPercentage || 0),
+    daysPastDue: Number(summary?.daysPastDue || 0),
+    ifrsStage: Number(summary?.ifrsStage || 1),
+    probabilityOfDefault: Number(summary?.probabilityOfDefault || 0),
+    expectedCreditLoss: Number(summary?.expectedCreditLoss || 0),
+    arrearsMessage: summary?.arrearsMessage || null,
   };
   const rows = Array.isArray(rawRows) ? rawRows : [];
   const formatNumber = (value) => Number(value ?? 0).toLocaleString();
@@ -232,6 +237,34 @@ function ComprehensiveLoanStatement({ loanId, onClose }) {
                   <span className="card-label">Completion</span>
                   <span className="card-value">{safeSummary.completionPercentage}%</span>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {safeSummary.daysPastDue > 0 && safeSummary.arrearsMessage && (
+            <div className="loan-arrears-banner">
+              {safeSummary.arrearsMessage}
+            </div>
+          )}
+
+          <div className="ifrs-risk-card">
+            <h3>📊 IFRS 9 Risk Classification</h3>
+            <div className="ifrs-risk-grid">
+              <div className="ifrs-risk-item">
+                <span className="label">IFRS Stage</span>
+                <span className="value">Stage {safeSummary.ifrsStage}</span>
+              </div>
+              <div className="ifrs-risk-item">
+                <span className="label">Days Past Due</span>
+                <span className="value">{safeSummary.daysPastDue} days</span>
+              </div>
+              <div className="ifrs-risk-item">
+                <span className="label">Probability of Default</span>
+                <span className="value">{Math.round(safeSummary.probabilityOfDefault * 100)}%</span>
+              </div>
+              <div className="ifrs-risk-item">
+                <span className="label">Expected Credit Loss</span>
+                <span className="value">KSh {formatNumber(safeSummary.expectedCreditLoss)}</span>
               </div>
             </div>
           </div>

@@ -11,13 +11,9 @@
 /* /index.html is your SPA entry point */
 /* /api/* routes are NOT redirected */
 
-/* Actual rule: */
+/* Actual rules: */
 /* All requests except /api/* go to index.html */
 /* If you have other static assets, adjust as needed */
-
-/* Netlify syntax: */
-/* /api/*  /api/:splat  200
-/* /*     /index.html   200 */
 
 /api/*  /api/:splat  200
 /*      /index.html   200

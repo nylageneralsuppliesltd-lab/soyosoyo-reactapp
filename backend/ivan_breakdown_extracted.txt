@@ -1,0 +1,36 @@
+
+--- PAGE 1 ---
+February 24, 2026, 7:27 am
+1 of 2 pages 1 of 2 pages
+SOYOSOYO SACCO
+Tezo, Kilifi COUNTY
+Telephone: 254786077257
+E-mail Address: info@soyosoyosacco.com
+LOAN DETAILS:
+Amount Borrowed: KES 45,000.00
+Loan Date: 04-12-2025 - 04-03-2026
+Loan Interest Rate: 3% Per Month on Fixed Balance
+Loan Duration: 3 Months
+Loan Status: Unpaid
+Late Payment Fine: 2% fine per month on Total Unpaid Loan Amount
+Outstanding Loan Balance Fines: 2% fine per month on Total Unpaid Loan Amount
+Loan Fine Deferment: Inactive
+MEMBER DETAILS:
+Disbursed To: Ivan Safari
+Phone: 254723423084
+Email Address: safakuk@yahoo.co.uk
+Loan Installment Breakdown as at 24-02-2026:
+# Description Invoice Date Due Date Installment(KES) Paid(KES) Balance(KES) Status
+1 Installment invoice #1750788 28-12-2025 04-01-2026 16,350.00 10.00 16,340.00 Unpaid
+2 late payment fine #1750788 $1750791 05-01-2026 05-01-2026 327.00 0.00 327.00 Unpaid
+3 Installment invoice #1750789 28-01-2026 04-02-2026 16,350.00 0.00 16,350.00 Unpaid
+4 late payment fine #1750789 $1750792 05-02-2026 05-02-2026 660.34 0.00 660.34 Unpaid
+5 Installment invoice #1750790 25-02-2026 04-03-2026 16,350.00 0.00 16,350.00 Unpaid
+Totals 50,037.34 10.00 50,027.34
+Loan Guarantor Details:
+--- PAGE 2 ---
+February 24, 2026, 7:27 am
+2 of 2 pages 2 of 2 pages
+# Member Name Guaranteed Amount() Comments
+1 Judith Mramba 30,000.00 Notified and consent given
+Powered by

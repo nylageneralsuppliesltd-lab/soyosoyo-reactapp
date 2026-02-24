@@ -2,6 +2,24 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Prisma } from '@prisma/client';
 
+type LoanCycle = {
+  index: number;
+  period: number;
+  dueDate: Date;
+  principalDue: number;
+  interestDue: number;
+  penaltyDue: number;
+  principalPaid: number;
+  interestPaid: number;
+  penaltyPaid: number;
+  lastPaymentDate?: Date | null;
+  lastPaymentMeta?: {
+    method?: string | null;
+    accountId?: number | null;
+    accountName?: string | null;
+  } | null;
+};
+
 @Injectable()
 export class LoansService {
   constructor(private prisma: PrismaService) {}
@@ -104,6 +122,262 @@ export class LoansService {
     });
   }
 
+  private normalizeDate(date: Date): Date {
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+  }
+
+  private isSameCalendarDay(left: Date, right: Date): boolean {
+    return (
+      left.getFullYear() === right.getFullYear() &&
+      left.getMonth() === right.getMonth() &&
+      left.getDate() === right.getDate()
+    );
+  }
+
+  private buildCyclesFromSchedule(schedule: any[]): LoanCycle[] {
+    return schedule.map((row, idx) => ({
+      index: idx,
+      period: Number(row.period ?? idx + 1),
+      dueDate: new Date(row.dueDate),
+      principalDue: Number(row.principal || 0),
+      interestDue: Number(row.interest || 0),
+      penaltyDue: 0,
+      principalPaid: 0,
+      interestPaid: 0,
+      penaltyPaid: 0,
+      lastPaymentDate: null,
+      lastPaymentMeta: null,
+    }));
+  }
+
+  private getOutstanding(cycle: LoanCycle): { principal: number; interest: number; penalty: number } {
+    const epsilon = 0.01;
+    const principal = Math.max(0, cycle.principalDue - cycle.principalPaid);
+    const interest = Math.max(0, cycle.interestDue - cycle.interestPaid);
+    const penalty = Math.max(0, cycle.penaltyDue - cycle.penaltyPaid);
+    return {
+      principal: principal < epsilon ? 0 : principal,
+      interest: interest < epsilon ? 0 : interest,
+      penalty: penalty < epsilon ? 0 : penalty,
+    };
+  }
+
+  private applyExistingFinesToCycles(cycles: LoanCycle[], fines: any[]): void {
+    for (const fine of fines) {
+      const periodMatch = fine.notes?.match(/Period-(\d+)/);
+      const periodIndex = periodMatch ? Math.max(0, parseInt(periodMatch[1], 10) - 1) : 0;
+      const target = cycles[periodIndex] ?? cycles[0];
+      if (!target) continue;
+      const unpaid = Math.max(0, Number(fine.amount || 0) - Number(fine.paidAmount || 0));
+      if (unpaid > 0) {
+        target.penaltyDue += unpaid;
+      }
+    }
+  }
+
+  private applyPaymentFifo(
+    cycles: LoanCycle[],
+    paymentAmount: number,
+    paymentMeta?: { date?: Date; method?: string; accountId?: number; accountName?: string | null }
+  ): { paidPrincipal: number; paidInterest: number; paidPenalty: number } {
+    let remaining = paymentAmount;
+    let paidPrincipal = 0;
+    let paidInterest = 0;
+    let paidPenalty = 0;
+
+    for (const cycle of cycles) {
+      if (remaining <= 0) break;
+      const outstanding = this.getOutstanding(cycle);
+
+      const principalPay = Math.min(remaining, outstanding.principal);
+      if (principalPay > 0) {
+        cycle.principalPaid += principalPay;
+        remaining -= principalPay;
+        paidPrincipal += principalPay;
+      }
+
+      const interestPay = Math.min(remaining, this.getOutstanding(cycle).interest);
+      if (interestPay > 0) {
+        cycle.interestPaid += interestPay;
+        remaining -= interestPay;
+        paidInterest += interestPay;
+      }
+
+      const penaltyPay = Math.min(remaining, this.getOutstanding(cycle).penalty);
+      if (penaltyPay > 0) {
+        cycle.penaltyPaid += penaltyPay;
+        remaining -= penaltyPay;
+        paidPenalty += penaltyPay;
+      }
+
+      if (paymentMeta?.date && (principalPay > 0 || interestPay > 0 || penaltyPay > 0)) {
+        cycle.lastPaymentDate = new Date(paymentMeta.date);
+        cycle.lastPaymentMeta = {
+          method: paymentMeta.method ?? null,
+          accountId: paymentMeta.accountId ?? null,
+          accountName: paymentMeta.accountName ?? null,
+        };
+      }
+    }
+
+    return { paidPrincipal, paidInterest, paidPenalty };
+  }
+
+  private calculateTotals(cycles: LoanCycle[], asOfDate?: Date | null, maturedOnly = false) {
+    let outstandingPrincipal = 0;
+    let outstandingInterest = 0;
+    let outstandingPenalties = 0;
+
+    for (const cycle of cycles) {
+      if (maturedOnly && asOfDate && new Date(cycle.dueDate) > asOfDate) {
+        continue;
+      }
+      const outstanding = this.getOutstanding(cycle);
+      outstandingPrincipal += outstanding.principal;
+      outstandingInterest += outstanding.interest;
+      outstandingPenalties += outstanding.penalty;
+    }
+
+    return {
+      outstandingPrincipal,
+      outstandingInterest,
+      outstandingPenalties,
+      totalOutstanding: outstandingPrincipal + outstandingInterest + outstandingPenalties,
+    };
+  }
+
+  private getActiveFineConfig(loanType: any, options?: { postMaturity?: boolean }): {
+    source: 'late' | 'outstanding';
+    type: string;
+    value: number;
+    chargeOn: string;
+    frequency: string;
+  } | null {
+    const postMaturity = Boolean(options?.postMaturity);
+    const lateEnabled = Boolean(loanType?.lateFineEnabled || loanType?.lateFinesEnabled);
+    const outstandingEnabled = Boolean(loanType?.outstandingFineEnabled || loanType?.outstandingFinesEnabled);
+
+    if (postMaturity && outstandingEnabled) {
+      return {
+        source: 'outstanding',
+        type: String(loanType.outstandingFineType || loanType.outstandingFinesType || 'percentage').toLowerCase(),
+        value: Number(loanType.outstandingFineValue ?? loanType.outstandingFinesValue ?? 2),
+        chargeOn: String(loanType.outstandingFineChargeOn || 'total_unpaid').toLowerCase(),
+        frequency: String(loanType.outstandingFineFrequency || 'once_off').toLowerCase(),
+      };
+    }
+
+    if (lateEnabled) {
+      return {
+        source: 'late',
+        type: String(loanType.lateFineType || loanType.lateFinesType || 'percentage').toLowerCase(),
+        value: Number(loanType.lateFineValue ?? loanType.lateFinesValue ?? 2),
+        chargeOn: String(loanType.lateFineChargeOn || 'total_unpaid').toLowerCase(),
+        frequency: String(loanType.lateFineFrequency || 'once_off').toLowerCase(),
+      };
+    }
+
+    if (outstandingEnabled) {
+      return {
+        source: 'outstanding',
+        type: String(loanType.outstandingFineType || loanType.outstandingFinesType || 'percentage').toLowerCase(),
+        value: Number(loanType.outstandingFineValue ?? loanType.outstandingFinesValue ?? 2),
+        chargeOn: String(loanType.outstandingFineChargeOn || 'total_unpaid').toLowerCase(),
+        frequency: String(loanType.outstandingFineFrequency || 'once_off').toLowerCase(),
+      };
+    }
+
+    return null;
+  }
+
+  private hasFineForPeriod(existingFines: any[], period: number, defaultDate: Date, frequency: string): boolean {
+    const defaultKey = this.normalizeDate(defaultDate).toISOString().slice(0, 10);
+    const cycleKey = this.getFineCycleKey(defaultDate, frequency);
+    return existingFines.some((fine) => {
+      const notes = fine.notes || '';
+      return (
+        notes.includes(`Period-${period}`) &&
+        (notes.includes(`DefaultDay:${defaultKey}`) || notes.includes(`Cycle:${cycleKey}`))
+      );
+    });
+  }
+
+  private computeFineAmount(
+    config: { type: string; value: number; chargeOn: string },
+    cycle: LoanCycle,
+    loan: any,
+    totalsBeforeFine: { totalOutstanding: number }
+  ): number {
+    if (config.type === 'fixed') {
+      return Math.max(0, Number(config.value || 0));
+    }
+
+    const cycleOutstanding = this.getOutstanding(cycle);
+    const installmentUnpaid = cycleOutstanding.principal + cycleOutstanding.interest;
+    const baseAmount = this.calculateFineBase(
+      config.chargeOn,
+      { principal: cycleOutstanding.principal, interest: cycleOutstanding.interest },
+      loan,
+      totalsBeforeFine.totalOutstanding
+    );
+
+    if (baseAmount <= 0 && config.chargeOn === 'per_installment') {
+      return 0;
+    }
+
+    const percentage = Number(config.value || 0) / 100;
+    const resolvedPercentage = percentage > 0 ? percentage : 0.02;
+    const resolvedBase = config.chargeOn === 'per_installment' ? installmentUnpaid : baseAmount;
+    return Math.max(0, resolvedBase * resolvedPercentage);
+  }
+
+  private async getIfrsDefaults(): Promise<{
+    pdStage1: number;
+    pdStage2: number;
+    pdStage3: number;
+    lgd: number;
+  }> {
+    const defaults = {
+      pdStage1: 0.01,
+      pdStage2: 0.05,
+      pdStage3: 0.2,
+      lgd: 0.6,
+    };
+
+    const raw = await this.prisma.iFRSConfig
+      .findUnique({ where: { key: 'defaults' } })
+      .catch(() => null) as any;
+
+    if (!raw?.value) return defaults;
+
+    try {
+      const parsed = JSON.parse(raw.value);
+      return {
+        pdStage1: Number(parsed?.pdStage1 ?? defaults.pdStage1),
+        pdStage2: Number(parsed?.pdStage2 ?? defaults.pdStage2),
+        pdStage3: Number(parsed?.pdStage3 ?? defaults.pdStage3),
+        lgd: Number(parsed?.lgd ?? defaults.lgd),
+      };
+    } catch {
+      return defaults;
+    }
+  }
+
+  private classifyIfrsStage(dpd: number, status?: string): number {
+    if (status === 'defaulted' || dpd > 90) return 3;
+    if (dpd > 30) return 2;
+    return 1;
+  }
+
+  private calculateUnpaidFines(fines: any[]): number {
+    return (fines || []).reduce((sum, fine) => {
+      const unpaid = Math.max(0, Number(fine.amount || 0) - Number(fine.paidAmount || 0));
+      return sum + unpaid;
+    }, 0);
+  }
+
   /**
    * Impose late payment fines for loans with overdue installments.
    * This should be called periodically (e.g., daily cron job) to check all active loans
@@ -123,198 +397,91 @@ export class LoansService {
       where: { id: loan.loanTypeId },
     });
 
-    if (!loanType || (!loanType.lateFineEnabled && !loanType.outstandingFineEnabled)) {
+    const lateEnabled = Boolean(loanType?.lateFineEnabled || loanType?.lateFinesEnabled);
+    const outstandingEnabled = Boolean(loanType?.outstandingFineEnabled || loanType?.outstandingFinesEnabled);
+
+    if (!loanType || (!lateEnabled && !outstandingEnabled)) {
       return; // No fines configured for this loan type
     }
 
-    // Generate amortization schedule to determine which installments are due
     const scheduleData = await this.getAmortizationTable(loan.id);
-    const schedule = scheduleData.schedule;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const schedule = scheduleData.schedule || [];
+    const today = this.normalizeDate(new Date());
 
-    // Get all repayments made so far
     const repayments = await this.prisma.repayment.findMany({
       where: { loanId: loan.id },
       orderBy: { date: 'asc' },
     });
 
-    // Calculate total paid towards principal and interest
-    const totalPaidPrincipal = repayments.reduce((sum, r) => sum + Number(r.principal || 0), 0);
-    const totalPaidInterest = repayments.reduce((sum, r) => sum + Number(r.interest || 0), 0);
-
-    // Get existing fines to avoid duplicates
     const existingFines = await this.prisma.fine.findMany({
       where: { loanId: loan.id },
+      orderBy: { createdAt: 'asc' },
     });
 
-    let accumulatedPrincipal = 0;
-    let accumulatedInterest = 0;
-    const overduePeriods: Array<{ period: any; principalShortfall: number; interestShortfall: number; dueDate: Date }> = [];
+    const cycles = this.buildCyclesFromSchedule(schedule);
+    this.applyExistingFinesToCycles(cycles, existingFines);
 
-    // Check each installment period - track overdue periods and shortfalls
-    for (const period of schedule) {
-      if (period.isGrace) continue; // Skip grace periods
+    const sortedRepayments = [...repayments].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    let paymentIndex = 0;
+    const overallDueDate = loan.dueDate ? this.normalizeDate(new Date(loan.dueDate)) : null;
 
-      accumulatedPrincipal += period.principal;
-      accumulatedInterest += period.interest;
+    for (const cycle of cycles) {
+      const dueDate = this.normalizeDate(new Date(cycle.dueDate));
+      const defaultCheckDate = new Date(dueDate);
+      defaultCheckDate.setDate(defaultCheckDate.getDate() + 1);
 
-      const dueDate = new Date(period.dueDate);
-      dueDate.setHours(0, 0, 0, 0);
-
-      // Check if this installment is overdue
-      if (dueDate < today) {
-        // Check if enough has been paid to cover this installment
-        const principalShortfall = Math.max(0, accumulatedPrincipal - totalPaidPrincipal);
-        const interestShortfall = Math.max(0, accumulatedInterest - totalPaidInterest);
-
-        // Only fine if there's an actual shortfall for THIS period
-        if (principalShortfall > 0.01 || interestShortfall > 0.01) {
-          overduePeriods.push({ period, principalShortfall, interestShortfall, dueDate });
-        }
+      while (
+        paymentIndex < sortedRepayments.length &&
+        this.normalizeDate(new Date(sortedRepayments[paymentIndex].date)) <= dueDate
+      ) {
+        const payment = sortedRepayments[paymentIndex];
+        const paymentAmount = Number(payment.amount || 0);
+        this.applyPaymentFifo(cycles, paymentAmount);
+        paymentIndex++;
       }
-    }
 
-    if (overduePeriods.length === 0) {
-      return;
-    }
+      const totalsBeforeFine = this.calculateTotals(cycles, defaultCheckDate, true);
+      const hasMatured = defaultCheckDate <= today;
 
-    const fineFrequency = (loanType.lateFineFrequency || 'once_off').toLowerCase();
-    const fineChargeOn = loanType.lateFineChargeOn || 'per_installment';
-    const cycleKey = this.getFineCycleKey(today, fineFrequency);
+      if (hasMatured && totalsBeforeFine.totalOutstanding > 0) {
+        const periodNumber = cycle.period;
+        const isPostMaturity = Boolean(overallDueDate && defaultCheckDate > overallDueDate);
+        const fineConfig = this.getActiveFineConfig(loanType, { postMaturity: isPostMaturity });
+        if (!fineConfig) {
+          continue;
+        }
 
-    // Loan-level cycle fine for overdue outstanding (principal + interest due to date)
-    if (loanType.lateFineEnabled && fineChargeOn === 'total_unpaid' && ['monthly', 'weekly', 'daily'].includes(fineFrequency)) {
-      const overdueScheduledPrincipal = overduePeriods.reduce(
-        (sum, item) => sum + Number(item.period.principal || 0),
-        0
-      );
-      const overdueScheduledInterest = overduePeriods.reduce(
-        (sum, item) => sum + Number(item.period.interest || 0),
-        0
-      );
-      const overduePrincipal = Math.max(0, overdueScheduledPrincipal - totalPaidPrincipal);
-      const overdueInterest = Math.max(0, overdueScheduledInterest - totalPaidInterest);
-      const totalOutstanding = overduePrincipal + overdueInterest;
+        const fineExists = this.hasFineForPeriod(existingFines, periodNumber, defaultCheckDate, fineConfig.frequency);
 
-      if (totalOutstanding > 0) {
-        const cycleNoteKey = `LateFineCycle:${cycleKey}`;
-        const cycleFineExists = existingFines.some(
-          (f) => f.notes && f.notes.includes(cycleNoteKey)
-        );
-
-        if (!cycleFineExists) {
-          const rate = Number(loanType.lateFineValue || 0) / 100;
-          const fineAmount = totalOutstanding * rate;
-
+        if (!fineExists) {
+          const fineAmount = this.computeFineAmount(fineConfig, cycle, loan, totalsBeforeFine);
           if (fineAmount > 0) {
+            const defaultKey = this.normalizeDate(defaultCheckDate).toISOString().slice(0, 10);
+            const cycleKey = this.getFineCycleKey(defaultCheckDate, fineConfig.frequency);
             await this.createFineWithPosting({
               memberId: loan.memberId,
               loanId: loan.id,
               amount: fineAmount,
-              reason: `Late payment fine (${fineFrequency}) on total outstanding balance`,
-              notes: `${cycleNoteKey}|Overdue: ${totalOutstanding.toFixed(2)}|Frequency: ${fineFrequency}`,
+              reason: `${fineConfig.source} fine (default day) for installment ${periodNumber}`,
+              notes: `Period-${periodNumber}|DefaultDay:${defaultKey}|Cycle:${cycleKey}|ChargeOn:${fineConfig.chargeOn}|Type:${fineConfig.type}|Value:${fineConfig.value}|Base:${totalsBeforeFine.totalOutstanding.toFixed(2)}`,
             });
+            cycle.penaltyDue += fineAmount;
           }
         }
       }
 
-      return;
-    }
-
-    // Per-installment fines (once off or per cycle)
-    if (loanType.lateFineEnabled) {
-      for (const overdue of overduePeriods) {
-      const { period, principalShortfall, interestShortfall, dueDate } = overdue;
-      const fineKey = `Period-${period.period}`;
-      const fineCycleKey = fineFrequency === 'once_off'
-        ? fineKey
-        : `${fineKey}|Cycle:${cycleKey}`;
-
-      const fineExists = existingFines.some(
-        (f) => f.notes && f.notes.includes(fineCycleKey)
-      );
-
-        if (fineExists) continue;
-
-      // Calculate fine amount based on loan type settings
-      let fineAmount = 0;
-
-        if (loanType.lateFineType === 'fixed') {
-          fineAmount = Number(loanType.lateFineValue || 0);
-        } else if (loanType.lateFineType === 'percentage') {
-          const baseAmount = this.calculateFineBase(
-            fineChargeOn,
-            period,
-            loan,
-            principalShortfall + interestShortfall
-          );
-          fineAmount = baseAmount * (Number(loanType.lateFineValue || 0) / 100);
-        }
-
-        if (fineAmount > 0) {
-          const overdueDays = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-          await this.createFineWithPosting({
-            memberId: loan.memberId,
-            loanId: loan.id,
-            amount: fineAmount,
-            reason: `Late payment fine for installment ${period.period} (${overdueDays} days overdue)`,
-            notes: `${fineCycleKey}|Overdue Days: ${overdueDays}|Due: ${dueDate.toISOString()}`,
-          });
-        }
+      while (
+        paymentIndex < sortedRepayments.length &&
+        this.isSameCalendarDay(new Date(sortedRepayments[paymentIndex].date), defaultCheckDate)
+      ) {
+        const payment = sortedRepayments[paymentIndex];
+        const paymentAmount = Number(payment.amount || 0);
+        this.applyPaymentFifo(cycles, paymentAmount);
+        paymentIndex++;
       }
     }
-
-    // Outstanding balance fines (loan-level)
-    if (loanType.outstandingFineEnabled) {
-      const outstandingFrequency = (loanType.outstandingFineFrequency || 'once_off').toLowerCase();
-      const outstandingChargeOn = loanType.outstandingFineChargeOn || 'total_unpaid';
-      const outstandingCycleKey = this.getFineCycleKey(today, outstandingFrequency);
-      const outstandingNoteKey = `OutstandingFineCycle:${outstandingCycleKey}`;
-
-      const outstandingFineExists = existingFines.some(
-        (f) => f.notes && f.notes.includes(outstandingNoteKey)
-      );
-
-      if (!outstandingFineExists) {
-        const overdueScheduledPrincipal = overduePeriods.reduce(
-          (sum, item) => sum + Number(item.period.principal || 0),
-          0
-        );
-        const overdueScheduledInterest = overduePeriods.reduce(
-          (sum, item) => sum + Number(item.period.interest || 0),
-          0
-        );
-        const overduePrincipal = Math.max(0, overdueScheduledPrincipal - totalPaidPrincipal);
-        const overdueInterest = Math.max(0, overdueScheduledInterest - totalPaidInterest);
-        const totalOutstanding = overduePrincipal + overdueInterest;
-
-        let fineAmount = 0;
-        if (loanType.outstandingFineType === 'fixed') {
-          fineAmount = Number(loanType.outstandingFineValue || 0);
-        } else if (loanType.outstandingFineType === 'percentage') {
-          const baseAmount = this.calculateFineBase(
-            outstandingChargeOn,
-            { principal: overdueScheduledPrincipal, interest: overdueScheduledInterest },
-            loan,
-            totalOutstanding
-          );
-          fineAmount = baseAmount * (Number(loanType.outstandingFineValue || 0) / 100);
-        }
-
-        if (fineAmount > 0 && totalOutstanding > 0) {
-          await this.createFineWithPosting({
-            memberId: loan.memberId,
-            loanId: loan.id,
-            amount: fineAmount,
-            reason: `Outstanding balance fine (${outstandingFrequency})`,
-            notes: `${outstandingNoteKey}|Overdue: ${totalOutstanding.toFixed(2)}|Frequency: ${outstandingFrequency}`,
-          });
-        }
-      }
-    }
-
-    return;
   }
 
   private getFineCycleKey(date: Date, frequency: string): string {
@@ -809,10 +976,13 @@ export class LoansService {
         fines: true,
       },
     });
+    const unpaidFines = loan ? this.calculateUnpaidFines(loan.fines || []) : 0;
     return loan ? {
       ...loan,
       typeName: loan.loanType?.name || '',
       memberName: loan.member?.name || loan.memberName || '',
+      outstandingFines: Number(unpaidFines.toFixed(2)),
+      totalOutstanding: Number(Math.max(0, Number(loan.balance || 0) + unpaidFines).toFixed(2)),
     } : null;
   }
 
@@ -838,11 +1008,19 @@ export class LoansService {
       orderBy: { createdAt: 'desc' },
     });
     // Add typeName and memberName for frontend compatibility
-    return loans.map(loan => ({
+    return loans.map(loan => {
+      const unpaidFines = this.calculateUnpaidFines(loan.fines || []);
+      const totalOutstanding = Number(Math.max(0, Number(loan.balance || 0) + unpaidFines).toFixed(2));
+
+      return ({
       ...loan,
       typeName: loan.loanType?.name || '',
       memberName: loan.member?.name || loan.memberName || '',
-    }));
+      outstandingFines: Number(unpaidFines.toFixed(2)),
+      totalOutstanding,
+      balanceWithFines: totalOutstanding,
+    });
+    });
   }
 
   async approveLoan(id: number): Promise<any> {
@@ -1196,32 +1374,27 @@ export class LoansService {
       }
     }
 
-    // Add repayment data to schedule using chronological allocation
+    // Add repayment data to schedule using FIFO allocation
     let cumulativeBalance = principal;
-    let repaymentIndex = 0;
-    let remainingAmount = 0;
-    const sortedRepayments = [...loan.repayments].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    
+    const cycles = this.buildCyclesFromSchedule(schedule);
+    this.applyExistingFinesToCycles(cycles, fines);
+
+    const sortedRepayments = [...loan.repayments].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    for (const repayment of sortedRepayments) {
+      const paymentAmount = Number(repayment.amount || 0);
+      this.applyPaymentFifo(cycles, paymentAmount);
+    }
+
     schedule.forEach((schedRow, idx) => {
-      let totalPaidThisPeriod = 0;
-      
-      // Allocate repayments chronologically to this period
-      while (repaymentIndex < sortedRepayments.length && remainingAmount === 0) {
-        remainingAmount = Number(sortedRepayments[repaymentIndex].amount);
-        repaymentIndex++;
-      }
-      
-      // Use whatever remaining amount we have from current repayment
-      if (remainingAmount > 0) {
-        const amountToAllocate = Math.min(remainingAmount, schedRow.total);
-        totalPaidThisPeriod = amountToAllocate;
-        remainingAmount -= amountToAllocate;
-      }
-      
-      schedRow.paid = totalPaidThisPeriod >= schedRow.total;
-      schedRow.paidAmount = totalPaidThisPeriod;
-      
-      // Calculate running balance (principal remaining after scheduled principal for this period)
+      const cycle = cycles[idx];
+      const paidAmount = cycle
+        ? Number((cycle.principalPaid + cycle.interestPaid + cycle.penaltyPaid).toFixed(2))
+        : 0;
+      schedRow.paid = paidAmount >= schedRow.total - 0.01;
+      schedRow.paidAmount = paidAmount;
+
       cumulativeBalance = Math.max(0, cumulativeBalance - schedRow.principal);
       schedRow.balance = cumulativeBalance;
     });
@@ -1542,7 +1715,7 @@ export class LoansService {
       }
     }
 
-    // Combine amortization with actual payments using chronological allocation
+    // Combine amortization with actual payments using FIFO allocation
     const consolidatedStatement = [];
     let runningPrincipalBalance = Number(loan.amount);
 
@@ -1563,55 +1736,32 @@ export class LoansService {
       note: 'Loan disbursed',
     });
 
-    // Sort repayments chronologically for sequential allocation
-    const sortedRepayments = [...loan.repayments].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    let repaymentIndex = 0;
-    let remainingRepaymentAmount = 0;
-    let allocatedRepayment: any = null;
+    const cycles = this.buildCyclesFromSchedule(amortizationSchedule);
+    this.applyExistingFinesToCycles(cycles, loan.fines || []);
 
-    // Process each amortization period
-    for (const scheduleRow of amortizationSchedule) {
-      let totalPaymentThisPeriod = 0;
-      let allocatedRepaymentDate = null;
-      
-      // Allocate repayments chronologically to this period
-      while (repaymentIndex < sortedRepayments.length && remainingRepaymentAmount === 0) {
-        const rep = sortedRepayments[repaymentIndex];
-        remainingRepaymentAmount = Number(rep.amount);
-        allocatedRepaymentDate = new Date(rep.date);
-        allocatedRepayment = rep;
-        repaymentIndex++;
-      }
-      
-      // Use whatever remaining amount we have from current repayment
-      if (remainingRepaymentAmount > 0) {
-        const amountToAllocate = Math.min(remainingRepaymentAmount, scheduleRow.total);
-        totalPaymentThisPeriod = amountToAllocate;
-        remainingRepaymentAmount -= amountToAllocate;
-      }
+    const sortedRepayments = [...loan.repayments].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    for (const repayment of sortedRepayments) {
+      const paymentAmount = Number(repayment.amount || 0);
+      this.applyPaymentFifo(cycles, paymentAmount, {
+        date: new Date(repayment.date),
+        method: repayment.method,
+        accountId: repayment.accountId || null,
+        accountName: repayment.account?.name || null,
+      });
+    }
 
-      // Calculate actual payment breakdown proportionally (avoid division by zero)
-      let actualPrincipal = 0;
-      let actualInterest = 0;
-      let actualFine = 0;
-      
-      if (scheduleRow.total > 0 && totalPaymentThisPeriod > 0) {
-        actualPrincipal = Number((totalPaymentThisPeriod * (scheduleRow.principal / scheduleRow.total)).toFixed(2));
-        actualInterest = Number((totalPaymentThisPeriod * (scheduleRow.interest / scheduleRow.total)).toFixed(2));
-        actualFine = Number((totalPaymentThisPeriod * (scheduleRow.fine / scheduleRow.total)).toFixed(2));
-        
-        // Ensure total matches due to rounding
-        const total = actualPrincipal + actualInterest + actualFine;
-        if (total !== totalPaymentThisPeriod && totalPaymentThisPeriod > 0) {
-          actualPrincipal += (totalPaymentThisPeriod - total);
-          actualPrincipal = Number(actualPrincipal.toFixed(2));
-        }
-      }
-      
-      // Update running principal balance (only scheduled principal reduces balance)
+    for (let idx = 0; idx < amortizationSchedule.length; idx++) {
+      const scheduleRow = amortizationSchedule[idx];
+      const cycle = cycles[idx];
+
+      const actualPrincipal = cycle ? Number(cycle.principalPaid.toFixed(2)) : 0;
+      const actualInterest = cycle ? Number(cycle.interestPaid.toFixed(2)) : 0;
+      const actualFine = cycle ? Number(cycle.penaltyPaid.toFixed(2)) : 0;
+      const totalPaymentThisPeriod = Number((actualPrincipal + actualInterest + actualFine).toFixed(2));
+
       runningPrincipalBalance = Math.max(0, runningPrincipalBalance - scheduleRow.principal);
-      
-      // Calculate outstanding (scheduled - actual)
       const outstanding = Math.max(0, scheduleRow.total - totalPaymentThisPeriod);
 
       consolidatedStatement.push({
@@ -1629,11 +1779,11 @@ export class LoansService {
           principal: actualPrincipal,
           interest: actualInterest,
           fine: actualFine,
-          amount: Number(totalPaymentThisPeriod.toFixed(2)),
-          paymentDate: allocatedRepaymentDate ? new Date(allocatedRepaymentDate).toLocaleDateString() : null,
-          method: allocatedRepayment?.method || null,
-          accountId: allocatedRepayment?.accountId || null,
-          accountName: allocatedRepayment?.account?.name || null,
+          amount: totalPaymentThisPeriod,
+          paymentDate: cycle?.lastPaymentDate ? cycle.lastPaymentDate.toLocaleDateString() : null,
+          method: cycle?.lastPaymentMeta?.method || null,
+          accountId: cycle?.lastPaymentMeta?.accountId || null,
+          accountName: cycle?.lastPaymentMeta?.accountName || null,
         },
         outstanding: Number(outstanding.toFixed(2)),
         balance: Number(runningPrincipalBalance.toFixed(2)),
@@ -1652,6 +1802,32 @@ export class LoansService {
     const totalRepaid = loan.repayments.reduce((sum, rep) => sum + Number(rep.amount), 0);
     const totalFinesImposed = loan.fines.reduce((sum, fine) => sum + Number(fine.amount), 0);
     const totalOutstanding = Math.max(0, totalScheduled - totalRepaid);
+
+    const today = this.normalizeDate(new Date());
+    const oldestUnpaidCycle = cycles.find((cycle) => {
+      if (this.normalizeDate(new Date(cycle.dueDate)) > today) return false;
+      const outstanding = this.getOutstanding(cycle);
+      return outstanding.principal > 0 || outstanding.interest > 0 || outstanding.penalty > 0;
+    });
+    const daysPastDue = oldestUnpaidCycle
+      ? Math.max(0, Math.floor((today.getTime() - this.normalizeDate(new Date(oldestUnpaidCycle.dueDate)).getTime()) / (1000 * 60 * 60 * 24)))
+      : 0;
+
+    const ifrsDefaults = await this.getIfrsDefaults();
+    const ifrsStage = this.classifyIfrsStage(daysPastDue, loan.status);
+    const probabilityOfDefault =
+      ifrsStage === 1 ? ifrsDefaults.pdStage1 : ifrsStage === 2 ? ifrsDefaults.pdStage2 : ifrsDefaults.pdStage3;
+
+    const persistedEcl = loan.ecl
+      ? (typeof loan.ecl === 'object' && 'toNumber' in loan.ecl ? loan.ecl.toNumber() : Number(loan.ecl))
+      : 0;
+    const expectedCreditLoss = persistedEcl > 0
+      ? persistedEcl
+      : Math.max(0, totalOutstanding * probabilityOfDefault * ifrsDefaults.lgd);
+
+    const arrearsMessage = daysPastDue > 0
+      ? `PAYMENT ARREARS: This loan is ${daysPastDue} days past due. Please remit payment immediately.`
+      : null;
     
     // Calculate actual paid amounts from statement
     const totalActualPrincipal = consolidatedStatement.slice(1).reduce((sum, row) => sum + Number(row.actualPayment?.principal || 0), 0);
@@ -1688,6 +1864,11 @@ export class LoansService {
         currentBalance: Number(loan.balance),
         numberOfPeriods: amortizationSchedule.length,
         completionPercentage: totalScheduled > 0 ? Math.round((totalRepaid / totalScheduled) * 100) : 0,
+        daysPastDue,
+        ifrsStage,
+        probabilityOfDefault,
+        expectedCreditLoss: Number(expectedCreditLoss.toFixed(2)),
+        arrearsMessage,
       },
       statement: consolidatedStatement,
       repayments: loan.repayments.map((repayment) => ({

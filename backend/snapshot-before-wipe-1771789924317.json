@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-02-22T19:51:56.821Z",
+  "counts": {
+    "members": 151,
+    "accounts": 2,
+    "contributionTypes": 3,
+    "expenseCategories": 14,
+    "loanTypes": 5,
+    "loans": 144,
+    "deposits": 793,
+    "withdrawals": 97,
+    "journalEntries": 0,
+    "fines": 0,
+    "repayments": 0
+  }
+}

@@ -15,3 +15,15 @@
 
 // Import commands.js using ES2015 syntax:
 import './commands'
+import 'cypress-axe'
+
+beforeEach(() => {
+	const viewport = Cypress.env('viewport') || 'desktop';
+
+	if (viewport === 'mobile') {
+		cy.viewport('iphone-x');
+		return;
+	}
+
+	cy.viewport(1440, 900);
+});

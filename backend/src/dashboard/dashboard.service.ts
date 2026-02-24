@@ -47,13 +47,19 @@ export class DashboardService {
       include: {
         member: true,
         loanType: true,
+        fines: true,
       },
     });
 
     // Calculate loan statistics
     const activeLoans = allLoans.filter(l => l.status === 'active');
     const totalLoansDisbursed = allLoans.reduce((sum, l) => sum + Number(l.amount || 0), 0);
-    const totalLoansOutstanding = allLoans.reduce((sum, l) => sum + Number(l.balance || 0), 0);
+    const totalLoansOutstanding = allLoans.reduce((sum, l) => {
+      const unpaidFines = (l.fines || []).reduce((fineSum: number, fine: any) => {
+        return fineSum + Math.max(0, Number(fine.amount || 0) - Number(fine.paidAmount || 0));
+      }, 0);
+      return sum + Number(l.balance || 0) + unpaidFines;
+    }, 0);
 
     // Fetch deposits and withdrawals
     const deposits = await this.prisma.deposit.findMany({
@@ -131,10 +137,16 @@ export class DashboardService {
       activeLoans: activeLoans.length,
       totalLoans: allLoans.length,
       loans: allLoans.map(l => ({
+        outstandingFines: (l.fines || []).reduce((fineSum: number, fine: any) => {
+          return fineSum + Math.max(0, Number(fine.amount || 0) - Number(fine.paidAmount || 0));
+        }, 0),
         id: l.id,
         memberName: l.member?.name || l.memberName,
         amount: Number(l.amount),
         balance: Number(l.balance),
+        totalOutstanding: Number(l.balance) + (l.fines || []).reduce((fineSum: number, fine: any) => {
+          return fineSum + Math.max(0, Number(fine.amount || 0) - Number(fine.paidAmount || 0));
+        }, 0),
         status: l.status,
         loanType: l.loanType?.name || 'Unknown',
         disbursementDate: l.disbursementDate,

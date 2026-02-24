@@ -1,0 +1,704 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Loan Statement - Katore Charo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      color: #333;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      padding: 0;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+    .header p {
+      margin: 5px 0;
+      opacity: 0.9;
+      font-size: 14px;
+    }
+    .header-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 15px;
+      font-size: 14px;
+    }
+    .content {
+      padding: 20px;
+    }
+    .section {
+      background: #f8f9fa;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+    .section h2 {
+      margin-top: 0;
+      color: #667eea;
+      font-size: 20px;
+      margin-bottom: 15px;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+    .info-item {
+      background: white;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #e0e0e0;
+    }
+    .info-label {
+      font-size: 12px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+    }
+    .info-value {
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    .status-active { background: #d4edda; color: #155724; }
+    .status-closed { background: #cce5ff; color: #004085; }
+    .status-defaulted { background: #f8d7da; color: #721c24; }
+    .stage-1 { background: #d4edda; color: #155724; }
+    .stage-2 { background: #fff3cd; color: #856404; }
+    .stage-3 { background: #f8d7da; color: #721c24; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      margin-top: 15px;
+      font-size: 14px;
+    }
+    th {
+      background: #667eea;
+      color: white;
+      padding: 12px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: bold;
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    tr:hover {
+      background: #f8f9fa;
+    }
+    .amount {
+      text-align: right;
+      font-family: 'Courier New', monospace;
+      font-weight: 500;
+    }
+    .summary-box {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 25px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 20px;
+      margin-top: 15px;
+    }
+    .summary-item {
+      text-align: center;
+    }
+    .summary-label {
+      font-size: 13px;
+      opacity: 0.9;
+      margin-bottom: 8px;
+    }
+    .summary-value {
+      font-size: 22px;
+      font-weight: bold;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 40px;
+      padding: 20px;
+      border-top: 2px solid #e0e0e0;
+      color: #666;
+      font-size: 12px;
+      background: #f8f9fa;
+    }
+    .warning {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      color: #856404;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 15px 0;
+    }
+    .danger {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 15px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>LOAN STATEMENT</h1>
+      <p>SOYOSOYO SACCO - Member Loan Account</p>
+      <div class="header-info">
+        <div>
+          <strong>Member Name:</strong> Katore Charo
+        </div>
+        <div>
+          <strong>Loan ID:</strong> #142
+        </div>
+        <div>
+          <strong>Loan Type:</strong> Emergency Loan
+        </div>
+        <div>
+          <strong>Status:</strong> 
+          <span class="status-badge status-closed">CLOSED</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <!-- Loan Details -->
+      <div class="section">
+        <h2>📋 Loan Details</h2>
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Principal Amount</div>
+            <div class="info-value">KES 23000.00</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Interest Rate</div>
+            <div class="info-value">3% per month flat</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Disbursement Date</div>
+            <div class="info-value">15 Jul 2024</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Due Date</div>
+            <div class="info-value">15 Oct 2024</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Loan Duration</div>
+            <div class="info-value">3 months</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Current Balance</div>
+            <div class="info-value" style="color: #388e3c;">
+              KES 0.28 (Overpaid)
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- IFRS 9 Risk Classification -->
+      
+      <div class="section">
+        <h2>📊 IFRS 9 Risk Classification</h2>
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">IFRS Stage</div>
+            <div class="info-value">
+              <span class="status-badge stage-1">Stage 1</span>
+            </div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Days Past Due</div>
+            <div class="info-value">0 days</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Probability of Default</div>
+            <div class="info-value">0%</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Expected Credit Loss</div>
+            <div class="info-value">KES 0.00</div>
+          </div>
+        </div>
+      </div>
+      
+      
+      <!-- Fines Section -->
+      
+    <div class="section">
+      <h2>💰 Fines & Penalties</h2>
+      <p><strong>Total Fines Accrued:</strong> KES 528.59</p>
+      <p style="color: #d32f2f; font-weight: bold;">Outstanding Balance + Fines: KES 0.00</p>
+      
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th class="amount">Fine (2%)</th>
+            <th class="amount">Outstanding Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr>
+              <td>Aug 2024</td>
+              <td class="amount">KES 20.53</td>
+              <td class="amount">KES 1026.67</td>
+            </tr>
+          
+            <tr>
+              <td>Sept 2024</td>
+              <td class="amount">KES 178.68</td>
+              <td class="amount">KES 8933.87</td>
+            </tr>
+          
+            <tr>
+              <td>Oct 2024</td>
+              <td class="amount">KES 329.38</td>
+              <td class="amount">KES 16469.21</td>
+            </tr>
+          
+          
+        </tbody>
+      </table>
+      
+    </div>
+  
+      
+      
+      
+      <!-- Amortization Schedule -->
+      <div class="section">
+        <h2>📅 Expected Payment Schedule</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Due Date</th>
+              <th class="amount">Principal</th>
+              <th class="amount">Interest</th>
+              <th class="amount">Payment</th>
+              <th class="amount">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+              <tr>
+                <td>1</td>
+                <td>15 Aug 2024</td>
+                <td class="amount">KES 7666.67</td>
+                <td class="amount">KES 690.00</td>
+                <td class="amount"><strong>KES 8356.67</strong></td>
+                <td class="amount">KES 15333.33</td>
+              </tr>
+            
+              <tr>
+                <td>2</td>
+                <td>15 Sept 2024</td>
+                <td class="amount">KES 7666.67</td>
+                <td class="amount">KES 690.00</td>
+                <td class="amount"><strong>KES 8356.67</strong></td>
+                <td class="amount">KES 7666.67</td>
+              </tr>
+            
+              <tr>
+                <td>3</td>
+                <td>15 Oct 2024</td>
+                <td class="amount">KES 7666.67</td>
+                <td class="amount">KES 690.00</td>
+                <td class="amount"><strong>KES 8356.67</strong></td>
+                <td class="amount">KES 0.00</td>
+              </tr>
+            
+            
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Payment History -->
+      
+      <div class="section">
+        <h2>✅ Payment History</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Payment Date</th>
+              <th class="amount">Amount Paid</th>
+              <th class="amount">Principal</th>
+              <th class="amount">Interest</th>
+              <th class="amount">Penalty</th>
+              <th class="amount">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+              <tr>
+                <td>29 Apr 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 100.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 24970.00</td>
+              </tr>
+            
+              <tr>
+                <td>24 May 2024</td>
+                <td class="amount"><strong>KES 200.00</strong></td>
+                <td class="amount">KES 200.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 24770.00</td>
+              </tr>
+            
+              <tr>
+                <td>30 May 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 100.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 24670.00</td>
+              </tr>
+            
+              <tr>
+                <td>30 May 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 100.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 24570.00</td>
+              </tr>
+            
+              <tr>
+                <td>05 Jun 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 100.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 24470.00</td>
+              </tr>
+            
+              <tr>
+                <td>08 Jul 2024</td>
+                <td class="amount"><strong>KES 5000.00</strong></td>
+                <td class="amount">KES 5000.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 19470.00</td>
+              </tr>
+            
+              <tr>
+                <td>10 Jul 2024</td>
+                <td class="amount"><strong>KES 480.00</strong></td>
+                <td class="amount">KES 480.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 18990.00</td>
+              </tr>
+            
+              <tr>
+                <td>10 Jul 2024</td>
+                <td class="amount"><strong>KES 600.00</strong></td>
+                <td class="amount">KES 600.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 18390.00</td>
+              </tr>
+            
+              <tr>
+                <td>16 Jul 2024</td>
+                <td class="amount"><strong>KES 300.00</strong></td>
+                <td class="amount">KES 300.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 18090.00</td>
+              </tr>
+            
+              <tr>
+                <td>18 Jul 2024</td>
+                <td class="amount"><strong>KES 350.00</strong></td>
+                <td class="amount">KES 350.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 17740.00</td>
+              </tr>
+            
+              <tr>
+                <td>18 Aug 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 100.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 17660.53</td>
+              </tr>
+            
+              <tr>
+                <td>19 Aug 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 100.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 17560.53</td>
+              </tr>
+            
+              <tr>
+                <td>22 Aug 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 100.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 17460.53</td>
+              </tr>
+            
+              <tr>
+                <td>11 Sept 2024</td>
+                <td class="amount"><strong>KES 50.00</strong></td>
+                <td class="amount">KES 36.67</td>
+                <td class="amount">KES 13.33</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 17410.53</td>
+              </tr>
+            
+              <tr>
+                <td>14 Sept 2024</td>
+                <td class="amount"><strong>KES 120.00</strong></td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 120.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 17290.53</td>
+              </tr>
+            
+              <tr>
+                <td>16 Sept 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 100.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 17369.21</td>
+              </tr>
+            
+              <tr>
+                <td>18 Sept 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 100.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 17269.21</td>
+              </tr>
+            
+              <tr>
+                <td>19 Sept 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 100.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 17169.21</td>
+              </tr>
+            
+              <tr>
+                <td>20 Sept 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 100.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 17069.21</td>
+              </tr>
+            
+              <tr>
+                <td>21 Sept 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 100.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 16969.21</td>
+              </tr>
+            
+              <tr>
+                <td>25 Sept 2024</td>
+                <td class="amount"><strong>KES 100.00</strong></td>
+                <td class="amount">KES 22.80</td>
+                <td class="amount">KES 56.67</td>
+                <td class="amount">KES 20.53</td>
+                <td class="amount">KES 16869.21</td>
+              </tr>
+            
+              <tr>
+                <td>11 Oct 2024</td>
+                <td class="amount"><strong>KES 200.00</strong></td>
+                <td class="amount">KES 200.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 16669.21</td>
+              </tr>
+            
+              <tr>
+                <td>11 Oct 2024</td>
+                <td class="amount"><strong>KES 200.00</strong></td>
+                <td class="amount">KES 200.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 16469.21</td>
+              </tr>
+            
+              <tr>
+                <td>20 Oct 2024</td>
+                <td class="amount"><strong>KES 500.00</strong></td>
+                <td class="amount">KES 500.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 16298.59</td>
+              </tr>
+            
+              <tr>
+                <td>03 Nov 2024</td>
+                <td class="amount"><strong>KES 1000.00</strong></td>
+                <td class="amount">KES 1000.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 15298.59</td>
+              </tr>
+            
+              <tr>
+                <td>16 Nov 2024</td>
+                <td class="amount"><strong>KES 500.00</strong></td>
+                <td class="amount">KES 500.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 14798.59</td>
+              </tr>
+            
+              <tr>
+                <td>17 Nov 2024</td>
+                <td class="amount"><strong>KES 300.00</strong></td>
+                <td class="amount">KES 300.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 14498.59</td>
+              </tr>
+            
+              <tr>
+                <td>17 Nov 2024</td>
+                <td class="amount"><strong>KES 300.00</strong></td>
+                <td class="amount">KES 300.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 14198.59</td>
+              </tr>
+            
+              <tr>
+                <td>20 Nov 2024</td>
+                <td class="amount"><strong>KES 200.00</strong></td>
+                <td class="amount">KES 200.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 13998.59</td>
+              </tr>
+            
+              <tr>
+                <td>22 Nov 2024</td>
+                <td class="amount"><strong>KES 16945.00</strong></td>
+                <td class="amount">KES 12110.53</td>
+                <td class="amount">KES 1380.00</td>
+                <td class="amount">KES 508.06</td>
+                <td class="amount">KES 0.00</td>
+              </tr>
+            
+              <tr>
+                <td>08 Feb 2025</td>
+                <td class="amount"><strong>KES 150.00</strong></td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+                <td class="amount">KES 0.00</td>
+              </tr>
+            
+          </tbody>
+        </table>
+      </div>
+      
+      
+      <!-- Summary -->
+      <div class="summary-box">
+        <h2 style="margin-top: 0; color: white;">📈 Account Summary</h2>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <div class="summary-label">Total Paid</div>
+            <div class="summary-value">KES 28695.00</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Principal Paid</div>
+            <div class="summary-value">KES 23000.00</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Interest Paid</div>
+            <div class="summary-value">KES 2070.00</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Penalties Paid</div>
+            <div class="summary-value">KES 528.59</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Outstanding Principal</div>
+            <div class="summary-value">KES 0.00</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Outstanding Interest</div>
+            <div class="summary-value">KES 0.00</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Outstanding Penalties</div>
+            <div class="summary-value">KES 0.00</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Total Fines</div>
+            <div class="summary-value">KES 528.59</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Total Outstanding</div>
+            <div class="summary-value">KES 0.00</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p>This is an automated statement generated on 24 Feb 2026</p>
+      <p>For inquiries, contact SOYOSOYO SACCO support</p>
+      <p style="font-size: 11px; margin-top: 10px; opacity: 0.7;">Generated: 24/02/2026, 07:38:22</p>
+    </div>
+  </div>
+</body>
+</html>
+  

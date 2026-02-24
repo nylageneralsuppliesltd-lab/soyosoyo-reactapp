@@ -12,6 +12,7 @@ const convertToKebabCase = (camelCase) => {
 
 const REPORT_ENDPOINT_MAP = {
   contributions: 'contributions',
+  contributionMatrix: 'contribution-matrix',
   fines: 'fines',
   loans: 'loans',
   bankLoans: 'bank-loans',
@@ -100,7 +101,7 @@ const formatCellValue = (key, value, row) => {
 
 // Helper function to determine which columns to hide
 const shouldHideColumn = (key) => {
-  const hiddenColumns = ['id', 'memberid', 'accountid', 'createdat', 'updatedat', 'narration', 'reference'];
+  const hiddenColumns = ['id', 'memberid', 'accountid', 'createdat', 'updatedat', 'narration', 'reference', 'rowtype'];
   return hiddenColumns.includes(key.toLowerCase());
 };
 
@@ -834,6 +835,52 @@ const APIReportsPage = () => {
     );
   };
 
+  const renderContributionMatrixTable = (reportData) => {
+    const rows = sanitizeRows(reportData?.rows);
+    const months = Array.isArray(reportData?.meta?.months) ? reportData.meta.months : [];
+
+    return (
+      <div className="report-table-container">
+        <table className="report-table min-w-[1400px]">
+          <thead>
+            <tr>
+              <th>Member</th>
+              {months.map((month) => (
+                <th key={month.key} className="text-right">{month.label}</th>
+              ))}
+              <th className="text-right">Total Contributions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length > 0 ? (
+              rows.map((row, index) => {
+                const isTotal = String(row?.rowType || '').toLowerCase() === 'total';
+                return (
+                  <tr key={`${row.memberId || 'na'}-${row.memberName || 'na'}-${index}`} className={isTotal ? 'bg-gray-100 font-semibold' : ''}>
+                    <td>{row.memberName || '-'}</td>
+                    {months.map((month) => (
+                      <td key={`${index}-${month.key}`} className="text-right">
+                        {formatCellValue(month.label, row[month.label] || 0, row)}
+                      </td>
+                    ))}
+                    <td className="text-right">{formatCellValue('totalContributions', row.totalContributions || 0, row)}</td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={months.length + 2} className="text-center py-12">
+                  <FileText size={48} className="mx-auto text-gray-400 mb-3" />
+                  <p className="text-gray-500 font-medium">No contribution matrix rows match this filter</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
@@ -1302,6 +1349,8 @@ const APIReportsPage = () => {
                           <FinancialPreview reportKey={report.key} reportData={filteredReportData} />
                         ) : report.key === 'contributions' ? (
                           renderContributionSummaryTable(filteredReportData)
+                        ) : report.key === 'contributionMatrix' ? (
+                          renderContributionMatrixTable(filteredReportData)
                         ) : (
                           <div className="report-table-container">
                             <table className="report-table min-w-[980px]">

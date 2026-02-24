@@ -24,6 +24,11 @@ export class ReportsController {
     return this.reportsService.handleReport('contributions', query, res);
   }
 
+  @Get('contribution-matrix')
+  async contributionMatrix(@Query() query: any, @Res({ passthrough: true }) res: Response) {
+    return this.reportsService.handleReport('contributionMatrix', query, res);
+  }
+
   @Get('fines')
   async fines(@Query() query: any, @Res({ passthrough: true }) res: Response) {
     return this.reportsService.handleReport('fines', query, res);

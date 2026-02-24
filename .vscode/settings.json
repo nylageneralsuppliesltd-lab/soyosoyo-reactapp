@@ -1,0 +1,14 @@
+{
+  "css.lint.universalSelector": "warning",
+  "files.exclude": {
+    "**/_redirects": false
+  },
+  "files.associations": {
+    "_redirects": "plaintext"
+  },
+  "css.validate": true,
+  "css.lint.validProperties": ["_redirects"],
+  "[plaintext]": {
+    "editor.defaultFormatter": null
+  }
+}

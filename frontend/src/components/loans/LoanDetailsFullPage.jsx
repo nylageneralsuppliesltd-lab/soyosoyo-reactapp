@@ -424,6 +424,11 @@ function LoanDetailsFullPage({ loan, onClose }) {
                     ),
                     outstandingBalance: Number(comprehensiveStatement.summary?.outstandingBalance || 0),
                     completionPercentage: Number(comprehensiveStatement.summary?.completionPercentage || 0),
+                    daysPastDue: Number(comprehensiveStatement.summary?.daysPastDue || 0),
+                    ifrsStage: Number(comprehensiveStatement.summary?.ifrsStage || 1),
+                    probabilityOfDefault: Number(comprehensiveStatement.summary?.probabilityOfDefault || 0),
+                    expectedCreditLoss: Number(comprehensiveStatement.summary?.expectedCreditLoss || 0),
+                    arrearsMessage: comprehensiveStatement.summary?.arrearsMessage || null,
                   };
 
                   return (
@@ -468,6 +473,46 @@ function LoanDetailsFullPage({ loan, onClose }) {
                         </div>
                       </div>
                     </div>
+                  );
+                })()}
+
+                {(() => {
+                  const dpd = Number(comprehensiveStatement.summary?.daysPastDue || 0);
+                  const stage = Number(comprehensiveStatement.summary?.ifrsStage || 1);
+                  const pd = Number(comprehensiveStatement.summary?.probabilityOfDefault || 0);
+                  const ecl = Number(comprehensiveStatement.summary?.expectedCreditLoss || 0);
+                  const arrearsMessage = comprehensiveStatement.summary?.arrearsMessage;
+
+                  return (
+                    <>
+                      {dpd > 0 && arrearsMessage && (
+                        <div className="loan-arrears-banner">
+                          {arrearsMessage}
+                        </div>
+                      )}
+
+                      <div className="ifrs-risk-card">
+                        <h3>📊 IFRS 9 Risk Classification</h3>
+                        <div className="ifrs-risk-grid">
+                          <div className="ifrs-risk-item">
+                            <span className="label">IFRS Stage</span>
+                            <span className="value">Stage {stage}</span>
+                          </div>
+                          <div className="ifrs-risk-item">
+                            <span className="label">Days Past Due</span>
+                            <span className="value">{dpd} days</span>
+                          </div>
+                          <div className="ifrs-risk-item">
+                            <span className="label">Probability of Default</span>
+                            <span className="value">{Math.round(pd * 100)}%</span>
+                          </div>
+                          <div className="ifrs-risk-item">
+                            <span className="label">Expected Credit Loss</span>
+                            <span className="value">KES {ecl.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </>
                   );
                 })()}
 
