@@ -60,86 +60,95 @@ function getHeaders(ws, headerRow = 2, maxCols = 30) {
   return headers.slice(0, last);
 }
 
-function extractMemberAndContribution(description) {
+function normalizeName(value) {
+  const text = normalizeText(value);
+  return text.replace(/\s+/g, ' ').toUpperCase().trim();
+}
+
+// Calculate string similarity for fuzzy matching
+function stringSimilarity(a, b) {
+  const longer = a.length > b.length ? a : b;
+  const shorter = a.length > b.length ? b : a;
+  if (longer.length === 0) return 1.0;
+  const editDistance = getEditDistance(longer, shorter);
+  return (longer.length - editDistance) / longer.length;
+}
+
+function getEditDistance(s1, s2) {
+  const costs = [];
+  for (let i = 0; i <= s1.length; i++) {
+    let lastValue = i;
+    for (let j = 0; j <= s2.length; j++) {
+      if (i === 0) {
+        costs[j] = j;
+      } else if (j > 0) {
+        let newValue = costs[j - 1];
+        if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
+          newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+        }
+        costs[j - 1] = lastValue;
+        lastValue = newValue;
+      }
+    }
+    if (i > 0) costs[s2.length] = lastValue;
+  }
+  return costs[s2.length];
+}
+
+// Extract member name from description with high accuracy
+function extractMemberName(description, txnType) {
   const desc = normalizeText(description);
-  const m = desc.match(/from\s+(.+?)\s+for\s+(.+?)\s+to\s+chamasoft/i);
-  if (!m) return { memberName: null, contributionName: null };
-  return { memberName: normalizeText(m[1]), contributionName: normalizeText(m[2]) };
-}
-
-function extractMemberGeneric(description) {
-  const desc = normalizeText(description);
-  const from = desc.match(/from\s+(.+?)\s+(to|for)\s+/i);
-  if (from) return normalizeText(from[1]);
-  const to = desc.match(/to\s+(.+?)\s+(for|on|at|:|$)/i);
-  if (to) return normalizeText(to[1]);
-  return null;
-}
-
-function extractMemberFromLoanRepayment(description) {
-  const desc = normalizeText(description);
-  const match = desc.match(/loan\s+repayment\s+by\s+(.+?)\s+for\s+the\s+loan/i);
-  return match ? normalizeText(match[1]) : null;
-}
-
-function extractMemberFromLoanDisbursement(description) {
-  const desc = normalizeText(description);
-  const match = desc.match(/loan\s+disbursement\s+to\s+(.+?)(?:,|\s+withdrawn)/i);
-  return match ? normalizeText(match[1]) : null;
-}
-
-function extractMemberFromWithdrawalExpense(description) {
-  const desc = normalizeText(description);
-  const chargeMatch = desc.match(/expense\s*:\s*(?:\d+\s*-\s*)?(.+?)\s+withdrawal\s+charges/i);
-  if (chargeMatch) return normalizeText(chargeMatch[1]);
-
-  const accountSendMatch = desc.match(/sent\s+to\s+.+?\s+account\s+(.+?)\s+\d+/i);
-  if (accountSendMatch) return normalizeText(accountSendMatch[1]);
-
-  const boughtByMatch = desc.match(/bought\s+by\s+(.+?)(?:\s*-|$)/i);
-  if (boughtByMatch) return normalizeText(boughtByMatch[1]);
-
-  return null;
-}
-
-function isLikelyAccountName(name) {
-  const lower = normalizeText(name).toLowerCase();
-  if (!lower) return true;
-  return /chamasoft|co-?operative|bank|cash\s+at\s+hand|cytonn|state\s+bank|collection\s+account|c\.e\.w|e-?wallet|society/.test(lower);
-}
-
-function resolveMember(description, txnType, memberMap, memberNames) {
-  const explicitContribution = extractMemberAndContribution(description).memberName;
-  const loanRepaymentMember = extractMemberFromLoanRepayment(description);
-  const loanDisbursementMember = extractMemberFromLoanDisbursement(description);
-  const withdrawalExpenseMember = extractMemberFromWithdrawalExpense(description);
-  const generic = extractMemberGeneric(description);
-
-  const candidates = [
-    explicitContribution,
-    loanRepaymentMember,
-    loanDisbursementMember,
-    withdrawalExpenseMember,
-    generic,
-  ].filter(Boolean).map((x) => normalizeText(x));
-
-  for (const candidate of candidates) {
-    if (isLikelyAccountName(candidate)) continue;
-    const memberId = memberMap.get(candidate.toLowerCase()) || null;
-    return { memberName: candidate, memberId };
+  
+  // For Contribution payments: "Contribution payment from [NAME] for"
+  if (/contribution\s+payment/i.test(desc)) {
+    const match = desc.match(/from\s+([^\s].*?)\s+for/i);
+    if (match) return normalizeName(match[1]);
   }
 
-  const descLower = normalizeText(description).toLowerCase();
-  for (const memberName of memberNames) {
-    if (descLower.includes(memberName.toLowerCase())) {
-      return {
-        memberName,
-        memberId: memberMap.get(memberName.toLowerCase()) || null,
-      };
+  // For Loan Repayment: "Loan Repayment by [NAME] for the loan"
+  if (/loan\s+repayment/i.test(desc)) {
+    const match = desc.match(/by\s+([^\s].*?)(?:\s+for\s+the\s+loan|,|$)/i);
+    if (match) return normalizeName(match[1]);
+  }
+
+  // For Loan Disbursement: "Loan Disbursement to [NAME],"
+  if (/loan\s+disbursement/i.test(desc)) {
+    const match = desc.match(/to\s+([^\s].*?)(?:,|\s+withdrawn|$)/i);
+    if (match) return normalizeName(match[1]);
+  }
+
+  // For Withdrawal Expense: "Expense : [NUMBER] - [NAME] withdrawal charges"
+  if (/expense/i.test(desc) && /withdrawal\s+charges/i.test(desc)) {
+    const match = desc.match(/expense\s*:\s*(?:\d+\s*-\s*)?(.+?)\s+withdrawal\s+charges/i);
+    if (match) return normalizeName(match[1]);
+  }
+
+  return null;
+}
+
+// Fuzzy match member name to member list
+function findMemberByName(extractedName, members) {
+  if (!extractedName) return null;
+
+  // Exact match first (case-insensitive)
+  for (const member of members) {
+    if (normalizeName(member.name) === extractedName) {
+      return member;
     }
   }
 
-  return { memberName: null, memberId: null };
+  // Similarity-based matching (threshold: 0.85)
+  const candidates = members.map(member => ({
+    member,
+    similarity: stringSimilarity(normalizeName(member.name), extractedName)
+  })).filter(c => c.similarity >= 0.85);
+
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => b.similarity - a.similarity);
+    return candidates[0].member;
+  }
+
+  return null;
 }
 
 function mapContributionType(description, amount) {
@@ -221,26 +230,28 @@ async function main() {
       const withdrawn = parseMoney(row.getCell(wdIdx + 1).value);
       const deposited = parseMoney(row.getCell(dpIdx + 1).value);
 
-      const resolvedMember = resolveMember(description, txnType, memberMap, memberNames);
-      const memberId = resolvedMember.memberId;
-      const memberName = resolvedMember.memberName;
+      // Use improved member extraction and matching
+      const extractedName = extractMemberName(description, txnType);
+      const matchedMember = extractedName ? findMemberByName(extractedName, members) : null;
+      const memberId = matchedMember ? matchedMember.id : null;
+      const memberName = matchedMember ? matchedMember.name : extractedName;
       const accountId = mapBankAccountId(description, accountMap);
 
       if (deposited > 0) {
         let type = 'income';
         if (/Contribution payment/i.test(txnType)) type = 'contribution';
         else if (/Loan Repayment/i.test(txnType)) type = 'loan_repayment';
-        else if (/Incoming Bank Funds Transfer/i.test(txnType)) type = 'transfer';
+        else if (/Incoming Bank Funds Transfer|Miscellaneous/i.test(txnType)) type = 'transfer';
+        else if (/Income/i.test(txnType)) type = 'income';
 
         const contributionType = type === 'contribution' ? mapContributionType(description, deposited) : null;
-        const category = contributionType || (type === 'income' ? extractMemberAndContribution(description).contributionName : null) || null;
 
         depositRows.push({
           memberId: memberId || null,
           memberName: memberName || null,
           amount: new Prisma.Decimal(deposited),
           type,
-          category,
+          category: contributionType,
           date,
           accountId,
           description,
