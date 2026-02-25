@@ -76,6 +76,72 @@ function extractMemberGeneric(description) {
   return null;
 }
 
+function extractMemberFromLoanRepayment(description) {
+  const desc = normalizeText(description);
+  const match = desc.match(/loan\s+repayment\s+by\s+(.+?)\s+for\s+the\s+loan/i);
+  return match ? normalizeText(match[1]) : null;
+}
+
+function extractMemberFromLoanDisbursement(description) {
+  const desc = normalizeText(description);
+  const match = desc.match(/loan\s+disbursement\s+to\s+(.+?)(?:,|\s+withdrawn)/i);
+  return match ? normalizeText(match[1]) : null;
+}
+
+function extractMemberFromWithdrawalExpense(description) {
+  const desc = normalizeText(description);
+  const chargeMatch = desc.match(/expense\s*:\s*(?:\d+\s*-\s*)?(.+?)\s+withdrawal\s+charges/i);
+  if (chargeMatch) return normalizeText(chargeMatch[1]);
+
+  const accountSendMatch = desc.match(/sent\s+to\s+.+?\s+account\s+(.+?)\s+\d+/i);
+  if (accountSendMatch) return normalizeText(accountSendMatch[1]);
+
+  const boughtByMatch = desc.match(/bought\s+by\s+(.+?)(?:\s*-|$)/i);
+  if (boughtByMatch) return normalizeText(boughtByMatch[1]);
+
+  return null;
+}
+
+function isLikelyAccountName(name) {
+  const lower = normalizeText(name).toLowerCase();
+  if (!lower) return true;
+  return /chamasoft|co-?operative|bank|cash\s+at\s+hand|cytonn|state\s+bank|collection\s+account|c\.e\.w|e-?wallet|society/.test(lower);
+}
+
+function resolveMember(description, txnType, memberMap, memberNames) {
+  const explicitContribution = extractMemberAndContribution(description).memberName;
+  const loanRepaymentMember = extractMemberFromLoanRepayment(description);
+  const loanDisbursementMember = extractMemberFromLoanDisbursement(description);
+  const withdrawalExpenseMember = extractMemberFromWithdrawalExpense(description);
+  const generic = extractMemberGeneric(description);
+
+  const candidates = [
+    explicitContribution,
+    loanRepaymentMember,
+    loanDisbursementMember,
+    withdrawalExpenseMember,
+    generic,
+  ].filter(Boolean).map((x) => normalizeText(x));
+
+  for (const candidate of candidates) {
+    if (isLikelyAccountName(candidate)) continue;
+    const memberId = memberMap.get(candidate.toLowerCase()) || null;
+    return { memberName: candidate, memberId };
+  }
+
+  const descLower = normalizeText(description).toLowerCase();
+  for (const memberName of memberNames) {
+    if (descLower.includes(memberName.toLowerCase())) {
+      return {
+        memberName,
+        memberId: memberMap.get(memberName.toLowerCase()) || null,
+      };
+    }
+  }
+
+  return { memberName: null, memberId: null };
+}
+
 function mapContributionType(description, amount) {
   const desc = normalizeText(description).toLowerCase();
   if (desc.includes('registration fee')) return 'Registration Fee';
@@ -111,6 +177,7 @@ async function main() {
 
     const members = await prisma.member.findMany({ select: { id: true, name: true } });
     const memberMap = new Map(members.map((m) => [m.name.toLowerCase(), m.id]));
+    const memberNames = members.map((m) => m.name).filter(Boolean);
 
     if (reset) {
       await prisma.deposit.deleteMany({});
@@ -154,9 +221,9 @@ async function main() {
       const withdrawn = parseMoney(row.getCell(wdIdx + 1).value);
       const deposited = parseMoney(row.getCell(dpIdx + 1).value);
 
-      const { memberName } = extractMemberAndContribution(description);
-      const genericMember = memberName || extractMemberGeneric(description);
-      const memberId = genericMember ? memberMap.get(genericMember.toLowerCase()) || null : null;
+      const resolvedMember = resolveMember(description, txnType, memberMap, memberNames);
+      const memberId = resolvedMember.memberId;
+      const memberName = resolvedMember.memberName;
       const accountId = mapBankAccountId(description, accountMap);
 
       if (deposited > 0) {
@@ -170,6 +237,7 @@ async function main() {
 
         depositRows.push({
           memberId: memberId || null,
+          memberName: memberName || null,
           amount: new Prisma.Decimal(deposited),
           type,
           category,
@@ -188,6 +256,7 @@ async function main() {
 
         withdrawalRows.push({
           memberId: memberId || null,
+          memberName: memberName || null,
           amount: new Prisma.Decimal(withdrawn),
           type,
           date,
