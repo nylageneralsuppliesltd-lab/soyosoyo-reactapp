@@ -26,6 +26,9 @@ export default function MembersList() {
   const [pagination, setPagination] = useState({ skip: 0, take: 50, pages: 1, total: 0 });
 
   const formatKES = (value) => Number(value || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 });
+  const toNumber = (value) => Number(value || 0);
+  const eligibleContributions = (member) => toNumber(member.shareCapitalContributions) + toNumber(member.monthlyMinimumContribution);
+  const isDividendEligible = (member) => member.active === true && toNumber(member.registrationFeeContributions) > 0 && eligibleContributions(member) > 0;
 
   const fetchMembers = async (skip = 0) => {
     setLoading(true);
@@ -449,14 +452,14 @@ export default function MembersList() {
                 <th>Risk Fund</th>
                 <th>Share Capital</th>
                 <th>Monthly Min. Contrib.</th>
-                <th>Total Contrib.</th>
+                <th>Eligible Contrib.</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {members.map((m) => (
-                <tr key={m.id} className={!m.active ? 'suspended' : ''}>
+                <tr key={m.id} className={m.active === true ? '' : 'suspended'}>
                   <td className="name-cell">
                     <strong>{m.name}</strong>
                     {m.email && <small>{m.email}</small>}
@@ -481,12 +484,13 @@ export default function MembersList() {
                     <strong>KES {formatKES(m.monthlyMinimumContribution)}</strong>
                   </td>
                   <td className="balance-cell">
-                    <strong>KES {formatKES(m.totalContributions)}</strong>
+                    <strong>KES {formatKES(eligibleContributions(m))}</strong>
                   </td>
                   <td className="status-cell">
-                    <span className={`status-badge ${m.active ? 'active' : 'suspended'}`}>
-                      {m.active ? '✓ Active' : '✗ Suspended'}
+                    <span className={`status-badge ${m.active === true ? 'active' : 'suspended'}`}>
+                      {m.active === true ? '✓ Active' : '✗ Suspended'}
                     </span>
+                    <small>{isDividendEligible(m) ? 'Dividend Eligible' : 'Not Dividend Eligible'}</small>
                   </td>
                   <td className="actions-cell">
                     <button
@@ -503,7 +507,7 @@ export default function MembersList() {
                     >
                       Edit
                     </button>
-                    {m.active ? (
+                    {m.active === true ? (
                       <button
                         className="btn-small btn-danger"
                         onClick={() => handleSuspend(m.id)}
@@ -532,11 +536,11 @@ export default function MembersList() {
       {!loading && members.length > 0 && viewType === 'card' && (
         <div className="members-cards-grid">
           {members.map((m) => (
-            <div key={m.id} className={`member-card ${!m.active ? 'suspended' : ''}`}>
+            <div key={m.id} className={`member-card ${m.active === true ? '' : 'suspended'}`}>
               <div className="card-header">
                 <h3>{m.name}</h3>
-                <span className={`status-badge ${m.active ? 'active' : 'suspended'}`}>
-                  {m.active ? '✓ Active' : '✗ Suspended'}
+                <span className={`status-badge ${m.active === true ? 'active' : 'suspended'}`}>
+                  {m.active === true ? '✓ Active' : '✗ Suspended'}
                 </span>
               </div>
 
@@ -576,8 +580,12 @@ export default function MembersList() {
                   <span className="value">KES {formatKES(m.monthlyMinimumContribution)}</span>
                 </div>
                 <div className="card-row highlight">
-                  <span className="label">Total Contributions:</span>
-                  <span className="value">KES {formatKES(m.totalContributions)}</span>
+                  <span className="label">Eligible Contributions:</span>
+                  <span className="value">KES {formatKES(eligibleContributions(m))}</span>
+                </div>
+                <div className="card-row">
+                  <span className="label">Dividend Eligibility:</span>
+                  <span className="value">{isDividendEligible(m) ? 'Eligible' : 'Not Eligible'}</span>
                 </div>
                 {m.town && (
                   <div className="card-row">
@@ -600,7 +608,7 @@ export default function MembersList() {
                 >
                   Edit
                 </button>
-                {m.active ? (
+                {m.active === true ? (
                   <button
                     className="btn-small btn-danger"
                     onClick={() => handleSuspend(m.id)}
