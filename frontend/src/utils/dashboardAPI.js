@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { createRetryInterceptor } from './retryFetch';
-import { getAuthToken, notifyAuthExpired } from './authSession';
 
 // Centralized API base URL with local-first, proxy-friendly resolution
 let API_BASE = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
@@ -26,43 +25,15 @@ const API = axios.create({
   timeout: 15000, // Increased to allow for slow server startups
 });
 
-API.interceptors.request.use((config) => {
-  const token = getAuthToken();
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-API.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      notifyAuthExpired();
-    }
-    return Promise.reject(error);
-  }
-);
-
 // Add automatic retry logic with exponential backoff for network failures
 createRetryInterceptor(API, { maxRetries: 3 });
-
-const toAmount = (value) => (typeof value === 'number' ? value : parseFloat(value) || 0);
-const toTimestamp = (item) => item?.recordedAt || item?.disbursementDate || item?.createdAt || item?.date || null;
-const memberDisplayName = (member) => {
-  if (!member) return 'Unknown';
-  if (member.name) return member.name;
-  const fullName = [member.firstName, member.lastName].filter(Boolean).join(' ').trim();
-  return fullName || 'Unknown';
-};
 
 /**
  * Fetch all members for total count and status breakdown
  */
 export const getAllMembers = async () => {
   try {
-    const response = await API.get('/members');
+    const response = await API.get('/members', { params: { take: 999 } });
     // Handle both array response and { data: [] } response
     return Array.isArray(response.data) ? response.data : (response.data?.data || []);
   } catch (error) {
@@ -76,7 +47,7 @@ export const getAllMembers = async () => {
  */
 export const getAllDeposits = async () => {
   try {
-    const response = await API.get('/deposits');
+    const response = await API.get('/deposits', { params: { take: 9999 } });
     // Handle both array response and { data: [] } response
     return Array.isArray(response.data) ? response.data : (response.data?.data || []);
   } catch (error) {
@@ -90,7 +61,7 @@ export const getAllDeposits = async () => {
  */
 export const getAllWithdrawals = async () => {
   try {
-    const response = await API.get('/withdrawals');
+    const response = await API.get('/withdrawals', { params: { take: 9999 } });
     // Handle both array response and { data: [] } response
     return Array.isArray(response.data) ? response.data : (response.data?.data || []);
   } catch (error) {
@@ -104,7 +75,7 @@ export const getAllWithdrawals = async () => {
  */
 export const getAllLoans = async () => {
   try {
-    const response = await API.get('/loans');
+    const response = await API.get('/loans', { params: { take: 9999 } });
     // Handle both array response and { data: [] } response
     return Array.isArray(response.data) ? response.data : (response.data?.data || []);
   } catch (error) {
@@ -118,12 +89,11 @@ export const getAllLoans = async () => {
  */
 export const calculateDashboardStats = async () => {
   try {
-    const [members, deposits, withdrawals, loans, interestIncome] = await Promise.all([
+    const [members, deposits, withdrawals, loans] = await Promise.all([
       getAllMembers(),
       getAllDeposits(),
       getAllWithdrawals(),
       getAllLoans(),
-      getInterestIncomeForPeriod(),
     ]);
 
     console.log('Dashboard Data:', { 
@@ -148,27 +118,19 @@ export const calculateDashboardStats = async () => {
 
     // Calculate total outstanding loans
     const totalLoans = loans.reduce((sum, l) => {
-      const amount = typeof l.amount === 'number' ? l.amount : parseFloat(l.amount) || 0;
+      const amount = typeof l.loanAmount === 'number' ? l.loanAmount : parseFloat(l.loanAmount) || 0;
       return sum + amount;
     }, 0);
 
-    const totalLoanBalance = loans.reduce((sum, l) => {
-      const balance = typeof l.balance === 'number' ? l.balance : parseFloat(l.balance) || 0;
-      return sum + balance;
-    }, 0);
-
-    // Monthly interest income from reports; fallback to savings-rate estimate if needed
-    const fallbackInterest = deposits.reduce((sum, d) => {
+    // Calculate monthly interest (from deposits with rate)
+    const monthlyInterest = deposits.reduce((sum, d) => {
       if (d.depositType === 'regular_savings' || d.depositType === 'share_capital') {
-        const rate = d.rate || 2;
+        const rate = d.rate || 2; // Default 2% if not specified
         const amount = typeof d.amount === 'number' ? d.amount : parseFloat(d.amount) || 0;
         return sum + (amount * rate / 100);
       }
       return sum;
     }, 0);
-    const monthlyInterest = Number.isFinite(interestIncome) && interestIncome > 0
-      ? interestIncome
-      : fallbackInterest;
 
     // Calculate member growth (% change from 30 days ago)
     const thirtyDaysAgo = new Date();
@@ -184,30 +146,12 @@ export const calculateDashboardStats = async () => {
       suspendedMembers,
       totalSavings: Math.round(totalSavings),
       totalLoans: Math.round(totalLoans),
-      totalLoanBalance: Math.round(totalLoanBalance),
       monthlyInterest: Math.round(monthlyInterest),
       memberGrowth: parseFloat(memberGrowth),
     };
   } catch (error) {
     console.error('Error calculating dashboard stats:', error);
     return null;
-  }
-};
-
-export const getInterestIncomeForPeriod = async () => {
-  try {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const response = await API.get('/reports/income-breakdown', {
-      params: {
-        startDate: start.toISOString().split('T')[0],
-        endDate: now.toISOString().split('T')[0],
-      },
-    });
-    const summary = response.data?.summary || {};
-    return Number(summary.interestIncome || 0);
-  } catch (error) {
-    return 0;
   }
 };
 
@@ -229,28 +173,28 @@ export const getMonthlyTrendData = async (months = 6) => {
     for (let i = months - 1; i >= 0; i--) {
       const monthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
       const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-      const monthEndExclusive = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1);
+      const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
 
       const monthDeposits = deposits
         .filter(d => {
-          const dDate = new Date(toTimestamp(d));
-          return !Number.isNaN(dDate.getTime()) && dDate >= monthStart && dDate < monthEndExclusive;
+          const dDate = new Date(d.createdAt);
+          return dDate >= monthStart && dDate <= monthEnd;
         })
-        .reduce((sum, d) => sum + toAmount(d.amount), 0);
+        .reduce((sum, d) => sum + (d.amount || 0), 0);
 
       const monthWithdrawals = withdrawals
         .filter(w => {
-          const wDate = new Date(toTimestamp(w));
-          return !Number.isNaN(wDate.getTime()) && wDate >= monthStart && wDate < monthEndExclusive;
+          const wDate = new Date(w.createdAt);
+          return wDate >= monthStart && wDate <= monthEnd;
         })
-        .reduce((sum, w) => sum + toAmount(w.amount), 0);
+        .reduce((sum, w) => sum + (w.amount || 0), 0);
 
       const monthLoans = loans
         .filter(l => {
-          const lDate = new Date(toTimestamp(l));
-          return !Number.isNaN(lDate.getTime()) && lDate >= monthStart && lDate < monthEndExclusive;
+          const lDate = new Date(l.createdAt);
+          return lDate >= monthStart && lDate <= monthEnd;
         })
-        .reduce((sum, l) => sum + toAmount(l.amount), 0);
+        .reduce((sum, l) => sum + (l.loanAmount || 0), 0);
 
       trendData.push({
         month: monthDate.toLocaleString('default', { month: 'short' }),
@@ -260,6 +204,7 @@ export const getMonthlyTrendData = async (months = 6) => {
         interest: Math.round(monthDeposits * 0.02), // 2% monthly interest
       });
     }
+
     return trendData;
   } catch (error) {
     console.error('Error calculating monthly trends:', error);
@@ -287,9 +232,9 @@ export const getRecentActivity = async (limit = 10) => {
       activities.push({
         type: 'member_registration',
         description: `New Member Registration`,
-        memberName: memberDisplayName(member),
+        memberName: `${member.firstName} ${member.lastName}`,
         amount: '+1',
-        timestamp: toTimestamp(member),
+        timestamp: member.createdAt,
         icon: 'member',
       });
     });
@@ -297,13 +242,12 @@ export const getRecentActivity = async (limit = 10) => {
     // Add recent deposits
     deposits.slice(0, limit / 2).forEach(deposit => {
       const member = members.find(m => m.id === deposit.memberId);
-      const amount = toAmount(deposit.amount);
       activities.push({
         type: 'deposit',
         description: `Deposit - ${deposit.depositType || 'Regular Saving'}`,
-        memberName: memberDisplayName(member),
-        amount: `KES ${amount.toLocaleString('en-KE')}`,
-        timestamp: toTimestamp(deposit),
+        memberName: member ? `${member.firstName} ${member.lastName}` : 'Unknown',
+        amount: `KES ${(deposit.amount / 1000).toFixed(0)}K`,
+        timestamp: deposit.createdAt,
         icon: 'deposit',
       });
     });
@@ -311,13 +255,12 @@ export const getRecentActivity = async (limit = 10) => {
     // Add recent withdrawals
     withdrawals.slice(0, limit / 2).forEach(withdrawal => {
       const member = members.find(m => m.id === withdrawal.memberId);
-      const amount = toAmount(withdrawal.amount);
       activities.push({
         type: 'withdrawal',
         description: `Withdrawal - ${withdrawal.withdrawalType || 'Standard'}`,
-        memberName: memberDisplayName(member),
-        amount: `KES ${amount.toLocaleString('en-KE')}`,
-        timestamp: toTimestamp(withdrawal),
+        memberName: member ? `${member.firstName} ${member.lastName}` : 'Unknown',
+        amount: `KES ${(withdrawal.amount / 1000).toFixed(0)}K`,
+        timestamp: withdrawal.createdAt,
         icon: 'withdrawal',
       });
     });
@@ -325,20 +268,18 @@ export const getRecentActivity = async (limit = 10) => {
     // Add recent loans
     loans.slice(0, limit / 3).forEach(loan => {
       const member = members.find(m => m.id === loan.memberId);
-      const amount = toAmount(loan.amount);
       activities.push({
         type: 'loan',
         description: `Loan Disbursement`,
-        memberName: memberDisplayName(member),
-        amount: `KES ${amount.toLocaleString('en-KE')}`,
-        timestamp: toTimestamp(loan),
+        memberName: member ? `${member.firstName} ${member.lastName}` : 'Unknown',
+        amount: `KES ${(loan.loanAmount / 1000).toFixed(0)}K`,
+        timestamp: loan.disbursementDate || loan.createdAt,
         icon: 'loan',
       });
     });
 
     // Sort by timestamp descending and limit
     return activities
-      .filter((item) => item.timestamp)
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       .slice(0, limit);
   } catch (error) {
