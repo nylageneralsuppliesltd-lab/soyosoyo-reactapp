@@ -65,6 +65,13 @@ function normalizeName(value) {
   return text.replace(/\s+/g, ' ').toUpperCase().trim();
 }
 
+function tokenizeName(name) {
+  return normalizeName(name)
+    .split(' ')
+    .map(token => token.trim())
+    .filter(token => token.length >= 3);
+}
+
 // Calculate string similarity for fuzzy matching
 function stringSimilarity(a, b) {
   const longer = a.length > b.length ? a : b;
@@ -123,6 +130,24 @@ function extractMemberName(description, txnType) {
     if (match) return normalizeName(match[1]);
   }
 
+  // For Expense variants: "Expense : [NUMBER] - [NAME] : ..."
+  if (/expense/i.test(desc)) {
+    const match = desc.match(/expense\s*:\s*(?:\d+\s*-\s*)?([A-Za-z][A-Za-z\s.'-]{2,}?)(?:\s*:|\s+withdrawal\s+charges|$)/i);
+    if (match) return normalizeName(match[1]);
+  }
+
+  // For Miscellaneous/Income deposits: "... from [NAME] to ..."
+  if (/(miscellaneous\s+payment|income)/i.test(desc)) {
+    const match = desc.match(/from\s+([A-Za-z][A-Za-z\s.'-]{1,}?)\s+to\b/i);
+    if (match) return normalizeName(match[1]);
+  }
+
+  // Generic transfer/disbursement wording: "... to [NAME] ..."
+  if (/(transfer|disbursement)/i.test(desc)) {
+    const match = desc.match(/to\s+([A-Za-z][A-Za-z\s.'-]{1,}?)(?:,|\s+-|\s+withdrawn|$)/i);
+    if (match) return normalizeName(match[1]);
+  }
+
   return null;
 }
 
@@ -146,6 +171,36 @@ function findMemberByName(extractedName, members) {
   if (candidates.length > 0) {
     candidates.sort((a, b) => b.similarity - a.similarity);
     return candidates[0].member;
+  }
+
+  // Token overlap fallback for partial/extended names
+  const extractedTokens = tokenizeName(extractedName);
+  if (extractedTokens.length >= 2) {
+    const tokenCandidates = members.map(member => {
+      const memberTokens = tokenizeName(member.name);
+      const overlap = extractedTokens.filter(token => memberTokens.includes(token)).length;
+      return {
+        member,
+        overlap,
+        ratio: overlap / extractedTokens.length,
+        similarity: stringSimilarity(normalizeName(member.name), extractedName)
+      };
+    }).filter(c => c.overlap >= 2 && c.ratio >= 0.5);
+
+    if (tokenCandidates.length > 0) {
+      tokenCandidates.sort((a, b) => {
+        if (b.overlap !== a.overlap) return b.overlap - a.overlap;
+        if (b.ratio !== a.ratio) return b.ratio - a.ratio;
+        return b.similarity - a.similarity;
+      });
+
+      const best = tokenCandidates[0];
+      const second = tokenCandidates[1];
+      const clearlyBest = !second || best.overlap > second.overlap || (best.ratio - second.ratio) >= 0.2;
+      if (clearlyBest) {
+        return best.member;
+      }
+    }
   }
 
   return null;

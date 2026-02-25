@@ -7,7 +7,6 @@ import MemberForm from './MemberForm';
 import ReportHeader from '../ReportHeader';
 import '../../styles/members.css';
 import '../../styles/report.css';
-import { API_BASE } from '../../utils/apiBase';
 
 export default function MembersList() {
   const [members, setMembers] = useState([]);
@@ -26,41 +25,7 @@ export default function MembersList() {
   const [statusFilter, setStatusFilter] = useState('');
   const [pagination, setPagination] = useState({ skip: 0, take: 50, pages: 1, total: 0 });
 
-  const buildMemberContributionSummaryMap = (rows = []) => {
-    const map = new Map();
-    rows.forEach((row) => {
-      const memberId = row?.memberId;
-      if (!memberId) return;
-      const existing = map.get(memberId) || {
-        totalContributions: 0,
-        dividendEligibleContributions: 0,
-        totalArrears: 0,
-      };
-      const paidAmount = Number(row?.paidAmount || 0);
-      existing.totalContributions += paidAmount;
-      if (row?.eligibleForDividend) {
-        existing.dividendEligibleContributions += paidAmount;
-      }
-      existing.totalArrears += Number(row?.arrears || 0);
-      map.set(memberId, existing);
-    });
-    return map;
-  };
-
-  const buildIndicativeDividendMap = (rows = []) => {
-    const map = new Map();
-    rows.forEach((row) => {
-      const memberId = row?.memberId;
-      if (!memberId) return;
-      map.set(memberId, {
-        indicativeDividendPayout: Number(row?.totalDividend || 0),
-        indicativeInterestPayout: Number(row?.interestPayout || 0),
-        indicativeTotalPayout: Number(row?.totalMemberReturn || 0),
-        indicativePayableStatus: row?.payableStatus || 'not_payable',
-      });
-    });
-    return map;
-  };
+  const formatKES = (value) => Number(value || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 });
 
   const fetchMembers = async (skip = 0) => {
     setLoading(true);
@@ -74,56 +39,14 @@ export default function MembersList() {
         ...(statusFilter && { active: statusFilter }),
       });
 
-      const [membersRes, contributionSummaryRes, indicativeDivRes] = await Promise.all([
-        getMembers(params.toString()),
-        fetch(`${API_BASE}/reports/contributions?period=year&format=json`),
-        fetch(`${API_BASE}/reports/dividend-recommendation?period=year&format=json`),
-      ]);
-
-      const memberRows = membersRes.data.data || membersRes.data || [];
-
-      let contributionRows = [];
-      let indicativeRows = [];
-
-      if (contributionSummaryRes.ok) {
-        const json = await contributionSummaryRes.json();
-        contributionRows = Array.isArray(json?.rows) ? json.rows : [];
-      }
-
-      if (indicativeDivRes.ok) {
-        const json = await indicativeDivRes.json();
-        indicativeRows = Array.isArray(json?.rows) ? json.rows : [];
-      }
-
-      const contributionMap = buildMemberContributionSummaryMap(contributionRows);
-      const indicativeMap = buildIndicativeDividendMap(indicativeRows);
-
-      const mergedMembers = memberRows.map((member) => {
-        const contribution = contributionMap.get(member.id) || {
-          totalContributions: 0,
-          dividendEligibleContributions: 0,
-          totalArrears: 0,
-        };
-        const indicative = indicativeMap.get(member.id) || {
-          indicativeDividendPayout: 0,
-          indicativeInterestPayout: 0,
-          indicativeTotalPayout: 0,
-          indicativePayableStatus: 'not_payable',
-        };
-        return {
-          ...member,
-          ...contribution,
-          ...indicative,
-        };
-      });
-
-      setMembers(mergedMembers);
-      if (membersRes?.data?.pages !== undefined) {
+      const res = await getMembers(params.toString());
+      setMembers(res.data.data || res.data);
+      if (res.data.pages !== undefined) {
         setPagination({
           skip,
-          take: membersRes.data.take,
-          pages: membersRes.data.pages,
-          total: membersRes.data.total,
+          take: res.data.take,
+          pages: res.data.pages,
+          total: res.data.total,
         });
       }
     } catch (err) {
@@ -223,7 +146,7 @@ export default function MembersList() {
       [''],
     ];
 
-    const headers = ['#', 'Full Name', 'Phone', 'Email', 'ID Number', 'DOB', 'Gender', 'Role', 'Physical Address', 'Town', 'Employment Status', 'Employer Name', 'Balance (KES)', 'Total Contributions (KES)', 'Dividend Eligible Contributions (KES)', 'Arrears (KES)', 'Indicative Dividend (KES)', 'Indicative Payability', 'Status', 'Introducer Name', 'Date Joined'];
+    const headers = ['#', 'Full Name', 'Phone', 'Email', 'ID Number', 'DOB', 'Gender', 'Role', 'Physical Address', 'Town', 'Employment Status', 'Employer Name', 'Balance (KES)', 'Status', 'Introducer Name', 'Date Joined'];
     
     const rows = members.map((m, idx) => [
       idx + 1,
@@ -239,11 +162,6 @@ export default function MembersList() {
       m.employmentStatus || '-',
       m.employerName || '-',
       m.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00',
-      Number(m.totalContributions || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 }),
-      Number(m.dividendEligibleContributions || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 }),
-      Number(m.totalArrears || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 }),
-      Number(m.indicativeTotalPayout || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 }),
-      m.indicativePayableStatus === 'payable' ? 'Payable' : 'Not Payable',
       m.active ? 'Active' : 'Suspended',
       m.introducerName || '-',
       new Date(m.createdAt).toLocaleDateString('en-KE'),
@@ -311,8 +229,8 @@ export default function MembersList() {
       yPosition += 8;
 
       // Table headers
-      const headers = ['#', 'Name', 'Phone', 'Role', 'Balance', 'Contrib', 'Eligible', 'Arrears', 'Indicative Div', 'Payability', 'Status', 'Joined'];
-      const colWidths = [6, 26, 22, 14, 20, 20, 20, 16, 22, 18, 14, 16];
+      const headers = ['#', 'Name', 'Phone', 'Email', 'ID', 'DOB', 'Gender', 'Role', 'Address', 'Town', 'Employment', 'Employer', 'Balance', 'Status', 'Introducer', 'Joined'];
+      const colWidths = [6, 16, 14, 16, 10, 12, 10, 12, 14, 10, 12, 12, 14, 11, 12, 12];
       
       // Draw header row
       pdf.setFillColor(37, 99, 235);
@@ -363,14 +281,18 @@ export default function MembersList() {
           idx + 1,
           member.name,
           member.phone,
+          member.email || '-',
+          member.idNumber || '-',
+          member.dob ? new Date(member.dob).toLocaleDateString('en-KE') : '-',
+          member.gender || '-',
           member.role,
+          member.physicalAddress ? member.physicalAddress.substring(0, 15) : '-',
+          member.town || '-',
+          member.employmentStatus ? member.employmentStatus.substring(0, 8) : '-',
+          member.employerName ? member.employerName.substring(0, 10) : '-',
           member.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00',
-          Number(member.totalContributions || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 }),
-          Number(member.dividendEligibleContributions || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 }),
-          Number(member.totalArrears || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 }),
-          Number(member.indicativeTotalPayout || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 }),
-          member.indicativePayableStatus === 'payable' ? 'Payable' : 'Not Payable',
           member.active ? 'Active' : 'Suspended',
+          member.introducerName || '-',
           new Date(member.createdAt).toLocaleDateString('en-KE'),
         ];
 
@@ -523,11 +445,11 @@ export default function MembersList() {
                 <th>Phone</th>
                 <th>Role</th>
                 <th>Balance</th>
+                <th>Registration Fee</th>
+                <th>Risk Fund</th>
+                <th>Share Capital</th>
+                <th>Monthly Min. Contrib.</th>
                 <th>Total Contrib.</th>
-                <th>Eligible Contrib.</th>
-                <th>Arrears</th>
-                <th>Indicative Dividend</th>
-                <th>Payability</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -544,24 +466,22 @@ export default function MembersList() {
                     <span className="role-badge">{m.role}</span>
                   </td>
                   <td className="balance-cell">
-                    <strong>KES {m.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00'}</strong>
+                    <strong>KES {formatKES(m.balance)}</strong>
                   </td>
                   <td className="balance-cell">
-                    KES {Number(m.totalContributions || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                    <strong>KES {formatKES(m.registrationFeeContributions)}</strong>
                   </td>
                   <td className="balance-cell">
-                    KES {Number(m.dividendEligibleContributions || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                    <strong>KES {formatKES(m.riskFundContributions)}</strong>
                   </td>
                   <td className="balance-cell">
-                    KES {Number(m.totalArrears || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                    <strong>KES {formatKES(m.shareCapitalContributions)}</strong>
                   </td>
                   <td className="balance-cell">
-                    KES {Number(m.indicativeTotalPayout || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                    <strong>KES {formatKES(m.monthlyMinimumContribution)}</strong>
                   </td>
-                  <td className="status-cell">
-                    <span className={`status-badge ${m.indicativePayableStatus === 'payable' ? 'active' : 'suspended'}`}>
-                      {m.indicativePayableStatus === 'payable' ? 'Payable' : 'Not Payable'}
-                    </span>
+                  <td className="balance-cell">
+                    <strong>KES {formatKES(m.totalContributions)}</strong>
                   </td>
                   <td className="status-cell">
                     <span className={`status-badge ${m.active ? 'active' : 'suspended'}`}>
@@ -637,27 +557,27 @@ export default function MembersList() {
                 </div>
                 <div className="card-row highlight">
                   <span className="label">Balance:</span>
-                  <span className="value">KES {m.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00'}</span>
+                  <span className="value">KES {formatKES(m.balance)}</span>
                 </div>
                 <div className="card-row">
-                  <span className="label">Total Contributions:</span>
-                  <span className="value">KES {Number(m.totalContributions || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</span>
+                  <span className="label">Registration Fee:</span>
+                  <span className="value">KES {formatKES(m.registrationFeeContributions)}</span>
                 </div>
                 <div className="card-row">
-                  <span className="label">Eligible Contributions:</span>
-                  <span className="value">KES {Number(m.dividendEligibleContributions || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</span>
+                  <span className="label">Risk Fund:</span>
+                  <span className="value">KES {formatKES(m.riskFundContributions)}</span>
                 </div>
                 <div className="card-row">
-                  <span className="label">Arrears:</span>
-                  <span className="value">KES {Number(m.totalArrears || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</span>
+                  <span className="label">Share Capital:</span>
+                  <span className="value">KES {formatKES(m.shareCapitalContributions)}</span>
+                </div>
+                <div className="card-row">
+                  <span className="label">Monthly Min. Contrib.:</span>
+                  <span className="value">KES {formatKES(m.monthlyMinimumContribution)}</span>
                 </div>
                 <div className="card-row highlight">
-                  <span className="label">Indicative Dividend:</span>
-                  <span className="value">KES {Number(m.indicativeTotalPayout || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="card-row">
-                  <span className="label">Dividend Payability:</span>
-                  <span className="value">{m.indicativePayableStatus === 'payable' ? 'Payable' : 'Not Payable'}</span>
+                  <span className="label">Total Contributions:</span>
+                  <span className="value">KES {formatKES(m.totalContributions)}</span>
                 </div>
                 {m.town && (
                   <div className="card-row">
