@@ -27,7 +27,19 @@ export default function MembersList() {
 
   const formatKES = (value) => Number(value || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 });
   const toNumber = (value) => Number(value || 0);
+  const totalContributions = (member) => toNumber(member.totalContributions) || (
+    toNumber(member.registrationFeeContributions)
+    + toNumber(member.riskFundContributions)
+    + toNumber(member.shareCapitalContributions)
+    + toNumber(member.monthlyMinimumContribution)
+  );
   const eligibleContributions = (member) => toNumber(member.shareCapitalContributions) + toNumber(member.monthlyMinimumContribution);
+  const totalArrears = (member) => toNumber(member.totalArrears);
+  const indicativeDividend = (member) => toNumber(member.indicativeTotalPayout);
+  const dividendPayability = (member) => {
+    if (member.indicativePayableStatus === 'payable') return 'Payable';
+    return isDividendEligible(member) ? 'Payable' : 'Not Payable';
+  };
   const isDividendEligible = (member) => member.active === true && toNumber(member.registrationFeeContributions) > 0 && eligibleContributions(member) > 0;
 
   const fetchMembers = async (skip = 0) => {
@@ -447,12 +459,15 @@ export default function MembersList() {
                 <th>Name</th>
                 <th>Phone</th>
                 <th>Role</th>
-                <th>Balance</th>
                 <th>Registration Fee</th>
                 <th>Risk Fund</th>
                 <th>Share Capital</th>
                 <th>Monthly Min. Contrib.</th>
+                <th>Total Contrib.</th>
                 <th>Eligible Contrib.</th>
+                <th>Arrears</th>
+                <th>Indicative Dividend</th>
+                <th>Payability</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -469,9 +484,6 @@ export default function MembersList() {
                     <span className="role-badge">{m.role}</span>
                   </td>
                   <td className="balance-cell">
-                    <strong>KES {formatKES(m.balance)}</strong>
-                  </td>
-                  <td className="balance-cell">
                     <strong>KES {formatKES(m.registrationFeeContributions)}</strong>
                   </td>
                   <td className="balance-cell">
@@ -484,7 +496,17 @@ export default function MembersList() {
                     <strong>KES {formatKES(m.monthlyMinimumContribution)}</strong>
                   </td>
                   <td className="balance-cell">
+                    <strong>KES {formatKES(totalContributions(m))}</strong>
+                  </td>
+                  <td className="balance-cell">
                     <strong>KES {formatKES(eligibleContributions(m))}</strong>
+                  </td>
+                  <td className="balance-cell">KES {formatKES(totalArrears(m))}</td>
+                  <td className="balance-cell">KES {formatKES(indicativeDividend(m))}</td>
+                  <td className="status-cell">
+                    <span className={`status-badge ${dividendPayability(m) === 'Payable' ? 'active' : 'suspended'}`}>
+                      {dividendPayability(m)}
+                    </span>
                   </td>
                   <td className="status-cell">
                     <span className={`status-badge ${m.active === true ? 'active' : 'suspended'}`}>
@@ -579,9 +601,25 @@ export default function MembersList() {
                   <span className="label">Monthly Min. Contrib.:</span>
                   <span className="value">KES {formatKES(m.monthlyMinimumContribution)}</span>
                 </div>
+                <div className="card-row">
+                  <span className="label">Total Contributions:</span>
+                  <span className="value">KES {formatKES(totalContributions(m))}</span>
+                </div>
                 <div className="card-row highlight">
                   <span className="label">Eligible Contributions:</span>
                   <span className="value">KES {formatKES(eligibleContributions(m))}</span>
+                </div>
+                <div className="card-row">
+                  <span className="label">Arrears:</span>
+                  <span className="value">KES {formatKES(totalArrears(m))}</span>
+                </div>
+                <div className="card-row">
+                  <span className="label">Indicative Dividend:</span>
+                  <span className="value">KES {formatKES(indicativeDividend(m))}</span>
+                </div>
+                <div className="card-row">
+                  <span className="label">Payability:</span>
+                  <span className="value">{dividendPayability(m)}</span>
                 </div>
                 <div className="card-row">
                   <span className="label">Dividend Eligibility:</span>
