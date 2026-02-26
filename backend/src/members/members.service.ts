@@ -18,6 +18,10 @@ function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
+function addMonths(date: Date, months: number): Date {
+  return new Date(date.getFullYear(), date.getMonth() + months, 1);
+}
+
 function monthsInclusive(from: Date, to: Date): number {
   const yearDiff = to.getFullYear() - from.getFullYear();
   const monthDiff = to.getMonth() - from.getMonth();
@@ -117,8 +121,6 @@ export class MembersService {
 
     const groupInceptionMonth = startOfMonth(firstContributionPayment?.date || new Date());
     const currentMonth = startOfMonth(new Date());
-    const expectedMonthsFromInception = monthsInclusive(groupInceptionMonth, currentMonth);
-    const expectedInvoicedAmountFromInception = expectedMonthsFromInception * MONTHLY_INVOICE_AMOUNT;
 
     const memberIds = members.map((member) => member.id);
     const contributionRows = memberIds.length
@@ -175,7 +177,14 @@ export class MembersService {
       };
 
       const paidTowardMonthlyInvoice = contributionTotals.monthlyMinimumContribution;
-      const computedArrears = expectedInvoicedAmountFromInception - paidTowardMonthlyInvoice;
+      const memberJoinMonth = startOfMonth(member.createdAt);
+      const memberArrearsStartMonth = addMonths(memberJoinMonth, 1);
+      const effectiveArrearsStart = memberArrearsStartMonth > groupInceptionMonth
+        ? memberArrearsStartMonth
+        : groupInceptionMonth;
+      const expectedMonthsForMember = monthsInclusive(effectiveArrearsStart, currentMonth);
+      const expectedInvoicedAmountForMember = expectedMonthsForMember * MONTHLY_INVOICE_AMOUNT;
+      const computedArrears = expectedInvoicedAmountForMember - paidTowardMonthlyInvoice;
 
       const calculatedBalance = ledgerEntries.reduce((sum, entry) => {
         const amount = Number(entry.amount);
