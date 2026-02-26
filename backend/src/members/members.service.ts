@@ -12,6 +12,18 @@ interface ListOptions {
   sort?: 'asc' | 'desc';
 }
 
+const MONTHLY_INVOICE_AMOUNT = 200;
+
+function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function monthsInclusive(from: Date, to: Date): number {
+  const yearDiff = to.getFullYear() - from.getFullYear();
+  const monthDiff = to.getMonth() - from.getMonth();
+  return Math.max(0, yearDiff * 12 + monthDiff + 1);
+}
+
 @Injectable()
 export class MembersService {
   constructor(private prisma: PrismaService) {}
@@ -151,6 +163,13 @@ export class MembersService {
         riskFund: 0,
       };
 
+      const inceptionMonth = startOfMonth(member.createdAt);
+      const currentMonth = startOfMonth(new Date());
+      const expectedMonths = monthsInclusive(inceptionMonth, currentMonth);
+      const expectedInvoicedAmount = expectedMonths * MONTHLY_INVOICE_AMOUNT;
+      const paidTowardMonthlyInvoice = contributionTotals.monthlyMinimumContribution;
+      const computedArrears = Math.max(0, expectedInvoicedAmount - paidTowardMonthlyInvoice);
+
       const calculatedBalance = ledgerEntries.reduce((sum, entry) => {
         const amount = Number(entry.amount);
         const credits = ['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'];
@@ -186,6 +205,7 @@ export class MembersService {
         shareCapitalContributions: Math.round(contributionTotals.shareCapital * 100) / 100,
         registrationFeeContributions: Math.round(contributionTotals.registrationFee * 100) / 100,
         riskFundContributions: Math.round(contributionTotals.riskFund * 100) / 100,
+        totalArrears: Math.round(computedArrears * 100) / 100,
       };
     });
 
