@@ -1,4 +1,6 @@
-/* Members Module - Unified Design System */
+/* ═══════════════════════════════════════════════════════════════════
+   SACCO Members Module - Premium Responsive Design
+   ═══════════════════════════════════════════════════════════════════ */
 
 /* Color scheme */
 :root {
@@ -16,61 +18,51 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  
-  /* Typography */
-  --font-h1: 20px;
-  --font-h2: 16px;
-  --font-md: 14px;
-  --font-sm: 12px;
-  --font-xs: 11px;
-  
-  /* Spacing */
-  --pad-page: 16px;
-  --pad-card: 12px;
-  --pad-compact: 8px;
 }
 
-/* Member Form - New Compact Multi-Column Design */
+/* ═══════════════════════════════════════════════════════════════════
+   MEMBER FORM - NEW COMPACT MULTI-COLUMN DESIGN
+   ═══════════════════════════════════════════════════════════════════ */
 
 .member-form-container {
   max-width: 1000px;
   margin: 0 auto;
-  padding: var(--pad-page);
+  padding: 16px;
   background: var(--light);
   min-height: 100vh;
   font-family: inherit;
 }
 
 .form-header {
-  margin-bottom: 12px;
+  margin-bottom: 20px;
   border-bottom: 2px solid var(--primary);
-  padding-bottom: 10px;
+  padding-bottom: 14px;
 }
 
 .form-header h1 {
-  font-size: var(--font-h1);
+  font-size: 26px;
   font-weight: 700;
-  margin: 0 0 4px 0;
+  margin: 0 0 6px 0;
   color: var(--dark);
 }
 
 .form-subtitle {
-  font-size: var(--font-xs);
+  font-size: 13px;
   color: var(--text-light);
   margin: 0;
 }
 
 .member-form {
   background: white;
-  border-radius: 8px;
-  padding: var(--pad-card);
+  border-radius: 10px;
+  padding: 18px;
   box-shadow: var(--shadow-md);
 }
 
 /* Form Sections */
 .form-section {
-  margin-bottom: 12px;
-  padding-bottom: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -81,29 +73,29 @@
 }
 
 .section-title {
-  font-size: var(--font-sm);
+  font-size: 14px;
   font-weight: 600;
   color: var(--dark);
-  margin: 0 0 8px 0;
+  margin: 0 0 12px 0;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
-  padding-bottom: 6px;
+  letter-spacing: 0.5px;
+  padding-bottom: 8px;
   border-bottom: 2px solid var(--primary);
   display: inline-block;
 }
 
 .section-subtitle {
-  font-size: var(--font-xs);
+  font-size: 12px;
   color: var(--text-light);
-  margin: -6px 0 6px 0;
+  margin: -8px 0 8px 0;
 }
 
 /* Form Grid - 2 columns on desktop, 1 on mobile/tablet */
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin-bottom: 2px;
+  gap: 12px;
+  margin-bottom: 4px;
 }
 
 .form-field {
@@ -530,7 +522,7 @@
   padding: 16px;
   background: var(--light);
   min-height: 100vh;
-  font-family: inherit;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   color: var(--text-dark);
 }
 
@@ -761,7 +753,7 @@
   padding: 16px;
   background: var(--light);
   min-height: 100vh;
-  font-family: inherit;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   color: var(--text-dark);
 }
 
@@ -1104,9 +1096,7 @@
 .members-table-wrapper {
   background: white;
   border-radius: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
   box-shadow: var(--shadow-sm);
   margin-bottom: 24px;
 }
@@ -1140,7 +1130,8 @@
 }
 
 .members-table tbody tr.suspended {
-  opacity: 0.7;
+  opacity: 1;
+  background: #fff7f7;
 }
 
 .members-table td {
@@ -1240,7 +1231,8 @@
 }
 
 .member-card.suspended {
-  opacity: 0.8;
+  opacity: 1;
+  background: #fff7f7;
 }
 
 .card-header {
