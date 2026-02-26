@@ -16,6 +16,10 @@ import './index.css'; // Tailwind + global styles
 import './App.css';   // custom styles
 import './styles/forms.css'; // Universal compact form styles
 import Sidebar from './components/Sidebar';
+import ProtectedRoute from './components/ProtectedRoute';
+import UserProfileHeader from './components/UserProfileHeader';
+import useInitializeApp from './hooks/useInitializeApp';
+import { useAuth } from './context/AuthContext';
 
 // Pages
 import DashboardPage from './pages/DashboardPage';
@@ -23,6 +27,8 @@ import LandingPage from './pages/LandingPage';
 import MembersList from './components/members/MembersList';
 import MemberForm from './components/members/MemberForm';
 import SaccoSettingsPage from './pages/SaccoSettingsPage';
+import LoginPage from './pages/LoginPage';
+import ProfileHubPage from './pages/ProfileHubPage';
 import DepositsPage from './pages/DepositsPage';
 import WithdrawalsPage from './pages/WithdrawalsPage';
 import LoansPage from './pages/LoansPage';
@@ -33,9 +39,21 @@ import GeneralLedgerDetailPage from './pages/GeneralLedgerDetailPage';
 import SettingsPage from './pages/SettingsPage';
 import GeneralLedgerPage from './pages/GeneralLedgerPage';
 import AccountBalanceReportPage from './pages/AccountBalanceReportPage';
-import BalanceSheetPage from './pages/BalanceSheetPage';
-import IncomeStatementPage from './pages/IncomeStatementPage';
+import BalanceSheetPage from './pages/EnhancedBalanceSheetPage';
+import IncomeStatementPage from './pages/EnhancedIncomeStatementPage';
 import TrialBalancePage from './pages/TrialBalancePage';
+
+const RootRoute = () => {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const redirectPath = params.get('redirect');
+
+  if (redirectPath && redirectPath.startsWith('/')) {
+    return <Navigate to={redirectPath} replace />;
+  }
+
+  return <Navigate to="/dashboard" replace />;
+};
 
 const NotFound = () => (
   <div className="flex flex-col items-center justify-center h-full text-center p-6">
@@ -49,10 +67,14 @@ const NotFound = () => (
 
 function App() {
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(
     typeof window !== 'undefined' ? window.innerWidth <= 768 : false
   );
+
+  // Initialize app data on session restore (after page refresh with saved session)
+  useInitializeApp();
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeSidebar = () => setIsSidebarOpen(false);
@@ -63,11 +85,21 @@ function App() {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (window.innerWidth <= 768) {
+      document.body.style.overflow = isSidebarOpen ? 'hidden' : '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isSidebarOpen]);
+
+  useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth <= 768;
       setIsMobileViewport(mobile);
       if (!mobile) {
         setIsSidebarOpen(false);
+        document.body.style.overflow = '';
       }
     };
 
@@ -76,10 +108,17 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Check if current route is a public route (no header needed)
+  const isPublicRoute = ['/', '/landing', '/login'].includes(location.pathname);
+
   // Routes handle landing page; always render app layout here
 
   return (
+
     <div className="app-container">
+      {/* Premium User Profile Header (Only when authenticated and not on public routes) */}
+      {isAuthenticated && !isPublicRoute && <UserProfileHeader />}
+
       {/* Mobile Hamburger Button */}
       <button
         className="mobile-hamburger"
@@ -103,43 +142,46 @@ function App() {
       {/* Main Content */}
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<RootRoute />} />
           <Route path="/landing" element={<LandingPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-
-          {/* Member routes */}
-          <Route path="/members/list" element={<MembersList />} />
-          <Route path="/members/create" element={<MemberForm />} />
-
-          {/* Other routes */}
-          <Route path="/deposits/*" element={<DepositsPage />} />
-          <Route path="/withdrawals/*" element={<WithdrawalsPage />} />
-          <Route path="/loans/*" element={<LoansPage />} />
-          <Route path="/reports/*" element={<ReportsPage />} />
-          <Route path="/api-reports" element={<APIReportsPage />} />
-          <Route path="/account-statement" element={<AccountStatementPage />} />
-          <Route path="/general-ledger-detail" element={<GeneralLedgerDetailPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/settings/accounts/create" element={<SettingsPage initialTab="accounts" initialShowForm={true} />} />
-          <Route path="/settings/contributions/create" element={<SettingsPage initialTab="contributions" initialShowForm={true} />} />
-          <Route path="/settings/income/create" element={<SettingsPage initialTab="income" initialShowForm={true} />} />
-          <Route path="/settings/expenses/create" element={<SettingsPage initialTab="expenses" initialShowForm={true} />} />
-          <Route path="/settings/fines/create" element={<SettingsPage initialTab="fines" initialShowForm={true} />} />
-          <Route path="/settings/roles/create" element={<SettingsPage initialTab="roles" initialShowForm={true} />} />
-          <Route path="/settings/invoices/create" element={<SettingsPage initialTab="invoices" initialShowForm={true} />} />
-          <Route path="/settings/assets/create" element={<SettingsPage initialTab="assets" initialShowForm={true} />} />
-          <Route path="/ledger" element={<GeneralLedgerPage />} />
-          <Route path="/sacco-settings" element={<SaccoSettingsPage />} />
-          <Route path="/reports/account-balance" element={<AccountBalanceReportPage />} />
-          <Route path="/reports/balance-sheet" element={<BalanceSheetPage />} />
-          <Route path="/reports/income-statement" element={<IncomeStatementPage />} />
-          <Route path="/reports/trial-balance" element={<TrialBalancePage />} />
+          <Route path="/login" element={<LoginPage />} />
+          
+          {/* Protected routes require authentication */}
+          <Route path="/profile-hub" element={<ProtectedRoute><ProfileHubPage /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/members/list" element={<ProtectedRoute><MembersList /></ProtectedRoute>} />
+          <Route path="/members/create" element={<ProtectedRoute><MemberForm /></ProtectedRoute>} />
+          <Route path="/deposits/*" element={<ProtectedRoute><DepositsPage /></ProtectedRoute>} />
+          <Route path="/withdrawals/*" element={<ProtectedRoute><WithdrawalsPage /></ProtectedRoute>} />
+          <Route path="/loans/*" element={<ProtectedRoute><LoansPage /></ProtectedRoute>} />
+          <Route path="/reports/*" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+          <Route path="/api-reports" element={<ProtectedRoute><APIReportsPage /></ProtectedRoute>} />
+          <Route path="/account-statement" element={<ProtectedRoute><AccountStatementPage /></ProtectedRoute>} />
+          <Route path="/general-ledger-detail" element={<ProtectedRoute><GeneralLedgerDetailPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          <Route path="/settings/accounts/create" element={<ProtectedRoute><SettingsPage initialTab="accounts" initialShowForm={true} /></ProtectedRoute>} />
+          <Route path="/settings/contributions/create" element={<ProtectedRoute><SettingsPage initialTab="contributions" initialShowForm={true} /></ProtectedRoute>} />
+          <Route path="/settings/income/create" element={<ProtectedRoute><SettingsPage initialTab="income" initialShowForm={true} /></ProtectedRoute>} />
+          <Route path="/settings/expenses/create" element={<ProtectedRoute><SettingsPage initialTab="expenses" initialShowForm={true} /></ProtectedRoute>} />
+          <Route path="/settings/fines/create" element={<ProtectedRoute><SettingsPage initialTab="fines" initialShowForm={true} /></ProtectedRoute>} />
+          <Route path="/settings/roles/create" element={<ProtectedRoute><SettingsPage initialTab="roles" initialShowForm={true} /></ProtectedRoute>} />
+          <Route path="/settings/invoices/create" element={<ProtectedRoute><SettingsPage initialTab="invoices" initialShowForm={true} /></ProtectedRoute>} />
+          <Route path="/settings/assets/create" element={<ProtectedRoute><SettingsPage initialTab="assets" initialShowForm={true} /></ProtectedRoute>} />
+          <Route path="/ledger" element={<ProtectedRoute><GeneralLedgerPage /></ProtectedRoute>} />
+          <Route path="/sacco-settings" element={<ProtectedRoute><SaccoSettingsPage /></ProtectedRoute>} />
+          <Route path="/reports/account-balance" element={<ProtectedRoute><AccountBalanceReportPage /></ProtectedRoute>} />
+          <Route path="/reports/balance-sheet" element={<ProtectedRoute><BalanceSheetPage /></ProtectedRoute>} />
+          <Route path="/reports/enhanced-balance-sheet" element={<ProtectedRoute><BalanceSheetPage /></ProtectedRoute>} />
+          <Route path="/reports/income-statement" element={<ProtectedRoute><IncomeStatementPage /></ProtectedRoute>} />
+          <Route path="/reports/enhanced-income-statement" element={<ProtectedRoute><IncomeStatementPage /></ProtectedRoute>} />
+          <Route path="/reports/trial-balance" element={<ProtectedRoute><TrialBalancePage /></ProtectedRoute>} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>
+
       </main>
     </div>
   );
-}
 
+}
 export default App;
