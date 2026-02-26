@@ -109,6 +109,17 @@ export class MembersService {
       this.prisma.member.count({ where }),
     ]);
 
+    const firstContributionPayment = await this.prisma.deposit.findFirst({
+      where: { type: 'contribution' },
+      orderBy: { date: 'asc' },
+      select: { date: true },
+    });
+
+    const groupInceptionMonth = startOfMonth(firstContributionPayment?.date || new Date());
+    const currentMonth = startOfMonth(new Date());
+    const expectedMonthsFromInception = monthsInclusive(groupInceptionMonth, currentMonth);
+    const expectedInvoicedAmountFromInception = expectedMonthsFromInception * MONTHLY_INVOICE_AMOUNT;
+
     const memberIds = members.map((member) => member.id);
     const contributionRows = memberIds.length
       ? await this.prisma.deposit.groupBy({
@@ -163,12 +174,8 @@ export class MembersService {
         riskFund: 0,
       };
 
-      const inceptionMonth = startOfMonth(member.createdAt);
-      const currentMonth = startOfMonth(new Date());
-      const expectedMonths = monthsInclusive(inceptionMonth, currentMonth);
-      const expectedInvoicedAmount = expectedMonths * MONTHLY_INVOICE_AMOUNT;
       const paidTowardMonthlyInvoice = contributionTotals.monthlyMinimumContribution;
-      const computedArrears = expectedInvoicedAmount - paidTowardMonthlyInvoice;
+      const computedArrears = expectedInvoicedAmountFromInception - paidTowardMonthlyInvoice;
 
       const calculatedBalance = ledgerEntries.reduce((sum, entry) => {
         const amount = Number(entry.amount);
