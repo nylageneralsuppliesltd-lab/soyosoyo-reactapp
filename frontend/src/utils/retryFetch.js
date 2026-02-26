@@ -3,6 +3,8 @@
  * Silently retries failed requests without showing errors to the user
  */
 
+import { getAuthToken, notifyAuthExpired } from './authSession';
+
 export const retryFetch = async (
   fn,
   options = {}
@@ -61,10 +63,39 @@ export const retryFetch = async (
  * Use this in API instances to enable automatic retries
  */
 export const createRetryInterceptor = (axiosInstance, options = {}) => {
+  axiosInstance.interceptors.request.use(
+    (config) => {
+      const token = getAuthToken();
+      if (token) {
+        config.headers = config.headers || {};
+        if (!config.headers.Authorization && !config.headers.authorization) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
+
   axiosInstance.interceptors.response.use(
     (response) => response,
     async (error) => {
       const config = error.config;
+      const status = error?.response?.status;
+
+      if (status === 401 || status === 403) {
+        notifyAuthExpired();
+        return Promise.reject(error);
+      }
+
+      const shouldRetry = !error.response || status >= 500 || status === 408 || status === 429;
+      if (!shouldRetry) {
+        return Promise.reject(error);
+      }
+
+      if (!config) {
+        return Promise.reject(error);
+      }
 
       // Mark if we've already retried to prevent infinite loops
       if (!config._retryCount) {

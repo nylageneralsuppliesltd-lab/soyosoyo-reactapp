@@ -131,11 +131,6 @@ function App() {
         <span className="hamburger-line"></span>
       </button>
 
-      {/* Mobile Overlay */}
-      {isSidebarOpen && isMobileViewport && (
-        <div className="mobile-overlay" onClick={closeSidebar}></div>
-      )}
-
       {/* Sidebar */}
       <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
 
