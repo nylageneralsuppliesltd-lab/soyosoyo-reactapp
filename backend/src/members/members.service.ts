@@ -168,7 +168,7 @@ export class MembersService {
       const expectedMonths = monthsInclusive(inceptionMonth, currentMonth);
       const expectedInvoicedAmount = expectedMonths * MONTHLY_INVOICE_AMOUNT;
       const paidTowardMonthlyInvoice = contributionTotals.monthlyMinimumContribution;
-      const computedArrears = Math.max(0, expectedInvoicedAmount - paidTowardMonthlyInvoice);
+      const computedArrears = expectedInvoicedAmount - paidTowardMonthlyInvoice;
 
       const calculatedBalance = ledgerEntries.reduce((sum, entry) => {
         const amount = Number(entry.amount);
