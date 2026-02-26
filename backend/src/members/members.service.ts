@@ -123,6 +123,23 @@ export class MembersService {
     const currentMonth = startOfMonth(new Date());
 
     const memberIds = members.map((member) => member.id);
+    const firstContributionDateByMember = memberIds.length
+      ? await this.prisma.deposit.groupBy({
+          by: ['memberId'],
+          where: {
+            type: 'contribution',
+            memberId: { in: memberIds },
+          },
+          _min: { date: true },
+        })
+      : [];
+
+    const firstContributionDateMap = new Map(
+      firstContributionDateByMember
+        .filter((row) => row.memberId !== null)
+        .map((row) => [row.memberId as number, row._min.date as Date | null]),
+    );
+
     const contributionRows = memberIds.length
       ? await this.prisma.deposit.groupBy({
           by: ['memberId', 'category'],
@@ -177,7 +194,8 @@ export class MembersService {
       };
 
       const paidTowardMonthlyInvoice = contributionTotals.monthlyMinimumContribution;
-      const memberJoinMonth = startOfMonth(member.createdAt);
+      const memberFirstContributionDate = firstContributionDateMap.get(member.id) || member.createdAt;
+      const memberJoinMonth = startOfMonth(memberFirstContributionDate);
       const memberArrearsStartMonth = addMonths(memberJoinMonth, 1);
       const effectiveArrearsStart = memberArrearsStartMonth > groupInceptionMonth
         ? memberArrearsStartMonth
