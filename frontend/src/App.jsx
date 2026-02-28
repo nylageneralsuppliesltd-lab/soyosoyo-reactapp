@@ -116,9 +116,6 @@ function App() {
   return (
 
     <div className="app-container">
-      {/* Premium User Profile Header (Only when authenticated and not on public routes) */}
-      {isAuthenticated && !isPublicRoute && <UserProfileHeader />}
-
       {/* Mobile Hamburger Button */}
       <button
         className="mobile-hamburger"
@@ -136,6 +133,9 @@ function App() {
 
       {/* Main Content */}
       <main className="main-content">
+        {/* Premium User Profile Header (Only when authenticated and not on public routes) */}
+        {isAuthenticated && !isPublicRoute && <UserProfileHeader />}
+
         <Routes>
           <Route path="/" element={<RootRoute />} />
           <Route path="/landing" element={<LandingPage />} />
