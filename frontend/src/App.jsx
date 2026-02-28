@@ -109,75 +109,168 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const cleanupFns = [];
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent) return undefined;
 
-    const mountFloatingScrollbars = () => {
-      const existingBars = document.querySelectorAll('.floating-x-scrollbar[data-generated="true"]');
-      existingBars.forEach((bar) => bar.remove());
+    const selector = '.main-content .table-container, .main-content .table-responsive, .main-content [class*="table-wrapper"], .main-content [class*="table-container"]';
+    const wrapperListeners = [];
+    let activeWrapper = null;
+    let rafId = 0;
 
-      const wrappers = Array.from(
-        document.querySelectorAll(
-          '.main-content .table-container, .main-content .table-responsive, .main-content [class*="table-wrapper"], .main-content [class*="table-container"]'
-        )
-      );
+    const bar = document.createElement('div');
+    bar.className = 'floating-x-scrollbar';
+    bar.dataset.generated = 'true';
 
-      const uniqueWrappers = wrappers.filter((wrapper, index) => wrappers.indexOf(wrapper) === index);
+    const track = document.createElement('div');
+    track.className = 'floating-x-scrollbar-track';
+    bar.appendChild(track);
+    document.body.appendChild(bar);
 
-      uniqueWrappers.forEach((wrapper, index) => {
-        const table = wrapper.querySelector('table');
-        if (!table || !wrapper.parentElement) return;
+    const getUniqueWrappers = () => {
+      const wrappers = Array.from(document.querySelectorAll(selector));
+      return wrappers.filter((wrapper, index) => wrappers.indexOf(wrapper) === index && wrapper.querySelector('table'));
+    };
 
-        const bar = document.createElement('div');
-        bar.className = 'floating-x-scrollbar';
-        bar.dataset.generated = 'true';
-        bar.dataset.target = `floating-table-${index}`;
+    const detectPageBase = (wrapper, rowsCount) => {
+      if (!rowsCount) return 0;
 
-        const track = document.createElement('div');
-        track.className = 'floating-x-scrollbar-track';
-        bar.appendChild(track);
+      const scope = wrapper.closest('section, article, main, .page, .card, .members-page') || wrapper.parentElement || document;
+      const candidates = Array.from(scope.querySelectorAll('.page-info, .pagination, [aria-current="page"]'));
 
-        wrapper.parentElement.insertBefore(bar, wrapper);
-
-        const syncFromBar = () => {
-          wrapper.scrollLeft = bar.scrollLeft;
-        };
-
-        const syncFromWrapper = () => {
-          bar.scrollLeft = wrapper.scrollLeft;
-        };
-
-        const updateWidth = () => {
-          const hasOverflow = table.scrollWidth > wrapper.clientWidth + 1;
-          track.style.width = `${table.scrollWidth}px`;
-          bar.style.display = hasOverflow ? 'block' : 'none';
-
-          if (!hasOverflow) {
-            wrapper.scrollLeft = 0;
-            bar.scrollLeft = 0;
+      for (const candidate of candidates) {
+        const text = (candidate.textContent || '').trim();
+        const match = text.match(/Page\s+(\d+)\s+of\s+\d+/i);
+        if (match) {
+          const currentPage = Number.parseInt(match[1], 10);
+          if (Number.isFinite(currentPage) && currentPage > 0) {
+            return (currentPage - 1) * rowsCount;
           }
-        };
+        }
+      }
 
-        bar.addEventListener('scroll', syncFromBar, { passive: true });
-        wrapper.addEventListener('scroll', syncFromWrapper, { passive: true });
-        window.addEventListener('resize', updateWidth);
+      return 0;
+    };
 
-        updateWidth();
-        syncFromWrapper();
+    const applyRowNumbers = (wrappers) => {
+      wrappers.forEach((wrapper) => {
+        const tbody = wrapper.querySelector('table tbody');
+        if (!tbody) return;
 
-        cleanupFns.push(() => {
-          bar.removeEventListener('scroll', syncFromBar);
-          wrapper.removeEventListener('scroll', syncFromWrapper);
-          window.removeEventListener('resize', updateWidth);
-          bar.remove();
+        const rows = Array.from(tbody.querySelectorAll(':scope > tr'));
+        const pageBase = detectPageBase(wrapper, rows.length);
+
+        rows.forEach((row, index) => {
+          row.dataset.rowNumber = String(pageBase + index + 1);
         });
       });
     };
 
-    const frame = window.requestAnimationFrame(mountFloatingScrollbars);
+    const clearWrapperListeners = () => {
+      wrapperListeners.forEach(({ wrapper, handler }) => {
+        wrapper.removeEventListener('scroll', handler);
+      });
+      wrapperListeners.length = 0;
+    };
+
+    const bindWrapperListeners = (wrappers) => {
+      clearWrapperListeners();
+      wrappers.forEach((wrapper) => {
+        const handler = () => {
+          if (wrapper === activeWrapper) {
+            bar.scrollLeft = wrapper.scrollLeft;
+          }
+        };
+        wrapper.addEventListener('scroll', handler, { passive: true });
+        wrapperListeners.push({ wrapper, handler });
+      });
+    };
+
+    const pickActiveWrapper = (wrappers) => {
+      const anchorY = isMobileViewport ? 120 : 100;
+      let closestWrapper = null;
+      let closestDistance = Number.POSITIVE_INFINITY;
+
+      wrappers.forEach((wrapper) => {
+        const rect = wrapper.getBoundingClientRect();
+        const visible = rect.bottom > anchorY && rect.top < window.innerHeight - 24;
+        if (!visible) return;
+
+        const distance = Math.abs(rect.top - anchorY);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestWrapper = wrapper;
+        }
+      });
+
+      return closestWrapper;
+    };
+
+    const updateFloatingBar = (wrappers) => {
+      activeWrapper = pickActiveWrapper(wrappers);
+      if (!activeWrapper) {
+        bar.style.display = 'none';
+        return;
+      }
+
+      const table = activeWrapper.querySelector('table');
+      if (!table) {
+        bar.style.display = 'none';
+        return;
+      }
+
+      const hasOverflow = table.scrollWidth > activeWrapper.clientWidth + 1;
+      if (!hasOverflow) {
+        bar.style.display = 'none';
+        return;
+      }
+
+      const rect = activeWrapper.getBoundingClientRect();
+      bar.style.left = `${Math.max(8, rect.left)}px`;
+      bar.style.width = `${Math.max(120, rect.width)}px`;
+      bar.style.top = isMobileViewport ? '72px' : '66px';
+      track.style.width = `${table.scrollWidth}px`;
+      bar.style.display = 'block';
+      bar.scrollLeft = activeWrapper.scrollLeft;
+    };
+
+    const refresh = () => {
+      const wrappers = getUniqueWrappers();
+      applyRowNumbers(wrappers);
+      bindWrapperListeners(wrappers);
+      updateFloatingBar(wrappers);
+    };
+
+    const scheduleRefresh = () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      rafId = window.requestAnimationFrame(refresh);
+    };
+
+    const onBarScroll = () => {
+      if (activeWrapper) {
+        activeWrapper.scrollLeft = bar.scrollLeft;
+      }
+    };
+
+    const observer = new MutationObserver(scheduleRefresh);
+    observer.observe(mainContent, { childList: true, subtree: true });
+
+    bar.addEventListener('scroll', onBarScroll, { passive: true });
+    mainContent.addEventListener('scroll', scheduleRefresh, { passive: true });
+    window.addEventListener('resize', scheduleRefresh);
+    scheduleRefresh();
 
     return () => {
-      window.cancelAnimationFrame(frame);
-      cleanupFns.forEach((fn) => fn());
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      observer.disconnect();
+      bar.removeEventListener('scroll', onBarScroll);
+      mainContent.removeEventListener('scroll', scheduleRefresh);
+      window.removeEventListener('resize', scheduleRefresh);
+      clearWrapperListeners();
+      bar.remove();
     };
   }, [location.pathname, isMobileViewport]);
 
