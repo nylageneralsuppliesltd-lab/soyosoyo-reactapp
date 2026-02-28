@@ -243,8 +243,6 @@ export class MembersService {
     const [members, total] = await Promise.all([
       this.prisma.member.findMany({
         where,
-        skip,
-        take,
         orderBy: { createdAt: sort },
         include: {
           ledger: {
@@ -447,8 +445,34 @@ export class MembersService {
       };
     });
 
+    const memberDisplayPriority = (member: {
+      active?: boolean;
+      activityStatus?: string;
+      dividendEligible?: boolean;
+      dividendEligibilityStatus?: string;
+    }) => {
+      const isActive = member.activityStatus === 'active' || member.active === true;
+      const isEligible = member.dividendEligible === true || member.dividendEligibilityStatus === 'eligible';
+
+      if (isActive && isEligible) return 0;
+      if (isActive && !isEligible) return 1;
+      if (!isActive && isEligible) return 2;
+      return 3;
+    };
+
+    const globallySortedMembers = [...membersWithCalculatedBalance].sort((a, b) => {
+      const priorityDiff = memberDisplayPriority(a) - memberDisplayPriority(b);
+      if (priorityDiff !== 0) return priorityDiff;
+
+      return String(a.name || '').localeCompare(String(b.name || ''), 'en', {
+        sensitivity: 'base',
+      });
+    });
+
+    const pagedMembers = globallySortedMembers.slice(skip, skip + take);
+
     return {
-      data: membersWithCalculatedBalance,
+      data: pagedMembers,
       total,
       skip,
       take,
