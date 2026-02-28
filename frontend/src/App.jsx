@@ -109,33 +109,19 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (location.pathname.startsWith('/members')) {
-      return undefined;
-    }
-
     const mainContent = document.querySelector('.main-content');
     if (!mainContent) return undefined;
 
     const selector = '.main-content .table-container, .main-content .table-responsive, .main-content [class*="table-wrapper"], .main-content [class*="table-container"]';
     const wrapperListeners = [];
-    let activeWrapper = null;
+    const dragStates = new Map();
     let rafId = 0;
-
-    const bar = document.createElement('div');
-    bar.className = 'floating-x-scrollbar';
-    bar.dataset.generated = 'true';
-
-    const track = document.createElement('div');
-    track.className = 'floating-x-scrollbar-track';
-    bar.appendChild(track);
-    document.body.appendChild(bar);
 
     const getUniqueWrappers = () => {
       const wrappers = Array.from(document.querySelectorAll(selector));
       return wrappers.filter((wrapper, index) => {
         if (wrappers.indexOf(wrapper) !== index) return false;
         if (!wrapper.querySelector('table')) return false;
-        if (wrapper.classList?.contains('members-table-wrapper')) return false;
         return true;
       });
     };
@@ -162,6 +148,8 @@ function App() {
 
     const applyRowNumbers = (wrappers) => {
       wrappers.forEach((wrapper) => {
+        if (wrapper.classList.contains('members-table-wrapper')) return;
+
         const tbody = wrapper.querySelector('table tbody');
         if (!tbody) return;
 
@@ -176,77 +164,76 @@ function App() {
 
     const clearWrapperListeners = () => {
       wrapperListeners.forEach(({ wrapper, handler }) => {
-        wrapper.removeEventListener('scroll', handler);
+        wrapper.removeEventListener('pointerdown', handler.onPointerDown);
+        wrapper.removeEventListener('pointermove', handler.onPointerMove);
+        wrapper.removeEventListener('pointerup', handler.onPointerUp);
+        wrapper.removeEventListener('pointerleave', handler.onPointerUp);
+        wrapper.removeEventListener('pointercancel', handler.onPointerUp);
       });
       wrapperListeners.length = 0;
+      dragStates.clear();
     };
 
     const bindWrapperListeners = (wrappers) => {
       clearWrapperListeners();
+
       wrappers.forEach((wrapper) => {
-        const handler = () => {
-          if (wrapper === activeWrapper) {
-            bar.scrollLeft = wrapper.scrollLeft;
-          }
+        const state = {
+          active: false,
+          pointerId: null,
+          startX: 0,
+          startScrollLeft: 0,
         };
-        wrapper.addEventListener('scroll', handler, { passive: true });
-        wrapperListeners.push({ wrapper, handler });
+        dragStates.set(wrapper, state);
+
+        const onPointerDown = (event) => {
+          if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+          const interactiveTarget = event.target?.closest?.('button, a, input, select, textarea, label');
+          if (interactiveTarget) return;
+
+          state.active = true;
+          state.pointerId = event.pointerId;
+          state.startX = event.clientX;
+          state.startScrollLeft = wrapper.scrollLeft;
+
+          wrapper.classList.add('table-dragging');
+          wrapper.setPointerCapture?.(event.pointerId);
+        };
+
+        const onPointerMove = (event) => {
+          if (!state.active) return;
+          if (state.pointerId !== null && event.pointerId !== state.pointerId) return;
+
+          event.preventDefault();
+          const deltaX = event.clientX - state.startX;
+          wrapper.scrollLeft = state.startScrollLeft - deltaX;
+        };
+
+        const onPointerUp = () => {
+          if (!state.active) return;
+          state.active = false;
+          state.pointerId = null;
+          wrapper.classList.remove('table-dragging');
+        };
+
+        wrapper.addEventListener('pointerdown', onPointerDown);
+        wrapper.addEventListener('pointermove', onPointerMove);
+        wrapper.addEventListener('pointerup', onPointerUp);
+        wrapper.addEventListener('pointerleave', onPointerUp);
+        wrapper.addEventListener('pointercancel', onPointerUp);
+
+        wrapperListeners.push({
+          wrapper,
+          handler: { onPointerDown, onPointerMove, onPointerUp },
+        });
       });
-    };
-
-    const pickActiveWrapper = (wrappers) => {
-      const anchorY = isMobileViewport ? 120 : 100;
-      let closestWrapper = null;
-      let closestDistance = Number.POSITIVE_INFINITY;
-
-      wrappers.forEach((wrapper) => {
-        const rect = wrapper.getBoundingClientRect();
-        const visible = rect.bottom > anchorY && rect.top < window.innerHeight - 24;
-        if (!visible) return;
-
-        const distance = Math.abs(rect.top - anchorY);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestWrapper = wrapper;
-        }
-      });
-
-      return closestWrapper;
-    };
-
-    const updateFloatingBar = (wrappers) => {
-      activeWrapper = pickActiveWrapper(wrappers);
-      if (!activeWrapper) {
-        bar.style.display = 'none';
-        return;
-      }
-
-      const table = activeWrapper.querySelector('table');
-      if (!table) {
-        bar.style.display = 'none';
-        return;
-      }
-
-      const hasOverflow = table.scrollWidth > activeWrapper.clientWidth + 1;
-      if (!hasOverflow) {
-        bar.style.display = 'none';
-        return;
-      }
-
-      const rect = activeWrapper.getBoundingClientRect();
-      bar.style.left = `${Math.max(8, rect.left)}px`;
-      bar.style.width = `${Math.max(120, rect.width)}px`;
-      bar.style.top = isMobileViewport ? '72px' : '66px';
-      track.style.width = `${table.scrollWidth}px`;
-      bar.style.display = 'block';
-      bar.scrollLeft = activeWrapper.scrollLeft;
     };
 
     const refresh = () => {
       const wrappers = getUniqueWrappers();
       applyRowNumbers(wrappers);
       bindWrapperListeners(wrappers);
-      updateFloatingBar(wrappers);
     };
 
     const scheduleRefresh = () => {
@@ -256,16 +243,9 @@ function App() {
       rafId = window.requestAnimationFrame(refresh);
     };
 
-    const onBarScroll = () => {
-      if (activeWrapper) {
-        activeWrapper.scrollLeft = bar.scrollLeft;
-      }
-    };
-
     const observer = new MutationObserver(scheduleRefresh);
     observer.observe(mainContent, { childList: true, subtree: true });
 
-    bar.addEventListener('scroll', onBarScroll, { passive: true });
     mainContent.addEventListener('scroll', scheduleRefresh, { passive: true });
     window.addEventListener('resize', scheduleRefresh);
     scheduleRefresh();
@@ -275,11 +255,9 @@ function App() {
         window.cancelAnimationFrame(rafId);
       }
       observer.disconnect();
-      bar.removeEventListener('scroll', onBarScroll);
       mainContent.removeEventListener('scroll', scheduleRefresh);
       window.removeEventListener('resize', scheduleRefresh);
       clearWrapperListeners();
-      bar.remove();
     };
   }, [location.pathname, isMobileViewport]);
 

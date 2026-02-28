@@ -1109,6 +1109,11 @@
   scrollbar-width: thin;
 }
 
+.members-table-wrapper.table-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .members-table-wrapper.dragging {
   cursor: grabbing;
   user-select: none;

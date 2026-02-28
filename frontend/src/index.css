@@ -152,6 +152,48 @@ label {
 .main-content [class*='table-container'] {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+  scroll-behavior: smooth;
+  cursor: grab;
+  scrollbar-width: thin;
+}
+
+.main-content .table-container.table-dragging,
+.main-content .table-responsive.table-dragging,
+.main-content [class*='table-wrapper'].table-dragging,
+.main-content [class*='table-container'].table-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.main-content .table-container::-webkit-scrollbar,
+.main-content .table-responsive::-webkit-scrollbar,
+.main-content [class*='table-wrapper']::-webkit-scrollbar,
+.main-content [class*='table-container']::-webkit-scrollbar {
+  height: 11px;
+}
+
+.main-content .table-container::-webkit-scrollbar-track,
+.main-content .table-responsive::-webkit-scrollbar-track,
+.main-content [class*='table-wrapper']::-webkit-scrollbar-track,
+.main-content [class*='table-container']::-webkit-scrollbar-track {
+  background: #eef2f7;
+  border-radius: 999px;
+}
+
+.main-content .table-container::-webkit-scrollbar-thumb,
+.main-content .table-responsive::-webkit-scrollbar-thumb,
+.main-content [class*='table-wrapper']::-webkit-scrollbar-thumb,
+.main-content [class*='table-container']::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+}
+
+.main-content .table-container::-webkit-scrollbar-thumb:hover,
+.main-content .table-responsive::-webkit-scrollbar-thumb:hover,
+.main-content [class*='table-wrapper']::-webkit-scrollbar-thumb:hover,
+.main-content [class*='table-container']::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 .main-content table {
@@ -165,20 +207,22 @@ label {
 
 .main-content table th,
 .main-content table td {
-  padding: 4px 6px !important;
+  padding: 6px 8px !important;
   font-size: 12px !important;
-  line-height: 1.2;
+  line-height: 1.35;
   white-space: nowrap;
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .main-content table tbody tr {
-  height: 24px;
+  height: auto;
 }
 
 .main-content table:not(.members-table) tbody tr td:first-child {
   position: relative;
-  padding-left: 28px !important;
+  padding-left: 34px !important;
 }
 
 .main-content table:not(.members-table) tbody tr[data-row-number] td:first-child::before {
@@ -192,6 +236,11 @@ label {
   font-size: 11px;
   font-weight: 600;
   color: var(--text);
+}
+
+.main-content .members-table-wrapper,
+.main-content .members-table-wrapper.table-dragging {
+  cursor: auto;
 }
 
 .floating-x-scrollbar {
