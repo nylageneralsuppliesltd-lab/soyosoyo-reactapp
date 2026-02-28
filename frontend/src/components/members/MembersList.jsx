@@ -8,6 +8,15 @@ import ReportHeader from '../ReportHeader';
 import '../../styles/members.css';
 import '../../styles/report.css';
 
+const DEFAULT_DIVIDEND_SETTINGS = {
+  dividendMonthlyInvoiceAmount: 200,
+  dividendRequireActive: true,
+  dividendRequireRegistrationFee: true,
+  dividendRequireEligibleContributions: true,
+  dividendRequireNoArrears: true,
+  dividendMaxAllowedArrears: 0,
+};
+
 export default function MembersList() {
   const [members, setMembers] = useState([]);
   const [view, setView] = useState('list'); // list | form | ledger
@@ -77,9 +86,27 @@ export default function MembersList() {
     setLoading(true);
     setError(null);
     try {
+      const settings = (() => {
+        if (typeof window === 'undefined') return DEFAULT_DIVIDEND_SETTINGS;
+        const raw = localStorage.getItem('systemSettings');
+        if (!raw) return DEFAULT_DIVIDEND_SETTINGS;
+        try {
+          const parsed = JSON.parse(raw);
+          return { ...DEFAULT_DIVIDEND_SETTINGS, ...parsed };
+        } catch {
+          return DEFAULT_DIVIDEND_SETTINGS;
+        }
+      })();
+
       const params = new URLSearchParams({
         skip: skip.toString(),
         take: '50',
+        dividendMonthlyInvoiceAmount: String(settings.dividendMonthlyInvoiceAmount),
+        dividendRequireActive: String(settings.dividendRequireActive),
+        dividendRequireRegistrationFee: String(settings.dividendRequireRegistrationFee),
+        dividendRequireEligibleContributions: String(settings.dividendRequireEligibleContributions),
+        dividendRequireNoArrears: String(settings.dividendRequireNoArrears),
+        dividendMaxAllowedArrears: String(settings.dividendMaxAllowedArrears),
         ...(search && { search }),
         ...(roleFilter && { role: roleFilter }),
         ...(statusFilter && { active: statusFilter }),

@@ -10,10 +10,26 @@ interface ListOptions {
   role?: string;
   active?: boolean;
   sort?: 'asc' | 'desc';
+  dividendCriteria?: Partial<DividendCriteriaOptions>;
 }
 
-const MONTHLY_INVOICE_AMOUNT = 200;
-const EPSILON = 0.005;
+interface DividendCriteriaOptions {
+  monthlyInvoiceAmount: number;
+  requireActive: boolean;
+  requireRegistrationFee: boolean;
+  requireEligibleContributions: boolean;
+  requireNoArrears: boolean;
+  maxAllowedArrears: number;
+}
+
+const DEFAULT_DIVIDEND_CRITERIA: DividendCriteriaOptions = {
+  monthlyInvoiceAmount: 200,
+  requireActive: true,
+  requireRegistrationFee: true,
+  requireEligibleContributions: true,
+  requireNoArrears: true,
+  maxAllowedArrears: 0.005,
+};
 
 function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -33,28 +49,58 @@ function toRoundedMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function normalizeDividendCriteria(
+  criteria?: Partial<DividendCriteriaOptions>,
+): DividendCriteriaOptions {
+  const merged = {
+    ...DEFAULT_DIVIDEND_CRITERIA,
+    ...(criteria || {}),
+  };
+
+  return {
+    monthlyInvoiceAmount:
+      Number.isFinite(Number(merged.monthlyInvoiceAmount)) && Number(merged.monthlyInvoiceAmount) >= 0
+        ? Number(merged.monthlyInvoiceAmount)
+        : DEFAULT_DIVIDEND_CRITERIA.monthlyInvoiceAmount,
+    requireActive: merged.requireActive !== false,
+    requireRegistrationFee: merged.requireRegistrationFee !== false,
+    requireEligibleContributions: merged.requireEligibleContributions !== false,
+    requireNoArrears: merged.requireNoArrears !== false,
+    maxAllowedArrears:
+      Number.isFinite(Number(merged.maxAllowedArrears)) && Number(merged.maxAllowedArrears) >= 0
+        ? Number(merged.maxAllowedArrears)
+        : DEFAULT_DIVIDEND_CRITERIA.maxAllowedArrears,
+  };
+}
+
 function computeMemberStatuses(member: {
   active: boolean;
   registrationFeeContributions: number;
   shareCapitalContributions: number;
   monthlyMinimumContribution: number;
   totalArrears: number;
-}) {
+}, criteria: DividendCriteriaOptions) {
   const isActive = member.active === true;
   const hasRegistrationFee = member.registrationFeeContributions > 0;
   const eligibleContributions = member.shareCapitalContributions + member.monthlyMinimumContribution;
   const hasEligibleContributions = eligibleContributions > 0;
-  const noArrears = member.totalArrears <= EPSILON;
-  const dividendEligible = isActive && hasRegistrationFee && hasEligibleContributions && noArrears;
+  const noArrears = member.totalArrears <= criteria.maxAllowedArrears;
+
+  const failedChecks: string[] = [];
+  if (criteria.requireActive && !isActive) failedChecks.push('Member is suspended');
+  if (criteria.requireRegistrationFee && !hasRegistrationFee) failedChecks.push('Registration fee not paid');
+  if (criteria.requireEligibleContributions && !hasEligibleContributions) failedChecks.push('No eligible contributions recorded');
+  if (criteria.requireNoArrears && !noArrears) {
+    failedChecks.push(`Has contribution arrears above allowed threshold (${criteria.maxAllowedArrears.toFixed(2)})`);
+  }
+
+  const dividendEligible = failedChecks.length === 0;
 
   const reasons: string[] = [];
-  if (!isActive) reasons.push('Member is suspended');
-  if (!hasRegistrationFee) reasons.push('Registration fee not paid');
-  if (!hasEligibleContributions) reasons.push('No eligible contributions recorded');
-  if (!noArrears) reasons.push('Has monthly contribution arrears');
+  reasons.push(...failedChecks);
 
   const dividendEligibilityReason = dividendEligible
-    ? 'Eligible: active member with registration fee paid, eligible contributions, and no arrears'
+    ? 'Eligible: member satisfies all configured dividend criteria'
     : reasons.join('; ');
 
   return {
@@ -113,7 +159,8 @@ export class MembersService {
   }
 
   async findAll(options: ListOptions = {}) {
-    const { skip = 0, take = 50, search, role, active, sort = 'desc' } = options;
+    const { skip = 0, take = 50, search, role, active, sort = 'desc', dividendCriteria } = options;
+    const normalizedCriteria = normalizeDividendCriteria(dividendCriteria);
 
     const where: any = {};
 
@@ -240,7 +287,7 @@ export class MembersService {
         ? memberArrearsStartMonth
         : groupInceptionMonth;
       const expectedMonthsForMember = monthsInclusive(effectiveArrearsStart, currentMonth);
-      const expectedInvoicedAmountForMember = expectedMonthsForMember * MONTHLY_INVOICE_AMOUNT;
+      const expectedInvoicedAmountForMember = expectedMonthsForMember * normalizedCriteria.monthlyInvoiceAmount;
       const computedArrears = expectedInvoicedAmountForMember - paidTowardMonthlyInvoice;
 
       const calculatedBalance = ledgerEntries.reduce((sum, entry) => {
@@ -283,7 +330,7 @@ export class MembersService {
         shareCapitalContributions,
         monthlyMinimumContribution,
         totalArrears,
-      });
+      }, normalizedCriteria);
 
       return {
         ...memberData,

@@ -2,34 +2,14 @@ import { Controller, Get, Post, Patch, Delete, Param, Body, Query, BadRequestExc
 import { MembersService } from './members.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import { Access } from '../auth/access.decorator';
 
 @Controller('members')
-@Access('members', 'read')
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}
 
   @Post()
-  @Access('members', 'write')
   async create(@Body() dto: CreateMemberDto) {
     try {
-      if (dto && (dto as any).nextOfKin !== undefined) {
-        const rawNextOfKin = (dto as any).nextOfKin;
-        if (rawNextOfKin === null || rawNextOfKin === '') {
-          (dto as any).nextOfKin = undefined;
-        } else if (typeof rawNextOfKin === 'string') {
-          try {
-            (dto as any).nextOfKin = JSON.parse(rawNextOfKin);
-          } catch (error) {
-            throw new BadRequestException('nextOfKin must be valid JSON');
-          }
-        }
-
-        if ((dto as any).nextOfKin !== undefined && !Array.isArray((dto as any).nextOfKin)) {
-          throw new BadRequestException('nextOfKin must be an array');
-        }
-      }
-
       console.log('[POST /members] Received dto:', JSON.stringify(dto));
       const result = await this.membersService.create(dto);
       console.log('[POST /members] Member created successfully with id:', result.id);
@@ -54,6 +34,12 @@ export class MembersController {
     @Query('role') role?: string,
     @Query('active') active?: string,
     @Query('sort') sort?: 'asc' | 'desc',
+    @Query('dividendMonthlyInvoiceAmount') dividendMonthlyInvoiceAmount?: string,
+    @Query('dividendRequireActive') dividendRequireActive?: string,
+    @Query('dividendRequireRegistrationFee') dividendRequireRegistrationFee?: string,
+    @Query('dividendRequireEligibleContributions') dividendRequireEligibleContributions?: string,
+    @Query('dividendRequireNoArrears') dividendRequireNoArrears?: string,
+    @Query('dividendMaxAllowedArrears') dividendMaxAllowedArrears?: string,
   ) {
     const skipNum = skip ? parseInt(skip, 10) : 0;
     const takeNum = take ? parseInt(take, 10) : 50;
@@ -65,6 +51,19 @@ export class MembersController {
       throw new Error('Invalid take parameter - must be a positive number');
     }
 
+    const parseOptionalBoolean = (value?: string) => {
+      if (value === undefined) return undefined;
+      if (value === 'true') return true;
+      if (value === 'false') return false;
+      return undefined;
+    };
+
+    const parseOptionalNumber = (value?: string) => {
+      if (value === undefined || value === '') return undefined;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
+
     return this.membersService.findAll({
       skip: skipNum,
       take: takeNum,
@@ -72,6 +71,14 @@ export class MembersController {
       role,
       active: active === 'true' ? true : active === 'false' ? false : undefined,
       sort: sort || 'desc',
+      dividendCriteria: {
+        monthlyInvoiceAmount: parseOptionalNumber(dividendMonthlyInvoiceAmount),
+        requireActive: parseOptionalBoolean(dividendRequireActive),
+        requireRegistrationFee: parseOptionalBoolean(dividendRequireRegistrationFee),
+        requireEligibleContributions: parseOptionalBoolean(dividendRequireEligibleContributions),
+        requireNoArrears: parseOptionalBoolean(dividendRequireNoArrears),
+        maxAllowedArrears: parseOptionalNumber(dividendMaxAllowedArrears),
+      },
     });
   }
 
@@ -83,7 +90,6 @@ export class MembersController {
   }
 
   @Patch(':id')
-  @Access('members', 'write')
   update(@Param('id') id: string, @Body() dto: any) {
     const memberId = Number(id);
     if (!Number.isFinite(memberId)) throw new BadRequestException('Invalid member ID');
@@ -109,14 +115,8 @@ export class MembersController {
     cleanedDto.regNo = trimString(dto.regNo);
     cleanedDto.employerAddress = trimString(dto.employerAddress);
     cleanedDto.role = trimString(dto.role);
-    cleanedDto.adminCriteria = trimString(dto.adminCriteria);
-    cleanedDto.password = trimString(dto.password);
     cleanedDto.introducerName = trimString(dto.introducerName);
     cleanedDto.introducerMemberNo = trimString(dto.introducerMemberNo);
-
-    if (dto.isSystemDeveloper !== undefined) {
-      cleanedDto.isSystemDeveloper = Boolean(dto.isSystemDeveloper);
-    }
 
     if (dto.balance !== undefined) {
       const balance = typeof dto.balance === 'string' ? parseFloat(dto.balance) : dto.balance;
@@ -160,7 +160,6 @@ export class MembersController {
   }
 
   @Patch(':id/suspend')
-  @Access('members', 'approve')
   suspend(@Param('id') id: string) {
     const memberId = Number(id);
     if (!Number.isFinite(memberId)) throw new BadRequestException('Invalid member ID');
@@ -168,7 +167,6 @@ export class MembersController {
   }
 
   @Patch(':id/reactivate')
-  @Access('members', 'approve')
   reactivate(@Param('id') id: string) {
     const memberId = Number(id);
     if (!Number.isFinite(memberId)) throw new BadRequestException('Invalid member ID');
@@ -176,7 +174,6 @@ export class MembersController {
   }
 
   @Delete(':id')
-  @Access('members', 'admin')
   delete(@Param('id') id: string) {
     const memberId = Number(id);
     if (!Number.isFinite(memberId)) throw new BadRequestException('Invalid member ID');
