@@ -108,6 +108,79 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    const cleanupFns = [];
+
+    const mountFloatingScrollbars = () => {
+      const existingBars = document.querySelectorAll('.floating-x-scrollbar[data-generated="true"]');
+      existingBars.forEach((bar) => bar.remove());
+
+      const wrappers = Array.from(
+        document.querySelectorAll(
+          '.main-content .table-container, .main-content .table-responsive, .main-content [class*="table-wrapper"], .main-content [class*="table-container"]'
+        )
+      );
+
+      const uniqueWrappers = wrappers.filter((wrapper, index) => wrappers.indexOf(wrapper) === index);
+
+      uniqueWrappers.forEach((wrapper, index) => {
+        const table = wrapper.querySelector('table');
+        if (!table || !wrapper.parentElement) return;
+
+        const bar = document.createElement('div');
+        bar.className = 'floating-x-scrollbar';
+        bar.dataset.generated = 'true';
+        bar.dataset.target = `floating-table-${index}`;
+
+        const track = document.createElement('div');
+        track.className = 'floating-x-scrollbar-track';
+        bar.appendChild(track);
+
+        wrapper.parentElement.insertBefore(bar, wrapper);
+
+        const syncFromBar = () => {
+          wrapper.scrollLeft = bar.scrollLeft;
+        };
+
+        const syncFromWrapper = () => {
+          bar.scrollLeft = wrapper.scrollLeft;
+        };
+
+        const updateWidth = () => {
+          const hasOverflow = table.scrollWidth > wrapper.clientWidth + 1;
+          track.style.width = `${table.scrollWidth}px`;
+          bar.style.display = hasOverflow ? 'block' : 'none';
+
+          if (!hasOverflow) {
+            wrapper.scrollLeft = 0;
+            bar.scrollLeft = 0;
+          }
+        };
+
+        bar.addEventListener('scroll', syncFromBar, { passive: true });
+        wrapper.addEventListener('scroll', syncFromWrapper, { passive: true });
+        window.addEventListener('resize', updateWidth);
+
+        updateWidth();
+        syncFromWrapper();
+
+        cleanupFns.push(() => {
+          bar.removeEventListener('scroll', syncFromBar);
+          wrapper.removeEventListener('scroll', syncFromWrapper);
+          window.removeEventListener('resize', updateWidth);
+          bar.remove();
+        });
+      });
+    };
+
+    const frame = window.requestAnimationFrame(mountFloatingScrollbars);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      cleanupFns.forEach((fn) => fn());
+    };
+  }, [location.pathname, isMobileViewport]);
+
   // Check if current route is a public route (no header needed)
   const isPublicRoute = ['/', '/landing', '/login'].includes(location.pathname);
 
