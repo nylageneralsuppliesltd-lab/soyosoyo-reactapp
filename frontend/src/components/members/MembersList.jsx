@@ -89,22 +89,6 @@ export default function MembersList() {
     return reasons.join('; ');
   };
 
-  const memberDisplayPriority = (member) => {
-    const active = isMemberActive(member);
-    const eligible = isDividendEligible(member);
-
-    if (active && eligible) return 0;
-    if (active && !eligible) return 1;
-    if (!active && eligible) return 2;
-    return 3;
-  };
-
-  const sortedMembers = [...members].sort((a, b) => {
-    const priorityDiff = memberDisplayPriority(a) - memberDisplayPriority(b);
-    if (priorityDiff !== 0) return priorityDiff;
-    return String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base' });
-  });
-
   const handleTableDragStart = (event) => {
     if (!tableWrapperRef.current) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -596,7 +580,7 @@ export default function MembersList() {
               </tr>
             </thead>
             <tbody>
-              {sortedMembers.map((m, index) => (
+              {members.map((m, index) => (
                 <tr key={m.id} className={isMemberActive(m) ? '' : 'suspended'}>
                   <td className="sticky-col row-number-cell">{pagination.skip + index + 1}</td>
                   <td className="sticky-col name-cell">
@@ -683,7 +667,7 @@ export default function MembersList() {
       {/* Card View */}
       {!loading && members.length > 0 && viewType === 'card' && (
         <div className="members-cards-grid">
-          {sortedMembers.map((m) => (
+          {members.map((m) => (
             <div key={m.id} className={`member-card ${isMemberActive(m) ? '' : 'suspended'}`}>
               <div className="card-header">
                 <h3>{m.name}</h3>
