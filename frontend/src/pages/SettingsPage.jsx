@@ -21,6 +21,8 @@ const DEFAULT_SYSTEM_SETTINGS = {
   dividendRequireEligibleContributions: true,
   dividendRequireNoArrears: true,
   dividendMaxAllowedArrears: 0,
+  activityAutoSuspendOnMissedContributions: true,
+  activityMissedContributionMonthsThreshold: 3,
 };
 
 const SettingsPage = ({ initialTab, initialShowForm }) => {
@@ -367,6 +369,37 @@ const SettingsPage = ({ initialTab, initialShowForm }) => {
                   onChange={(e) => setSystemSettings({
                     ...systemSettings,
                     dividendMaxAllowedArrears: parseFloat(e.target.value) || 0,
+                  })}
+                />
+              </div>
+            </div>
+
+            <h3 style={{ marginTop: '30px' }}>Member Activity Criteria</h3>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Auto Suspend On Missed Contributions</label>
+                <select
+                  value={systemSettings.activityAutoSuspendOnMissedContributions ? 'yes' : 'no'}
+                  onChange={(e) => setSystemSettings({
+                    ...systemSettings,
+                    activityAutoSuspendOnMissedContributions: e.target.value === 'yes',
+                  })}
+                >
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Consecutive Missed Contribution Months (mark inactive at)</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={systemSettings.activityMissedContributionMonthsThreshold}
+                  onChange={(e) => setSystemSettings({
+                    ...systemSettings,
+                    activityMissedContributionMonthsThreshold: Math.max(1, parseInt(e.target.value || '1', 10) || 1),
                   })}
                 />
               </div>

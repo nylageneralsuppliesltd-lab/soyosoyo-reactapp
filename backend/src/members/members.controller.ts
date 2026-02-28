@@ -40,6 +40,8 @@ export class MembersController {
     @Query('dividendRequireEligibleContributions') dividendRequireEligibleContributions?: string,
     @Query('dividendRequireNoArrears') dividendRequireNoArrears?: string,
     @Query('dividendMaxAllowedArrears') dividendMaxAllowedArrears?: string,
+    @Query('activityAutoSuspendOnMissedContributions') activityAutoSuspendOnMissedContributions?: string,
+    @Query('activityMissedContributionMonthsThreshold') activityMissedContributionMonthsThreshold?: string,
   ) {
     const skipNum = skip ? parseInt(skip, 10) : 0;
     const takeNum = take ? parseInt(take, 10) : 50;
@@ -78,6 +80,10 @@ export class MembersController {
         requireEligibleContributions: parseOptionalBoolean(dividendRequireEligibleContributions),
         requireNoArrears: parseOptionalBoolean(dividendRequireNoArrears),
         maxAllowedArrears: parseOptionalNumber(dividendMaxAllowedArrears),
+      },
+      activityCriteria: {
+        autoSuspendOnMissedContributions: parseOptionalBoolean(activityAutoSuspendOnMissedContributions),
+        missedContributionMonthsThreshold: parseOptionalNumber(activityMissedContributionMonthsThreshold),
       },
     });
   }

@@ -15,6 +15,8 @@ const DEFAULT_DIVIDEND_SETTINGS = {
   dividendRequireEligibleContributions: true,
   dividendRequireNoArrears: true,
   dividendMaxAllowedArrears: 0,
+  activityAutoSuspendOnMissedContributions: true,
+  activityMissedContributionMonthsThreshold: 3,
 };
 
 export default function MembersList() {
@@ -107,6 +109,8 @@ export default function MembersList() {
         dividendRequireEligibleContributions: String(settings.dividendRequireEligibleContributions),
         dividendRequireNoArrears: String(settings.dividendRequireNoArrears),
         dividendMaxAllowedArrears: String(settings.dividendMaxAllowedArrears),
+        activityAutoSuspendOnMissedContributions: String(settings.activityAutoSuspendOnMissedContributions),
+        activityMissedContributionMonthsThreshold: String(settings.activityMissedContributionMonthsThreshold),
         ...(search && { search }),
         ...(roleFilter && { role: roleFilter }),
         ...(statusFilter && { active: statusFilter }),

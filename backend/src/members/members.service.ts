@@ -11,6 +11,7 @@ interface ListOptions {
   active?: boolean;
   sort?: 'asc' | 'desc';
   dividendCriteria?: Partial<DividendCriteriaOptions>;
+  activityCriteria?: Partial<MemberActivityCriteriaOptions>;
 }
 
 interface DividendCriteriaOptions {
@@ -22,6 +23,11 @@ interface DividendCriteriaOptions {
   maxAllowedArrears: number;
 }
 
+interface MemberActivityCriteriaOptions {
+  autoSuspendOnMissedContributions: boolean;
+  missedContributionMonthsThreshold: number;
+}
+
 const DEFAULT_DIVIDEND_CRITERIA: DividendCriteriaOptions = {
   monthlyInvoiceAmount: 200,
   requireActive: true,
@@ -29,6 +35,11 @@ const DEFAULT_DIVIDEND_CRITERIA: DividendCriteriaOptions = {
   requireEligibleContributions: true,
   requireNoArrears: true,
   maxAllowedArrears: 0.005,
+};
+
+const DEFAULT_MEMBER_ACTIVITY_CRITERIA: MemberActivityCriteriaOptions = {
+  autoSuspendOnMissedContributions: true,
+  missedContributionMonthsThreshold: 3,
 };
 
 function startOfMonth(date: Date): Date {
@@ -71,6 +82,54 @@ function normalizeDividendCriteria(
         ? Number(merged.maxAllowedArrears)
         : DEFAULT_DIVIDEND_CRITERIA.maxAllowedArrears,
   };
+}
+
+function normalizeMemberActivityCriteria(
+  criteria?: Partial<MemberActivityCriteriaOptions>,
+): MemberActivityCriteriaOptions {
+  const merged = {
+    ...DEFAULT_MEMBER_ACTIVITY_CRITERIA,
+    ...(criteria || {}),
+  };
+
+  const parsedThreshold = Number(merged.missedContributionMonthsThreshold);
+
+  return {
+    autoSuspendOnMissedContributions: merged.autoSuspendOnMissedContributions !== false,
+    missedContributionMonthsThreshold:
+      Number.isFinite(parsedThreshold) && parsedThreshold >= 1
+        ? Math.floor(parsedThreshold)
+        : DEFAULT_MEMBER_ACTIVITY_CRITERIA.missedContributionMonthsThreshold,
+  };
+}
+
+function monthKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+function countConsecutiveMissedMonths(
+  startMonth: Date,
+  endMonth: Date,
+  monthlyPaidByMonth: Map<string, number>,
+): number {
+  if (startMonth > endMonth) return 0;
+
+  let cursor = new Date(endMonth.getFullYear(), endMonth.getMonth(), 1);
+  let missed = 0;
+
+  while (cursor >= startMonth) {
+    const paid = Number(monthlyPaidByMonth.get(monthKey(cursor)) || 0);
+    if (paid > 0.005) {
+      break;
+    }
+
+    missed += 1;
+    cursor = addMonths(cursor, -1);
+  }
+
+  return missed;
 }
 
 function computeMemberStatuses(member: {
@@ -159,8 +218,9 @@ export class MembersService {
   }
 
   async findAll(options: ListOptions = {}) {
-    const { skip = 0, take = 50, search, role, active, sort = 'desc', dividendCriteria } = options;
+    const { skip = 0, take = 50, search, role, active, sort = 'desc', dividendCriteria, activityCriteria } = options;
     const normalizedCriteria = normalizeDividendCriteria(dividendCriteria);
+    const normalizedActivityCriteria = normalizeMemberActivityCriteria(activityCriteria);
 
     const where: any = {};
 
@@ -235,6 +295,31 @@ export class MembersService {
           _sum: { amount: true },
         })
       : [];
+
+    const monthlyContributionPayments = memberIds.length
+      ? await this.prisma.deposit.findMany({
+          where: {
+            memberId: { in: memberIds },
+            type: 'contribution',
+            category: 'Monthly Minimum Contribution',
+            date: { gte: groupInceptionMonth },
+          },
+          select: {
+            memberId: true,
+            date: true,
+            amount: true,
+          },
+        })
+      : [];
+
+    const monthlyPaidByMember = monthlyContributionPayments.reduce((acc, row) => {
+      const memberMap = acc[row.memberId] || new Map<string, number>();
+      const key = monthKey(startOfMonth(row.date));
+      const amount = Number(row.amount || 0);
+      memberMap.set(key, Number(memberMap.get(key) || 0) + amount);
+      acc[row.memberId] = memberMap;
+      return acc;
+    }, {} as Record<number, Map<string, number>>);
 
     const contributionTotalsByMember = contributionRows.reduce((acc, row) => {
       const memberContributionTotals = acc[row.memberId] || {
@@ -324,8 +409,21 @@ export class MembersService {
       const riskFundContributions = toRoundedMoney(contributionTotals.riskFund);
       const totalArrears = toRoundedMoney(computedArrears);
 
+      const monthlyPaidByMonth = monthlyPaidByMember[member.id] || new Map<string, number>();
+      const consecutiveMissedContributionMonths = countConsecutiveMissedMonths(
+        effectiveArrearsStart,
+        currentMonth,
+        monthlyPaidByMonth,
+      );
+
+      const autoSuspendedForMissedContributions =
+        normalizedActivityCriteria.autoSuspendOnMissedContributions
+        && consecutiveMissedContributionMonths >= normalizedActivityCriteria.missedContributionMonthsThreshold;
+
+      const effectiveActive = memberData.active === true && !autoSuspendedForMissedContributions;
+
       const statuses = computeMemberStatuses({
-        active: memberData.active === true,
+        active: effectiveActive,
         registrationFeeContributions,
         shareCapitalContributions,
         monthlyMinimumContribution,
@@ -334,6 +432,7 @@ export class MembersService {
 
       return {
         ...memberData,
+        active: effectiveActive,
         balance: toRoundedMoney(calculatedBalance),
         loanBalance: toRoundedMoney(calculatedLoanBalance),
         totalContributions,
@@ -342,6 +441,8 @@ export class MembersService {
         registrationFeeContributions,
         riskFundContributions,
         totalArrears,
+        consecutiveMissedContributionMonths,
+        autoSuspendedForMissedContributions,
         ...statuses,
       };
     });
