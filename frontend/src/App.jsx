@@ -109,6 +109,10 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (location.pathname.startsWith('/members')) {
+      return undefined;
+    }
+
     const mainContent = document.querySelector('.main-content');
     if (!mainContent) return undefined;
 
@@ -128,7 +132,12 @@ function App() {
 
     const getUniqueWrappers = () => {
       const wrappers = Array.from(document.querySelectorAll(selector));
-      return wrappers.filter((wrapper, index) => wrappers.indexOf(wrapper) === index && wrapper.querySelector('table'));
+      return wrappers.filter((wrapper, index) => {
+        if (wrappers.indexOf(wrapper) !== index) return false;
+        if (!wrapper.querySelector('table')) return false;
+        if (wrapper.classList?.contains('members-table-wrapper')) return false;
+        return true;
+      });
     };
 
     const detectPageBase = (wrapper, rowsCount) => {

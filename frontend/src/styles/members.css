@@ -1096,13 +1096,39 @@
 .members-table-wrapper {
   background: white;
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   box-shadow: var(--shadow-sm);
   margin-bottom: 24px;
+  cursor: grab;
+  scrollbar-gutter: stable;
+}
+
+.members-table-wrapper.dragging {
+  cursor: grabbing;
+}
+
+.members-table-wrapper::-webkit-scrollbar {
+  height: 12px;
+}
+
+.members-table-wrapper::-webkit-scrollbar-track {
+  background: #eef2f7;
+  border-radius: 999px;
+}
+
+.members-table-wrapper::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+}
+
+.members-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 .members-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 14px;
 }
@@ -1137,10 +1163,47 @@
 .members-table td {
   padding: 12px 14px;
   vertical-align: middle;
+  background: #fff;
 }
 
 .members-table .name-cell {
   font-weight: 500;
+  min-width: 220px;
+}
+
+.members-table .row-number-cell {
+  min-width: 56px;
+  text-align: right;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.members-table .sticky-col {
+  position: sticky;
+  z-index: 4;
+  background: #fff;
+}
+
+.members-table thead .sticky-col {
+  z-index: 6;
+  background: #f3f4f6;
+}
+
+.members-table .col-number,
+.members-table .row-number-cell {
+  left: 0;
+}
+
+.members-table .col-name,
+.members-table td.name-cell {
+  left: 56px;
+}
+
+.members-table td.name-cell,
+.members-table th.col-name,
+.members-table td.row-number-cell,
+.members-table th.col-number {
+  box-shadow: 1px 0 0 var(--border);
 }
 
 .members-table .name-cell small {

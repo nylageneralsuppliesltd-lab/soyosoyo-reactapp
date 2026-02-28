@@ -176,12 +176,12 @@ label {
   height: 24px;
 }
 
-.main-content table tbody tr td:first-child {
+.main-content table:not(.members-table) tbody tr td:first-child {
   position: relative;
   padding-left: 28px !important;
 }
 
-.main-content table tbody tr[data-row-number] td:first-child::before {
+.main-content table:not(.members-table) tbody tr[data-row-number] td:first-child::before {
   content: attr(data-row-number);
   position: absolute;
   left: 8px;
@@ -195,6 +195,7 @@ label {
 }
 
 .floating-x-scrollbar {
+  display: none !important;
   position: fixed;
   left: 0;
   top: 66px;

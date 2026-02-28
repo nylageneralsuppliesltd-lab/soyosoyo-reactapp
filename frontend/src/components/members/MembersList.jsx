@@ -29,6 +29,10 @@ export default function MembersList() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const reportHeaderRef = useRef(null);
+  const tableWrapperRef = useRef(null);
+  const dragActiveRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartScrollLeftRef = useRef(0);
 
   // Filter & search state
   const [search, setSearch] = useState('');
@@ -82,6 +86,44 @@ export default function MembersList() {
     }
 
     return reasons.join('; ');
+  };
+
+  const memberDisplayPriority = (member) => {
+    const active = isMemberActive(member);
+    const eligible = isDividendEligible(member);
+
+    if (active && eligible) return 0;
+    if (active && !eligible) return 1;
+    if (!active && eligible) return 2;
+    return 3;
+  };
+
+  const sortedMembers = [...members].sort((a, b) => {
+    const priorityDiff = memberDisplayPriority(a) - memberDisplayPriority(b);
+    if (priorityDiff !== 0) return priorityDiff;
+    return String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base' });
+  });
+
+  const handleTableDragStart = (event) => {
+    if (event.button !== 0 || !tableWrapperRef.current) return;
+    dragActiveRef.current = true;
+    dragStartXRef.current = event.clientX;
+    dragStartScrollLeftRef.current = tableWrapperRef.current.scrollLeft;
+    tableWrapperRef.current.classList.add('dragging');
+  };
+
+  const handleTableDragMove = (event) => {
+    if (!dragActiveRef.current || !tableWrapperRef.current) return;
+    event.preventDefault();
+    const deltaX = event.clientX - dragStartXRef.current;
+    tableWrapperRef.current.scrollLeft = dragStartScrollLeftRef.current - deltaX;
+  };
+
+  const stopTableDrag = () => {
+    dragActiveRef.current = false;
+    if (tableWrapperRef.current) {
+      tableWrapperRef.current.classList.remove('dragging');
+    }
   };
 
   const fetchMembers = async (skip = 0) => {
@@ -225,8 +267,8 @@ export default function MembersList() {
 
     const headers = ['#', 'Full Name', 'Phone', 'Email', 'ID Number', 'DOB', 'Gender', 'Role', 'Physical Address', 'Town', 'Employment Status', 'Employer Name', 'Balance (KES)', 'Status', 'Introducer Name', 'Date Joined'];
     
-    const rows = members.map((m, idx) => [
-      idx + 1,
+    const rows = sortedMembers.map((m, idx) => [
+      pagination.skip + idx + 1,
       m.name,
       m.phone,
       m.email || '-',
@@ -514,11 +556,19 @@ export default function MembersList() {
 
       {/* Table View */}
       {!loading && members.length > 0 && viewType === 'table' && (
-        <div className="members-table-wrapper">
+        <div
+          className="members-table-wrapper"
+          ref={tableWrapperRef}
+          onMouseDown={handleTableDragStart}
+          onMouseMove={handleTableDragMove}
+          onMouseUp={stopTableDrag}
+          onMouseLeave={stopTableDrag}
+        >
           <table className="members-table">
             <thead>
               <tr>
-                <th>Name</th>
+                <th className="sticky-col col-number">#</th>
+                <th className="sticky-col col-name">Name</th>
                 <th>Phone</th>
                 <th>Role</th>
                 <th>Registration Fee</th>
@@ -535,9 +585,10 @@ export default function MembersList() {
               </tr>
             </thead>
             <tbody>
-              {members.map((m) => (
+              {sortedMembers.map((m, index) => (
                 <tr key={m.id} className={isMemberActive(m) ? '' : 'suspended'}>
-                  <td className="name-cell">
+                  <td className="sticky-col row-number-cell">{pagination.skip + index + 1}</td>
+                  <td className="sticky-col name-cell">
                     <strong>{m.name}</strong>
                     {m.email && <small>{m.email}</small>}
                   </td>
@@ -621,7 +672,7 @@ export default function MembersList() {
       {/* Card View */}
       {!loading && members.length > 0 && viewType === 'card' && (
         <div className="members-cards-grid">
-          {members.map((m) => (
+          {sortedMembers.map((m) => (
             <div key={m.id} className={`member-card ${isMemberActive(m) ? '' : 'suspended'}`}>
               <div className="card-header">
                 <h3>{m.name}</h3>
