@@ -13,6 +13,7 @@ interface ListOptions {
 }
 
 const MONTHLY_INVOICE_AMOUNT = 200;
+const EPSILON = 0.005;
 
 function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -26,6 +27,32 @@ function monthsInclusive(from: Date, to: Date): number {
   const yearDiff = to.getFullYear() - from.getFullYear();
   const monthDiff = to.getMonth() - from.getMonth();
   return Math.max(0, yearDiff * 12 + monthDiff + 1);
+}
+
+function toRoundedMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function computeMemberStatuses(member: {
+  active: boolean;
+  registrationFeeContributions: number;
+  shareCapitalContributions: number;
+  monthlyMinimumContribution: number;
+  totalArrears: number;
+}) {
+  const isActive = member.active === true;
+  const hasRegistrationFee = member.registrationFeeContributions > 0;
+  const eligibleContributions = member.shareCapitalContributions + member.monthlyMinimumContribution;
+  const hasEligibleContributions = eligibleContributions > 0;
+  const noArrears = member.totalArrears <= EPSILON;
+  const dividendEligible = isActive && hasRegistrationFee && hasEligibleContributions && noArrears;
+
+  return {
+    activityStatus: isActive ? 'active' : 'suspended',
+    dividendEligible,
+    dividendEligibilityStatus: dividendEligible ? 'eligible' : 'not_eligible',
+    dividendPayableStatus: dividendEligible ? 'payable' : 'not_payable',
+  };
 }
 
 @Injectable()
@@ -145,6 +172,7 @@ export class MembersService {
           by: ['memberId', 'category'],
           where: {
             memberId: { in: memberIds },
+            type: 'contribution',
           },
           _sum: { amount: true },
         })
@@ -230,16 +258,33 @@ export class MembersService {
 
       // Return member with calculated balances (override stored values)
       const { ledger, ...memberData } = member;
+
+      const totalContributions = toRoundedMoney(contributionTotals.totalContributions);
+      const monthlyMinimumContribution = toRoundedMoney(contributionTotals.monthlyMinimumContribution);
+      const shareCapitalContributions = toRoundedMoney(contributionTotals.shareCapital);
+      const registrationFeeContributions = toRoundedMoney(contributionTotals.registrationFee);
+      const riskFundContributions = toRoundedMoney(contributionTotals.riskFund);
+      const totalArrears = toRoundedMoney(computedArrears);
+
+      const statuses = computeMemberStatuses({
+        active: memberData.active === true,
+        registrationFeeContributions,
+        shareCapitalContributions,
+        monthlyMinimumContribution,
+        totalArrears,
+      });
+
       return {
         ...memberData,
-        balance: Math.round(calculatedBalance * 100) / 100,
-        loanBalance: Math.round(calculatedLoanBalance * 100) / 100,
-        totalContributions: Math.round(contributionTotals.totalContributions * 100) / 100,
-        monthlyMinimumContribution: Math.round(contributionTotals.monthlyMinimumContribution * 100) / 100,
-        shareCapitalContributions: Math.round(contributionTotals.shareCapital * 100) / 100,
-        registrationFeeContributions: Math.round(contributionTotals.registrationFee * 100) / 100,
-        riskFundContributions: Math.round(contributionTotals.riskFund * 100) / 100,
-        totalArrears: Math.round(computedArrears * 100) / 100,
+        balance: toRoundedMoney(calculatedBalance),
+        loanBalance: toRoundedMoney(calculatedLoanBalance),
+        totalContributions,
+        monthlyMinimumContribution,
+        shareCapitalContributions,
+        registrationFeeContributions,
+        riskFundContributions,
+        totalArrears,
+        ...statuses,
       };
     });
 

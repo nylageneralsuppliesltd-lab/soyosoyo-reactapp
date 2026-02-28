@@ -27,6 +27,7 @@ export default function MembersList() {
 
   const formatKES = (value) => Number(value || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 });
   const toNumber = (value) => Number(value || 0);
+  const isMemberActive = (member) => member?.activityStatus === 'active' || member?.active === true;
   const totalContributions = (member) => toNumber(member.totalContributions) || (
     toNumber(member.registrationFeeContributions)
     + toNumber(member.riskFundContributions)
@@ -37,10 +38,23 @@ export default function MembersList() {
   const totalArrears = (member) => toNumber(member.totalArrears);
   const indicativeDividend = (member) => toNumber(member.indicativeTotalPayout);
   const dividendPayability = (member) => {
+    if (member.dividendPayableStatus === 'payable') return 'Payable';
+    if (member.dividendPayableStatus === 'not_payable') return 'Not Payable';
     if (member.indicativePayableStatus === 'payable') return 'Payable';
     return isDividendEligible(member) ? 'Payable' : 'Not Payable';
   };
-  const isDividendEligible = (member) => member.active === true && toNumber(member.registrationFeeContributions) > 0 && eligibleContributions(member) > 0;
+  const isDividendEligible = (member) => {
+    if (typeof member.dividendEligible === 'boolean') return member.dividendEligible;
+    if (member.dividendEligibilityStatus === 'eligible') return true;
+    if (member.dividendEligibilityStatus === 'not_eligible') return false;
+
+    return (
+      isMemberActive(member)
+      && toNumber(member.registrationFeeContributions) > 0
+      && eligibleContributions(member) > 0
+      && totalArrears(member) <= 0
+    );
+  };
 
   const fetchMembers = async (skip = 0) => {
     setLoading(true);
@@ -177,7 +191,7 @@ export default function MembersList() {
       m.employmentStatus || '-',
       m.employerName || '-',
       m.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00',
-      m.active ? 'Active' : 'Suspended',
+      isMemberActive(m) ? 'Active' : 'Suspended',
       m.introducerName || '-',
       new Date(m.createdAt).toLocaleDateString('en-KE'),
     ]);
@@ -306,7 +320,7 @@ export default function MembersList() {
           member.employmentStatus ? member.employmentStatus.substring(0, 8) : '-',
           member.employerName ? member.employerName.substring(0, 10) : '-',
           member.balance?.toLocaleString('en-KE', { minimumFractionDigits: 2 }) || '0.00',
-          member.active ? 'Active' : 'Suspended',
+          isMemberActive(member) ? 'Active' : 'Suspended',
           member.introducerName || '-',
           new Date(member.createdAt).toLocaleDateString('en-KE'),
         ];
@@ -474,7 +488,7 @@ export default function MembersList() {
             </thead>
             <tbody>
               {members.map((m) => (
-                <tr key={m.id} className={m.active === true ? '' : 'suspended'}>
+                <tr key={m.id} className={isMemberActive(m) ? '' : 'suspended'}>
                   <td className="name-cell">
                     <strong>{m.name}</strong>
                     {m.email && <small>{m.email}</small>}
@@ -509,8 +523,8 @@ export default function MembersList() {
                     </span>
                   </td>
                   <td className="status-cell">
-                    <span className={`status-badge ${m.active === true ? 'active' : 'suspended'}`}>
-                      {m.active === true ? '✓ Active' : '✗ Suspended'}
+                    <span className={`status-badge ${isMemberActive(m) ? 'active' : 'suspended'}`}>
+                      {isMemberActive(m) ? '✓ Active' : '✗ Suspended'}
                     </span>
                     <small>{isDividendEligible(m) ? 'Dividend Eligible' : 'Not Dividend Eligible'}</small>
                   </td>
@@ -529,7 +543,7 @@ export default function MembersList() {
                     >
                       Edit
                     </button>
-                    {m.active === true ? (
+                    {isMemberActive(m) ? (
                       <button
                         className="btn-small btn-danger"
                         onClick={() => handleSuspend(m.id)}
@@ -558,11 +572,11 @@ export default function MembersList() {
       {!loading && members.length > 0 && viewType === 'card' && (
         <div className="members-cards-grid">
           {members.map((m) => (
-            <div key={m.id} className={`member-card ${m.active === true ? '' : 'suspended'}`}>
+            <div key={m.id} className={`member-card ${isMemberActive(m) ? '' : 'suspended'}`}>
               <div className="card-header">
                 <h3>{m.name}</h3>
-                <span className={`status-badge ${m.active === true ? 'active' : 'suspended'}`}>
-                  {m.active === true ? '✓ Active' : '✗ Suspended'}
+                <span className={`status-badge ${isMemberActive(m) ? 'active' : 'suspended'}`}>
+                  {isMemberActive(m) ? '✓ Active' : '✗ Suspended'}
                 </span>
               </div>
 
@@ -646,7 +660,7 @@ export default function MembersList() {
                 >
                   Edit
                 </button>
-                {m.active === true ? (
+                {isMemberActive(m) ? (
                   <button
                     className="btn-small btn-danger"
                     onClick={() => handleSuspend(m.id)}
