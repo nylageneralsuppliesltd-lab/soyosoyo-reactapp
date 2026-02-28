@@ -31,6 +31,7 @@ export default function MembersList() {
   const reportHeaderRef = useRef(null);
   const tableWrapperRef = useRef(null);
   const dragActiveRef = useRef(false);
+  const dragPointerIdRef = useRef(null);
   const dragStartXRef = useRef(0);
   const dragStartScrollLeftRef = useRef(0);
 
@@ -105,15 +106,23 @@ export default function MembersList() {
   });
 
   const handleTableDragStart = (event) => {
-    if (event.button !== 0 || !tableWrapperRef.current) return;
+    if (!tableWrapperRef.current) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+    const interactiveTarget = event.target?.closest?.('button, a, input, select, textarea, label');
+    if (interactiveTarget) return;
+
     dragActiveRef.current = true;
+    dragPointerIdRef.current = event.pointerId;
     dragStartXRef.current = event.clientX;
     dragStartScrollLeftRef.current = tableWrapperRef.current.scrollLeft;
+    tableWrapperRef.current.setPointerCapture?.(event.pointerId);
     tableWrapperRef.current.classList.add('dragging');
   };
 
   const handleTableDragMove = (event) => {
     if (!dragActiveRef.current || !tableWrapperRef.current) return;
+    if (dragPointerIdRef.current !== null && event.pointerId !== dragPointerIdRef.current) return;
     event.preventDefault();
     const deltaX = event.clientX - dragStartXRef.current;
     tableWrapperRef.current.scrollLeft = dragStartScrollLeftRef.current - deltaX;
@@ -121,6 +130,7 @@ export default function MembersList() {
 
   const stopTableDrag = () => {
     dragActiveRef.current = false;
+    dragPointerIdRef.current = null;
     if (tableWrapperRef.current) {
       tableWrapperRef.current.classList.remove('dragging');
     }
@@ -559,10 +569,11 @@ export default function MembersList() {
         <div
           className="members-table-wrapper"
           ref={tableWrapperRef}
-          onMouseDown={handleTableDragStart}
-          onMouseMove={handleTableDragMove}
-          onMouseUp={stopTableDrag}
-          onMouseLeave={stopTableDrag}
+          onPointerDown={handleTableDragStart}
+          onPointerMove={handleTableDragMove}
+          onPointerUp={stopTableDrag}
+          onPointerCancel={stopTableDrag}
+          onPointerLeave={stopTableDrag}
         >
           <table className="members-table">
             <thead>

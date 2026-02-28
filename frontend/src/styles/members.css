@@ -1102,10 +1102,16 @@
   margin-bottom: 24px;
   cursor: grab;
   scrollbar-gutter: stable;
+  border: 1px solid var(--border);
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  scrollbar-width: thin;
 }
 
 .members-table-wrapper.dragging {
   cursor: grabbing;
+  user-select: none;
 }
 
 .members-table-wrapper::-webkit-scrollbar {
@@ -1131,6 +1137,7 @@
   min-width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+  background: #fff;
 }
 
 .members-table thead {
@@ -1144,6 +1151,9 @@
   font-weight: 600;
   color: var(--text-dark);
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
 .members-table tbody tr {
@@ -1153,6 +1163,10 @@
 
 .members-table tbody tr:hover {
   background: #f9fafb;
+}
+
+.members-table tbody tr:nth-child(even):not(.suspended) {
+  background: #fcfcfd;
 }
 
 .members-table tbody tr.suspended {
@@ -1197,13 +1211,14 @@
 .members-table .col-name,
 .members-table td.name-cell {
   left: 56px;
+  min-width: 220px;
 }
 
 .members-table td.name-cell,
 .members-table th.col-name,
 .members-table td.row-number-cell,
 .members-table th.col-number {
-  box-shadow: 1px 0 0 var(--border);
+  box-shadow: 1px 0 0 var(--border), 6px 0 8px -8px rgba(0, 0, 0, 0.25);
 }
 
 .members-table .name-cell small {
@@ -1231,6 +1246,12 @@
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+@media (pointer: coarse) {
+  .members-table-wrapper {
+    cursor: default;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────
