@@ -104,6 +104,13 @@
   animation: fadeIn 0.2s ease-out;
 }
 
+.modal-overlay,
+.add-item-modal-overlay,
+.statement-modal-overlay {
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

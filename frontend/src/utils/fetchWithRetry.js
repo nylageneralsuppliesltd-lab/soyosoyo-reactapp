@@ -27,20 +27,24 @@ export const fetchWithRetry = async (
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       try {
-        const token = getAuthToken();
         const headers = new Headers(fetchOptions.headers || {});
-        if (token && !headers.has('Authorization')) {
+        const token = getAuthToken();
+        const targetsApi = url.startsWith('/api') || url.includes('/api/') || url.includes('soyosoyo-reactapp-0twy.onrender.com/api');
+
+        if (token && targetsApi && !headers.has('Authorization')) {
           headers.set('Authorization', `Bearer ${token}`);
         }
 
         const response = await fetch(url, {
           ...fetchOptions,
           headers,
+          credentials: fetchOptions.credentials ?? 'include',
           signal: controller.signal,
         });
 
-        if (response.status === 401) {
+        if (targetsApi && (response.status === 401 || response.status === 403)) {
           notifyAuthExpired();
+          throw new Error(`Unauthorized (${response.status})`);
         }
 
         clearTimeout(timeoutId);

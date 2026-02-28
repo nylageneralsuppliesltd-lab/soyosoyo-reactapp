@@ -1,7 +1,7 @@
 // src/main.jsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { SaccoProvider } from './context/SaccoContext';
 import { FinancialProvider } from './context/FinancialContext';
@@ -9,42 +9,48 @@ import { AuthProvider } from './context/AuthContext';
 import { getAuthToken, notifyAuthExpired } from './utils/authSession';
 import './index.css';
 
-if (typeof window !== 'undefined' && typeof window.fetch === 'function' && !window.__AUTH_FETCH_PATCHED__) {
-  const originalFetch = window.fetch.bind(window);
+const root = document.getElementById('root');
+
+if (typeof window !== 'undefined' && !window.__authFetchPatched) {
+  const nativeFetch = window.fetch.bind(window);
+
   window.fetch = async (input, init = {}) => {
+    const requestUrl = typeof input === 'string' ? input : (input?.url || '');
+    const headers = new Headers(
+      init?.headers || (input instanceof Request ? input.headers : undefined)
+    );
+
     const token = getAuthToken();
-    const headers = new Headers(init.headers || {});
-    const hadAuthHeader = headers.has('Authorization');
-    if (token && !headers.has('Authorization')) {
+    const targetsApi = requestUrl.startsWith('/api') || requestUrl.includes('/api/') || requestUrl.includes('soyosoyo-reactapp-0twy.onrender.com/api');
+
+    if (token && targetsApi && !headers.has('Authorization')) {
       headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const willSendAuth = hadAuthHeader || Boolean(token);
-
-    const response = await originalFetch(input, {
+    const response = await nativeFetch(input, {
       ...init,
       headers,
+      credentials: init?.credentials ?? 'include',
     });
 
-    if (response.status === 401 && willSendAuth) {
+    if (targetsApi && (response.status === 401 || response.status === 403)) {
       notifyAuthExpired();
     }
 
     return response;
   };
-  window.__AUTH_FETCH_PATCHED__ = true;
-}
 
-const root = document.getElementById('root');
+  window.__authFetchPatched = true;
+}
 
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <AuthProvider>
       <SaccoProvider>
         <FinancialProvider>
-          <BrowserRouter>
+          <HashRouter>
             <App />
-          </BrowserRouter>
+          </HashRouter>
         </FinancialProvider>
       </SaccoProvider>
     </AuthProvider>
