@@ -47,11 +47,22 @@ function computeMemberStatuses(member: {
   const noArrears = member.totalArrears <= EPSILON;
   const dividendEligible = isActive && hasRegistrationFee && hasEligibleContributions && noArrears;
 
+  const reasons: string[] = [];
+  if (!isActive) reasons.push('Member is suspended');
+  if (!hasRegistrationFee) reasons.push('Registration fee not paid');
+  if (!hasEligibleContributions) reasons.push('No eligible contributions recorded');
+  if (!noArrears) reasons.push('Has monthly contribution arrears');
+
+  const dividendEligibilityReason = dividendEligible
+    ? 'Eligible: active member with registration fee paid, eligible contributions, and no arrears'
+    : reasons.join('; ');
+
   return {
     activityStatus: isActive ? 'active' : 'suspended',
     dividendEligible,
     dividendEligibilityStatus: dividendEligible ? 'eligible' : 'not_eligible',
     dividendPayableStatus: dividendEligible ? 'payable' : 'not_payable',
+    dividendEligibilityReason,
   };
 }
 

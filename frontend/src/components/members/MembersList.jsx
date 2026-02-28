@@ -55,6 +55,23 @@ export default function MembersList() {
       && totalArrears(member) <= 0
     );
   };
+  const getDividendEligibilityReason = (member) => {
+    if (typeof member?.dividendEligibilityReason === 'string' && member.dividendEligibilityReason.trim()) {
+      return member.dividendEligibilityReason;
+    }
+
+    const reasons = [];
+    if (!isMemberActive(member)) reasons.push('Member is suspended');
+    if (toNumber(member.registrationFeeContributions) <= 0) reasons.push('Registration fee not paid');
+    if (eligibleContributions(member) <= 0) reasons.push('No eligible contributions recorded');
+    if (totalArrears(member) > 0) reasons.push('Has monthly contribution arrears');
+
+    if (reasons.length === 0) {
+      return 'Eligible: active member with registration fee paid, eligible contributions, and no arrears';
+    }
+
+    return reasons.join('; ');
+  };
 
   const fetchMembers = async (skip = 0) => {
     setLoading(true);
@@ -526,7 +543,9 @@ export default function MembersList() {
                     <span className={`status-badge ${isMemberActive(m) ? 'active' : 'suspended'}`}>
                       {isMemberActive(m) ? '✓ Active' : '✗ Suspended'}
                     </span>
-                    <small>{isDividendEligible(m) ? 'Dividend Eligible' : 'Not Dividend Eligible'}</small>
+                    <small title={getDividendEligibilityReason(m)}>
+                      {isDividendEligible(m) ? 'Dividend Eligible' : 'Not Dividend Eligible'}
+                    </small>
                   </td>
                   <td className="actions-cell">
                     <button
@@ -637,7 +656,9 @@ export default function MembersList() {
                 </div>
                 <div className="card-row">
                   <span className="label">Dividend Eligibility:</span>
-                  <span className="value">{isDividendEligible(m) ? 'Eligible' : 'Not Eligible'}</span>
+                  <span className="value" title={getDividendEligibilityReason(m)}>
+                    {isDividendEligible(m) ? 'Eligible' : 'Not Eligible'}
+                  </span>
                 </div>
                 {m.town && (
                   <div className="card-row">
