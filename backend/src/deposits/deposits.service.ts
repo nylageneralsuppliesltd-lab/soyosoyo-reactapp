@@ -1,23 +1,14 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { Prisma, TransactionType } from '@prisma/client';
-import { AuditService } from '../audit/audit.service';
-import { RepaymentsService } from '../repayments/repayments.service';
-import { randomUUID } from 'crypto';
+import { Prisma } from '@prisma/client';
 
 export interface BulkPaymentRecord {
   date: string;
   memberName: string;
   memberId?: number;
-  loanId?: number;
   amount: number;
-  paymentType: 'contribution' | 'fine' | 'loan_repayment' | 'income' | 'miscellaneous' | 'share_capital';
+  paymentType: 'contribution' | 'fine' | 'loan_repayment' | 'income' | 'miscellaneous';
   contributionType?: string; // For custom contribution types
-  fineType?: string;
-  reason?: string;
-  description?: string;
-  purpose?: string;
-  source?: string;
   paymentMethod: 'cash' | 'bank' | 'mpesa' | 'check_off' | 'bank_deposit' | 'other';
   accountId?: number;
   reference?: string;
@@ -33,141 +24,86 @@ export interface BulkImportResult {
 
 @Injectable()
 export class DepositsService {
-  constructor(
-    private prisma: PrismaService,
-    private auditService: AuditService,
-    private repaymentsService: RepaymentsService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
-  private generateReference(prefix: string) {
-    // Import at top if needed: import { generateTransactionReference } from '../utils/reference-generator';
-    // For now, inline implementation to avoid import issues
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let randomCode = '';
-    for (let i = 0; i < 4; i++) {
-      randomCode += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    const date = new Date();
-    const yy = String(date.getFullYear()).slice(-2);
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${prefix}-${yy}${mm}${dd}-${randomCode}`;
+  private readonly financialAccountTypes = ['cash', 'bank', 'mobileMoney', 'pettyCash'] as const;
+
+  private normalizePaymentMethod(method?: string) {
+    const normalized = String(method || '').trim().toLowerCase();
+    if (normalized === 'mpesa') return 'mobileMoney';
+    if (['bank', 'bank_deposit', 'check_off'].includes(normalized)) return 'bank';
+    if (normalized === 'cash') return 'cash';
+    return undefined;
   }
 
-  private async assertReferenceUnique(reference?: string | null, excludeId?: number) {
-    if (!reference) return;
-    const existing = await this.prisma.deposit.findFirst({
-      where: {
-        reference,
-        ...(excludeId ? { id: { not: excludeId } } : {}),
-      },
-      select: { id: true },
-    });
+  private async resolveSettlementAccount(options: {
+    accountId?: number | null;
+    fallbackAccountId?: number | null;
+    method?: string;
+  }) {
+    const { accountId, fallbackAccountId, method } = options;
+    const candidateIds = [accountId, fallbackAccountId].filter(
+      (value): value is number => typeof value === 'number' && Number.isFinite(value),
+    );
 
-    if (existing) {
-      throw new BadRequestException('Reference already exists for another deposit.');
-    }
-  }
-
-  private async resolveCashAccountId(
-    journalEntries: any[],
-    fallbackAccountId: number | null,
-    prismaClient: Prisma.TransactionClient | PrismaService = this.prisma,
-  ): Promise<number | null> {
-    // Try to extract from journal entries first (debitAccountId is the cash account for deposits)
-    if (journalEntries && journalEntries.length > 0) {
-      const debitAccountId = journalEntries[0]?.debitAccountId;
-      if (debitAccountId) {
-        return debitAccountId;
+    for (const candidateId of candidateIds) {
+      const account = await this.prisma.account.findUnique({ where: { id: candidateId } });
+      if (account && this.financialAccountTypes.includes(account.type as any) && account.isActive !== false) {
+        return account;
       }
     }
 
-    // Use fallback if provided
-    if (fallbackAccountId) {
-      return fallbackAccountId;
+    const accounts = await this.prisma.account.findMany({
+      where: {
+        type: { in: this.financialAccountTypes as any },
+        isActive: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    if (accounts.length === 0) {
+      throw new BadRequestException('No active settlement account found. Please create/select an account first.');
     }
 
-    // Find default cash account
-    const defaultCashAccount = await prismaClient.account.findFirst({
-      where: { name: 'Cashbox', type: 'cash' },
-      select: { id: true },
-    });
+    const preferredType = this.normalizePaymentMethod(method);
+    const typeScoped = preferredType
+      ? accounts.filter((account) => {
+          if (preferredType === 'cash') return ['cash', 'pettyCash'].includes(account.type as any);
+          return account.type === preferredType;
+        })
+      : accounts;
 
-    return defaultCashAccount?.id ?? null;
-  }
+    if (typeScoped.length === 1) {
+      return typeScoped[0];
+    }
 
-  private async ensureGlAccount(name: string, description: string): Promise<{ id: number }> {
-    return this.prisma.account.upsert({
-      where: { name },
-      update: {
-        type: 'gl',
-      },
-      create: {
-        name,
-        type: 'gl',
-        description,
-        currency: 'KES',
-        balance: new Prisma.Decimal(0),
-      },
-      select: { id: true },
-    });
-  }
+    const preferredNameMatchers: RegExp[] = [];
+    if (preferredType === 'cash') {
+      preferredNameMatchers.push(/^cash at hand$/i, /^cashbox$/i);
+    } else if (preferredType === 'mobileMoney') {
+      preferredNameMatchers.push(/e.?wallet/i, /mobile money/i, /mpesa/i, /c\.?e\.?w/i);
+    } else if (preferredType === 'bank') {
+      preferredNameMatchers.push(/co[- ]?operative/i, /cooperative/i, /cytonn/i, /money market/i, /collection account/i);
+    }
 
-  private toAuditSnapshot(deposit: any) {
-    return {
-      id: deposit.id,
-      memberId: deposit.memberId,
-      memberName: deposit.memberName,
-      amount: Number(deposit.amount),
-      method: deposit.method,
-      reference: deposit.reference,
-      date: deposit.date ? new Date(deposit.date).toISOString() : null,
-      notes: deposit.notes,
-      type: deposit.type,
-      category: deposit.category,
-      description: deposit.description,
-      narration: deposit.narration,
-      accountId: deposit.accountId,
-    };
-  }
+    for (const matcher of preferredNameMatchers) {
+      const matched = typeScoped.find((account) => matcher.test(account.name || ''));
+      if (matched) {
+        return matched;
+      }
+    }
 
-  private async findDepositJournalEntries(
-    depositId: number,
-    reference: string | null | undefined,
-    prismaClient: Prisma.TransactionClient | PrismaService = this.prisma,
-  ) {
-    const referenceFilter = reference ? { reference } : undefined;
-    return prismaClient.journalEntry.findMany({
-      where: {
-        OR: [
-          referenceFilter,
-          { narration: { contains: `DepositId:${depositId}` } },
-        ].filter(Boolean) as any,
-      },
-    });
+    if (accounts.length === 1) {
+      return accounts[0];
+    }
+
+    throw new BadRequestException(
+      'Account is required to avoid mixed ledger postings. Multiple active settlement accounts exist; provide accountId.',
+    );
   }
 
   async create(data: any) {
     try {
-      const requestedType = (data.type || '').toString().toLowerCase();
-      const requestedLoanId = data.loanId ? parseInt(data.loanId, 10) : null;
-
-      if (requestedType === 'loan_repayment') {
-        if (!requestedLoanId || Number.isNaN(requestedLoanId)) {
-          throw new BadRequestException('Loan ID is required for loan_repayment deposits');
-        }
-
-        return this.repaymentsService.create({
-          loanId: requestedLoanId,
-          memberId: data.memberId ? parseInt(data.memberId, 10) : undefined,
-          accountId: data.accountId ? parseInt(data.accountId, 10) : undefined,
-          amount: data.amount,
-          date: data.date,
-          method: data.method,
-          notes: data.notes,
-        });
-      }
-
       // Transform and validate incoming data
       const depositData = {
         memberName: data.memberName?.trim() || null,
@@ -184,6 +120,12 @@ export class DepositsService {
         accountId: data.accountId ? parseInt(data.accountId) : null,
       };
 
+      const settlementAccount = await this.resolveSettlementAccount({
+        accountId: depositData.accountId,
+        method: depositData.method,
+      });
+      depositData.accountId = settlementAccount.id;
+
       const amountDecimal = new Prisma.Decimal(depositData.amount || 0);
 
       // Validate required fields
@@ -191,22 +133,11 @@ export class DepositsService {
         throw new BadRequestException('Valid amount is required');
       }
 
-      const externalRef = depositData.reference;
-      const effectiveReference = externalRef || this.generateReference('DEP');
-      await this.assertReferenceUnique(effectiveReference);
-
       // Create the deposit record
-      const deposit = await this.prisma.deposit.create({
-        data: {
-          ...depositData,
-          reference: effectiveReference,
-        },
-      });
+      const deposit = await this.prisma.deposit.create({ data: depositData });
 
       // Ensure accounts exist (fallback defaults if none provided)
-      const cashAccount = depositData.accountId
-        ? await this.prisma.account.findUnique({ where: { id: depositData.accountId } })
-        : await this.prisma.account.findFirst({ where: { name: 'Cashbox', type: 'cash' } });
+      const cashAccount = settlementAccount;
 
       if (!cashAccount) {
         throw new Error('Cash account not found. Please select an account.');
@@ -240,24 +171,12 @@ export class DepositsService {
       // Record proper double-entry journal entry:
       // Debit: Cash Account (asset increases)
       // Credit: Contribution GL Account (tracks source of deposit)
-      const narrationParts = [
-        `DepositId:${deposit.id}`,
-        `MemberId:${depositData.memberId ?? 'n/a'}`,
-        `Type:${depositData.type}`,
-        `Category:${depositData.category ?? 'n/a'}`,
-        `SourceRef:${effectiveReference ?? 'n/a'}`,
-      ];
-
-      const narration = depositData.notes
-        ? `${depositData.notes} | ${narrationParts.join(' | ')}`
-        : narrationParts.join(' | ');
-
       await this.prisma.journalEntry.create({
         data: {
           date: depositData.date,
-          reference: effectiveReference,
-          description: `Member deposit - ${depositData.memberName || 'Member'} (memberId:${depositData.memberId ?? 'n/a'})`,
-          narration,
+          reference: depositData.reference ?? null,
+          description: `Member deposit${depositData.memberName ? ' - ' + depositData.memberName : ''}`,
+          narration: depositData.notes ?? null,
           debitAccountId: cashAccount.id,
           debitAmount: amountDecimal,
           creditAccountId: glAccount.id,
@@ -279,7 +198,7 @@ export class DepositsService {
             type: depositData.type || 'Deposit',
             amount: depositData.amount,
             description: depositData.description || depositData.narration || depositData.category || 'Deposit',
-            reference: effectiveReference,
+            reference: depositData.reference,
             balanceAfter: updatedMember.balance,
             date: depositData.date,
           },
@@ -294,78 +213,12 @@ export class DepositsService {
   }
 
   async findAll(take = 100, skip = 0) {
-    // Fetch deposits (contributions)
-    const deposits = await this.prisma.deposit.findMany({
+    return this.prisma.deposit.findMany({
+      take,
+      skip,
       orderBy: { date: 'desc' },
       include: { member: true },
     });
-
-    // Fetch repayments (loan repayments = money in)
-    const repayments = await this.prisma.repayment.findMany({
-      orderBy: { date: 'desc' },
-      include: { 
-        member: true,
-        loan: {
-          include: {
-            loanType: true,
-          },
-        },
-      },
-    });
-
-    // Transform deposits to common format
-    const depositEntries = deposits.map(d => ({
-      ...d,
-      type: d.type || 'contribution',
-      transactionType: 'deposit',
-      source: 'deposit',
-      recordedAt: d.createdAt || d.date,
-      isSystemGenerated: false,
-      createdAt: d.createdAt,
-      updatedAt: d.updatedAt,
-    }));
-
-    // Transform repayments to common format (as deposit entries)
-    const repaymentEntries = repayments.map(r => ({
-      id: r.id,
-      memberId: r.memberId,
-      memberName: r.member?.name || 'Unknown',
-      member: r.member,
-      amount: r.amount,
-      method: r.method,
-      reference: r.reference,
-      date: r.date,
-      notes: r.notes || `Loan repayment (Loan #${r.loanId})`,
-      type: 'loan_repayment',
-      category: 'Loan Repayment',
-      description: `Loan repayment - ${r.loan?.loanType?.name || 'Loan'}`,
-      transactionType: 'deposit',
-      source: 'repayment',
-      recordedAt: r.createdAt || r.date,
-      isSystemGenerated: false,
-      loanId: r.loanId,
-      principal: r.principal,
-      interest: r.interest,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-    }));
-
-    // Combine and sort by date (descending)
-    const allEntries = [...depositEntries, ...repaymentEntries].sort((a, b) => {
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
-      return dateB.getTime() - dateA.getTime();
-    });
-
-    // Apply pagination
-    const paginatedEntries = allEntries.slice(skip, skip + take);
-
-    return {
-      data: paginatedEntries,
-      total: allEntries.length,
-      deposits: depositEntries.length,
-      repayments: repaymentEntries.length,
-    };
   }
 
   async findOne(id: number) {
@@ -377,205 +230,148 @@ export class DepositsService {
 
   async update(id: number, data: any) {
     try {
-      const { updatedDeposit, beforeSnapshot } = await this.prisma.$transaction(async (tx) => {
-        // Get the existing deposit to calculate differences
-        const existingDeposit = await tx.deposit.findUnique({
-          where: { id },
-          include: { member: true },
-        });
+      // Get the existing deposit to calculate differences
+      const existingDeposit = await this.prisma.deposit.findUnique({
+        where: { id },
+        include: { member: true },
+      });
 
-        if (!existingDeposit) {
-          throw new BadRequestException('Deposit not found');
-        }
+      if (!existingDeposit) {
+        throw new BadRequestException('Deposit not found');
+      }
 
-        const beforeSnapshot = this.toAuditSnapshot(existingDeposit);
+      // Normalize input data
+      const depositData = {
+        memberName: data.memberName?.trim() || existingDeposit.memberName,
+        memberId: data.memberId ? parseInt(data.memberId) : existingDeposit.memberId,
+        amount: data.amount ? parseFloat(data.amount) : Number(existingDeposit.amount),
+        method: data.method || existingDeposit.method,
+        reference: data.reference?.trim() || existingDeposit.reference,
+        date: data.date ? new Date(data.date) : existingDeposit.date,
+        notes: data.notes?.trim() || existingDeposit.notes,
+        type: data.type || existingDeposit.type,
+        category: data.category?.trim() || existingDeposit.category,
+        description: data.description?.trim() || existingDeposit.description,
+        narration: data.narration?.trim() || existingDeposit.narration,
+        accountId: data.accountId ? parseInt(data.accountId) : existingDeposit.accountId,
+      };
 
-        // Normalize input data
-        const depositData = {
-          memberName: data.memberName?.trim() || existingDeposit.memberName,
-          memberId: data.memberId ? parseInt(data.memberId) : existingDeposit.memberId,
-          amount: data.amount ? parseFloat(data.amount) : Number(existingDeposit.amount),
-          method: data.method || existingDeposit.method,
-          reference: data.reference?.trim() || existingDeposit.reference || this.generateReference('DEP'),
-          date: data.date ? new Date(data.date) : existingDeposit.date,
-          notes: data.notes?.trim() || existingDeposit.notes,
-          type: data.type || existingDeposit.type,
-          category: data.category?.trim() || existingDeposit.category,
-          description: data.description?.trim() || existingDeposit.description,
-          narration: data.narration?.trim() || existingDeposit.narration,
-          accountId: data.accountId ? parseInt(data.accountId) : existingDeposit.accountId,
-        };
+      const settlementAccount = await this.resolveSettlementAccount({
+        accountId: depositData.accountId,
+        fallbackAccountId: existingDeposit.accountId,
+        method: depositData.method,
+      });
+      depositData.accountId = settlementAccount.id;
 
-        await this.assertReferenceUnique(depositData.reference, existingDeposit.id);
+      // Calculate amount difference
+      const amountDifference = Number(depositData.amount) - Number(existingDeposit.amount);
 
-        const updatedDeposit = await tx.deposit.update({
-          where: { id },
-          data: depositData,
-          include: { member: true },
-        });
+      // Update the deposit record
+      const updatedDeposit = await this.prisma.deposit.update({
+        where: { id },
+        data: depositData,
+        include: { member: true },
+      });
 
-        const journalEntries = await this.findDepositJournalEntries(
-          existingDeposit.id,
-          existingDeposit.reference,
-          tx,
-        );
+      // If amount changed, update all related financial records
+      if (amountDifference !== 0) {
+        // Get the account used for this deposit
+        const cashAccount = settlementAccount;
 
-        const oldAmount = Number(existingDeposit.amount);
-        const newAmountValue = Number(depositData.amount);
-        const oldCashAccountId = await this.resolveCashAccountId(
-          journalEntries,
-          existingDeposit.accountId,
-          tx,
-        );
-        const newCashAccountId = depositData.accountId
-          ? depositData.accountId
-          : oldCashAccountId || (await this.resolveCashAccountId([], null, tx));
-
-        if (!newCashAccountId) {
+        if (!cashAccount) {
           throw new Error('Cash account not found. Cannot sync journal entries.');
         }
 
-        if (oldCashAccountId) {
-          await tx.account.update({
-            where: { id: oldCashAccountId },
-            data: { balance: { decrement: oldAmount } },
-          });
-        }
+        // Update account balance by the difference
+        await this.prisma.account.update({
+          where: { id: cashAccount.id },
+          data: { balance: { increment: amountDifference } },
+        });
 
-        if (newCashAccountId) {
-          await tx.account.update({
-            where: { id: newCashAccountId },
-            data: { balance: { increment: newAmountValue } },
-          });
-        }
+        // Find and update corresponding journal entry
+        const glAccountName = depositData.category 
+          ? `${depositData.category} Received` 
+          : `${depositData.type} Received`;
+        
+        // Get or create GL account
+        let glAccount = await this.prisma.account.findFirst({
+          where: { name: glAccountName },
+        });
 
-        if (journalEntries.length > 0) {
-          await tx.journalEntry.deleteMany({
-            where: { id: { in: journalEntries.map((entry) => entry.id) } },
-          });
-        } else {
-          await tx.journalEntry.deleteMany({
-            where: {
-              OR: [
-                { reference: existingDeposit.reference || undefined },
-                { narration: { contains: `DepositId:${existingDeposit.id}` } },
-              ],
+        if (!glAccount) {
+          glAccount = await this.prisma.account.create({
+            data: {
+              name: glAccountName,
+              type: 'gl', // Dedicated GL account type (not a real cash/bank account)
+              description: `GL account for ${depositData.category || depositData.type}`,
+              currency: 'KES',
+              balance: new Prisma.Decimal(0),
             },
           });
         }
 
-        const glAccountName = depositData.category
-          ? `${depositData.category} Received`
-          : `${depositData.type} Received`;
-
-        const glAccount = await tx.account.upsert({
-          where: { name: glAccountName },
-          update: {},
-          create: {
-            name: glAccountName,
-            type: 'gl',
-            description: `GL account for ${depositData.category || depositData.type}`,
-            currency: 'KES',
-            balance: new Prisma.Decimal(0),
-          },
+        // Delete old journal entry
+        await this.prisma.journalEntry.deleteMany({
+          where: {
+            debitAccountId: cashAccount.id,
+            creditAccountId: glAccount.id,
+            description: { contains: `Member deposit` },
+            OR: [
+              { reference: existingDeposit.reference || undefined },
+              { date: existingDeposit.date }
+            ]
+          }
         });
 
-        const narrationParts = [
-          `DepositId:${existingDeposit.id}`,
-          `MemberId:${depositData.memberId ?? 'n/a'}`,
-          `Type:${depositData.type}`,
-          `Category:${depositData.category ?? 'n/a'}`,
-          `SourceRef:${depositData.reference ?? 'n/a'}`,
-        ];
-
-        const narration = depositData.notes
-          ? `${depositData.notes} | ${narrationParts.join(' | ')}`
-          : narrationParts.join(' | ');
-
-        await tx.journalEntry.create({
+        // Create new journal entry with updated amount
+        const newAmount = new Prisma.Decimal(depositData.amount);
+        await this.prisma.journalEntry.create({
           data: {
             date: depositData.date,
             reference: depositData.reference ?? null,
-            description: `Member deposit - ${depositData.memberName || 'Member'} (memberId:${depositData.memberId ?? 'n/a'})`,
-            narration,
-            debitAccountId: newCashAccountId,
-            debitAmount: new Prisma.Decimal(newAmountValue),
+            description: `Member deposit${depositData.memberName ? ' - ' + depositData.memberName : ''}`,
+            narration: depositData.notes ?? null,
+            debitAccountId: cashAccount.id,
+            debitAmount: newAmount,
             creditAccountId: glAccount.id,
-            creditAmount: new Prisma.Decimal(newAmountValue),
+            creditAmount: newAmount,
             category: depositData.category || 'deposit',
           },
         });
 
-        const oldMemberId = existingDeposit.memberId;
-        const newMemberId = depositData.memberId;
+        // Update member balance if applicable
+        if (depositData.memberId) {
+          await this.prisma.member.update({
+            where: { id: depositData.memberId },
+            data: { balance: { increment: amountDifference } },
+          });
 
-        if (oldMemberId && newMemberId && oldMemberId === newMemberId) {
-          const difference = newAmountValue - oldAmount;
-          if (difference !== 0) {
-            await tx.member.update({
-              where: { id: newMemberId },
-              data: { balance: { increment: difference } },
-            });
-          }
-        } else {
-          if (oldMemberId) {
-            await tx.member.update({
-              where: { id: oldMemberId },
-              data: { balance: { decrement: oldAmount } },
-            });
-          }
-          if (newMemberId) {
-            await tx.member.update({
-              where: { id: newMemberId },
-              data: { balance: { increment: newAmountValue } },
-            });
-          }
-        }
-
-        if (oldMemberId) {
-          await tx.ledger.deleteMany({
+          // Update or create ledger entry
+          const newBalance = (existingDeposit.member?.balance || 0) + amountDifference;
+          
+          // Delete old ledger entry for this deposit
+          await this.prisma.ledger.deleteMany({
             where: {
-              memberId: oldMemberId,
-              OR: [
-                { reference: existingDeposit.reference || undefined },
-                { date: existingDeposit.date },
-              ],
-            },
-          });
-        }
-
-        if (newMemberId) {
-          const refreshedMember = await tx.member.findUnique({
-            where: { id: newMemberId },
+              memberId: depositData.memberId,
+              reference: existingDeposit.reference || undefined,
+              date: existingDeposit.date
+            }
           });
 
-          await tx.ledger.create({
+          // Create new ledger entry with updated balance
+          await this.prisma.ledger.create({
             data: {
-              memberId: newMemberId,
+              memberId: depositData.memberId,
               type: depositData.type || 'Deposit',
-              amount: newAmountValue,
+              amount: Number(depositData.amount),
               description: depositData.description || depositData.narration || depositData.category || 'Deposit',
               reference: depositData.reference,
-              balanceAfter: Number(refreshedMember?.balance || 0),
+              balanceAfter: newBalance,
               date: depositData.date,
             },
           });
         }
-
-        return { updatedDeposit, beforeSnapshot };
-      });
-
-      const afterSnapshot = this.toAuditSnapshot(updatedDeposit);
-      await this.auditService.log({
-        actor: data?.updatedBy || data?.actor || 'system',
-        action: 'deposit.update',
-        resource: 'deposit',
-        resourceId: String(id),
-        payload: {
-          before: beforeSnapshot,
-          after: afterSnapshot,
-        },
-      });
+      }
 
       return updatedDeposit;
     } catch (error) {
@@ -585,275 +381,103 @@ export class DepositsService {
   }
 
   async remove(id: number) {
-    const { deletedDeposit, beforeSnapshot } = await this.prisma.$transaction(async (tx) => {
-      const existingDeposit = await tx.deposit.findUnique({
-        where: { id },
-        include: { member: true },
-      });
-
-      if (!existingDeposit) {
-        throw new BadRequestException('Deposit not found');
-      }
-
-      const beforeSnapshot = this.toAuditSnapshot(existingDeposit);
-      const dayStart = new Date(existingDeposit.date);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(existingDeposit.date);
-      dayEnd.setHours(23, 59, 59, 999);
-
-      const journalEntries = await this.findDepositJournalEntries(
-        existingDeposit.id,
-        existingDeposit.reference,
-        tx,
-      );
-
-      const oldAmount = Number(existingDeposit.amount);
-      const fallbackJournalEntries = journalEntries.length
-        ? []
-        : await tx.journalEntry.findMany({
-            where: {
-              date: { gte: dayStart, lte: dayEnd },
-              OR: [
-                { debitAmount: new Prisma.Decimal(oldAmount) },
-                { creditAmount: new Prisma.Decimal(oldAmount) },
-              ],
-              AND: [
-                {
-                  OR: [
-                    existingDeposit.memberName
-                      ? {
-                          description: {
-                            contains: existingDeposit.memberName,
-                          },
-                        }
-                      : undefined,
-                    existingDeposit.memberId
-                      ? { narration: { contains: `MemberId:${existingDeposit.memberId}` } }
-                      : undefined,
-                    { description: { contains: 'Member deposit' } },
-                  ].filter(Boolean) as any,
-                },
-              ],
-            },
-          });
-
-      const journalEntriesToUse = journalEntries.length ? journalEntries : fallbackJournalEntries;
-      const hasPostedEntries = journalEntriesToUse.length > 0;
-
-      if (existingDeposit.isVoided) {
-        if (existingDeposit.memberId) {
-          await tx.ledger.deleteMany({
-            where: {
-              memberId: existingDeposit.memberId,
-              OR: [
-                { reference: existingDeposit.reference || undefined },
-                { date: existingDeposit.date },
-              ],
-            },
-          });
-        }
-
-        await tx.journalEntry.deleteMany({
-          where: {
-            OR: [
-              { reference: existingDeposit.reference || undefined },
-              { narration: { contains: `DepositId:${existingDeposit.id}` } },
-              { reference: `VOID-${existingDeposit.reference || `DEP-${existingDeposit.id}`}` },
-            ],
-          },
-        });
-      } else {
-        const cashAccountId = hasPostedEntries
-          ? await this.resolveCashAccountId(
-              journalEntriesToUse,
-              existingDeposit.accountId,
-              tx,
-            )
-          : null;
-
-        if (hasPostedEntries && cashAccountId) {
-          await tx.account.update({
-            where: { id: cashAccountId },
-            data: { balance: { decrement: oldAmount } },
-          });
-        }
-
-        if (existingDeposit.memberId) {
-          await tx.member.update({
-            where: { id: existingDeposit.memberId },
-            data: { balance: { decrement: oldAmount } },
-          });
-
-          await tx.ledger.deleteMany({
-            where: {
-              memberId: existingDeposit.memberId,
-              OR: [
-                { reference: existingDeposit.reference || undefined },
-                { date: { gte: dayStart, lte: dayEnd } },
-                {
-                  AND: [
-                    { amount: oldAmount },
-                    { date: { gte: dayStart, lte: dayEnd } },
-                    {
-                      OR: [
-                        existingDeposit.description
-                          ? {
-                              description: {
-                                contains: existingDeposit.description,
-                              },
-                            }
-                          : undefined,
-                        existingDeposit.category
-                          ? {
-                              description: {
-                                contains: existingDeposit.category,
-                              },
-                            }
-                          : undefined,
-                        { description: { contains: 'Deposit' } },
-                      ].filter(Boolean) as any,
-                    },
-                  ],
-                },
-              ],
-            },
-          });
-        }
-
-        if (hasPostedEntries) {
-          await tx.journalEntry.deleteMany({
-            where: { id: { in: journalEntriesToUse.map((entry) => entry.id) } },
-          });
-        } else {
-          await tx.journalEntry.deleteMany({
-            where: {
-              OR: [
-                { reference: existingDeposit.reference || undefined },
-                { narration: { contains: `DepositId:${existingDeposit.id}` } },
-              ],
-            },
-          });
-        }
-      }
-
-      const deletedDeposit = await tx.deposit.delete({ where: { id } });
-
-      return { deletedDeposit, beforeSnapshot };
-    });
-
-    await this.auditService.log({
-      actor: 'system',
-      action: 'deposit.delete',
-      resource: 'deposit',
-      resourceId: String(id),
-      payload: {
-        before: beforeSnapshot,
-      },
-    });
-
-    return deletedDeposit;
+    return this.prisma.deposit.delete({ where: { id } });
   }
 
-  async void(id: number, data: any) {
-    const { updatedDeposit, beforeSnapshot } = await this.prisma.$transaction(async (tx) => {
-      const existingDeposit = await tx.deposit.findUnique({
-        where: { id },
-        include: { member: true },
-      });
-
-      if (!existingDeposit) {
-        throw new BadRequestException('Deposit not found');
-      }
-
-      if (existingDeposit.isVoided) {
-        throw new BadRequestException('Deposit is already voided');
-      }
-
-      const beforeSnapshot = this.toAuditSnapshot(existingDeposit);
-      const journalEntries = await this.findDepositJournalEntries(
-        existingDeposit.id,
-        existingDeposit.reference,
-        tx,
-      );
-
-      const hasPostedEntries = journalEntries.length > 0;
-
-      if (hasPostedEntries) {
-        const oldAmount = Number(existingDeposit.amount);
-        const cashAccountId = await this.resolveCashAccountId(
-          journalEntries,
-          existingDeposit.accountId,
-          tx,
-        );
-
-        if (cashAccountId) {
-          await tx.account.update({
-            where: { id: cashAccountId },
-            data: { balance: { decrement: oldAmount } },
-          });
-        }
-
-        if (existingDeposit.memberId) {
-          const updatedMember = await tx.member.update({
-            where: { id: existingDeposit.memberId },
-            data: { balance: { decrement: oldAmount } },
-          });
-
-          await tx.ledger.create({
-            data: {
-              memberId: existingDeposit.memberId,
-              type: 'deposit_void',
-              amount: -oldAmount,
-              description: `Void deposit ${existingDeposit.reference || `DEP-${existingDeposit.id}`}`,
-              reference: existingDeposit.reference || `DEP-${existingDeposit.id}`,
-              balanceAfter: Number(updatedMember.balance),
-              date: new Date(),
-            },
-          });
-        }
-
-        const voidReference = `VOID-${existingDeposit.reference || `DEP-${existingDeposit.id}`}`;
-        for (const entry of journalEntries) {
-          await tx.journalEntry.create({
-            data: {
-              date: new Date(),
-              reference: voidReference,
-              description: `Void deposit ${existingDeposit.reference || `DEP-${existingDeposit.id}`}`,
-              narration: `VoidOfRef:${entry.reference || 'n/a'} | DepositId:${existingDeposit.id}`,
-              debitAccountId: entry.creditAccountId,
-              debitAmount: entry.creditAmount,
-              creditAccountId: entry.debitAccountId,
-              creditAmount: entry.debitAmount,
-              category: entry.category,
-            },
-          });
-        }
-      }
-
-      const updatedDeposit = await tx.deposit.update({
-        where: { id },
-        data: {
-          isVoided: true,
-          voidedAt: new Date(),
-          voidedBy: data?.actor || data?.updatedBy || 'system',
-          voidReason: data?.reason ? String(data.reason).trim() : null,
-        },
-      });
-
-      return { updatedDeposit, beforeSnapshot };
+  async void(id: number, data?: { reason?: string; actor?: string }) {
+    const existingDeposit = await this.prisma.deposit.findUnique({
+      where: { id },
+      include: { member: true },
     });
 
-    await this.auditService.log({
-      actor: data?.actor || data?.updatedBy || 'system',
-      action: 'deposit.void',
-      resource: 'deposit',
-      resourceId: String(id),
-      payload: {
-        before: beforeSnapshot,
+    if (!existingDeposit) {
+      throw new BadRequestException('Deposit not found');
+    }
+
+    if (existingDeposit.isVoided) {
+      return {
+        success: true,
+        message: 'Deposit already voided',
+        id: existingDeposit.id,
+      };
+    }
+
+    const amountDecimal = new Prisma.Decimal(existingDeposit.amount || 0);
+    const reason = data?.reason?.trim() || 'Voided by user';
+    const actor = data?.actor?.trim() || 'System';
+    const now = new Date();
+
+    const settlementAccount = await this.resolveSettlementAccount({
+      accountId: existingDeposit.accountId,
+      method: existingDeposit.method || 'cash',
+    });
+
+    // Reverse account balance impact
+    await this.prisma.account.update({
+      where: { id: settlementAccount.id },
+      data: { balance: { decrement: amountDecimal } },
+    });
+
+    // Reverse member balance impact and append member ledger audit line
+    if (existingDeposit.memberId) {
+      const updatedMember = await this.prisma.member.update({
+        where: { id: existingDeposit.memberId },
+        data: { balance: { decrement: Number(existingDeposit.amount || 0) } },
+      });
+
+      await this.prisma.ledger.create({
+        data: {
+          memberId: existingDeposit.memberId,
+          type: 'deposit_void',
+          amount: -Math.abs(Number(existingDeposit.amount || 0)),
+          description: `Voided deposit - ${reason}`,
+          reference: existingDeposit.reference ? `VOID-${existingDeposit.reference}` : `VOID-DEP-${existingDeposit.id}`,
+          balanceAfter: Number(updatedMember.balance),
+          date: now,
+        },
+      });
+    }
+
+    // Keep original journal rows for audit and add explicit reversing entry
+    const glAccountName = existingDeposit.category
+      ? `${existingDeposit.category} Received`
+      : `${existingDeposit.type} Received`;
+    const glAccount = await this.ensureAccountByName(
+      glAccountName,
+      'gl',
+      `GL account for ${existingDeposit.category || existingDeposit.type}`,
+    );
+
+    await this.prisma.journalEntry.create({
+      data: {
+        date: now,
+        reference: existingDeposit.reference ? `VOID-${existingDeposit.reference}` : `VOID-DEP-${existingDeposit.id}`,
+        description: `Void deposit #${existingDeposit.id} - ${reason}`,
+        narration: `Voided by ${actor}`,
+        debitAccountId: glAccount.id,
+        debitAmount: amountDecimal,
+        creditAccountId: settlementAccount.id,
+        creditAmount: amountDecimal,
+        category: 'deposit_void',
       },
     });
 
-    return updatedDeposit;
+    const voidedDeposit = await this.prisma.deposit.update({
+      where: { id },
+      data: {
+        isVoided: true,
+        voidedAt: now,
+        voidedBy: actor,
+        voidReason: reason,
+      },
+    });
+
+    return {
+      success: true,
+      id: voidedDeposit.id,
+      message: 'Deposit voided successfully',
+      data: voidedDeposit,
+    };
   }
 
   async findByMember(memberId: number) {
@@ -897,15 +521,6 @@ export class DepositsService {
    * Process a single payment with full double-entry bookkeeping
    */
   private async processPayment(payment: BulkPaymentRecord): Promise<number> {
-    const normalizedDepositType: TransactionType =
-      payment.paymentType === 'share_capital'
-        ? 'contribution'
-        : payment.paymentType === 'miscellaneous'
-          ? 'income'
-          : (payment.paymentType as TransactionType);
-
-    const memberRequiredPaymentTypes = new Set(['contribution', 'fine', 'loan_repayment', 'share_capital']);
-
     // Resolve member
     let memberId = payment.memberId;
     if (!memberId && payment.memberName) {
@@ -918,12 +533,9 @@ export class DepositsService {
         },
       });
       if (!member) {
-        if (memberRequiredPaymentTypes.has(payment.paymentType)) {
-          throw new BadRequestException(`Member '${payment.memberName}' not found`);
-        }
-      } else {
-        memberId = member.id;
+        throw new BadRequestException(`Member '${payment.memberName}' not found`);
       }
+      memberId = member.id;
     }
 
     // Validate required fields
@@ -937,52 +549,25 @@ export class DepositsService {
     const amountDecimal = new Prisma.Decimal(payment.amount);
     const paymentDate = new Date(payment.date);
 
-    if (payment.paymentType === 'loan_repayment') {
-      if (!payment.loanId || Number.isNaN(Number(payment.loanId))) {
-        throw new BadRequestException('loanId is required for loan_repayment bulk entries');
-      }
-
-      const repayment = await this.repaymentsService.create({
-        loanId: Number(payment.loanId),
-        memberId: memberId || undefined,
-        accountId: payment.accountId || undefined,
-        amount: payment.amount,
-        date: paymentDate,
-        method: payment.paymentMethod,
-        notes: payment.notes || payment.description || payment.reason || payment.purpose || null,
-      });
-
-      return Number(repayment.id);
-    }
-
     // Determine deposit type and related accounts
     const depositType = payment.paymentType;
-    const description =
-      payment.notes ||
-      payment.description ||
-      payment.reason ||
-      payment.purpose ||
-      payment.source ||
-      payment.fineType ||
-      payment.contributionType ||
-      payment.paymentType ||
-      '';
+    const description = this.getPaymentDescription(payment);
+    const settlementAccount = await this.resolveSettlementAccount({
+      accountId: payment.accountId,
+      method: payment.paymentMethod,
+    });
 
     // Create the deposit record
-    const externalRef = payment.reference?.trim() || null;
-    const effectiveReference = externalRef || this.generateReference('DEP');
-    await this.assertReferenceUnique(effectiveReference);
-
     const deposit = await this.prisma.deposit.create({
       data: {
         memberId: memberId || null,
         memberName: payment.memberName || null,
-        type: normalizedDepositType,
+        type: depositType as any,
         category: payment.contributionType || payment.paymentType,
         amount: amountDecimal,
         method: payment.paymentMethod as any,
-        accountId: payment.accountId || null,
-        reference: effectiveReference,
+        accountId: settlementAccount.id,
+        reference: payment.reference || null,
         notes: payment.notes || null,
         date: paymentDate,
         description: description,
@@ -993,13 +578,14 @@ export class DepositsService {
     // Ensure accounts and post double-entry
     await this.postDoubleEntryBookkeeping(
       deposit.id,
-      depositType === 'share_capital' ? 'contribution' : depositType,
+      depositType,
       memberId,
       amountDecimal,
       paymentDate,
       description,
-      payment.accountId,
-      effectiveReference,
+      settlementAccount.id,
+      payment.paymentMethod,
+      payment.reference,
       payment.notes,
     );
 
@@ -1017,6 +603,7 @@ export class DepositsService {
     date: Date,
     description: string,
     accountId?: number,
+    paymentMethod?: string,
     reference?: string,
     notes?: string,
   ) {
@@ -1031,19 +618,17 @@ export class DepositsService {
       case 'contribution': {
         // DR: Cash/Bank Account (money comes in)
         // CR: Contribution GL Account (tracks source)
-        const cashAccount = accountId
-          ? await this.prisma.account.findUnique({ where: { id: accountId } })
-          : await this.prisma.account.findFirst({ where: { type: 'cash' } });
+        const cashAccount = await this.resolveSettlementAccount({
+          accountId,
+          method: paymentMethod,
+        });
 
         if (!cashAccount) {
           throw new Error('Cash account not found');
         }
 
         creditAccountName = description ? `${description} Received` : 'Contributions Received';
-        const creditAccount = await this.ensureGlAccount(
-          creditAccountName,
-          `GL account for contribution deposits (${description || 'general'})`,
-        );
+        const creditAccount = await this.ensureAccountByName(creditAccountName, 'gl', creditAccountName);
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -1055,15 +640,16 @@ export class DepositsService {
       case 'fine': {
         // DR: Cash (money comes in)
         // CR: Fines Collected GL Account
-        const cashAccount = accountId
-          ? await this.prisma.account.findUnique({ where: { id: accountId } })
-          : await this.prisma.account.findFirst({ where: { type: 'cash' } });
+        const cashAccount = await this.resolveSettlementAccount({
+          accountId,
+          method: paymentMethod,
+        });
 
         if (!cashAccount) {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.ensureGlAccount('Fines Collected', 'GL account for fines collected');
+        const creditAccount = await this.ensureAccountByName('Fines Collected', 'gl', 'Fines Collected GL Account');
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -1074,19 +660,17 @@ export class DepositsService {
 
       case 'loan_repayment': {
         // DR: Cash (money comes in)
-        // CR: Loans Receivable (reduce outstanding principal)
-        const cashAccount = accountId
-          ? await this.prisma.account.findUnique({ where: { id: accountId } })
-          : await this.prisma.account.findFirst({ where: { type: 'cash' } });
+        // CR: Loan Repayments GL Account
+        const cashAccount = await this.resolveSettlementAccount({
+          accountId,
+          method: paymentMethod,
+        });
 
         if (!cashAccount) {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.ensureGlAccount(
-          'Loans Receivable',
-          'Loans disbursed to members (Asset account)',
-        );
+        const creditAccount = await this.ensureAccountByName('Loan Repayments Received', 'gl', 'Loan Repayments GL Account');
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -1098,15 +682,16 @@ export class DepositsService {
       case 'income': {
         // DR: Cash (money comes in)
         // CR: Income GL Account
-        const cashAccount = accountId
-          ? await this.prisma.account.findUnique({ where: { id: accountId } })
-          : await this.prisma.account.findFirst({ where: { type: 'cash' } });
+        const cashAccount = await this.resolveSettlementAccount({
+          accountId,
+          method: paymentMethod,
+        });
 
         if (!cashAccount) {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.ensureGlAccount('Other Income', 'GL account for other income receipts');
+        const creditAccount = await this.ensureAccountByName('Other Income', 'gl', 'Other Income GL Account');
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -1119,18 +704,16 @@ export class DepositsService {
       default: {
         // DR: Cash (money comes in)
         // CR: Miscellaneous GL Account
-        const cashAccount = accountId
-          ? await this.prisma.account.findUnique({ where: { id: accountId } })
-          : await this.prisma.account.findFirst({ where: { type: 'cash' } });
+        const cashAccount = await this.resolveSettlementAccount({
+          accountId,
+          method: paymentMethod,
+        });
 
         if (!cashAccount) {
           throw new Error('Cash account not found');
         }
 
-        const creditAccount = await this.ensureGlAccount(
-          'Miscellaneous Receipts',
-          'GL account for miscellaneous receipts',
-        );
+        const creditAccount = await this.ensureAccountByName('Miscellaneous Receipts', 'gl', 'Miscellaneous GL Account');
 
         debitAccountId = cashAccount.id;
         creditAccountId = creditAccount.id;
@@ -1160,5 +743,192 @@ export class DepositsService {
       where: { id: debitAccountId },
       data: { balance: { increment: amount } },
     });
+
+      // DO NOT update GL account balances - they are calculated from journal entries
+      // Only real cash/bank accounts need balance tracking
+      const creditAccount = await this.prisma.account.findUnique({
+        where: { id: creditAccountId },
+        select: { name: true, type: true }
+      });
+    
+      const isGLAccount = !!creditAccount && (
+        creditAccount.type === 'gl' ||
+        creditAccount.name.includes('Received') || 
+        creditAccount.name.includes('Expense') || 
+        creditAccount.name.includes('Payable') ||
+        creditAccount.name.includes('Collected') ||
+        creditAccount.name.includes('Income') ||
+        creditAccount.name.includes('GL Account')
+      );
+    
+      // Only update credit account balance if it's a real cash/bank account (not GL)
+      if (!isGLAccount) {
+        await this.prisma.account.update({
+          where: { id: creditAccountId },
+          data: { balance: { increment: amount } },
+        });
+      }
+
+    // Update category ledger if applicable
+    // NOTE: Contributions are NOT income - they are liabilities (money owed to members)
+    // Only track actual income sources in the category ledger
+    if (depositType === 'fine') {
+      await this.updateCategoryLedger('income', 'Fines', amount, depositId, 'deposit', description);
+    } else if (depositType === 'income') {
+      await this.updateCategoryLedger(
+        'income',
+        'Other Income',
+        amount,
+        depositId,
+        'deposit',
+        description,
+      );
+    }
+
+    // Update member balance and ledger
+    if (memberId) {
+      const member = await this.prisma.member.update({
+        where: { id: memberId },
+        data: { balance: { increment: Number(amount) } },
+      });
+
+      await this.prisma.ledger.create({
+        data: {
+          memberId,
+          type: depositType,
+          amount: Number(amount),
+          description: description,
+          reference: reference || null,
+          balanceAfter: Number(member.balance),
+          date,
+        },
+      });
+    }
+  }
+
+  /**
+   * Update category ledger with transaction entry
+   */
+  private async updateCategoryLedger(
+    categoryType: string,
+    categoryName: string,
+    amount: Prisma.Decimal,
+    sourceId: number,
+    sourceType: string,
+    description: string,
+  ) {
+    try {
+      // Find or create category ledger
+      let categoryLedger = await this.prisma.categoryLedger.findFirst({
+        where: { categoryName },
+      });
+
+      if (!categoryLedger) {
+        categoryLedger = await this.prisma.categoryLedger.create({
+          data: {
+            categoryType,
+            categoryName,
+            totalAmount: amount,
+            balance: amount,
+          },
+        });
+      } else {
+        // Update totals
+        categoryLedger = await this.prisma.categoryLedger.update({
+          where: { id: categoryLedger.id },
+          data: {
+            totalAmount: { increment: amount },
+            balance: { increment: amount },
+          },
+        });
+      }
+
+      // Create entry in category ledger
+      await this.prisma.categoryLedgerEntry.create({
+        data: {
+          categoryLedgerId: categoryLedger.id,
+          type: 'credit',
+          amount,
+          description,
+          sourceType,
+          sourceId: sourceId.toString(),
+          balanceAfter: categoryLedger.balance,
+          narration: description,
+        },
+      });
+    } catch (error) {
+      console.warn('Category ledger update failed:', error.message);
+      // Non-critical, continue processing
+    }
+  }
+
+  /**
+   * Helper: ensure account by ID or return default
+   */
+  private async ensureAccount(
+    id?: number,
+    type: string = 'cash',
+    description?: string,
+  ): Promise<{ id: number; name: string }> {
+    if (id) {
+      const existing = await this.prisma.account.findUnique({ where: { id } });
+      if (existing) return existing;
+    }
+
+    const defaultName = type === 'cash' ? 'Cashbox' : 'Default Account';
+    const existing = await this.prisma.account.findFirst({ where: { name: defaultName } });
+    if (existing) return existing;
+
+    return this.prisma.account.create({
+      data: {
+        name: defaultName,
+        type: type as any,
+        description: description ?? null,
+        currency: 'KES',
+        balance: new Prisma.Decimal(0),
+      },
+    });
+  }
+
+  /**
+   * Helper: ensure account by name
+   */
+  private async ensureAccountByName(
+    name: string,
+    type: string,
+    description?: string,
+  ): Promise<{ id: number; name: string }> {
+    const existing = await this.prisma.account.findFirst({ where: { name } });
+    if (existing) return existing;
+
+    return this.prisma.account.create({
+      data: {
+        name,
+        type: type as any,
+        description: description ?? null,
+        currency: 'KES',
+        balance: new Prisma.Decimal(0),
+      },
+    });
+  }
+
+  /**
+   * Generate payment description based on type and data
+   */
+  private getPaymentDescription(payment: BulkPaymentRecord): string {
+    switch (payment.paymentType) {
+      case 'contribution':
+        return `Contribution - ${payment.contributionType || 'Regular'}`;
+      case 'fine':
+        return 'Fine payment';
+      case 'loan_repayment':
+        return 'Loan repayment';
+      case 'income':
+        return 'Income recorded';
+      case 'miscellaneous':
+        return 'Miscellaneous payment';
+      default:
+        return 'Payment';
+    }
   }
 }

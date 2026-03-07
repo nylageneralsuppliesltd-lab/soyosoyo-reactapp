@@ -6,6 +6,82 @@ import { Prisma } from '@prisma/client';
 export class RepaymentsService {
   constructor(private prisma: PrismaService) {}
 
+  private readonly financialAccountTypes = ['cash', 'bank', 'mobileMoney', 'pettyCash'] as const;
+
+  private normalizePaymentMethod(method?: string) {
+    const normalized = String(method || '').trim().toLowerCase();
+    if (normalized === 'mpesa') return 'mobileMoney';
+    if (['bank', 'bank_deposit', 'check_off'].includes(normalized)) return 'bank';
+    if (normalized === 'cash') return 'cash';
+    return undefined;
+  }
+
+  private async resolveSettlementAccount(options: {
+    accountId?: number | null;
+    fallbackAccountId?: number | null;
+    method?: string;
+  }) {
+    const { accountId, fallbackAccountId, method } = options;
+    const candidateIds = [accountId, fallbackAccountId].filter(
+      (value): value is number => typeof value === 'number' && Number.isFinite(value),
+    );
+
+    for (const candidateId of candidateIds) {
+      const account = await this.prisma.account.findUnique({ where: { id: candidateId } });
+      if (account && this.financialAccountTypes.includes(account.type as any) && account.isActive !== false) {
+        return account;
+      }
+    }
+
+    const accounts = await this.prisma.account.findMany({
+      where: {
+        type: { in: this.financialAccountTypes as any },
+        isActive: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    if (accounts.length === 0) {
+      throw new BadRequestException('No active settlement account found. Please create/select an account first.');
+    }
+
+    const preferredType = this.normalizePaymentMethod(method);
+    const typeScoped = preferredType
+      ? accounts.filter((account) => {
+          if (preferredType === 'cash') return ['cash', 'pettyCash'].includes(account.type as any);
+          return account.type === preferredType;
+        })
+      : accounts;
+
+    if (typeScoped.length === 1) {
+      return typeScoped[0];
+    }
+
+    const preferredNameMatchers: RegExp[] = [];
+    if (preferredType === 'cash') {
+      preferredNameMatchers.push(/^cash at hand$/i, /^cashbox$/i);
+    } else if (preferredType === 'mobileMoney') {
+      preferredNameMatchers.push(/e.?wallet/i, /mobile money/i, /mpesa/i, /c\.?e\.?w/i);
+    } else if (preferredType === 'bank') {
+      preferredNameMatchers.push(/co[- ]?operative/i, /cooperative/i, /cytonn/i, /money market/i, /collection account/i);
+    }
+
+    for (const matcher of preferredNameMatchers) {
+      const matched = typeScoped.find((account) => matcher.test(account.name || ''));
+      if (matched) {
+        return matched;
+      }
+    }
+
+    if (accounts.length === 1) {
+      return accounts[0];
+    }
+
+    throw new BadRequestException(
+      'Account is required to avoid mixed ledger postings. Multiple active settlement accounts exist; provide accountId.',
+    );
+  }
+
   private async ensureAccountByName(
     name: string,
     type: string,
@@ -35,6 +111,7 @@ export class RepaymentsService {
         date: data.date ? new Date(data.date) : new Date(),
         method: data.method || 'cash',
         notes: data.notes?.trim() || null,
+        accountId: data.accountId ? parseInt(data.accountId) : null,
       };
 
       // Validate required fields
@@ -43,6 +120,11 @@ export class RepaymentsService {
       }
 
       const amountDecimal = new Prisma.Decimal(repaymentData.amount);
+      const settlementAccount = await this.resolveSettlementAccount({
+        accountId: repaymentData.accountId,
+        method: repaymentData.method,
+      });
+      repaymentData.accountId = settlementAccount.id;
 
       // Get the loan to update balance
       const loan = await this.prisma.loan.findUnique({ 
@@ -73,11 +155,7 @@ export class RepaymentsService {
         'GL account for loan repayments'
       );
 
-      const cashAccount = await this.ensureAccountByName(
-        'Cashbox',
-        'cash',
-        'Default cash account'
-      );
+      const cashAccount = settlementAccount;
 
       // Double-entry: Debit Cash (money in), Credit Loan Repayments GL
       await this.prisma.journalEntry.create({
@@ -156,22 +234,38 @@ export class RepaymentsService {
     const oldAmount = Number(repayment.amount);
     const newAmount = data.amount ? parseFloat(data.amount) : oldAmount;
     const amountDifference = newAmount - oldAmount;
+    const oldMethod = repayment.method || 'cash';
+    const newMethod = data.method || oldMethod;
+    const newAccountId = data.accountId ? parseInt(data.accountId) : repayment.accountId;
 
     // Update the repayment
     const updatedRepayment = await this.prisma.repayment.update({
       where: { id },
       data: {
         amount: newAmount,
-        method: data.method || repayment.method,
+        method: newMethod,
         notes: data.notes || repayment.notes,
         date: data.date ? new Date(data.date) : repayment.date,
+        accountId: newAccountId,
       },
       include: { loan: true },
     });
 
-    // If amount changed, sync the difference
-    if (amountDifference !== 0) {
-      const amountDec = new Prisma.Decimal(Math.abs(amountDifference));
+    const oldSettlementAccount = await this.resolveSettlementAccount({
+      accountId: repayment.accountId,
+      method: oldMethod,
+    });
+    const newSettlementAccount = await this.resolveSettlementAccount({
+      accountId: updatedRepayment.accountId,
+      fallbackAccountId: repayment.accountId,
+      method: newMethod,
+    });
+    const accountChanged = oldSettlementAccount.id !== newSettlementAccount.id;
+
+    // If amount/account changed, sync balances and journal entry
+    if (amountDifference !== 0 || accountChanged) {
+      const oldAmountDecimal = new Prisma.Decimal(oldAmount);
+      const newAmountDecimal = new Prisma.Decimal(newAmount);
 
       // Update loan balance
       const loan = repayment.loan;
@@ -198,38 +292,29 @@ export class RepaymentsService {
         'GL account for loan repayments'
       );
 
-      const cashAccount = await this.ensureAccountByName(
-        'Cashbox',
-        'cash',
-        'Default cash account'
-      );
-
       await this.prisma.journalEntry.create({
         data: {
           date: updatedRepayment.date,
           reference: `REPAY-${id}`,
           description: `Loan repayment - ${loan.memberName}`,
           narration: updatedRepayment.notes || null,
-          debitAccountId: cashAccount.id,
-          debitAmount: new Prisma.Decimal(newAmount),
+          debitAccountId: newSettlementAccount.id,
+          debitAmount: newAmountDecimal,
           creditAccountId: loanRepaymentAccount.id,
-          creditAmount: new Prisma.Decimal(newAmount),
+          creditAmount: newAmountDecimal,
           category: 'loan_repayment',
         },
       });
 
-      // Update cash account balance
-      if (amountDifference > 0) {
-        await this.prisma.account.update({
-          where: { id: cashAccount.id },
-          data: { balance: { increment: amountDec } },
-        });
-      } else {
-        await this.prisma.account.update({
-          where: { id: cashAccount.id },
-          data: { balance: { decrement: amountDec } },
-        });
-      }
+      // Reverse old posting then apply new posting (handles amount and account changes)
+      await this.prisma.account.update({
+        where: { id: oldSettlementAccount.id },
+        data: { balance: { decrement: oldAmountDecimal } },
+      });
+      await this.prisma.account.update({
+        where: { id: newSettlementAccount.id },
+        data: { balance: { increment: newAmountDecimal } },
+      });
 
       // Update member loan balance
       if (loan.memberId) {
@@ -294,11 +379,10 @@ export class RepaymentsService {
       where: { reference: `REPAY-${id}` },
     });
 
-    const cashAccount = await this.ensureAccountByName(
-      'Cashbox',
-      'cash',
-      'Default cash account',
-    );
+    const cashAccount = await this.resolveSettlementAccount({
+      accountId: repayment.accountId,
+      method: repayment.method || 'cash',
+    });
 
     await this.prisma.account.update({
       where: { id: cashAccount.id },

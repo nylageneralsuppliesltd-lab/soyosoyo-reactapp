@@ -697,10 +697,10 @@
 }
 
 .report-table thead th {
-  padding: 0.4rem 0.65rem;
+  padding: 0.28rem 0.45rem;
   text-align: left;
   font-weight: 600;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: white;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -722,16 +722,16 @@
 }
 
 .report-table tbody td {
-  padding: 0.35rem 0.65rem;
-  font-size: 0.75rem;
+  padding: 0.26rem 0.45rem;
+  font-size: 0.7rem;
   color: #1f2937;
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
   overflow: visible;
   text-overflow: clip;
-  max-width: 320px;
-  line-height: 1.4;
+  max-width: 260px;
+  line-height: 1.25;
 }
 
 /* Alternating row gradient for readability */
@@ -1150,8 +1150,8 @@
 @media (max-width: 640px) {
   .report-table thead th,
   .report-table tbody td {
-    padding: 0.4rem 0.6rem;
-    font-size: 0.72rem;
+    padding: 0.26rem 0.4rem;
+    font-size: 0.66rem;
   }
   
   .summary-metrics-grid {

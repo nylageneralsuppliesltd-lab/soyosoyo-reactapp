@@ -88,11 +88,11 @@
 }
 
 .members-table th {
-  padding: 15px;
+  padding: 8px 10px;
   text-align: left;
   font-weight: 600;
   color: #333;
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -113,9 +113,9 @@
 }
 
 .members-table td {
-  padding: 12px 15px;
+  padding: 7px 10px;
   color: #555;
-  font-size: 0.95rem;
+  font-size: 0.8rem;
 }
 
 .members-table td small {

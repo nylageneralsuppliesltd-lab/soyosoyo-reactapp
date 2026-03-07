@@ -314,7 +314,7 @@
   width: 100%;
   min-width: 980px;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.74rem;
   background: white;
 }
 
@@ -324,7 +324,7 @@
 }
 
 .ledger-table th {
-  padding: 0.75rem;
+  padding: 0.42rem 0.45rem;
   text-align: left;
   font-weight: 600;
   color: #2d3748;
@@ -357,7 +357,7 @@
 }
 
 .ledger-table td {
-  padding: 0.75rem;
+  padding: 0.38rem 0.45rem;
   color: #2d3748;
 }
 
@@ -623,12 +623,12 @@
   }
 
   .ledger-table {
-    font-size: 0.75rem;
+    font-size: 0.68rem;
   }
 
   .ledger-table th,
   .ledger-table td {
-    padding: 0.5rem;
+    padding: 0.3rem 0.34rem;
   }
 
   .summary-grid {

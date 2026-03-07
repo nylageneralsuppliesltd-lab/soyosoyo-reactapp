@@ -2679,7 +2679,7 @@ export class ReportsService {
 
       const entries = await this.prisma.journalEntry.findMany({
         where,
-        orderBy: { date: 'asc' },
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
         include: {
           debitAccount: { select: { name: true } },
           creditAccount: { select: { name: true } },
