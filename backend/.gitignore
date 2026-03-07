@@ -6,3 +6,8 @@ prisma/generated
 
 # Build outputs
 dist
+
+# Local/generated artifacts
+*.log
+contribution-member-summary-preview.json
+SOYOSOYO  SACCO Withdrawal List.xlsx
