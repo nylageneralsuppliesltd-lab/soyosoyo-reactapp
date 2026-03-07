@@ -25,6 +25,7 @@ export class ReportsService {
   getCatalog() {
     return [
       { key: 'contributions', name: 'Contribution Summary', filters: ['period', 'memberId'] },
+      { key: 'contributionMatrix', name: 'Contribution Matrix', filters: ['startDate', 'endDate'] },
       { key: 'fines', name: 'Fines Summary', filters: ['period', 'status', 'memberId'] },
       { key: 'loans', name: 'Loans (Member) Portfolio', filters: ['period', 'status'] },
       { key: 'bankLoans', name: 'Bank Loans (External)', filters: ['period', 'status'] },
@@ -38,6 +39,8 @@ export class ReportsService {
       { key: 'balanceSheet', name: 'Balance Sheet', filters: ['asOf'] },
       { key: 'sasra', name: 'SASRA Compliance Snapshot', filters: ['asOf'] },
       { key: 'dividends', name: 'Dividends Report', filters: ['period'] },
+      { key: 'dividendRecommendation', name: 'Dividend Recommendation', filters: ['period', 'startDate', 'endDate'] },
+      { key: 'dividendCategoryPayouts', name: 'Dividend Category Payouts', filters: ['period', 'startDate', 'endDate'] },
     ];
   }
 
@@ -50,6 +53,9 @@ export class ReportsService {
     switch (key) {
       case 'contributions':
         result = await this.contributionReport(dateRange, query.memberId);
+        break;
+      case 'contributionMatrix':
+        result = await this.contributionMatrixReport(query.startDate, query.endDate);
         break;
       case 'fines':
         result = await this.finesReport(dateRange, query.status, query.memberId);
@@ -89,6 +95,12 @@ export class ReportsService {
         break;
       case 'dividends':
         result = await this.dividendReport(dateRange);
+        break;
+      case 'dividendRecommendation':
+        result = await this.dividendRecommendationReport(dateRange);
+        break;
+      case 'dividendCategoryPayouts':
+        result = await this.dividendCategoryPayoutsReport(dateRange);
         break;
       case 'generalLedger':
         result = await this.generalLedgerReport(dateRange, query.accountId);
@@ -152,6 +164,1304 @@ export class ReportsService {
     }
 
     throw new BadRequestException('Unsupported format');
+  }
+
+  async referenceSearch(reference?: string) {
+    const trimmed = reference?.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Reference is required');
+    }
+
+    const [deposits, withdrawals, repayments, journalEntries] = await Promise.all([
+      this.prisma.deposit.findMany({
+        where: {
+          reference: { contains: trimmed, mode: 'insensitive' },
+        },
+        include: {
+          member: { select: { id: true, name: true } },
+          account: { select: { id: true, name: true, type: true, accountNumber: true } },
+        },
+        orderBy: { date: 'desc' },
+      }),
+      this.prisma.withdrawal.findMany({
+        where: {
+          reference: { contains: trimmed, mode: 'insensitive' },
+        },
+        include: {
+          member: { select: { id: true, name: true } },
+          account: { select: { id: true, name: true, type: true, accountNumber: true } },
+        },
+        orderBy: { date: 'desc' },
+      }),
+      this.prisma.repayment.findMany({
+        where: {
+          reference: { contains: trimmed, mode: 'insensitive' },
+        },
+        include: {
+          member: { select: { id: true, name: true } },
+          loan: { select: { id: true, memberId: true } },
+          account: { select: { id: true, name: true, type: true, accountNumber: true } },
+        },
+        orderBy: { date: 'desc' },
+      }),
+      this.prisma.journalEntry.findMany({
+        where: {
+          reference: { contains: trimmed, mode: 'insensitive' },
+        },
+        include: {
+          debitAccount: { select: { id: true, name: true, type: true } },
+          creditAccount: { select: { id: true, name: true, type: true } },
+        },
+        orderBy: { date: 'desc' },
+      }),
+    ]);
+
+    return {
+      reference: trimmed,
+      deposits,
+      withdrawals,
+      repayments,
+      journalEntries,
+      count: deposits.length + withdrawals.length + repayments.length + journalEntries.length,
+    };
+  }
+
+  async enhancedBalanceSheet(mode: 'monthly' | 'yearly', asOfDate: Date) {
+    const safeMode = mode === 'yearly' ? 'yearly' : 'monthly';
+    const currentDate = asOfDate && !Number.isNaN(new Date(asOfDate).getTime()) ? new Date(asOfDate) : new Date();
+    const periods = this.getComparativePeriods(safeMode, currentDate);
+
+    const [currentData, previousData] = await Promise.all([
+      this.getBalanceSheetSnapshot(periods.currentEnd),
+      this.getBalanceSheetSnapshot(periods.previousEnd),
+    ]);
+
+    const fixedAssetNames = Array.from(new Set([
+      ...currentData.fixedAssets.map((item: any) => item.name),
+      ...previousData.fixedAssets.map((item: any) => item.name),
+    ])).sort((a, b) => a.localeCompare(b));
+
+    const fixedAssetItems = fixedAssetNames.map((name) => {
+      const current = Number(currentData.fixedAssets.find((item: any) => item.name === name)?.currentValue || 0);
+      const previous = Number(previousData.fixedAssets.find((item: any) => item.name === name)?.currentValue || 0);
+      return {
+        label: name,
+        current,
+        previous,
+        change: current - previous,
+      };
+    });
+
+    const contributionTypeNames = Array.from(new Set([
+      ...Object.keys(currentData.memberSavingsByType || {}),
+      ...Object.keys(previousData.memberSavingsByType || {}),
+    ])).sort((a, b) => a.localeCompare(b));
+
+    const equityContributionItems = contributionTypeNames.map((typeName) => {
+      const current = Number(currentData.memberSavingsByType?.[typeName] || 0);
+      const previous = Number(previousData.memberSavingsByType?.[typeName] || 0);
+      return {
+        label: typeName,
+        current,
+        previous,
+        change: current - previous,
+      };
+    });
+
+    if (currentData.otherContributions !== 0 || previousData.otherContributions !== 0) {
+      equityContributionItems.push({
+        label: 'Other Contributions',
+        current: Number(currentData.otherContributions || 0),
+        previous: Number(previousData.otherContributions || 0),
+        change: Number(currentData.otherContributions || 0) - Number(previousData.otherContributions || 0),
+      });
+    }
+
+    const currentAssetsSubtotal =
+      currentData.cashAtHand +
+      currentData.cashAtBank +
+      currentData.mobileMoney +
+      currentData.memberSavingsReceivable;
+    const previousAssetsSubtotal =
+      previousData.cashAtHand +
+      previousData.cashAtBank +
+      previousData.mobileMoney +
+      previousData.memberSavingsReceivable;
+
+    const currentLoansSubtotal =
+      currentData.memberLoansPrincipal +
+      currentData.accruedInterest +
+      currentData.outstandingFines -
+      currentData.loanLossProvision;
+    const previousLoansSubtotal =
+      previousData.memberLoansPrincipal +
+      previousData.accruedInterest +
+      previousData.outstandingFines -
+      previousData.loanLossProvision;
+
+    const currentLiabilitiesSubtotal = currentData.totalLiabilities;
+    const previousLiabilitiesSubtotal = previousData.totalLiabilities;
+
+    const currentEquitySubtotal = currentData.totalEquity;
+    const previousEquitySubtotal = previousData.totalEquity;
+
+    const currentBalanced = Math.abs(currentData.totalAssets - (currentData.totalLiabilities + currentData.totalEquity)) < 0.01;
+    const previousBalanced = Math.abs(previousData.totalAssets - (previousData.totalLiabilities + previousData.totalEquity)) < 0.01;
+
+    return {
+      mode: safeMode,
+      currentPeriod: {
+        date: periods.currentEnd.toISOString().split('T')[0],
+        label: this.formatPeriodLabel(safeMode, periods.currentEnd),
+      },
+      previousPeriod: {
+        date: periods.previousEnd.toISOString().split('T')[0],
+        label: this.formatPeriodLabel(safeMode, periods.previousEnd),
+      },
+      sections: [
+        {
+          heading: 'ASSETS',
+          categories: [
+            {
+              name: 'Current Assets',
+              items: [
+                {
+                  label: 'Cash at Hand',
+                  current: currentData.cashAtHand,
+                  previous: previousData.cashAtHand,
+                  change: currentData.cashAtHand - previousData.cashAtHand,
+                },
+                {
+                  label: 'Cash at Bank',
+                  current: currentData.cashAtBank,
+                  previous: previousData.cashAtBank,
+                  change: currentData.cashAtBank - previousData.cashAtBank,
+                },
+                {
+                  label: 'Mobile Money',
+                  current: currentData.mobileMoney,
+                  previous: previousData.mobileMoney,
+                  change: currentData.mobileMoney - previousData.mobileMoney,
+                },
+                {
+                  label: 'Member Savings Receivable',
+                  current: currentData.memberSavingsReceivable,
+                  previous: previousData.memberSavingsReceivable,
+                  change: currentData.memberSavingsReceivable - previousData.memberSavingsReceivable,
+                },
+              ],
+              subtotal: {
+                current: currentAssetsSubtotal,
+                previous: previousAssetsSubtotal,
+              },
+            },
+            {
+              name: 'Loans and Advances',
+              items: [
+                {
+                  label: 'Member Loans (Principal)',
+                  current: currentData.memberLoansPrincipal,
+                  previous: previousData.memberLoansPrincipal,
+                  change: currentData.memberLoansPrincipal - previousData.memberLoansPrincipal,
+                },
+                {
+                  label: 'Accrued Interest on Loans',
+                  current: currentData.accruedInterest,
+                  previous: previousData.accruedInterest,
+                  change: currentData.accruedInterest - previousData.accruedInterest,
+                },
+                {
+                  label: 'Outstanding Fines Receivable',
+                  current: currentData.outstandingFines,
+                  previous: previousData.outstandingFines,
+                  change: currentData.outstandingFines - previousData.outstandingFines,
+                },
+                {
+                  label: 'Less: Loan Loss Provision (ECL)',
+                  current: -currentData.loanLossProvision,
+                  previous: -previousData.loanLossProvision,
+                  change: -(currentData.loanLossProvision - previousData.loanLossProvision),
+                },
+              ],
+              subtotal: {
+                current: currentLoansSubtotal,
+                previous: previousLoansSubtotal,
+              },
+            },
+            {
+              name: 'Fixed Assets',
+              items: fixedAssetItems,
+              subtotal: {
+                current: currentData.totalFixedAssets,
+                previous: previousData.totalFixedAssets,
+              },
+            },
+          ],
+          total: {
+            label: 'TOTAL ASSETS',
+            current: currentData.totalAssets,
+            previous: previousData.totalAssets,
+            change: currentData.totalAssets - previousData.totalAssets,
+          },
+        },
+        {
+          heading: 'LIABILITIES',
+          categories: [
+            {
+              name: 'Current Liabilities',
+              items: [
+                {
+                  label: 'Bank Loans Payable',
+                  current: currentData.bankLoans,
+                  previous: previousData.bankLoans,
+                  change: currentData.bankLoans - previousData.bankLoans,
+                },
+                {
+                  label: 'Accrued Expenses',
+                  current: currentData.accruedExpenses,
+                  previous: previousData.accruedExpenses,
+                  change: currentData.accruedExpenses - previousData.accruedExpenses,
+                },
+                {
+                  label: 'Dividends Payable',
+                  current: currentData.dividendsPayable,
+                  previous: previousData.dividendsPayable,
+                  change: currentData.dividendsPayable - previousData.dividendsPayable,
+                },
+                {
+                  label: 'Withholding Tax Payable',
+                  current: currentData.withholdingTaxPayable,
+                  previous: previousData.withholdingTaxPayable,
+                  change: currentData.withholdingTaxPayable - previousData.withholdingTaxPayable,
+                },
+                {
+                  label: 'Income Tax Payable',
+                  current: currentData.incomeTaxPayable,
+                  previous: previousData.incomeTaxPayable,
+                  change: currentData.incomeTaxPayable - previousData.incomeTaxPayable,
+                },
+              ],
+              subtotal: {
+                current: currentLiabilitiesSubtotal,
+                previous: previousLiabilitiesSubtotal,
+              },
+            },
+          ],
+          total: {
+            label: 'TOTAL LIABILITIES',
+            current: currentData.totalLiabilities,
+            previous: previousData.totalLiabilities,
+            change: currentData.totalLiabilities - previousData.totalLiabilities,
+          },
+        },
+        {
+          heading: "MEMBERS' EQUITY",
+          categories: [
+            {
+              name: 'Share Capital and Reserves',
+              items: [
+                ...equityContributionItems,
+                {
+                  label: 'Retained Earnings',
+                  current: currentData.retainedEarnings,
+                  previous: previousData.retainedEarnings,
+                  change: currentData.retainedEarnings - previousData.retainedEarnings,
+                },
+              ],
+              subtotal: {
+                current: currentEquitySubtotal,
+                previous: previousEquitySubtotal,
+              },
+            },
+          ],
+          total: {
+            label: "TOTAL MEMBERS' EQUITY",
+            current: currentData.totalEquity,
+            previous: previousData.totalEquity,
+            change: currentData.totalEquity - previousData.totalEquity,
+          },
+        },
+      ],
+      totals: {
+        balanceCheck: currentBalanced && previousBalanced,
+      },
+      diagnostics: {
+        currentEquationVariance: Number((currentData.totalAssets - (currentData.totalLiabilities + currentData.totalEquity)).toFixed(2)),
+        previousEquationVariance: Number((previousData.totalAssets - (previousData.totalLiabilities + previousData.totalEquity)).toFixed(2)),
+      },
+    };
+  }
+
+  async enhancedIncomeStatement(mode: 'monthly' | 'yearly', endDate: Date) {
+    const safeMode = mode === 'yearly' ? 'yearly' : 'monthly';
+    const date = endDate && !Number.isNaN(new Date(endDate).getTime()) ? new Date(endDate) : new Date();
+    const periods = this.getComparativePeriods(safeMode, date);
+
+    const [currentData, previousData] = await Promise.all([
+      this.getIncomeMetrics(periods.currentStart, periods.currentEnd),
+      this.getIncomeMetrics(periods.previousStart, periods.previousEnd),
+    ]);
+
+    const expenseCategories = Array.from(new Set([
+      ...Object.keys(currentData.expenseByCategory || {}),
+      ...Object.keys(previousData.expenseByCategory || {}),
+    ])).sort((a, b) => a.localeCompare(b));
+
+    const expenseItems = expenseCategories.map((category) => {
+      const current = Number(currentData.expenseByCategory?.[category] || 0);
+      const previous = Number(previousData.expenseByCategory?.[category] || 0);
+      const change = current - previous;
+      return {
+        label: category,
+        current,
+        previous,
+        change,
+        percentChange: this.percentChange(current, previous),
+      };
+    });
+
+    const incomeItems = [
+      {
+        label: 'Interest Income (Loan Repayments)',
+        current: currentData.interestIncome,
+        previous: previousData.interestIncome,
+      },
+      {
+        label: 'Fines Income',
+        current: currentData.finesIncome,
+        previous: previousData.finesIncome,
+      },
+      {
+        label: 'Other Income',
+        current: currentData.otherIncome,
+        previous: previousData.otherIncome,
+      },
+    ].map((row) => ({
+      ...row,
+      change: row.current - row.previous,
+      percentChange: this.percentChange(row.current, row.previous),
+    }));
+
+    const provisionItems = [
+      {
+        label: 'Loan Loss Provision (IFRS 9)',
+        current: currentData.totalProvisions,
+        previous: previousData.totalProvisions,
+        change: currentData.totalProvisions - previousData.totalProvisions,
+        percentChange: this.percentChange(currentData.totalProvisions, previousData.totalProvisions),
+      },
+    ];
+
+    const currentExpenseTotal = currentData.totalExpenses + currentData.totalProvisions;
+    const previousExpenseTotal = previousData.totalExpenses + previousData.totalProvisions;
+
+    const currentNet = currentData.netSurplus;
+    const previousNet = previousData.netSurplus;
+
+    return {
+      mode: safeMode,
+      currentPeriod: {
+        label: this.formatPeriodLabel(safeMode, periods.currentEnd),
+        startDate: periods.currentStart.toISOString().split('T')[0],
+        endDate: periods.currentEnd.toISOString().split('T')[0],
+      },
+      previousPeriod: {
+        label: this.formatPeriodLabel(safeMode, periods.previousEnd),
+        startDate: periods.previousStart.toISOString().split('T')[0],
+        endDate: periods.previousEnd.toISOString().split('T')[0],
+      },
+      sections: [
+        {
+          heading: 'INCOME',
+          categories: [
+            {
+              name: 'Operating Income',
+              items: incomeItems,
+              subtotal: {
+                current: currentData.totalOperatingIncome,
+                previous: previousData.totalOperatingIncome,
+              },
+            },
+          ],
+          total: {
+            label: 'TOTAL INCOME',
+            current: currentData.totalOperatingIncome,
+            previous: previousData.totalOperatingIncome,
+            change: currentData.totalOperatingIncome - previousData.totalOperatingIncome,
+          },
+        },
+        {
+          heading: 'EXPENSES',
+          categories: [
+            {
+              name: 'Operating Expenses',
+              items: expenseItems,
+              subtotal: {
+                current: currentData.totalExpenses,
+                previous: previousData.totalExpenses,
+              },
+            },
+            {
+              name: 'Provisions',
+              items: provisionItems,
+              subtotal: {
+                current: currentData.totalProvisions,
+                previous: previousData.totalProvisions,
+              },
+            },
+          ],
+          total: {
+            label: 'TOTAL EXPENSES',
+            current: currentExpenseTotal,
+            previous: previousExpenseTotal,
+            change: currentExpenseTotal - previousExpenseTotal,
+          },
+        },
+      ],
+      summary: {
+        netSurplus: {
+          label: 'Net Surplus / (Deficit)',
+          current: currentNet,
+          previous: previousNet,
+          change: currentNet - previousNet,
+          percentChange: this.percentChange(currentNet, previousNet),
+        },
+      },
+    };
+  }
+
+  async incomeBreakdown(startDate: Date, endDate: Date) {
+    const safeStart = startDate && !Number.isNaN(new Date(startDate).getTime()) ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1);
+    const safeEnd = endDate && !Number.isNaN(new Date(endDate).getTime()) ? new Date(endDate) : new Date();
+
+    const data = await this.getIncomeMetrics(safeStart, safeEnd);
+    const totalIncome = data.totalOperatingIncome;
+
+    return {
+      period: {
+        startDate: safeStart.toISOString().split('T')[0],
+        endDate: safeEnd.toISOString().split('T')[0],
+      },
+      incomeBreakdown: {
+        'Interest Income (Loan Repayments)': {
+          amount: data.interestIncome,
+          transactionCount: data.interestTransactionCount,
+          percentage: Number(this.percentChange(data.interestIncome, totalIncome - data.interestIncome).toFixed(2)),
+        },
+        'Fines Income': {
+          amount: data.finesIncome,
+          transactionCount: data.finesTransactionCount,
+          percentage: Number(this.percentChange(data.finesIncome, totalIncome - data.finesIncome).toFixed(2)),
+        },
+        'Other Income by Category': Object.entries(data.otherIncomeByCategory || {}).map(([category, amount]) => ({
+          category,
+          amount,
+          percentage: totalIncome > 0 ? Number(((Number(amount) / totalIncome) * 100).toFixed(2)) : 0,
+        })),
+      },
+      summary: {
+        totalIncome,
+        interestIncome: data.interestIncome,
+        finesIncome: data.finesIncome,
+        otherIncome: data.otherIncome,
+        totalTransactions: data.interestTransactionCount + data.finesTransactionCount + data.otherIncomeTransactionCount,
+      },
+    };
+  }
+
+  async dividendRecommendation(dateRange: { start: Date; end: Date }) {
+    const start = dateRange?.start ? new Date(dateRange.start) : undefined;
+    const end = dateRange?.end ? new Date(dateRange.end) : undefined;
+
+    if (!start || Number.isNaN(start.getTime()) || !end || Number.isNaN(end.getTime())) {
+      throw new BadRequestException('Valid start and end dates are required for dividend recommendation');
+    }
+    if (start > end) {
+      throw new BadRequestException('Start date cannot be after end date');
+    }
+
+    const settings = await this.getSystemSettings();
+    const income = await this.getIncomeMetrics(start, end);
+
+    const externalInterestTaxablePercent = Number(settings.externalInterestTaxablePercent || 0) / 100;
+    const externalInterestTaxRatePercent = Number(settings.externalInterestTaxRatePercent || 0) / 100;
+    const externalInterestTax = Number((income.otherIncome * externalInterestTaxablePercent * externalInterestTaxRatePercent).toFixed(2));
+
+    const netOperatingSurplus = income.netSurplus;
+    const netOperatingSurplusAfterTax = netOperatingSurplus - externalInterestTax;
+    const capitalReserveAllocation = Number((netOperatingSurplusAfterTax * 0.2).toFixed(2));
+    const distributableSurplus = Number((netOperatingSurplusAfterTax * 0.8).toFixed(2));
+
+    const [contributionTypes, contributions, refunds, members] = await Promise.all([
+      this.prisma.contributionType.findMany(),
+      this.prisma.deposit.findMany({
+        where: {
+          type: 'contribution',
+          date: { gte: start, lte: end },
+        },
+        select: {
+          memberId: true,
+          memberName: true,
+          amount: true,
+          category: true,
+          date: true,
+        },
+      }),
+      this.prisma.withdrawal.findMany({
+        where: {
+          type: 'refund',
+          date: { gte: start, lte: end },
+        },
+        select: {
+          memberId: true,
+          memberName: true,
+          amount: true,
+          category: true,
+          date: true,
+        },
+      }),
+      this.prisma.member.findMany({
+        select: { id: true, name: true, active: true, isResident: true },
+      }),
+    ]);
+
+    const policiesByName = new Map<string, any>();
+    for (const item of contributionTypes) {
+      policiesByName.set(String(item.name || '').trim().toLowerCase(), this.normalizeContributionPolicy(item));
+    }
+
+    const memberById = new Map<number, any>();
+    for (const member of members) {
+      memberById.set(member.id, member);
+    }
+
+    const periodDays = Math.max(1, Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+
+    const memberState = new Map<number, any>();
+    const categoryWeighted = new Map<string, any>();
+
+    const ensureMemberState = (memberId: number, fallbackName?: string | null) => {
+      const existing = memberState.get(memberId);
+      if (existing) return existing;
+
+      const member = memberById.get(memberId);
+      const initial = {
+        memberId,
+        memberName: member?.name || fallbackName || 'Unknown',
+        active: member?.active !== false,
+        isResident: member?.isResident !== false,
+        shareCapitalWeighted: 0,
+        shareCapitalAmount: 0,
+        memberSavingsWeighted: 0,
+        memberSavingsAmount: 0,
+        investmentWeighted: 0,
+        investmentAmount: 0,
+        interestPayout: 0,
+        nonDividendBalance: 0,
+      };
+
+      memberState.set(memberId, initial);
+      return initial;
+    };
+
+    const applyEvent = (event: {
+      memberId: number | null;
+      memberName?: string | null;
+      amount: number;
+      category?: string | null;
+      date: Date;
+      isRefund?: boolean;
+    }) => {
+      if (!event.memberId) return;
+
+      const policy = policiesByName.get(String(event.category || '').trim().toLowerCase()) || this.normalizeContributionPolicy({ name: event.category });
+      const signedAmount = event.isRefund ? -Math.abs(Number(event.amount || 0)) : Math.abs(Number(event.amount || 0));
+      const weightedAmount = this.calculateWeightedContribution(
+        signedAmount,
+        event.date,
+        start,
+        end,
+        policy.useDateWeightedEarnings,
+      );
+
+      const current = ensureMemberState(event.memberId, event.memberName);
+
+      if (policy.payoutMode === 'interest') {
+        current.investmentWeighted += weightedAmount;
+        current.investmentAmount += signedAmount;
+        const annualRate = Number(policy.annualReturnRate || 0) / 100;
+        const interestAccrued = annualRate > 0 ? (weightedAmount * annualRate * periodDays) / 365 : 0;
+        current.interestPayout += interestAccrued;
+      } else if (policy.payoutMode === 'dividend' && policy.eligibleForDividend) {
+        const safeCategory = String(event.category || 'General Contribution').trim() || 'General Contribution';
+        const categoryKey = safeCategory.toLowerCase();
+        const categoryRow = categoryWeighted.get(categoryKey) || {
+          category: safeCategory,
+          accountingGroup: policy.accountingGroup,
+          weightedAmount: 0,
+          amount: 0,
+        };
+        categoryRow.weightedAmount += weightedAmount;
+        categoryRow.amount += signedAmount;
+        categoryWeighted.set(categoryKey, categoryRow);
+
+        if (String(policy.accountingGroup).toLowerCase() === 'share_capital') {
+          current.shareCapitalWeighted += weightedAmount;
+          current.shareCapitalAmount += signedAmount;
+        } else {
+          current.memberSavingsWeighted += weightedAmount;
+          current.memberSavingsAmount += signedAmount;
+        }
+      } else {
+        current.nonDividendBalance += signedAmount;
+      }
+
+      memberState.set(event.memberId, current);
+    };
+
+    for (const deposit of contributions) {
+      applyEvent({
+        memberId: deposit.memberId,
+        memberName: deposit.memberName,
+        amount: Number(deposit.amount || 0),
+        category: deposit.category,
+        date: deposit.date,
+        isRefund: false,
+      });
+    }
+
+    for (const refund of refunds) {
+      applyEvent({
+        memberId: refund.memberId,
+        memberName: refund.memberName,
+        amount: Number(refund.amount || 0),
+        category: refund.category,
+        date: refund.date,
+        isRefund: true,
+      });
+    }
+
+    const totalShareCapitalWeighted = Array.from(memberState.values()).reduce((sum, row) => sum + Number(row.shareCapitalWeighted || 0), 0);
+    const totalMemberSavingsWeighted = Array.from(memberState.values()).reduce((sum, row) => sum + Number(row.memberSavingsWeighted || 0), 0);
+    const totalWeightedDividendBase = totalShareCapitalWeighted + totalMemberSavingsWeighted;
+
+    const totalInterestPayout = Number(
+      Array.from(memberState.values())
+        .reduce((sum, row) => sum + Math.max(0, Number(row.interestPayout || 0)), 0)
+        .toFixed(2),
+    );
+
+    const dividendPoolAvailable = Number(Math.max(0, distributableSurplus - totalInterestPayout).toFixed(2));
+
+    const shareCapitalPercent = Number(settings.shareCapitalDividendPercent || 50);
+    const memberSavingsPercent = Number(settings.memberSavingsDividendPercent || 50);
+    const allocationDenominator = shareCapitalPercent + memberSavingsPercent > 0
+      ? shareCapitalPercent + memberSavingsPercent
+      : 100;
+
+    const shareCapitalPool = Number((dividendPoolAvailable * (shareCapitalPercent / allocationDenominator)).toFixed(2));
+    const memberSavingsPool = Number((dividendPoolAvailable * (memberSavingsPercent / allocationDenominator)).toFixed(2));
+
+    const dividendWithholdingResidentPercent = Number(settings.dividendWithholdingResidentPercent || 0);
+    const dividendWithholdingNonResidentPercent = Number(settings.dividendWithholdingNonResidentPercent || 0);
+    const interestWithholdingResidentPercent = Number(settings.interestWithholdingResidentPercent || 0);
+    const interestWithholdingNonResidentPercent = Number(settings.interestWithholdingNonResidentPercent || 0);
+    const disqualifyInactiveMembers = settings.disqualifyInactiveMembers !== false;
+
+    const membersRecommendation = Array.from(memberState.values()).map((row) => {
+      const eligible = disqualifyInactiveMembers ? row.active !== false : true;
+
+      const shareCapitalDividend = eligible && totalShareCapitalWeighted > 0
+        ? (row.shareCapitalWeighted / totalShareCapitalWeighted) * shareCapitalPool
+        : 0;
+
+      const memberSavingsDividend = eligible && totalMemberSavingsWeighted > 0
+        ? (row.memberSavingsWeighted / totalMemberSavingsWeighted) * memberSavingsPool
+        : 0;
+
+      const grossDividend = Number((shareCapitalDividend + memberSavingsDividend).toFixed(2));
+      const grossInterest = Number(Math.max(0, row.interestPayout || 0).toFixed(2));
+
+      const dividendWithholdingRate = row.isResident ? dividendWithholdingResidentPercent : dividendWithholdingNonResidentPercent;
+      const interestWithholdingRate = row.isResident ? interestWithholdingResidentPercent : interestWithholdingNonResidentPercent;
+
+      const dividendWithholding = Number((grossDividend * (dividendWithholdingRate / 100)).toFixed(2));
+      const interestWithholding = Number((grossInterest * (interestWithholdingRate / 100)).toFixed(2));
+
+      const netDividend = Number((grossDividend - dividendWithholding).toFixed(2));
+      const netInterest = Number((grossInterest - interestWithholding).toFixed(2));
+
+      return {
+        memberId: row.memberId,
+        memberName: row.memberName,
+        active: row.active,
+        isResident: row.isResident,
+        eligible,
+        shareCapitalAmount: Number((row.shareCapitalAmount || 0).toFixed(2)),
+        memberSavingsAmount: Number((row.memberSavingsAmount || 0).toFixed(2)),
+        weightedShareCapital: Number((row.shareCapitalWeighted || 0).toFixed(2)),
+        weightedMemberSavings: Number((row.memberSavingsWeighted || 0).toFixed(2)),
+        grossDividend,
+        dividendWithholding,
+        netDividend,
+        grossInterest,
+        interestWithholding,
+        netInterest,
+        totalNetPayout: Number((netDividend + netInterest).toFixed(2)),
+      };
+    }).sort((a, b) => b.totalNetPayout - a.totalNetPayout);
+
+    const categoryRows = Array.from(categoryWeighted.values())
+      .map((row) => ({
+        contributionType: row.category,
+        accountingGroup: row.accountingGroup,
+        weightedAmount: Number((row.weightedAmount || 0).toFixed(2)),
+        amount: Number((row.amount || 0).toFixed(2)),
+        estimatedDividendPayout: totalWeightedDividendBase > 0
+          ? Number((((row.weightedAmount || 0) / totalWeightedDividendBase) * dividendPoolAvailable).toFixed(2))
+          : 0,
+      }))
+      .sort((a, b) => b.weightedAmount - a.weightedAmount);
+
+    return {
+      period: {
+        startDate: start.toISOString().split('T')[0],
+        endDate: end.toISOString().split('T')[0],
+      },
+      meta: {
+        totalOperatingIncome: Number(income.totalOperatingIncome.toFixed(2)),
+        operatingExpenses: Number(income.totalExpenses.toFixed(2)),
+        totalProvisions: Number(income.totalProvisions.toFixed(2)),
+        netOperatingSurplus: Number(netOperatingSurplus.toFixed(2)),
+        externalInterestTax,
+        netOperatingSurplusAfterTax: Number(netOperatingSurplusAfterTax.toFixed(2)),
+        capitalReserveAllocation,
+        distributableSurplus,
+        totalInterestPayout,
+        dividendPoolAvailable,
+        memberCountConsidered: memberState.size,
+        eligibleMemberCount: membersRecommendation.filter((row) => row.eligible).length,
+      },
+      dividends: {
+        shareCapitalPool,
+        memberSavingsPool,
+        totalWeightedDividendBase: Number(totalWeightedDividendBase.toFixed(2)),
+        totalShareCapitalWeighted: Number(totalShareCapitalWeighted.toFixed(2)),
+        totalMemberSavingsWeighted: Number(totalMemberSavingsWeighted.toFixed(2)),
+      },
+      members: membersRecommendation,
+      categories: categoryRows,
+    };
+  }
+
+  private async contributionMatrixReport(startDateInput?: string, endDateInput?: string) {
+    const now = new Date();
+    const parsedStart = startDateInput ? new Date(startDateInput) : new Date(now.getFullYear(), 0, 1);
+    const parsedEnd = endDateInput ? new Date(endDateInput) : now;
+
+    const startDate = Number.isNaN(parsedStart.getTime()) ? new Date(now.getFullYear(), 0, 1) : parsedStart;
+    const endDate = Number.isNaN(parsedEnd.getTime()) ? now : parsedEnd;
+
+    const deposits = await this.prisma.deposit.findMany({
+      where: {
+        type: 'contribution',
+        date: { gte: startDate, lte: endDate },
+      },
+      select: {
+        memberId: true,
+        memberName: true,
+        category: true,
+        amount: true,
+      },
+      orderBy: [{ memberName: 'asc' }, { category: 'asc' }],
+    });
+
+    const categories = Array.from(new Set(deposits.map((row) => (row.category || 'General Contribution').trim() || 'General Contribution')))
+      .sort((a, b) => a.localeCompare(b));
+
+    const memberMap = new Map<string, any>();
+    for (const row of deposits) {
+      const memberId = row.memberId ?? 0;
+      const memberName = row.memberName || `Member #${memberId}`;
+      const memberKey = `${memberId}:${memberName}`;
+      const category = (row.category || 'General Contribution').trim() || 'General Contribution';
+      const amount = Number(row.amount || 0);
+
+      if (!memberMap.has(memberKey)) {
+        const seed: any = {
+          memberId,
+          memberName,
+          totalContribution: 0,
+        };
+        categories.forEach((name) => {
+          seed[name] = 0;
+        });
+        memberMap.set(memberKey, seed);
+      }
+
+      const current = memberMap.get(memberKey);
+      current[category] = Number(current[category] || 0) + amount;
+      current.totalContribution += amount;
+      memberMap.set(memberKey, current);
+    }
+
+    const rows = Array.from(memberMap.values()).map((row) => {
+      const normalized = { ...row };
+      categories.forEach((name) => {
+        normalized[name] = Number((normalized[name] || 0).toFixed(2));
+      });
+      normalized.totalContribution = Number(normalized.totalContribution.toFixed(2));
+      return normalized;
+    });
+
+    const totalsByCategory: Record<string, number> = {};
+    categories.forEach((category) => {
+      totalsByCategory[category] = Number(rows.reduce((sum, row) => sum + Number(row[category] || 0), 0).toFixed(2));
+    });
+
+    return {
+      rows,
+      meta: {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        categories,
+        totalsByCategory,
+        totalMembers: rows.length,
+        totalContribution: Number(rows.reduce((sum, row) => sum + Number(row.totalContribution || 0), 0).toFixed(2)),
+      },
+    };
+  }
+
+  private async dividendRecommendationReport(dateRange: { start: Date; end: Date }) {
+    const recommendation = await this.dividendRecommendation(dateRange);
+
+    const rows = (recommendation.members || []).map((member: any) => ({
+      memberId: member.memberId,
+      memberName: member.memberName,
+      eligible: member.eligible,
+      weightedShareCapital: member.weightedShareCapital,
+      weightedMemberSavings: member.weightedMemberSavings,
+      grossDividend: member.grossDividend,
+      dividendWithholding: member.dividendWithholding,
+      netDividend: member.netDividend,
+      grossInterest: member.grossInterest,
+      interestWithholding: member.interestWithholding,
+      netInterest: member.netInterest,
+      totalNetPayout: member.totalNetPayout,
+    }));
+
+    return {
+      rows,
+      meta: {
+        ...(recommendation.meta || {}),
+        ...(recommendation.dividends || {}),
+      },
+    };
+  }
+
+  private async dividendCategoryPayoutsReport(dateRange: { start: Date; end: Date }) {
+    const recommendation = await this.dividendRecommendation(dateRange);
+    const rows = (recommendation.categories || []).map((category: any) => ({
+      contributionType: category.contributionType,
+      accountingGroup: category.accountingGroup,
+      weightedAmount: category.weightedAmount,
+      amount: category.amount,
+      estimatedDividendPayout: category.estimatedDividendPayout,
+    }));
+
+    return {
+      rows,
+      meta: {
+        ...(recommendation.meta || {}),
+        ...(recommendation.dividends || {}),
+      },
+    };
+  }
+
+  private getComparativePeriods(mode: 'monthly' | 'yearly', endDate: Date) {
+    const safeEnd = new Date(endDate);
+
+    if (mode === 'yearly') {
+      const currentStart = new Date(safeEnd.getFullYear(), 0, 1);
+      const previousStart = new Date(safeEnd.getFullYear() - 1, 0, 1);
+      const previousEnd = new Date(safeEnd);
+      previousEnd.setFullYear(previousEnd.getFullYear() - 1);
+
+      return {
+        currentStart,
+        currentEnd: safeEnd,
+        previousStart,
+        previousEnd,
+      };
+    }
+
+    const currentStart = new Date(safeEnd.getFullYear(), safeEnd.getMonth(), 1);
+    const previousStart = new Date(safeEnd.getFullYear(), safeEnd.getMonth() - 1, 1);
+    const previousEnd = new Date(safeEnd.getFullYear(), safeEnd.getMonth(), 0);
+
+    return {
+      currentStart,
+      currentEnd: safeEnd,
+      previousStart,
+      previousEnd,
+    };
+  }
+
+  private formatPeriodLabel(mode: 'monthly' | 'yearly', date: Date) {
+    if (mode === 'yearly') {
+      return `${date.getFullYear()}`;
+    }
+    return date.toLocaleDateString('en-KE', { month: 'long', year: 'numeric' });
+  }
+
+  private percentChange(current: number, previous: number) {
+    if (previous === 0) {
+      if (current === 0) return 0;
+      return 100;
+    }
+    return ((current - previous) / Math.abs(previous)) * 100;
+  }
+
+  private normalizeContributionPolicy(raw: any) {
+    const accountingGroup = String(raw?.accountingGroup || 'member_savings').trim().toLowerCase();
+    const payoutMode = String(raw?.payoutMode || 'dividend').trim().toLowerCase();
+    const eligibleForDividend = raw?.eligibleForDividend !== false;
+    const annualReturnRate = Number(raw?.annualReturnRate || 0);
+    const useDateWeightedEarnings = raw?.useDateWeightedEarnings !== false;
+
+    return {
+      accountingGroup,
+      payoutMode,
+      eligibleForDividend,
+      annualReturnRate: Number.isFinite(annualReturnRate) ? annualReturnRate : 0,
+      useDateWeightedEarnings,
+    };
+  }
+
+  private calculateWeightedContribution(
+    amount: number,
+    eventDate: Date,
+    periodStart: Date,
+    periodEnd: Date,
+    useDateWeightedEarnings: boolean,
+  ) {
+    if (!useDateWeightedEarnings) {
+      return amount;
+    }
+
+    const safeEventDate = new Date(eventDate);
+    const clampedDate = safeEventDate < periodStart
+      ? periodStart
+      : safeEventDate > periodEnd
+        ? periodEnd
+        : safeEventDate;
+
+    const totalDays = Math.max(1, Math.floor((periodEnd.getTime() - periodStart.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+    const daysHeld = Math.max(1, Math.floor((periodEnd.getTime() - clampedDate.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+    const holdingFactor = daysHeld / totalDays;
+
+    return amount * holdingFactor;
+  }
+
+  private async getIncomeMetrics(startDate: Date, endDate: Date) {
+    const [repayments, fines, otherIncomeDeposits, expenses] = await Promise.all([
+      this.prisma.repayment.findMany({
+        where: { date: { gte: startDate, lte: endDate } },
+        select: { interest: true },
+      }),
+      this.prisma.fine.findMany({
+        where: {
+          paidDate: { gte: startDate, lte: endDate },
+          status: 'paid',
+        },
+        select: { paidAmount: true },
+      }),
+      this.prisma.deposit.findMany({
+        where: {
+          type: 'income',
+          date: { gte: startDate, lte: endDate },
+        },
+        select: {
+          amount: true,
+          category: true,
+        },
+      }),
+      this.prisma.withdrawal.findMany({
+        where: {
+          type: 'expense',
+          date: { gte: startDate, lte: endDate },
+        },
+        select: {
+          amount: true,
+          category: true,
+        },
+      }),
+    ]);
+
+    const interestIncome = repayments.reduce((sum, row) => sum + Number(row.interest || 0), 0);
+    const finesIncome = fines.reduce((sum, row) => sum + Number(row.paidAmount || 0), 0);
+
+    const otherIncomeByCategory = otherIncomeDeposits.reduce((acc: Record<string, number>, row) => {
+      const category = (row.category || 'Other Income').trim() || 'Other Income';
+      acc[category] = Number((acc[category] || 0) + Number(row.amount || 0));
+      return acc;
+    }, {});
+
+    const expenseByCategory = expenses.reduce((acc: Record<string, number>, row) => {
+      const category = (row.category || 'General Expense').trim() || 'General Expense';
+      acc[category] = Number((acc[category] || 0) + Number(row.amount || 0));
+      return acc;
+    }, {});
+
+    const otherIncome = Object.values(otherIncomeByCategory).reduce((sum, amount) => sum + Number(amount || 0), 0);
+    const totalExpenses = Object.values(expenseByCategory).reduce((sum, amount) => sum + Number(amount || 0), 0);
+    const totalProvisions = 0;
+    const totalOperatingIncome = interestIncome + finesIncome + otherIncome;
+    const netSurplus = totalOperatingIncome - totalExpenses - totalProvisions;
+
+    return {
+      interestIncome,
+      finesIncome,
+      otherIncome,
+      totalOperatingIncome,
+      totalExpenses,
+      totalProvisions,
+      netSurplus,
+      otherIncomeByCategory,
+      expenseByCategory,
+      interestTransactionCount: repayments.length,
+      finesTransactionCount: fines.length,
+      otherIncomeTransactionCount: otherIncomeDeposits.length,
+      expenseTransactionCount: expenses.length,
+    };
+  }
+
+  private async getBalanceSheetSnapshot(asOfDate: Date) {
+    const [accounts, fixedAssets, outwardLoans, inwardLoans, fines, members, contributions, refunds, taxedDividends] = await Promise.all([
+      this.prisma.account.findMany({
+        where: {
+          type: { in: ['cash', 'bank', 'mobileMoney', 'pettyCash'] },
+        },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          balance: true,
+        },
+      }),
+      this.prisma.asset.findMany({
+        where: {
+          OR: [
+            { purchaseDate: null },
+            { purchaseDate: { lte: asOfDate } },
+          ],
+        },
+        select: {
+          description: true,
+          currentValue: true,
+        },
+      }),
+      this.prisma.loan.findMany({
+        where: {
+          loanDirection: 'outward',
+        },
+        select: {
+          balance: true,
+          ecl: true,
+        },
+      }),
+      this.prisma.loan.findMany({
+        where: {
+          loanDirection: 'inward',
+        },
+        select: {
+          balance: true,
+        },
+      }),
+      this.prisma.fine.findMany({
+        where: {
+          createdAt: { lte: asOfDate },
+        },
+        select: {
+          amount: true,
+          paidAmount: true,
+        },
+      }),
+      this.prisma.member.findMany({
+        select: {
+          balance: true,
+        },
+      }),
+      this.prisma.deposit.findMany({
+        where: {
+          type: 'contribution',
+          date: { lte: asOfDate },
+        },
+        select: {
+          category: true,
+          amount: true,
+        },
+      }),
+      this.prisma.withdrawal.findMany({
+        where: {
+          type: 'refund',
+          date: { lte: asOfDate },
+        },
+        select: {
+          category: true,
+          amount: true,
+        },
+      }),
+      this.prisma.withdrawal.findMany({
+        where: {
+          type: 'dividend',
+          date: { lte: asOfDate },
+        },
+        select: {
+          withholdingTaxAmount: true,
+        },
+      }),
+    ]);
+
+    let cashAtHand = 0;
+    let cashAtBank = 0;
+    let mobileMoney = 0;
+
+    for (const account of accounts) {
+      const amount = Number(account.balance || 0);
+      if (account.type === 'bank') {
+        cashAtBank += amount;
+      } else if (account.type === 'mobileMoney') {
+        mobileMoney += amount;
+      } else {
+        cashAtHand += amount;
+      }
+    }
+
+    const fixedAssetsRows = fixedAssets.map((asset) => ({
+      name: (asset.description || 'Asset').trim() || 'Asset',
+      currentValue: Number(asset.currentValue || 0),
+    }));
+
+    const totalFixedAssets = fixedAssetsRows.reduce((sum, row) => sum + row.currentValue, 0);
+    const memberLoansPrincipal = outwardLoans.reduce((sum, row) => sum + Number(row.balance || 0), 0);
+    const loanLossProvision = outwardLoans.reduce((sum, row) => sum + Number(row.ecl || 0), 0);
+    const bankLoans = inwardLoans.reduce((sum, row) => sum + Number(row.balance || 0), 0);
+
+    const outstandingFines = fines.reduce((sum, row) => {
+      const outstanding = Number(row.amount || 0) - Number(row.paidAmount || 0);
+      return sum + Math.max(0, outstanding);
+    }, 0);
+
+    const memberSavingsReceivable = members.reduce((sum, row) => {
+      const amount = Number(row.balance || 0);
+      return sum + (amount < 0 ? Math.abs(amount) : 0);
+    }, 0);
+
+    const totalMemberSavings = members.reduce((sum, row) => {
+      const amount = Number(row.balance || 0);
+      return sum + (amount > 0 ? amount : 0);
+    }, 0);
+
+    const memberSavingsByType: Record<string, number> = {};
+    for (const deposit of contributions) {
+      const category = (deposit.category || 'General Contribution').trim() || 'General Contribution';
+      memberSavingsByType[category] = Number((memberSavingsByType[category] || 0) + Number(deposit.amount || 0));
+    }
+    for (const refund of refunds) {
+      const category = (refund.category || 'General Contribution').trim() || 'General Contribution';
+      memberSavingsByType[category] = Number((memberSavingsByType[category] || 0) - Number(refund.amount || 0));
+    }
+
+    const normalizedSavingsByType: Record<string, number> = {};
+    for (const [category, value] of Object.entries(memberSavingsByType)) {
+      if (Math.abs(Number(value || 0)) > 0.000001) {
+        normalizedSavingsByType[category] = Number(Number(value).toFixed(2));
+      }
+    }
+
+    const categorizedContributionTotal = Object.values(normalizedSavingsByType).reduce((sum, value) => sum + Number(value || 0), 0);
+    const otherContributions = Number((totalMemberSavings - categorizedContributionTotal).toFixed(2));
+
+    const accruedInterest = 0;
+    const accruedExpenses = 0;
+    const dividendsPayable = 0;
+    const withholdingTaxPayable = taxedDividends.reduce((sum, row) => sum + Number(row.withholdingTaxAmount || 0), 0);
+    const incomeTaxPayable = 0;
+
+    const totalAssets =
+      cashAtHand +
+      cashAtBank +
+      mobileMoney +
+      memberSavingsReceivable +
+      memberLoansPrincipal +
+      accruedInterest +
+      outstandingFines -
+      loanLossProvision +
+      totalFixedAssets;
+
+    const totalLiabilities =
+      bankLoans +
+      accruedExpenses +
+      dividendsPayable +
+      withholdingTaxPayable +
+      incomeTaxPayable;
+
+    const retainedEarnings = totalAssets - totalLiabilities - totalMemberSavings;
+    const totalEquity = totalMemberSavings + retainedEarnings;
+
+    return {
+      cashAtHand: Number(cashAtHand.toFixed(2)),
+      cashAtBank: Number(cashAtBank.toFixed(2)),
+      mobileMoney: Number(mobileMoney.toFixed(2)),
+      memberSavingsReceivable: Number(memberSavingsReceivable.toFixed(2)),
+      memberLoansPrincipal: Number(memberLoansPrincipal.toFixed(2)),
+      accruedInterest: Number(accruedInterest.toFixed(2)),
+      outstandingFines: Number(outstandingFines.toFixed(2)),
+      loanLossProvision: Number(loanLossProvision.toFixed(2)),
+      fixedAssets: fixedAssetsRows,
+      totalFixedAssets: Number(totalFixedAssets.toFixed(2)),
+      bankLoans: Number(bankLoans.toFixed(2)),
+      accruedExpenses: Number(accruedExpenses.toFixed(2)),
+      dividendsPayable: Number(dividendsPayable.toFixed(2)),
+      withholdingTaxPayable: Number(withholdingTaxPayable.toFixed(2)),
+      incomeTaxPayable: Number(incomeTaxPayable.toFixed(2)),
+      totalLiabilities: Number(totalLiabilities.toFixed(2)),
+      memberSavingsByType: normalizedSavingsByType,
+      otherContributions,
+      retainedEarnings: Number(retainedEarnings.toFixed(2)),
+      totalEquity: Number(totalEquity.toFixed(2)),
+      totalAssets: Number(totalAssets.toFixed(2)),
+    };
+  }
+
+  private async getSystemSettings() {
+    const defaults = {
+      disqualifyInactiveMembers: true,
+      shareCapitalDividendPercent: 50,
+      memberSavingsDividendPercent: 50,
+      dividendWithholdingResidentPercent: 0,
+      dividendWithholdingNonResidentPercent: 0,
+      interestWithholdingResidentPercent: 0,
+      interestWithholdingNonResidentPercent: 0,
+      externalInterestTaxablePercent: 50,
+      externalInterestTaxRatePercent: 30,
+    };
+
+    const record = await this.prisma.iFRSConfig.findUnique({ where: { key: 'system_settings' } });
+    if (!record?.value) {
+      return defaults;
+    }
+
+    try {
+      const parsed = JSON.parse(record.value);
+      return {
+        ...defaults,
+        ...parsed,
+      };
+    } catch {
+      return defaults;
+    }
   }
 
   private buildDateRange(period?: string, startDate?: string, endDate?: string) {
