@@ -2696,30 +2696,32 @@ export class ReportsService {
       const transactions = entries.map(e => {
         let moneyOut = 0;
         let moneyIn = 0;
+        let debit: number | null = null;
+        let credit: number | null = null;
         let oppositeAccount = '';
 
         if (e.debitAccountId === account.id) {
+          debit = Number(e.debitAmount);
+          moneyOut = debit;
           // This account was debited
           if (isAssetAccount) {
             // For assets: Debit = Money In (increases balance)
-            moneyIn = Number(e.debitAmount);
-            runningBalance += moneyIn;
+            runningBalance += debit;
           } else {
             // For liabilities/expenses: Debit = Money Out (decreases balance)
-            moneyOut = Number(e.debitAmount);
-            runningBalance -= moneyOut;
+            runningBalance -= debit;
           }
           oppositeAccount = e.creditAccount?.name || 'Unknown';
         } else {
+          credit = Number(e.creditAmount);
+          moneyIn = credit;
           // This account was credited
           if (isAssetAccount) {
             // For assets: Credit = Money Out (decreases balance)
-            moneyOut = Number(e.creditAmount);
-            runningBalance -= moneyOut;
+            runningBalance -= credit;
           } else {
             // For liabilities/expenses: Credit = Money In (increases balance)
-            moneyIn = Number(e.creditAmount);
-            runningBalance += moneyIn;
+            runningBalance += credit;
           }
           oppositeAccount = e.debitAccount?.name || 'Unknown';
         }
@@ -2729,27 +2731,36 @@ export class ReportsService {
           reference: e.reference,
           description: e.description,
           oppositeAccount,
+          debit,
+          credit,
           moneyOut: moneyOut || null,
           moneyIn: moneyIn || null,
-          runningBalance,
+          runningBalance: Number(runningBalance.toFixed(2)),
         };
       });
 
-      const totalMoneyIn = entries.reduce((sum, e) => {
-        if (e.debitAccountId === account.id && isAssetAccount) return sum + Number(e.debitAmount);
-        if (e.creditAccountId === account.id && !isAssetAccount) return sum + Number(e.creditAmount);
-        return sum;
-      }, 0);
-      const totalMoneyOut = entries.reduce((sum, e) => {
-        if (e.creditAccountId === account.id && isAssetAccount) return sum + Number(e.creditAmount);
-        if (e.debitAccountId === account.id && !isAssetAccount) return sum + Number(e.debitAmount);
-        return sum;
-      }, 0);
+      const totalDebits = entries.reduce(
+        (sum, e) => (e.debitAccountId === account.id ? sum + Number(e.debitAmount || 0) : sum),
+        0,
+      );
+      const totalCredits = entries.reduce(
+        (sum, e) => (e.creditAccountId === account.id ? sum + Number(e.creditAmount || 0) : sum),
+        0,
+      );
+      const totalMoneyOut = totalDebits;
+      const totalMoneyIn = totalCredits;
 
       accountsData.push({
         account: { id: account.id, name: account.name, type: account.type, balance: Number(account.balance) },
         transactions,
-        summary: { totalMoneyIn, totalMoneyOut, netChange: totalMoneyIn - totalMoneyOut, closingBalance: runningBalance },
+        summary: {
+          totalDebits: Number(totalDebits.toFixed(2)),
+          totalCredits: Number(totalCredits.toFixed(2)),
+          totalMoneyIn: Number(totalMoneyIn.toFixed(2)),
+          totalMoneyOut: Number(totalMoneyOut.toFixed(2)),
+          netChange: Number((totalMoneyIn - totalMoneyOut).toFixed(2)),
+          closingBalance: Number(runningBalance.toFixed(2)),
+        },
       });
     }
 

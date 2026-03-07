@@ -12,25 +12,23 @@ const GeneralLedgerPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [expandedAccounts, setExpandedAccounts] = useState(new Set());
-  const [accountLoading, setAccountLoading] = useState({});
-  const entriesPageSize = 200;
 
   const fetchLedger = async () => {
     setLoading(true);
     setError(null);
     try {
       const response = await fetchWithRetry(
-        `${API_BASE}/reports/general-ledger?startDate=${startDate}&endDate=${endDate}&summaryOnly=1`,
+        `${API_BASE}/reports/general-ledger?startDate=${startDate}&endDate=${endDate}`,
         { timeout: 15000, maxRetries: 3 }
       );
 
       if (response.ok) {
         const data = await response.json();
-        console.log('GL Response Meta:', data.meta);
-        console.log('GL Meta Debits:', data.meta?.totalDebit, typeof data.meta?.totalDebit);
-        console.log('GL Meta Credits:', data.meta?.totalCredit, typeof data.meta?.totalCredit);
         setLedger(data);
-        setExpandedAccounts(new Set());
+        // Expand all accounts by default
+        if (data.rows && data.rows.length > 0) {
+          setExpandedAccounts(new Set(data.rows.map((_, idx) => idx)));
+        }
       } else if (response.status >= 400 && response.status < 500) {
         setError('Invalid request. Please check your filters.');
       }
@@ -50,71 +48,12 @@ const GeneralLedgerPage = () => {
     fetchLedger();
   }, []);
 
-  const loadAccountTransactions = async (idx, reset = false) => {
-    if (!ledger?.rows?.[idx]?.account?.id) return;
-    const accountId = ledger.rows[idx].account.id;
-    const currentRow = ledger.rows[idx];
-    const nextAfterId = reset ? null : currentRow.pageInfo?.nextAfterId;
-    const startingBalance = reset ? 0 : (currentRow.pageInfo?.lastRunningBalance ?? 0);
-
-    setAccountLoading((prev) => ({ ...prev, [idx]: true }));
-    try {
-      const params = new URLSearchParams({
-        startDate,
-        endDate,
-        accountId: String(accountId),
-        take: String(entriesPageSize),
-      });
-
-      if (nextAfterId) {
-        params.append('afterId', String(nextAfterId));
-        params.append('startingBalance', String(startingBalance));
-      }
-
-      const response = await fetchWithRetry(
-        `${API_BASE}/reports/general-ledger?${params.toString()}`,
-        { timeout: 15000, maxRetries: 3 }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        const updatedRow = data.rows?.[0];
-        if (updatedRow) {
-          setLedger((prev) => {
-            if (!prev) return prev;
-            const rows = prev.rows.map((row, rowIdx) => {
-              if (rowIdx !== idx) return row;
-              const existingTransactions = reset ? [] : (row.transactions || []);
-              const nextTransactions = updatedRow.transactions || [];
-              return {
-                ...row,
-                transactions: [...existingTransactions, ...nextTransactions],
-                summary: updatedRow.summary || row.summary,
-                pageInfo: updatedRow.pageInfo || row.pageInfo,
-              };
-            });
-            return { ...prev, rows };
-          });
-        }
-      }
-    } catch (err) {
-      if (import.meta.env.DEV) {
-        console.debug('[GeneralLedgerDetailPage] Account load failed:', err.message);
-      }
-    } finally {
-      setAccountLoading((prev) => ({ ...prev, [idx]: false }));
-    }
-  };
-
   const toggleAccount = (idx) => {
     const newExpanded = new Set(expandedAccounts);
     if (newExpanded.has(idx)) {
       newExpanded.delete(idx);
     } else {
       newExpanded.add(idx);
-      if (!ledger?.rows?.[idx]?.transactions) {
-        loadAccountTransactions(idx, true);
-      }
     }
     setExpandedAccounts(newExpanded);
   };
@@ -137,7 +76,6 @@ const GeneralLedgerPage = () => {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-KE', {
       year: 'numeric',
       month: '2-digit',
@@ -145,27 +83,14 @@ const GeneralLedgerPage = () => {
     });
   };
 
-  const formatDateTime = (dateString) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleString('en-KE', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
   const getTotalDebits = () => {
     if (!ledger || !ledger.rows) return 0;
-    return ledger.rows.reduce((sum, acc) => sum + (acc.summary?.totalMoneyOut || 0), 0);
+    return ledger.rows.reduce((sum, acc) => sum + (acc.summary?.totalDebits ?? acc.summary?.totalMoneyOut ?? 0), 0);
   };
 
   const getTotalCredits = () => {
     if (!ledger || !ledger.rows) return 0;
-    return ledger.rows.reduce((sum, acc) => sum + (acc.summary?.totalMoneyIn || 0), 0);
+    return ledger.rows.reduce((sum, acc) => sum + (acc.summary?.totalCredits ?? acc.summary?.totalMoneyIn ?? 0), 0);
   };
 
   return (
@@ -274,116 +199,61 @@ const GeneralLedgerPage = () => {
                   {/* Account Transactions */}
                   {expandedAccounts.has(idx) && (
                     <>
-                      {accountLoading[idx] ? (
-                        <div className="no-data">Loading transactions...</div>
-                      ) : (
-                        <>
-                          <table className="ledger-table">
-                            <thead>
-                              <tr className="table-header">
-                                <th className="col-date">Transaction Date / Recorded On</th>
-                                <th className="col-ref">Reference</th>
-                                <th className="col-desc">Description</th>
-                                <th className="col-opposite">Opposite Account</th>
-                                <th className="col-debit">Money Out (KES)</th>
-                                <th className="col-credit">Money In (KES)</th>
-                                <th className="col-balance">Balance (KES)</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {typeof accountData.summary?.openingBalance === 'number' && (
-                                <tr className="opening-row">
-                                  <td className="col-date">{formatDate(startDate)}</td>
-                                  <td className="col-ref">-</td>
-                                  <td className="col-desc">Opening Balance</td>
-                                  <td className="col-opposite">-</td>
-                                  <td className="col-debit amount">-</td>
-                                  <td className="col-credit amount">-</td>
-                                  <td className="col-balance amount balance-cell">
-                                    {formatCurrency(accountData.summary.openingBalance)}
-                                  </td>
-                                </tr>
-                              )}
-                              {accountData.transactions && accountData.transactions.length > 0 ? (
-                                accountData.transactions.map((txn, txnIdx) => (
-                                  <tr key={txn.id || txnIdx} className={txn.moneyOut ? 'debit-row' : 'credit-row'}>
-                                    <td className="col-date">
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <div>
-                                          <strong>Entry Date:</strong> {formatDate(txn.date)}
-                                        </div>
-                                        <div style={{ fontSize: '0.85em', color: '#666' }}>
-                                          <strong>Recorded On:</strong> {formatDateTime(txn.createdAt)}
-                                        </div>
-                                      </div>
-                                    </td>
+                      <div className="ledger-table-wrapper">
+                        <table className="ledger-table">
+                          <thead>
+                            <tr className="table-header">
+                              <th className="col-date">Date</th>
+                              <th className="col-ref">Reference</th>
+                              <th className="col-desc">Description</th>
+                              <th className="col-opposite">Opposite Account</th>
+                              <th className="col-debit">Debit (KES)</th>
+                              <th className="col-credit">Credit (KES)</th>
+                              <th className="col-balance">Balance (KES)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {accountData.transactions && accountData.transactions.length > 0 ? (
+                              accountData.transactions.map((txn, txnIdx) => {
+                                const rowDebit = txn.debit ?? txn.moneyOut;
+                                const rowCredit = txn.credit ?? txn.moneyIn;
+                                return (
+                                  <tr key={txnIdx} className={rowDebit ? 'debit-row' : 'credit-row'}>
+                                    <td className="col-date">{formatDate(txn.date)}</td>
                                     <td className="col-ref">{txn.reference || '-'}</td>
                                     <td className="col-desc">{txn.description || '-'}</td>
                                     <td className="col-opposite">{txn.oppositeAccount || '-'}</td>
                                     <td className="col-debit amount">
-                                      {txn.moneyOut ? formatCurrency(txn.moneyOut) : '-'}
+                                      {rowDebit ? formatCurrency(rowDebit) : '-'}
                                     </td>
                                     <td className="col-credit amount">
-                                      {txn.moneyIn ? formatCurrency(txn.moneyIn) : '-'}
+                                      {rowCredit ? formatCurrency(rowCredit) : '-'}
                                     </td>
                                     <td className="col-balance amount balance-cell">
                                       {formatCurrency(txn.runningBalance)}
                                     </td>
                                   </tr>
-                                ))
-                              ) : typeof accountData.summary?.openingBalance === 'number' ? null : (
-                                <tr>
-                                  <td colSpan="7" className="no-data">No transactions</td>
-                                </tr>
-                              )}
-                            </tbody>
-                            {accountData.summary && (
-                              <tfoot>
-                                <tr className="closing-row">
-                                  <td className="col-date">{formatDate(endDate)}</td>
-                                  <td className="col-ref">-</td>
-                                  <td className="col-desc">Closing Balance</td>
-                                  <td className="col-opposite">-</td>
-                                  <td className="col-debit amount">-</td>
-                                  <td className="col-credit amount">-</td>
-                                  <td className="col-balance amount balance-cell">
-                                    {formatCurrency(accountData.summary.closingBalance)}
-                                  </td>
-                                </tr>
-                              </tfoot>
+                                );
+                              })
+                            ) : (
+                              <tr>
+                                <td colSpan="7" className="no-data">No transactions</td>
+                              </tr>
                             )}
-                          </table>
-
-                          {accountData.pageInfo?.hasMore && (
-                            <div className="pagination-controls">
-                              <button
-                                className="btn-secondary"
-                                onClick={() => loadAccountTransactions(idx)}
-                                disabled={accountLoading[idx]}
-                              >
-                                Load more
-                              </button>
-                            </div>
-                          )}
-                        </>
-                      )}
+                          </tbody>
+                        </table>
+                      </div>
 
                       {/* Account Summary */}
                       {accountData.summary && (
                         <div className="account-summary">
                           <div className="summary-row">
-                            <span className="label">Opening Balance:</span>
-                            <span className={`value ${accountData.summary.openingBalance >= 0 ? 'positive' : 'negative'}`}>
-                              {formatCurrency(accountData.summary.openingBalance)}
-                            </span>
+                            <span className="label">Total Debits:</span>
+                            <span className="value debit">{formatCurrency(accountData.summary.totalDebits ?? accountData.summary.totalMoneyOut)}</span>
                           </div>
                           <div className="summary-row">
-                            <span className="label">Total Money Out:</span>
-                            <span className="value debit">{formatCurrency(accountData.summary.totalMoneyOut)}</span>
-                          </div>
-                          <div className="summary-row">
-                            <span className="label">Total Money In:</span>
-                            <span className="value credit">{formatCurrency(accountData.summary.totalMoneyIn)}</span>
+                            <span className="label">Total Credits:</span>
+                            <span className="value credit">{formatCurrency(accountData.summary.totalCredits ?? accountData.summary.totalMoneyIn)}</span>
                           </div>
                           <div className="summary-row">
                             <span className="label">Net Change:</span>
@@ -417,19 +287,12 @@ const GeneralLedgerPage = () => {
               <div className="summary-grid">
                 {(() => {
                   const meta = ledger.meta || {};
-                  console.log('Master Summary Rendering - Full Meta:', meta);
-                  console.log('Meta totalDebit:', meta.totalDebit, 'typeof:', typeof meta.totalDebit);
-                  console.log('Meta totalCredit:', meta.totalCredit, 'typeof:', typeof meta.totalCredit);
                   const totalAccounts = meta.totalAccounts ?? (ledger.rows?.length || 0);
                   const journalDebit = meta.totalDebit ?? 0;
                   const journalCredit = meta.totalCredit ?? 0;
                   const isBalanced = meta.isBalanced ?? (Math.abs(journalDebit - journalCredit) < 0.01);
-                  const finMoneyIn = meta.moneyIn ?? getTotalCredits();
-                  const finMoneyOut = meta.moneyOut ?? getTotalDebits();
-                  console.log('Computed journalDebit:', journalDebit);
-                  console.log('Computed journalCredit:', journalCredit);
-                  console.log('Computed finMoneyIn:', finMoneyIn);
-                  console.log('Computed finMoneyOut:', finMoneyOut);
+                  const finMoneyIn = meta.moneyIn ?? 0;
+                  const finMoneyOut = meta.moneyOut ?? 0;
                   return (
                     <>
                       <div className="summary-card">
@@ -467,14 +330,14 @@ const GeneralLedgerPage = () => {
                 const clientDebits = getTotalDebits();
                 const clientCredits = getTotalCredits();
                 const epsilon = 0.01;
-                const journalMatches = Math.abs((meta.totalDebit ?? 0) - (meta.totalCredit ?? 0)) < epsilon;
-                const financialMatches = Math.abs((meta.moneyOut ?? clientDebits) - clientDebits) < epsilon &&
-                  Math.abs((meta.moneyIn ?? clientCredits) - clientCredits) < epsilon;
-                const needsAttention = !journalMatches || !financialMatches;
+                const journalBalanced = Math.abs((meta.totalDebit ?? 0) - (meta.totalCredit ?? 0)) < epsilon;
+                const serverVsClientMatch = Math.abs((meta.totalDebit ?? clientDebits) - clientDebits) < epsilon &&
+                  Math.abs((meta.totalCredit ?? clientCredits) - clientCredits) < epsilon;
+                const needsAttention = !journalBalanced || !serverVsClientMatch;
                 return (
                   <div className={`consistency-note ${needsAttention ? 'warning' : 'ok'}`}>
                     <p>
-                      <strong>Consistency Check:</strong> {needsAttention ? 'Detected mismatch between server meta and computed totals. Review diagnostics.' : 'Server meta matches computed totals.'}
+                      <strong>Consistency Check:</strong> {needsAttention ? 'Detected debit/credit mismatch between journal totals and computed account totals. Review posting diagnostics.' : 'Debit/credit totals are balanced and consistent.'}
                     </p>
                   </div>
                 );

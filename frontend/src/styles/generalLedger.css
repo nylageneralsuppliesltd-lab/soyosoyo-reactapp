@@ -1,27 +1,18 @@
-/* General Ledger Page Styles - Unified Design System */
-
-:root {
-  --font-h1: 20px;
-  --font-md: 14px;
-  --font-sm: 12px;
-  --pad-page: 8px;
-  --pad-section: 12px;
-  --radius: 8px;
-}
+/* General Ledger Page Styles */
 
 .general-ledger-page {
   min-height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  padding: var(--pad-page) 8px;
-  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  padding: 2rem 1rem;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .ledger-header-section {
   max-width: 1400px;
-  margin: 0 auto 12px;
+  margin: 0 auto 2rem;
   background: white;
-  border-radius: var(--radius);
-  padding: var(--pad-section);
+  border-radius: 12px;
+  padding: 2rem;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
@@ -29,44 +20,43 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
-  padding-bottom: 10px;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
   border-bottom: 2px solid #e0e0e0;
 }
 
 .header-top h1 {
-  font-size: var(--font-h1);
+  font-size: 2rem;
   font-weight: 700;
   color: #1a202c;
-  margin: 0 0 4px 0;
+  margin: 0 0 0.5rem 0;
 }
 
 .header-top p {
   color: #718096;
-  font-size: var(--font-sm);
+  font-size: 0.95rem;
   margin: 0;
 }
 
 .header-actions {
   display: flex;
-  gap: 6px;
+  gap: 1rem;
 }
 
 .btn-action {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
   background: white;
   border: 2px solid #e0e0e0;
   border-radius: 6px;
   cursor: pointer;
-  font-size: var(--font-sm);
+  font-size: 0.9rem;
   font-weight: 500;
   color: #2d3748;
   transition: all 0.2s ease;
   position: relative;
-  white-space: nowrap;
 }
 
 .btn-action:hover {
@@ -87,9 +77,9 @@
   border: 2px solid #e0e0e0;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  min-width: 140px;
+  min-width: 150px;
   z-index: 10;
-  margin-top: 4px;
+  margin-top: 0.5rem;
 }
 
 .dropdown:hover .dropdown-menu {
@@ -98,12 +88,12 @@
 }
 
 .dropdown-menu button {
-  padding: 6px 10px;
+  padding: 0.75rem 1.25rem;
   border: none;
   background: none;
   cursor: pointer;
   text-align: left;
-  font-size: var(--font-sm);
+  font-size: 0.9rem;
   color: #2d3748;
   transition: all 0.2s ease;
 }
@@ -234,9 +224,7 @@
   margin-bottom: 2rem;
   border: 2px solid #e0e0e0;
   border-radius: 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
   page-break-inside: avoid;
 }
 
@@ -315,8 +303,16 @@
 }
 
 /* Ledger Table */
+.ledger-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
 .ledger-table {
   width: 100%;
+  min-width: 980px;
   border-collapse: collapse;
   font-size: 0.85rem;
   background: white;
@@ -328,22 +324,11 @@
 }
 
 .ledger-table th {
-  padding: 0.35rem 0.4rem;
+  padding: 0.75rem;
   text-align: left;
   font-weight: 600;
   color: #2d3748;
   border-bottom: 2px solid #cbd5e0;
-  font-size: 12px;
-}
-
-.ledger-table td {
-  padding: 0.3rem 0.4rem;
-  font-size: 12px;
-}
-
-.ledger-table tfoot td {
-  border-top: 2px solid #cbd5e0;
-  font-weight: 600;
 }
 
 .ledger-table th.col-date { width: 11%; }
@@ -363,12 +348,6 @@
   background-color: #f7fafc;
 }
 
-.pagination-controls {
-  display: flex;
-  justify-content: flex-end;
-  margin: 12px 0 0;
-}
-
 .ledger-table tbody tr.debit-row {
   background-color: #f0f9ff;
 }
@@ -380,6 +359,14 @@
 .ledger-table td {
   padding: 0.75rem;
   color: #2d3748;
+}
+
+.ledger-table td.col-desc,
+.ledger-table td.col-opposite,
+.ledger-table td.col-ref {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ledger-table td.amount {
