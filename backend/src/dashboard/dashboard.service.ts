@@ -24,6 +24,8 @@ export class DashboardService {
           'income',
           'loan_repayment',
           'fine_payment',
+          'transfer_in',
+          'miscellaneous',
         ].includes(e.type)) {
           return sum + e.amount;
         }
@@ -33,8 +35,10 @@ export class DashboardService {
           'loan_disbursement',
           'fine',
           'transfer_out',
+          'refund',
+          'contribution_transfer',
         ].includes(e.type)) {
-          return sum - e.amount;
+          return sum - Math.abs(e.amount);
         }
         return sum;
       }, 0);
@@ -42,84 +46,24 @@ export class DashboardService {
       return { id: m.id, name: m.name, active: m.active, balance: rounded };
     });
 
-    // Fetch real loan data
-    const allLoans = await this.prisma.loan.findMany({
-      include: {
-        member: true,
-        loanType: true,
-        fines: true,
-      },
-    });
+    // Placeholder: No deposit/withdrawal/loan/repayment models yet
+    // Replace with real queries when schema is expanded
+    const deposits = [];
+    const withdrawals = [];
+    const loans = [];
+    const repayments = [];
+    const monthlyContributions = [];
 
-    // Calculate loan statistics
-    const activeLoans = allLoans.filter(l => l.status === 'active');
-    const totalLoansDisbursed = allLoans.reduce((sum, l) => sum + Number(l.amount || 0), 0);
-    const totalLoansOutstanding = allLoans.reduce((sum, l) => {
-      const unpaidFines = (l.fines || []).reduce((fineSum: number, fine: any) => {
-        return fineSum + Math.max(0, Number(fine.amount || 0) - Number(fine.paidAmount || 0));
-      }, 0);
-      return sum + Number(l.balance || 0) + unpaidFines;
-    }, 0);
-
-    // Fetch deposits and withdrawals
-    const deposits = await this.prisma.deposit.findMany({
-      where: {
-        date: {
-          gte: new Date(year, 0, 1),
-          lt: new Date(year + 1, 0, 1),
-        },
-      },
-    });
-
-    const withdrawals = await this.prisma.withdrawal.findMany({
-      where: {
-        date: {
-          gte: new Date(year, 0, 1),
-          lt: new Date(year + 1, 0, 1),
-        },
-      },
-    });
-
-    // Calculate monthly data for charts
     const monthlyData = Array.from({ length: 12 }, (_, i) => ({
       label: new Date(year, i, 1).toLocaleString('default', { month: 'short' }),
       contributions: 0,
       income: 0,
       expenses: 0,
       interest: 0,
-      loansDisbursed: 0,
     }));
 
-    // Aggregate deposits by month
-    deposits.forEach(d => {
-      const month = new Date(d.date).getMonth();
-      if (month >= 0 && month < 12) {
-        monthlyData[month].contributions += Number(d.amount || 0);
-      }
-    });
-
-    // Aggregate withdrawals by month
-    withdrawals.forEach(w => {
-      const month = new Date(w.date).getMonth();
-      if (month >= 0 && month < 12) {
-        monthlyData[month].expenses += Number(w.amount || 0);
-      }
-    });
-
-    // Aggregate loans by disbursement month
-    allLoans.forEach(l => {
-      if (l.disbursementDate) {
-        const month = new Date(l.disbursementDate).getMonth();
-        const loanYear = new Date(l.disbursementDate).getFullYear();
-        if (month >= 0 && month < 12 && loanYear === year) {
-          monthlyData[month].loansDisbursed += Number(l.amount || 0);
-        }
-      }
-    });
-
     const totalBalance = members.reduce((sum, m) => sum + (m.balance || 0), 0);
-    const totalContributions = deposits.reduce((sum, d) => sum + Number(d.amount || 0), 0);
-    const totalWithdrawals = withdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    const totalContributions = 0;
 
     return {
       members,
@@ -128,29 +72,10 @@ export class DashboardService {
       suspendedMembers: members.filter(m => !m.active).length,
       totalBalance,
       contributionsTotal: totalContributions,
-      withdrawalsTotal: totalWithdrawals,
       incomeTotal: 0,
-      expensesTotal: totalWithdrawals,
+      expensesTotal: 0,
       interestIncomeTotal: 0,
-      totalLoansDisbursed,
-      totalLoansOutstanding,
-      activeLoans: activeLoans.length,
-      totalLoans: allLoans.length,
-      loans: allLoans.map(l => ({
-        outstandingFines: (l.fines || []).reduce((fineSum: number, fine: any) => {
-          return fineSum + Math.max(0, Number(fine.amount || 0) - Number(fine.paidAmount || 0));
-        }, 0),
-        id: l.id,
-        memberName: l.member?.name || l.memberName,
-        amount: Number(l.amount),
-        balance: Number(l.balance),
-        totalOutstanding: Number(l.balance) + (l.fines || []).reduce((fineSum: number, fine: any) => {
-          return fineSum + Math.max(0, Number(fine.amount || 0) - Number(fine.paidAmount || 0));
-        }, 0),
-        status: l.status,
-        loanType: l.loanType?.name || 'Unknown',
-        disbursementDate: l.disbursementDate,
-      })),
+      totalLoansDisbursed: 0,
       monthlyData,
     };
   }

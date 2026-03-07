@@ -375,8 +375,8 @@ export class MembersService {
 
       const calculatedBalance = ledgerEntries.reduce((sum, entry) => {
         const amount = Number(entry.amount);
-        const credits = ['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'];
-        const debits = ['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out', 'refund'];
+        const credits = ['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment', 'transfer_in', 'miscellaneous'];
+        const debits = ['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out', 'refund', 'contribution_transfer'];
 
         if (credits.includes(entry.type)) {
           return sum + amount;
@@ -496,8 +496,8 @@ export class MembersService {
     
     const calculatedBalance = ledgerEntries.reduce((sum, entry) => {
       const amount = Number(entry.amount);
-      const credits = ['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'];
-      const debits = ['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out', 'refund'];
+      const credits = ['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment', 'transfer_in', 'miscellaneous'];
+      const debits = ['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out', 'refund', 'contribution_transfer'];
 
       if (credits.includes(entry.type)) {
         return sum + amount;
@@ -662,8 +662,8 @@ export class MembersService {
     const totalBalance = members.reduce((sum, member) => {
       const memberBalance = member.ledger.reduce((memberSum, entry) => {
         const amount = Number(entry.amount);
-        const credits = ['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment'];
-        const debits = ['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out', 'refund'];
+        const credits = ['contribution', 'deposit', 'income', 'loan_repayment', 'fine_payment', 'transfer_in', 'miscellaneous'];
+        const debits = ['withdrawal', 'expense', 'loan_disbursement', 'fine', 'transfer_out', 'refund', 'contribution_transfer'];
 
         if (credits.includes(entry.type)) {
           return memberSum + amount;

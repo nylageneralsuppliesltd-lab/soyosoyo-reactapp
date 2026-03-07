@@ -194,15 +194,23 @@ export class ContributionTransfersService {
       },
     });
 
+    const updatedMember = await this.prisma.member.update({
+      where: { id: data.memberId },
+      data: {
+        balance: { decrement: Number(amount) },
+        loanBalance: { decrement: Number(amount) },
+      },
+    });
+
     // Update member ledger
     await this.prisma.ledger.create({
       data: {
         memberId: data.memberId,
-        type: 'contribution_transfer',
+        type: 'transfer_out',
         amount: Number(amount),
         description: `Transfer ${data.fromContributionType} to ${loan.loanType.name}`,
         reference,
-        balanceAfter: 0, // Will be recalculated if needed
+        balanceAfter: Number(updatedMember.balance),
         date: parsedDate,
       },
     });
@@ -336,7 +344,7 @@ export class ContributionTransfersService {
     });
 
     // Update member balances
-    await this.prisma.member.update({
+    const updatedFromMember = await this.prisma.member.update({
       where: { id: data.fromMemberId },
       data: {
         balance: {
@@ -345,7 +353,7 @@ export class ContributionTransfersService {
       },
     });
 
-    await this.prisma.member.update({
+    const updatedToMember = await this.prisma.member.update({
       where: { id: data.toMemberId },
       data: {
         balance: {
@@ -360,10 +368,10 @@ export class ContributionTransfersService {
         {
           memberId: data.fromMemberId,
           type: 'transfer_out',
-          amount: -Number(amount),
+          amount: Number(amount),
           description: `Transfer to ${toMember.name}`,
           reference,
-          balanceAfter: Number(fromMember.balance) - Number(amount),
+          balanceAfter: Number(updatedFromMember.balance),
           date: parsedDate,
         },
         {
@@ -372,7 +380,7 @@ export class ContributionTransfersService {
           amount: Number(amount),
           description: `Transfer from ${fromMember.name}`,
           reference,
-          balanceAfter: 0, // Will be calculated
+          balanceAfter: Number(updatedToMember.balance),
           date: parsedDate,
         },
       ],
