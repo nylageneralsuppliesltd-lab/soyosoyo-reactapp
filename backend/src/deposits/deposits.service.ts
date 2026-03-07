@@ -36,12 +36,20 @@ export class DepositsService {
     return undefined;
   }
 
+  private buildSettlementHintText(...parts: Array<string | null | undefined>) {
+    return parts
+      .map((part) => String(part || '').trim())
+      .filter(Boolean)
+      .join(' ');
+  }
+
   private async resolveSettlementAccount(options: {
     accountId?: number | null;
     fallbackAccountId?: number | null;
     method?: string;
+    hintText?: string | null;
   }) {
-    const { accountId, fallbackAccountId, method } = options;
+    const { accountId, fallbackAccountId, method, hintText } = options;
     const candidateIds = [accountId, fallbackAccountId].filter(
       (value): value is number => typeof value === 'number' && Number.isFinite(value),
     );
@@ -72,6 +80,31 @@ export class DepositsService {
           return account.type === preferredType;
         })
       : accounts;
+
+    const normalizedHint = String(hintText || '').toLowerCase();
+    if (normalizedHint) {
+      const scopedHintMatch = typeScoped.find((account) =>
+        normalizedHint.includes(String(account.name || '').toLowerCase()),
+      );
+      if (scopedHintMatch) {
+        return scopedHintMatch;
+      }
+
+      const genericHintMatchers: RegExp[] = [
+        /c\.?e\.?w|e.?wallet|mobile money|mpesa/i,
+        /cytonn|money market|collection account/i,
+        /co[- ]?operative|cooperative/i,
+        /cash at hand|cashbox|cash office|petty cash/i,
+      ];
+
+      for (const matcher of genericHintMatchers) {
+        if (!matcher.test(normalizedHint)) continue;
+        const hinted = typeScoped.find((account) => matcher.test(account.name || ''));
+        if (hinted) {
+          return hinted;
+        }
+      }
+    }
 
     if (typeScoped.length === 1) {
       return typeScoped[0];
@@ -123,6 +156,12 @@ export class DepositsService {
       const settlementAccount = await this.resolveSettlementAccount({
         accountId: depositData.accountId,
         method: depositData.method,
+        hintText: this.buildSettlementHintText(
+          depositData.narration,
+          depositData.description,
+          depositData.notes,
+          depositData.reference,
+        ),
       });
       depositData.accountId = settlementAccount.id;
 
@@ -256,12 +295,30 @@ export class DepositsService {
         accountId: data.accountId ? parseInt(data.accountId) : existingDeposit.accountId,
       };
 
+      const oldSettlementAccount = await this.resolveSettlementAccount({
+        accountId: existingDeposit.accountId,
+        method: existingDeposit.method || 'cash',
+        hintText: this.buildSettlementHintText(
+          existingDeposit.narration,
+          existingDeposit.description,
+          existingDeposit.notes,
+          existingDeposit.reference,
+        ),
+      });
+
       const settlementAccount = await this.resolveSettlementAccount({
         accountId: depositData.accountId,
         fallbackAccountId: existingDeposit.accountId,
         method: depositData.method,
+        hintText: this.buildSettlementHintText(
+          depositData.narration,
+          depositData.description,
+          depositData.notes,
+          depositData.reference,
+        ),
       });
       depositData.accountId = settlementAccount.id;
+      const accountChanged = oldSettlementAccount.id !== settlementAccount.id;
 
       // Calculate amount difference
       const amountDifference = Number(depositData.amount) - Number(existingDeposit.amount);
@@ -274,7 +331,7 @@ export class DepositsService {
       });
 
       // If amount changed, update all related financial records
-      if (amountDifference !== 0) {
+      if (amountDifference !== 0 || accountChanged) {
         // Get the account used for this deposit
         const cashAccount = settlementAccount;
 
@@ -282,10 +339,17 @@ export class DepositsService {
           throw new Error('Cash account not found. Cannot sync journal entries.');
         }
 
-        // Update account balance by the difference
+        const oldAmount = new Prisma.Decimal(existingDeposit.amount || 0);
+        const newAmount = new Prisma.Decimal(depositData.amount || 0);
+
+        // Reverse old posting then apply new posting (handles both amount and account changes)
+        await this.prisma.account.update({
+          where: { id: oldSettlementAccount.id },
+          data: { balance: { decrement: oldAmount } },
+        });
         await this.prisma.account.update({
           where: { id: cashAccount.id },
-          data: { balance: { increment: amountDifference } },
+          data: { balance: { increment: newAmount } },
         });
 
         // Find and update corresponding journal entry
@@ -313,7 +377,7 @@ export class DepositsService {
         // Delete old journal entry
         await this.prisma.journalEntry.deleteMany({
           where: {
-            debitAccountId: cashAccount.id,
+            debitAccountId: oldSettlementAccount.id,
             creditAccountId: glAccount.id,
             description: { contains: `Member deposit` },
             OR: [
@@ -324,7 +388,6 @@ export class DepositsService {
         });
 
         // Create new journal entry with updated amount
-        const newAmount = new Prisma.Decimal(depositData.amount);
         await this.prisma.journalEntry.create({
           data: {
             date: depositData.date,
@@ -410,6 +473,12 @@ export class DepositsService {
     const settlementAccount = await this.resolveSettlementAccount({
       accountId: existingDeposit.accountId,
       method: existingDeposit.method || 'cash',
+      hintText: this.buildSettlementHintText(
+        existingDeposit.narration,
+        existingDeposit.description,
+        existingDeposit.notes,
+        existingDeposit.reference,
+      ),
     });
 
     // Reverse account balance impact
@@ -555,6 +624,7 @@ export class DepositsService {
     const settlementAccount = await this.resolveSettlementAccount({
       accountId: payment.accountId,
       method: payment.paymentMethod,
+      hintText: this.buildSettlementHintText(payment.notes, payment.reference, payment.memberName),
     });
 
     // Create the deposit record
@@ -621,6 +691,7 @@ export class DepositsService {
         const cashAccount = await this.resolveSettlementAccount({
           accountId,
           method: paymentMethod,
+          hintText: this.buildSettlementHintText(notes, reference, description),
         });
 
         if (!cashAccount) {
@@ -643,6 +714,7 @@ export class DepositsService {
         const cashAccount = await this.resolveSettlementAccount({
           accountId,
           method: paymentMethod,
+          hintText: this.buildSettlementHintText(notes, reference, description),
         });
 
         if (!cashAccount) {
@@ -664,6 +736,7 @@ export class DepositsService {
         const cashAccount = await this.resolveSettlementAccount({
           accountId,
           method: paymentMethod,
+          hintText: this.buildSettlementHintText(notes, reference, description),
         });
 
         if (!cashAccount) {
@@ -685,6 +758,7 @@ export class DepositsService {
         const cashAccount = await this.resolveSettlementAccount({
           accountId,
           method: paymentMethod,
+          hintText: this.buildSettlementHintText(notes, reference, description),
         });
 
         if (!cashAccount) {
@@ -707,6 +781,7 @@ export class DepositsService {
         const cashAccount = await this.resolveSettlementAccount({
           accountId,
           method: paymentMethod,
+          hintText: this.buildSettlementHintText(notes, reference, description),
         });
 
         if (!cashAccount) {

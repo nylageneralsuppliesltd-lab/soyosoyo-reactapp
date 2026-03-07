@@ -16,12 +16,20 @@ export class RepaymentsService {
     return undefined;
   }
 
+  private buildSettlementHintText(...parts: Array<string | null | undefined>) {
+    return parts
+      .map((part) => String(part || '').trim())
+      .filter(Boolean)
+      .join(' ');
+  }
+
   private async resolveSettlementAccount(options: {
     accountId?: number | null;
     fallbackAccountId?: number | null;
     method?: string;
+    hintText?: string | null;
   }) {
-    const { accountId, fallbackAccountId, method } = options;
+    const { accountId, fallbackAccountId, method, hintText } = options;
     const candidateIds = [accountId, fallbackAccountId].filter(
       (value): value is number => typeof value === 'number' && Number.isFinite(value),
     );
@@ -52,6 +60,31 @@ export class RepaymentsService {
           return account.type === preferredType;
         })
       : accounts;
+
+    const normalizedHint = String(hintText || '').toLowerCase();
+    if (normalizedHint) {
+      const scopedHintMatch = typeScoped.find((account) =>
+        normalizedHint.includes(String(account.name || '').toLowerCase()),
+      );
+      if (scopedHintMatch) {
+        return scopedHintMatch;
+      }
+
+      const genericHintMatchers: RegExp[] = [
+        /c\.?e\.?w|e.?wallet|mobile money|mpesa/i,
+        /cytonn|money market|collection account/i,
+        /co[- ]?operative|cooperative/i,
+        /cash at hand|cashbox|cash office|petty cash/i,
+      ];
+
+      for (const matcher of genericHintMatchers) {
+        if (!matcher.test(normalizedHint)) continue;
+        const hinted = typeScoped.find((account) => matcher.test(account.name || ''));
+        if (hinted) {
+          return hinted;
+        }
+      }
+    }
 
     if (typeScoped.length === 1) {
       return typeScoped[0];
@@ -123,6 +156,7 @@ export class RepaymentsService {
       const settlementAccount = await this.resolveSettlementAccount({
         accountId: repaymentData.accountId,
         method: repaymentData.method,
+        hintText: this.buildSettlementHintText(repaymentData.notes, `REPAY-${repaymentData.loanId}`),
       });
       repaymentData.accountId = settlementAccount.id;
 
@@ -254,11 +288,13 @@ export class RepaymentsService {
     const oldSettlementAccount = await this.resolveSettlementAccount({
       accountId: repayment.accountId,
       method: oldMethod,
+      hintText: this.buildSettlementHintText(repayment.notes, `REPAY-${id}`),
     });
     const newSettlementAccount = await this.resolveSettlementAccount({
       accountId: updatedRepayment.accountId,
       fallbackAccountId: repayment.accountId,
       method: newMethod,
+      hintText: this.buildSettlementHintText(updatedRepayment.notes, `REPAY-${id}`),
     });
     const accountChanged = oldSettlementAccount.id !== newSettlementAccount.id;
 
@@ -382,6 +418,7 @@ export class RepaymentsService {
     const cashAccount = await this.resolveSettlementAccount({
       accountId: repayment.accountId,
       method: repayment.method || 'cash',
+      hintText: this.buildSettlementHintText(repayment.notes, `REPAY-${id}`),
     });
 
     await this.prisma.account.update({

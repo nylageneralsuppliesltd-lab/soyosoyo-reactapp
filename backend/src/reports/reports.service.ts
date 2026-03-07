@@ -1737,16 +1737,28 @@ export class ReportsService {
         include: { member: { select: { id: true, name: true } } },
       });
 
-      // Create lookup maps
-      const depositsByRef = new Map();
-      const withdrawalsByRef = new Map();
+      // Create lookup maps (reference + account to avoid cross-account narration mixups)
+      const depositsByRefAndAccount = new Map<string, any>();
+      const withdrawalsByRefAndAccount = new Map<string, any>();
+      const depositsByRef = new Map<string, any[]>();
+      const withdrawalsByRef = new Map<string, any[]>();
 
-      deposits.forEach(d => {
-        if (d.reference) depositsByRef.set(d.reference, d);
+      deposits.forEach((d) => {
+        if (!d.reference) return;
+        const ref = String(d.reference).trim().toUpperCase();
+        if (d.accountId) depositsByRefAndAccount.set(`${ref}:${d.accountId}`, d);
+        const existing = depositsByRef.get(ref) || [];
+        existing.push(d);
+        depositsByRef.set(ref, existing);
       });
 
-      withdrawals.forEach(w => {
-        if (w.reference) withdrawalsByRef.set(w.reference, w);
+      withdrawals.forEach((w) => {
+        if (!w.reference) return;
+        const ref = String(w.reference).trim().toUpperCase();
+        if (w.accountId) withdrawalsByRefAndAccount.set(`${ref}:${w.accountId}`, w);
+        const existing = withdrawalsByRef.get(ref) || [];
+        existing.push(w);
+        withdrawalsByRef.set(ref, existing);
       });
 
       let balance = openingBalance;
@@ -1757,9 +1769,24 @@ export class ReportsService {
         let moneyOut = null;
         let fullDescription = '';
 
-        // Try to enrich with deposit/withdrawal data
-        const deposit = depositsByRef.get(entry.reference);
-        const withdrawal = withdrawalsByRef.get(entry.reference);
+        // Try to enrich with deposit/withdrawal data (match by reference + account)
+        const normalizedReference = entry.reference ? String(entry.reference).trim().toUpperCase() : null;
+        const depositCandidates = normalizedReference ? (depositsByRef.get(normalizedReference) || []) : [];
+        const withdrawalCandidates = normalizedReference ? (withdrawalsByRef.get(normalizedReference) || []) : [];
+        const inAccountId = entry.debitAccountId;
+        const outAccountId = entry.creditAccountId;
+
+        const deposit = normalizedReference
+          ? depositsByRefAndAccount.get(`${normalizedReference}:${inAccountId}`)
+            || depositCandidates.find((candidate) => candidate.accountId === inAccountId)
+            || (depositCandidates.length === 1 ? depositCandidates[0] : null)
+          : null;
+
+        const withdrawal = normalizedReference
+          ? withdrawalsByRefAndAccount.get(`${normalizedReference}:${outAccountId}`)
+            || withdrawalCandidates.find((candidate) => candidate.accountId === outAccountId)
+            || (withdrawalCandidates.length === 1 ? withdrawalCandidates[0] : null)
+          : null;
 
         // Helper function to format transaction type
         const formatTransactionType = (type: string) => {
@@ -1894,16 +1921,28 @@ export class ReportsService {
       include: { member: { select: { id: true, name: true } } },
     });
 
-    // Create lookup maps
-    const depositsByRef = new Map();
-    const withdrawalsByRef = new Map();
+    // Create lookup maps (reference + account to avoid cross-account narration mixups)
+    const depositsByRefAndAccount = new Map<string, any>();
+    const withdrawalsByRefAndAccount = new Map<string, any>();
+    const depositsByRef = new Map<string, any[]>();
+    const withdrawalsByRef = new Map<string, any[]>();
 
-    deposits.forEach(d => {
-      if (d.reference) depositsByRef.set(d.reference, d);
+    deposits.forEach((d) => {
+      if (!d.reference) return;
+      const ref = String(d.reference).trim().toUpperCase();
+      if (d.accountId) depositsByRefAndAccount.set(`${ref}:${d.accountId}`, d);
+      const existing = depositsByRef.get(ref) || [];
+      existing.push(d);
+      depositsByRef.set(ref, existing);
     });
 
-    withdrawals.forEach(w => {
-      if (w.reference) withdrawalsByRef.set(w.reference, w);
+    withdrawals.forEach((w) => {
+      if (!w.reference) return;
+      const ref = String(w.reference).trim().toUpperCase();
+      if (w.accountId) withdrawalsByRefAndAccount.set(`${ref}:${w.accountId}`, w);
+      const existing = withdrawalsByRef.get(ref) || [];
+      existing.push(w);
+      withdrawalsByRef.set(ref, existing);
     });
 
     const rows = [];
@@ -1924,9 +1963,22 @@ export class ReportsService {
       let moneyOut = null;
       let fullDescription = '';
 
-      // Try to enrich with deposit/withdrawal data
-      const deposit = depositsByRef.get(entry.reference);
-      const withdrawal = withdrawalsByRef.get(entry.reference);
+      // Try to enrich with deposit/withdrawal data (match by reference + account)
+      const normalizedReference = entry.reference ? String(entry.reference).trim().toUpperCase() : null;
+      const depositCandidates = normalizedReference ? (depositsByRef.get(normalizedReference) || []) : [];
+      const withdrawalCandidates = normalizedReference ? (withdrawalsByRef.get(normalizedReference) || []) : [];
+
+      const deposit = normalizedReference
+        ? depositsByRefAndAccount.get(`${normalizedReference}:${entry.debitAccountId}`)
+          || depositCandidates.find((candidate) => candidate.accountId === entry.debitAccountId)
+          || (depositCandidates.length === 1 ? depositCandidates[0] : null)
+        : null;
+
+      const withdrawal = normalizedReference
+        ? withdrawalsByRefAndAccount.get(`${normalizedReference}:${entry.creditAccountId}`)
+          || withdrawalCandidates.find((candidate) => candidate.accountId === entry.creditAccountId)
+          || (withdrawalCandidates.length === 1 ? withdrawalCandidates[0] : null)
+        : null;
 
       if (debitIsBankAccount && !creditIsBankAccount) {
         // Money IN to a bank account
