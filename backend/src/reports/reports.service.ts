@@ -1813,7 +1813,7 @@ export class ReportsService {
       const totalMoneyOut = rows.reduce((sum, r) => sum + (r.moneyOut || 0), 0);
 
       return {
-        rows,
+        rows: rows.reverse(),
         meta: {
           totalMoneyIn: Number(totalMoneyIn.toFixed(2)),
           totalMoneyOut: Number(totalMoneyOut.toFixed(2)),
@@ -1985,7 +1985,7 @@ export class ReportsService {
     const totalMoneyOut = rows.reduce((sum, r) => sum + (r.moneyOut || 0), 0);
 
     return {
-      rows,
+      rows: rows.reverse(),
       meta: {
         totalMoneyIn: Number(totalMoneyIn.toFixed(2)),
         totalMoneyOut: Number(totalMoneyOut.toFixed(2)),
