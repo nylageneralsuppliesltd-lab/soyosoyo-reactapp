@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { Download, Filter, Calendar, FileText, CheckCircle2, AlertCircle, FileJson, Table, FileSpreadsheet } from 'lucide-react';
 import '../styles/reports.css';
 import ReportHeader from '../components/ReportHeader';
@@ -8,34 +7,6 @@ import { API_BASE } from '../utils/apiBase';
 // Helper function to convert camelCase to kebab-case for API routes
 const convertToKebabCase = (camelCase) => {
   return camelCase.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
-};
-
-const REPORT_ENDPOINT_MAP = {
-  contributions: 'contributions',
-  contributionMatrix: 'contribution-matrix',
-  fines: 'fines',
-  loans: 'loans',
-  bankLoans: 'bank-loans',
-  debtorLoans: 'debtor-loans',
-  expenses: 'expenses',
-  accountBalances: 'account-balances',
-  transactions: 'transactions',
-  cashFlow: 'cash-flow',
-  trialBalance: 'trial-balance',
-  incomeStatement: 'income-statement',
-  balanceSheet: 'balance-sheet',
-  sasra: 'sasra',
-  dividends: 'dividends',
-  dividendRecommendation: 'dividend-recommendation',
-  dividendCategoryPayouts: 'dividend-category-payouts',
-  generalLedger: 'general-ledger',
-  accountStatement: 'account-statement',
-};
-
-const REPORT_ROUTE_MAP = {
-  trialBalance: '/reports/trial-balance',
-  incomeStatement: '/reports/enhanced-income-statement',
-  balanceSheet: '/reports/enhanced-balance-sheet',
 };
 
 // Helper function to format column names
@@ -53,23 +24,11 @@ const formatColumnName = (key) => {
 // Helper function to format cell values
 const formatCellValue = (key, value, row) => {
   if (value === null || value === undefined) return '-';
-
-  if (Array.isArray(value)) {
-    return value.length ? value.join('; ') : '-';
-  }
-
-  if (typeof value === 'boolean') {
-    return value ? 'Yes' : 'No';
-  }
   
   // Format amounts/money fields
-  if (key.toLowerCase().includes('amount') || key.toLowerCase().includes('balance') || key.toLowerCase().includes('principal') || key.toLowerCase().includes('interest') || key.toLowerCase().includes('arrears')) {
+  if (key.toLowerCase().includes('amount') || key.toLowerCase().includes('balance') || key.toLowerCase().includes('principal') || key.toLowerCase().includes('interest')) {
     const num = parseFloat(value);
     return isNaN(num) ? value : `KES ${num.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-
-  if (key.toLowerCase() === 'payablestatus') {
-    return value === 'payable' ? 'Payable' : 'Not Payable';
   }
   
   // Format dates
@@ -101,339 +60,8 @@ const formatCellValue = (key, value, row) => {
 
 // Helper function to determine which columns to hide
 const shouldHideColumn = (key) => {
-  const hiddenColumns = ['id', 'memberid', 'accountid', 'createdat', 'updatedat', 'narration', 'reference', 'rowtype'];
+  const hiddenColumns = ['id', 'memberid', 'accountid', 'createdat', 'updatedat', 'narration', 'reference'];
   return hiddenColumns.includes(key.toLowerCase());
-};
-
-const formatMoney = (value) => {
-  const number = Number(value || 0);
-  return `KES ${number.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
-
-const formatMetaMetricValue = (key, value) => {
-  if (value === null || value === undefined) return '-';
-
-  if (typeof value === 'number') {
-    const keyLower = key.toLowerCase();
-    return (keyLower.includes('amount') || keyLower.includes('total') || keyLower.includes('tax') || keyLower.includes('payable'))
-      ? `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      : value.toLocaleString();
-  }
-
-  if (typeof value === 'string' || typeof value === 'boolean') {
-    return String(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `${value.length} items`;
-  }
-
-  if (typeof value === 'object') {
-    const keys = Object.keys(value);
-    if (keys.length === 0) return 'No data';
-    if (keys.length <= 3) {
-      return keys
-        .map((entryKey) => `${formatColumnName(entryKey)}: ${value[entryKey]}`)
-        .join(' • ');
-    }
-    return `${keys.length} categories`;
-  }
-
-  return String(value);
-};
-
-const sanitizeRows = (rows) => (
-  Array.isArray(rows) ? rows.filter((row) => row && typeof row === 'object' && !Array.isArray(row)) : []
-);
-
-const safeSerializeForSearch = (value) => {
-  try {
-    return JSON.stringify(
-      value,
-      (_, nested) => (typeof nested === 'bigint' ? nested.toString() : nested),
-    ) || '';
-  } catch {
-    return String(value ?? '');
-  }
-};
-
-const normalizeReportPayload = (payload) => {
-  if (Array.isArray(payload)) {
-    return { rows: sanitizeRows(payload), meta: {} };
-  }
-
-  if (!payload || typeof payload !== 'object') {
-    return { rows: [], meta: {} };
-  }
-
-  const rowCandidates = [sanitizeRows(payload.rows), sanitizeRows(payload.items), sanitizeRows(payload.data)];
-  const rows = rowCandidates.find((candidate) => candidate.length > 0) || [];
-
-  if (rows.length > 0) {
-    return {
-      ...payload,
-      rows,
-      meta: payload.meta && typeof payload.meta === 'object' ? payload.meta : {},
-    };
-  }
-
-  if (payload.meta && typeof payload.meta === 'object') {
-    const metaRows = Object.entries(payload.meta).map(([metric, value]) => ({ metric, value }));
-    return { ...payload, rows: sanitizeRows(metaRows), meta: payload.meta };
-  }
-
-  return { ...payload, rows: [], meta: {} };
-};
-
-const isFinancialPreviewKey = (reportKey) => ['sasra', 'trialBalance', 'incomeStatement', 'balanceSheet', 'cashFlow'].includes(reportKey);
-const isDetailReportKey = (reportKey) => reportKey === 'transactions';
-
-const FinancialPreview = ({ reportKey, reportData }) => {
-  if (!reportData) return null;
-
-  const rows = sanitizeRows(reportData.rows);
-  const meta = reportData.meta || {};
-
-  if (reportKey === 'sasra') {
-    const detailRows = rows.filter((row) => row.category !== 'Summary');
-    const summaryRows = rows.filter((row) => row.category === 'Summary');
-    const ratioRows = summaryRows.filter((row) => String(row.metric || '').toLowerCase().includes('ratio') || String(row.metric || '').toLowerCase().includes('risk'));
-
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="premium-stats-card gradient-blue">
-            <div className="premium-stats-icon">\ud83d\udcb5</div>
-            <p className="premium-stats-label">Total Cash</p>
-            <p className="premium-stats-value">{formatMoney(meta.totalCash || 0)}</p>
-          </div>
-          <div className="premium-stats-card gradient-green">
-            <div className="premium-stats-icon">\ud83d\udcc8</div>
-            <p className="premium-stats-label">Member Loans</p>
-            <p className="premium-stats-value">{formatMoney(meta.totalMemberLoans || 0)}</p>
-          </div>
-          <div className="premium-stats-card gradient-purple">
-            <div className="premium-stats-icon">\ud83c\udfe6</div>
-            <p className="premium-stats-label">Bank Loans</p>
-            <p className="premium-stats-value">{formatMoney(meta.totalBankLoans || 0)}</p>
-          </div>
-          <div className="premium-stats-card gradient-orange">
-            <div className="premium-stats-icon">\ud83d\udca7</div>
-            <p className="premium-stats-label">Liquidity Ratio</p>
-            <p className="premium-stats-value">{Number(meta.liquidityRatio || 0).toFixed(4)}</p>
-          </div>
-        </div>
-
-        <div className="report-table-container">
-          <table className="report-table min-w-[860px]">
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th>Metric</th>
-                <th className="text-right">Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detailRows.length === 0 ? (
-                <tr><td colSpan="3" className="text-center py-8 text-gray-500">No SASRA detail rows</td></tr>
-              ) : (
-                detailRows.map((row, idx) => (
-                  <tr key={idx}>
-                    <td>{row.category || '-'}</td>
-                    <td>{row.metric || '-'}</td>
-                    <td className="text-right">{formatMoney(row.value || 0)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {ratioRows.length > 0 && (
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <h4 className="text-sm font-bold text-gray-900 mb-3">Compliance Ratios</h4>
-            <div className="space-y-2">
-              {ratioRows.map((row, idx) => (
-                <div key={idx} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-700">{row.metric}</span>
-                  <span className="font-semibold text-gray-900">{Number(row.value || 0).toFixed(4)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (reportKey === 'trialBalance') {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="premium-stats-card gradient-green">
-            <div className="premium-stats-icon">\u2795</div>
-            <p className="premium-stats-label">Total Debit</p>
-            <p className="premium-stats-value">{formatMoney(meta.debit || 0)}</p>
-          </div>
-          <div className="premium-stats-card gradient-red">
-            <div className="premium-stats-icon">\u2796</div>
-            <p className="premium-stats-label">Total Credit</p>
-            <p className="premium-stats-value">{formatMoney(meta.credit || 0)}</p>
-          </div>
-          <div className="premium-stats-card gradient-purple">
-            <div className="premium-stats-icon">\u2696\ufe0f</div>
-            <p className="premium-stats-label">Variance</p>
-            <p className="premium-stats-value">{formatMoney(meta.balanceVariance || 0)}</p>
-          </div>
-        </div>
-        <div className="report-table-container">
-          <table className="report-table min-w-[860px]">
-            <thead>
-              <tr>
-                <th>Account</th>
-                <th>Type</th>
-                <th className="text-right">Debit</th>
-                <th className="text-right">Credit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, idx) => (
-                <tr key={idx}>
-                  <td>{row.accountName || '-'}</td>
-                  <td>{row.accountType || '-'}</td>
-                  <td className="text-right">{formatMoney(row.debitAmount || 0)}</td>
-                  <td className="text-right">{formatMoney(row.creditAmount || 0)}</td>
-                </tr>
-              ))}
-              <tr className="financial-total-row">
-                <td colSpan={2}>Total</td>
-                <td className="text-right">{formatMoney(meta.debit || 0)}</td>
-                <td className="text-right">{formatMoney(meta.credit || 0)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  }
-
-  if (reportKey === 'incomeStatement' || reportKey === 'cashFlow') {
-    const grouped = rows.reduce((acc, row) => {
-      const section = row.section || 'Other';
-      if (!acc[section]) acc[section] = [];
-      acc[section].push(row);
-      return acc;
-    }, {});
-
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="premium-stats-card gradient-red">
-            <div className="premium-stats-icon">\ud83e\uddfe</div>
-            <p className="premium-stats-label">Anticipated Income Tax</p>
-            <p className="premium-stats-value">{formatMoney(meta.anticipatedIncomeTax ?? meta.externalInterestTax ?? 0)}</p>
-          </div>
-          <div className="premium-stats-card gradient-orange">
-            <div className="premium-stats-icon">\ud83e\udfbe</div>
-            <p className="premium-stats-label">External Interest Tax</p>
-            <p className="premium-stats-value">{formatMoney(meta.externalInterestTax ?? 0)}</p>
-          </div>
-        </div>
-        {Object.entries(grouped).map(([sectionName, sectionRows]) => {
-          const sectionTotal = sectionRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-          return (
-          <div key={sectionName} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <div className="bg-gray-900 text-white px-4 py-2 text-sm font-bold">{sectionName}</div>
-            <div className="report-table-container rounded-none border-0 shadow-none">
-              <table className="report-table min-w-[860px]">
-                <thead>
-                  <tr>
-                    <th>Category</th>
-                    <th>Description</th>
-                    <th className="text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sectionRows.map((row, idx) => (
-                    <tr key={idx}>
-                      <td>{row.category || row.type || '-'}</td>
-                      <td>{row.description || row.source || '-'}</td>
-                      <td className="text-right">{formatMoney(row.amount || 0)}</td>
-                    </tr>
-                  ))}
-                  <tr className="financial-subtotal-row">
-                    <td colSpan={2}>Subtotal</td>
-                    <td className="text-right">{formatMoney(sectionTotal)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  if (reportKey === 'balanceSheet') {
-    const grouped = rows.reduce((acc, row) => {
-      const section = row.category || 'Other';
-      if (!acc[section]) acc[section] = [];
-      acc[section].push(row);
-      return acc;
-    }, {});
-
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="premium-stats-card gradient-purple">
-            <div className="premium-stats-icon">\ud83d\udd2a</div>
-            <p className="premium-stats-label">Withholding Tax Payable</p>
-            <p className="premium-stats-value">{formatMoney(meta.withholdingTaxPayable ?? 0)}</p>
-          </div>
-          <div className="premium-stats-card gradient-red">
-            <div className="premium-stats-icon">\ud83d\udcd8</div>
-            <p className="premium-stats-label">Income Tax Payable</p>
-            <p className="premium-stats-value">{formatMoney(meta.incomeTaxPayable ?? 0)}</p>
-          </div>
-        </div>
-        {Object.entries(grouped).map(([sectionName, sectionRows]) => {
-          const sectionTotal = sectionRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-          return (
-          <div key={sectionName} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <div className="bg-gray-900 text-white px-4 py-2 text-sm font-bold">{sectionName}</div>
-            <div className="report-table-container rounded-none border-0 shadow-none">
-              <table className="report-table min-w-[860px]">
-                <thead>
-                  <tr>
-                    <th>Section</th>
-                    <th>Account</th>
-                    <th className="text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sectionRows.map((row, idx) => (
-                    <tr key={idx}>
-                      <td>{row.section || '-'}</td>
-                      <td>{row.account || '-'}</td>
-                      <td className="text-right">{formatMoney(row.amount || 0)}</td>
-                    </tr>
-                  ))}
-                  <tr className="financial-subtotal-row">
-                    <td colSpan={2}>Subtotal</td>
-                    <td className="text-right">{formatMoney(sectionTotal)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return null;
 };
 
 const APIReportsPage = () => {
@@ -449,90 +77,8 @@ const APIReportsPage = () => {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [expandedReport, setExpandedReport] = useState(null);
-  const [reportDataMap, setReportDataMap] = useState({});
-  const [reportLoadingMap, setReportLoadingMap] = useState({});
-  const [reportErrorMap, setReportErrorMap] = useState({});
-  const [reportFilterMap, setReportFilterMap] = useState({});
-  const [reportSectionFilterMap, setReportSectionFilterMap] = useState({});
-  const [reportAdvancedFilterMap, setReportAdvancedFilterMap] = useState({
-    contributions: {
-      contributionType: '',
-      eligibleForDividend: 'all',
-      countsForLoanQualification: 'all',
-      source: 'all',
-    },
-  });
-  const [referenceQuery, setReferenceQuery] = useState('');
-  const [referenceResults, setReferenceResults] = useState(null);
-  const [referenceLoading, setReferenceLoading] = useState(false);
-  const [referenceError, setReferenceError] = useState(null);
-
-  const getReportEndpoint = (reportKey) => REPORT_ENDPOINT_MAP[reportKey] || convertToKebabCase(reportKey);
-
-  const appendReportSpecificParams = (reportKey, params) => {
-    if (reportKey !== 'contributions') return;
-
-    const specific = reportAdvancedFilterMap.contributions || {};
-    if (specific.contributionType?.trim()) params.append('contributionType', specific.contributionType.trim());
-    if (specific.eligibleForDividend && specific.eligibleForDividend !== 'all') params.append('eligibleForDividend', specific.eligibleForDividend);
-    if (specific.countsForLoanQualification && specific.countsForLoanQualification !== 'all') params.append('countsForLoanQualification', specific.countsForLoanQualification);
-    if (specific.source && specific.source !== 'all') params.append('source', specific.source);
-  };
-
-  const getAsOfDate = () => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth();
-
-    if (filters.period === 'custom') {
-      return filters.endDate || now.toISOString().split('T')[0];
-    }
-
-    if (filters.period === 'month') {
-      return new Date(y, m + 1, 0).toISOString().split('T')[0];
-    }
-
-    if (filters.period === 'quarter') {
-      const quarterEndMonth = Math.floor(m / 3) * 3 + 2;
-      return new Date(y, quarterEndMonth + 1, 0).toISOString().split('T')[0];
-    }
-
-    if (filters.period === 'half') {
-      return m < 6
-        ? new Date(y, 6, 0).toISOString().split('T')[0]
-        : new Date(y, 12, 0).toISOString().split('T')[0];
-    }
-
-    return new Date(y, 12, 0).toISOString().split('T')[0];
-  };
-
-  const getFinancialSectionOptions = (reportKey, rows) => {
-    if (!Array.isArray(rows) || rows.length === 0) return [];
-    const optionsMap = new Map();
-
-    rows.forEach((row) => {
-      if (!row || typeof row !== 'object') return;
-
-      let rawValue = '';
-      if (reportKey === 'trialBalance') {
-        rawValue = row.accountType || row.class || row.type || '';
-      } else if (reportKey === 'balanceSheet') {
-        rawValue = row.category || row.section || '';
-      } else {
-        rawValue = row.section || row.category || row.type || '';
-      }
-
-      const value = String(rawValue || '').trim();
-      if (!value) return;
-      if (!optionsMap.has(value)) {
-        optionsMap.set(value, formatColumnName(value));
-      }
-    });
-
-    return Array.from(optionsMap.entries())
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  };
+  const [reportData, setReportData] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
   // Fetch report catalog on mount
   useEffect(() => {
@@ -554,7 +100,7 @@ const APIReportsPage = () => {
 
   const handleDownload = async (reportKey, format) => {
     const statusKey = `${reportKey}-${format}`;
-    const endpoint = getReportEndpoint(reportKey);
+    const kebabKey = convertToKebabCase(reportKey);
     setDownloadingReport(statusKey);
     setDownloadStatus(prev => ({ ...prev, [statusKey]: 'downloading' }));
 
@@ -564,15 +110,10 @@ const APIReportsPage = () => {
         period: filters.period,
       });
 
-      if (!isDetailReportKey(reportKey)) {
-        params.append('summaryOnly', 'true');
-      }
-
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
-      appendReportSpecificParams(reportKey, params);
 
-  const response = await fetch(`${API_BASE}/reports/${endpoint}?${params}`);
+      const response = await fetch(`${API_BASE}/reports/${kebabKey}?${params}`);
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
@@ -649,236 +190,38 @@ const APIReportsPage = () => {
   };
 
   const fetchReportData = async (reportKey) => {
-    setReportLoadingMap(prev => ({ ...prev, [reportKey]: true }));
-    setReportErrorMap(prev => ({ ...prev, [reportKey]: null }));
+    setReportLoading(true);
     try {
-      const endpoint = getReportEndpoint(reportKey);
+      const kebabKey = convertToKebabCase(reportKey);
       const params = new URLSearchParams({
         format: 'json',
         period: filters.period,
       });
 
-      if (!isDetailReportKey(reportKey)) {
-        params.append('summaryOnly', 'true');
-      }
-
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
-      appendReportSpecificParams(reportKey, params);
 
-      const response = await fetch(`${API_BASE}/reports/${endpoint}?${params}`);
+      const response = await fetch(`${API_BASE}/reports/${kebabKey}?${params}`);
       if (!response.ok) throw new Error(`Failed to fetch report: ${response.status}`);
       
       const data = await response.json();
-      const normalized = normalizeReportPayload(data);
-      setReportDataMap(prev => ({ ...prev, [reportKey]: normalized }));
+      setReportData(data);
     } catch (error) {
       console.error('Failed to fetch report:', error);
-      setReportDataMap(prev => ({ ...prev, [reportKey]: null }));
-      setReportErrorMap(prev => ({ ...prev, [reportKey]: 'Failed to load report preview. Please retry.' }));
+      setReportData(null);
     } finally {
-      setReportLoadingMap(prev => ({ ...prev, [reportKey]: false }));
+      setReportLoading(false);
     }
   };
 
   const handleReportClick = async (reportKey) => {
     if (expandedReport === reportKey) {
       setExpandedReport(null);
+      setReportData(null);
     } else {
       setExpandedReport(reportKey);
       await fetchReportData(reportKey);
     }
-  };
-
-  const handleBackToReportList = () => {
-    setExpandedReport(null);
-    const grid = document.getElementById('reports-grid');
-    if (grid) {
-      grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
-
-  const handleStandardFinancialDownload = async (statementKey) => {
-    const statusKey = `standard-${statementKey}-json`;
-    setDownloadingReport(statusKey);
-    setDownloadStatus(prev => ({ ...prev, [statusKey]: 'downloading' }));
-    try {
-      let url = '';
-      if (statementKey === 'balanceSheet') {
-        url = `${API_BASE}/reports/enhanced-balance-sheet?mode=monthly&asOf=${encodeURIComponent(getAsOfDate())}`;
-      } else if (statementKey === 'incomeStatement') {
-        url = `${API_BASE}/reports/enhanced-income-statement?mode=monthly&endDate=${encodeURIComponent(getAsOfDate())}`;
-      } else {
-        url = `${API_BASE}/reports/trial-balance-statement?asOf=${encodeURIComponent(getAsOfDate())}`;
-      }
-
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      downloadBlob(blob, `${statementKey}-${new Date().toISOString().split('T')[0]}.json`);
-      setDownloadStatus(prev => ({ ...prev, [statusKey]: 'success' }));
-      setTimeout(() => setDownloadStatus(prev => ({ ...prev, [statusKey]: null })), 3000);
-    } catch (error) {
-      console.error('Standard financial download failed:', error);
-      setDownloadStatus(prev => ({ ...prev, [statusKey]: 'error' }));
-      setTimeout(() => setDownloadStatus(prev => ({ ...prev, [statusKey]: null })), 3000);
-    } finally {
-      setDownloadingReport(null);
-    }
-  };
-
-  const handleReferenceSearch = async (event) => {
-    event.preventDefault();
-    const query = referenceQuery.trim();
-    if (!query) {
-      setReferenceError('Enter a reference to search.');
-      setReferenceResults(null);
-      return;
-    }
-
-    setReferenceLoading(true);
-    setReferenceError(null);
-    setReferenceResults(null);
-
-    try {
-      const response = await fetch(`${API_BASE}/reports/reference-search?reference=${encodeURIComponent(query)}`);
-      if (!response.ok) throw new Error(`Failed to fetch reference: ${response.status}`);
-      const data = await response.json();
-      setReferenceResults(data);
-    } catch (error) {
-      setReferenceError('Reference lookup failed. Please try again.');
-    } finally {
-      setReferenceLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    setReportDataMap({});
-    if (expandedReport) {
-      fetchReportData(expandedReport);
-    }
-     
-  }, [filters.period, filters.startDate, filters.endDate]);
-
-  useEffect(() => {
-    if (expandedReport === 'contributions') {
-      fetchReportData('contributions');
-    }
-  }, [reportAdvancedFilterMap]);
-
-  const getContributionTypeOptions = (rows) => {
-    const uniqueTypes = Array.from(
-      new Set(
-        sanitizeRows(rows)
-          .map((row) => String(row.contributionType || '').trim())
-          .filter(Boolean),
-      ),
-    );
-
-    return uniqueTypes.sort((a, b) => a.localeCompare(b));
-  };
-
-  const renderContributionSummaryTable = (reportData) => {
-    const rows = sanitizeRows(reportData?.rows);
-    return (
-      <div className="report-table-container">
-        <table className="report-table min-w-[1280px]">
-          <thead>
-            <tr>
-              <th>Member</th>
-              <th>Contribution Type</th>
-              <th>Accounting Group</th>
-              <th>Source</th>
-              <th className="text-right">Paid Amount</th>
-              <th className="text-right">Arrears (Regular)</th>
-              <th className="text-right">Invoices</th>
-              <th className="text-right">Unpaid Invoices</th>
-              <th>Dividend Eligible</th>
-              <th>Loan Qualifying</th>
-              <th>Payout Mode</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length > 0 ? (
-              rows.slice(0, 200).map((row, index) => (
-                <tr key={`${row.memberId || 'na'}-${row.contributionType || 'na'}-${index}`}>
-                  <td>{row.memberName || '-'}</td>
-                  <td>{row.contributionType || '-'}</td>
-                  <td>{formatColumnName(row.accountingGroup || '-')}</td>
-                  <td>{String(row.source || '-').toLowerCase()}</td>
-                  <td className="text-right">{formatCellValue('paidAmount', row.paidAmount, row)}</td>
-                  <td className="text-right">{row.regularContribution ? formatCellValue('arrears', row.arrears, row) : '-'}</td>
-                  <td className="text-right">{Number(row.invoiceCount || 0).toLocaleString()}</td>
-                  <td className="text-right">{Number(row.unpaidInvoiceCount || 0).toLocaleString()}</td>
-                  <td>{formatCellValue('eligibleForDividend', row.eligibleForDividend, row)}</td>
-                  <td>{formatCellValue('countsForLoanQualification', row.countsForLoanQualification, row)}</td>
-                  <td>{row.payoutMode || '-'}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="11" className="text-center py-12">
-                  <FileText size={48} className="mx-auto text-gray-400 mb-3" />
-                  <p className="text-gray-500 font-medium">No contribution summary rows match this filter</p>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        {rows.length > 200 && (
-          <p className="text-sm text-gray-500 text-center py-3 bg-gray-50 border-t">
-            Showing first 200 of {rows.length} records
-          </p>
-        )}
-      </div>
-    );
-  };
-
-  const renderContributionMatrixTable = (reportData) => {
-    const rows = sanitizeRows(reportData?.rows);
-    const months = Array.isArray(reportData?.meta?.months) ? reportData.meta.months : [];
-
-    return (
-      <div className="report-table-container">
-        <table className="report-table min-w-[1400px]">
-          <thead>
-            <tr>
-              <th>Member</th>
-              {months.map((month) => (
-                <th key={month.key} className="text-right">{month.label}</th>
-              ))}
-              <th className="text-right">Total Contributions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length > 0 ? (
-              rows.map((row, index) => {
-                const isTotal = String(row?.rowType || '').toLowerCase() === 'total';
-                return (
-                  <tr key={`${row.memberId || 'na'}-${row.memberName || 'na'}-${index}`} className={isTotal ? 'bg-gray-100 font-semibold' : ''}>
-                    <td>{row.memberName || '-'}</td>
-                    {months.map((month) => (
-                      <td key={`${index}-${month.key}`} className="text-right">
-                        {formatCellValue(month.label, row[month.label] || 0, row)}
-                      </td>
-                    ))}
-                    <td className="text-right">{formatCellValue('totalContributions', row.totalContributions || 0, row)}</td>
-                  </tr>
-                );
-              })
-            ) : (
-              <tr>
-                <td colSpan={months.length + 2} className="text-center py-12">
-                  <FileText size={48} className="mx-auto text-gray-400 mb-3" />
-                  <p className="text-gray-500 font-medium">No contribution matrix rows match this filter</p>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    );
   };
 
   if (loading) {
@@ -902,133 +245,8 @@ const APIReportsPage = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8">
-        <div className="report-landing-panel report-landing-tight mb-8">
-          <div className="report-landing-head">
-            <h3 className="report-landing-title">Standard Financial Statements</h3>
-            <p className="report-landing-subtitle">Use these for complete, premium financial reporting and accurate statement structure.</p>
-          </div>
-          <div className="report-landing-grid">
-            {[
-              { key: 'balanceSheet', name: 'Enhanced Balance Sheet', route: '/reports/enhanced-balance-sheet', subtitle: 'Statement of Financial Position' },
-              { key: 'incomeStatement', name: 'Enhanced Income Statement', route: '/reports/enhanced-income-statement', subtitle: 'Profit & Loss Account' },
-              { key: 'trialBalance', name: 'Trial Balance Statement', route: '/reports/trial-balance', subtitle: 'Classified Debits & Credits' },
-            ].map((statement) => {
-              const statusKey = `standard-${statement.key}-json`;
-              const status = downloadStatus[statusKey];
-              const isLoading = downloadingReport === statusKey;
-              return (
-                <div key={statement.key} className="statement-quick-card">
-                  <h4 className="statement-quick-title">{statement.name}</h4>
-                  <p className="statement-quick-subtitle">{statement.subtitle}</p>
-                  <div className="statement-quick-actions">
-                    <Link to={statement.route} className="statement-open-btn">
-                      Open Statement
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => handleStandardFinancialDownload(statement.key)}
-                      disabled={isLoading}
-                      className={`statement-export-btn ${status === 'success' ? 'success' : ''} ${status === 'error' ? 'error' : ''}`}
-                    >
-                      {isLoading ? 'Exporting...' : status === 'success' ? 'Exported' : status === 'error' ? 'Retry JSON' : 'Export JSON'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="report-landing-panel report-landing-panel-soft reference-landing-panel mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="reference-panel-title">Reference Lookup</h3>
-              <p className="reference-panel-subtitle">Find deposits and withdrawals by reference.</p>
-            </div>
-          </div>
-
-          <form onSubmit={handleReferenceSearch} className="reference-search-form">
-            <input
-              type="text"
-              value={referenceQuery}
-              onChange={(event) => setReferenceQuery(event.target.value)}
-              placeholder="Enter reference (e.g., DEP-... or EXP-...)"
-              className="reference-search-input"
-            />
-            <button
-              type="submit"
-              className="reference-search-button"
-              disabled={referenceLoading}
-            >
-              {referenceLoading ? 'Searching...' : 'Search'}
-            </button>
-          </form>
-
-          {referenceError && (
-            <div className="mt-3 text-sm text-red-600">{referenceError}</div>
-          )}
-
-          {referenceResults && (
-            <div className="mt-4">
-              <div className="text-sm text-gray-700 mb-2">
-                Found {referenceResults.count} record{referenceResults.count === 1 ? '' : 's'} for
-                <span className="font-semibold"> {referenceResults.reference}</span>
-              </div>
-              {referenceResults.count === 0 ? (
-                <div className="text-sm text-gray-500">No matching deposits or withdrawals.</div>
-              ) : (
-                <div className="report-table-container mt-2">
-                  <table className="report-table min-w-[900px]">
-                    <thead>
-                      <tr>
-                        <th>Type</th>
-                        <th>Date</th>
-                        <th>Member</th>
-                        <th className="text-right">Amount</th>
-                        <th>Status</th>
-                        <th>Description</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        ...(referenceResults.deposits || []).map((deposit) => ({
-                          id: `deposit-${deposit.id}`,
-                          type: 'Deposit',
-                          date: deposit.date,
-                          member: deposit.memberName || deposit.member?.name || '-',
-                          amount: deposit.amount,
-                          status: deposit.isVoided ? 'Voided' : 'Active',
-                          description: deposit.description || deposit.narration || deposit.category || '-',
-                        })),
-                        ...(referenceResults.withdrawals || []).map((withdrawal) => ({
-                          id: `withdrawal-${withdrawal.id}`,
-                          type: 'Withdrawal',
-                          date: withdrawal.date,
-                          member: withdrawal.memberName || withdrawal.member?.name || withdrawal.category || '-',
-                          amount: withdrawal.amount,
-                          status: withdrawal.isVoided ? 'Voided' : 'Active',
-                          description: withdrawal.description || withdrawal.narration || withdrawal.category || '-',
-                        })),
-                      ].map((row) => (
-                        <tr key={row.id}>
-                          <td>{row.type}</td>
-                          <td>{formatCellValue('date', row.date)}</td>
-                          <td>{row.member}</td>
-                          <td className="text-right">{formatCellValue('amount', row.amount)}</td>
-                          <td>{row.status}</td>
-                          <td>{row.description}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
         {/* Filter Panel */}
-        <div className="report-landing-panel report-landing-panel-soft mb-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-8">
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="w-full sm:hidden flex items-center justify-between py-2 font-semibold text-gray-900 mb-4"
@@ -1111,40 +329,8 @@ const APIReportsPage = () => {
         </div>
 
         {/* Reports Grid */}
-        <div id="reports-grid" className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 gap-5">
           {reports.map((report) => {
-            if (!report || !report.key) return null;
-
-            const reportData = reportDataMap[report.key];
-            const reportLoading = !!reportLoadingMap[report.key];
-            const reportError = reportErrorMap[report.key];
-            const reportFilter = reportFilterMap[report.key] || '';
-            const reportSectionFilter = reportSectionFilterMap[report.key] || 'all';
-            const hasKeywordFilter = reportFilter.trim().length > 0;
-            const targetRoute = REPORT_ROUTE_MAP[report.key];
-            const safeRows = sanitizeRows(reportData?.rows);
-            const sectionOptions = isFinancialPreviewKey(report.key)
-              ? getFinancialSectionOptions(report.key, safeRows)
-              : [];
-            const filteredRows = safeRows
-              .filter((row) =>
-                  safeSerializeForSearch(row || {}).toLowerCase().includes(reportFilter.toLowerCase()),
-                )
-              .filter((row) => {
-                if (!isFinancialPreviewKey(report.key) || reportSectionFilter === 'all') return true;
-
-                let sectionValue = '';
-                if (report.key === 'trialBalance') {
-                  sectionValue = row.accountType || row.class || row.type || '';
-                } else if (report.key === 'balanceSheet') {
-                  sectionValue = row.category || row.section || '';
-                } else {
-                  sectionValue = row.section || row.category || row.type || '';
-                }
-
-                return String(sectionValue || '').trim() === reportSectionFilter;
-              });
-            const filteredReportData = reportData ? { ...reportData, rows: filteredRows } : null;
             return (
               <div
                 key={report.key}
@@ -1157,18 +343,9 @@ const APIReportsPage = () => {
                 >
                   <div className="flex items-start justify-between gap-4 w-full">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-3">
                         <FileText className="text-blue-600" size={24} />
-                        <h3 className="text-lg font-bold text-gray-900">{report.name}</h3>
-                        {targetRoute && (
-                          <Link
-                            to={targetRoute}
-                            onClick={(event) => event.stopPropagation()}
-                            className="text-xs font-semibold text-blue-700 hover:text-blue-800 underline"
-                          >
-                            Open premium page
-                          </Link>
-                        )}
+                        <h3 className="text-xl font-bold text-gray-900">{report.name}</h3>
                       </div>
                       <p className="text-sm text-gray-500 mt-2 ml-9">
                         Click to view detailed report data
@@ -1186,141 +363,8 @@ const APIReportsPage = () => {
                     {/* Premium printable header for the expanded report */}
                     <ReportHeader title={report.name} subtitle={`Period: ${getPeriodLabel()}`} />
                     <div className="report-actions">
-                      <button
-                        type="button"
-                        onClick={handleBackToReportList}
-                        className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
-                      >
-                        Back to Reports List
-                      </button>
                       <button className="btn btn-primary" onClick={() => window.print()}>Print PDF</button>
-                      <span className="text-xs font-medium text-gray-500">Swipe table left/right on mobile</span>
                     </div>
-
-                    <div className="report-context-sticky" role="status" aria-live="polite">
-                      <span className="report-context-pill">Period: {getPeriodLabel()}</span>
-                      <span className="report-context-pill">Format: {filters.format.toUpperCase()}</span>
-                      {isFinancialPreviewKey(report.key) && (
-                        <span className="report-context-pill">
-                          Section/Class: {reportSectionFilter === 'all' ? 'All' : formatColumnName(reportSectionFilter)}
-                        </span>
-                      )}
-                      {hasKeywordFilter && (
-                        <span className="report-context-pill report-context-pill-active">Filter: {reportFilter}</span>
-                      )}
-                    </div>
-
-                    {!reportLoading && reportData && (
-                      <div className="mb-4 space-y-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">
-                            {isFinancialPreviewKey(report.key) ? 'Filter Financial Lines' : 'Filter Report Preview'}
-                          </label>
-                          <input
-                            type="text"
-                            value={reportFilter}
-                            onChange={(e) => setReportFilterMap(prev => ({ ...prev, [report.key]: e.target.value }))}
-                            placeholder="Filter by keyword, category, section, metric..."
-                            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-
-                        {isFinancialPreviewKey(report.key) && sectionOptions.length > 0 && (
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Section / Class</label>
-                            <select
-                              value={reportSectionFilter}
-                              onChange={(e) => setReportSectionFilterMap(prev => ({ ...prev, [report.key]: e.target.value }))}
-                              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                              <option value="all">All sections/classes</option>
-                              {sectionOptions.map((option) => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-
-                        {report.key === 'contributions' && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1">Contribution Type</label>
-                              <select
-                                value={reportAdvancedFilterMap.contributions?.contributionType || ''}
-                                onChange={(e) => setReportAdvancedFilterMap(prev => ({
-                                  ...prev,
-                                  contributions: {
-                                    ...(prev.contributions || {}),
-                                    contributionType: e.target.value,
-                                  },
-                                }))}
-                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              >
-                                <option value="">All types</option>
-                                {getContributionTypeOptions(filteredReportData?.rows || reportData?.rows || []).map((typeOption) => (
-                                  <option key={typeOption} value={typeOption}>{typeOption}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1">Dividend Eligibility</label>
-                              <select
-                                value={reportAdvancedFilterMap.contributions?.eligibleForDividend || 'all'}
-                                onChange={(e) => setReportAdvancedFilterMap(prev => ({
-                                  ...prev,
-                                  contributions: {
-                                    ...(prev.contributions || {}),
-                                    eligibleForDividend: e.target.value,
-                                  },
-                                }))}
-                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              >
-                                <option value="all">All</option>
-                                <option value="true">Eligible</option>
-                                <option value="false">Not Eligible</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1">Loan Qualification</label>
-                              <select
-                                value={reportAdvancedFilterMap.contributions?.countsForLoanQualification || 'all'}
-                                onChange={(e) => setReportAdvancedFilterMap(prev => ({
-                                  ...prev,
-                                  contributions: {
-                                    ...(prev.contributions || {}),
-                                    countsForLoanQualification: e.target.value,
-                                  },
-                                }))}
-                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              >
-                                <option value="all">All</option>
-                                <option value="true">Qualifying</option>
-                                <option value="false">Non-Qualifying</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1">Source</label>
-                              <select
-                                value={reportAdvancedFilterMap.contributions?.source || 'all'}
-                                onChange={(e) => setReportAdvancedFilterMap(prev => ({
-                                  ...prev,
-                                  contributions: {
-                                    ...(prev.contributions || {}),
-                                    source: e.target.value,
-                                  },
-                                }))}
-                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              >
-                                <option value="all">All</option>
-                                <option value="contribution">Contribution</option>
-                                <option value="income">Income</option>
-                                <option value="fine">Fine</option>
-                              </select>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
                     {/* Report Loading State */}
                     {reportLoading && (
                       <div className="flex items-center justify-center py-12">
@@ -1329,35 +373,15 @@ const APIReportsPage = () => {
                       </div>
                     )}
 
-                    {!reportLoading && reportError && (
-                      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-                        <p className="font-semibold">{reportError}</p>
-                        <button
-                          type="button"
-                          onClick={() => fetchReportData(report.key)}
-                          className="mt-3 inline-flex items-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
-                        >
-                          Retry Preview
-                        </button>
-                      </div>
-                    )}
-
                     {/* Report Data Table */}
-                    {!reportLoading && filteredReportData && (
+                    {!reportLoading && reportData && (
                       <div className="space-y-6">
-                        {isFinancialPreviewKey(report.key) ? (
-                          <FinancialPreview reportKey={report.key} reportData={filteredReportData} />
-                        ) : report.key === 'contributions' ? (
-                          renderContributionSummaryTable(filteredReportData)
-                        ) : report.key === 'contributionMatrix' ? (
-                          renderContributionMatrixTable(filteredReportData)
-                        ) : (
-                          <div className="report-table-container">
-                            <table className="report-table min-w-[980px]">
+                        <div className="report-table-container">
+                            <table className="report-table">
                               <thead>
                                 <tr>
-                                  {filteredReportData.rows && filteredReportData.rows.length > 0 ? (
-                                    Object.keys(filteredReportData.rows[0])
+                                  {reportData.rows && reportData.rows.length > 0 ? (
+                                    Object.keys(reportData.rows[0])
                                       .filter(key => !shouldHideColumn(key))
                                       .map((key) => (
                                         <th key={key}>
@@ -1370,8 +394,8 @@ const APIReportsPage = () => {
                                 </tr>
                               </thead>
                               <tbody>
-                                {filteredReportData.rows && filteredReportData.rows.length > 0 ? (
-                                  filteredReportData.rows.slice(0, 100).map((row, rowIndex) => (
+                                {reportData.rows && reportData.rows.length > 0 ? (
+                                  reportData.rows.slice(0, 100).map((row, rowIndex) => (
                                     <tr key={rowIndex}>
                                       {Object.entries(row)
                                         .filter(([key]) => !shouldHideColumn(key))
@@ -1386,30 +410,33 @@ const APIReportsPage = () => {
                                   <tr>
                                     <td colSpan="100" className="text-center py-12">
                                       <FileText size={48} className="mx-auto text-gray-400 mb-3" />
-                                      <p className="text-gray-500 font-medium">No summary rows match this filter</p>
+                                      <p className="text-gray-500 font-medium">No data available for this period</p>
                                     </td>
                                   </tr>
                                 )}
                               </tbody>
                             </table>
-                            {filteredReportData.rows && filteredReportData.rows.length > 100 && (
-                              <p className="text-sm text-gray-500 text-center py-3 bg-gray-50 border-t">
-                                Showing first 100 of {filteredReportData.rows.length} records
-                              </p>
-                            )}
-                          </div>
-                        )}
+                          {reportData.rows && reportData.rows.length > 100 && (
+                            <p className="text-sm text-gray-500 text-center py-3 bg-gray-50 border-t">
+                              Showing first 100 of {reportData.rows.length} records
+                            </p>
+                          )}
+                        </div>
 
                         {/* Report Summary - Dashboard Style */}
-                        {filteredReportData.meta && (
+                        {reportData.meta && (
                           <div className="summary-metrics-grid">
-                            {Object.entries(filteredReportData.meta).map(([key, value]) => (
+                            {Object.entries(reportData.meta).map(([key, value]) => (
                               <div key={key} className="summary-metric-card">
                                 <p className="summary-metric-label">
                                   {formatColumnName(key)}
                                 </p>
                                 <p className="summary-metric-value">
-                                  {formatMetaMetricValue(key, value)}
+                                  {typeof value === 'number' 
+                                    ? (key.toLowerCase().includes('amount') || key.toLowerCase().includes('total'))
+                                      ? `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                      : value.toLocaleString()
+                                    : value}
                                 </p>
                               </div>
                             ))}
@@ -1470,19 +497,6 @@ const APIReportsPage = () => {
                         </div>
                       </div>
                     )}
-
-                    {!reportLoading && !reportData && !reportError && (
-                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center">
-                        <p className="text-gray-600 font-medium">No preview data available for this report and period.</p>
-                        <button
-                          type="button"
-                          onClick={() => fetchReportData(report.key)}
-                          className="mt-3 inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                        >
-                          Reload Preview
-                        </button>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -1520,13 +534,13 @@ const DownloadButton = ({ format, label, icon, reportKey, isLoading, status, onD
     <button
       onClick={onDownload}
       disabled={isLoading}
-      className={`flex flex-col items-center justify-center gap-2 px-4 py-4 rounded-lg font-semibold text-sm transition-all duration-200 ${
+      className={`flex flex-col items-center justify-center gap-3 px-4 py-5 rounded-lg font-semibold text-sm transition-all duration-300 ${
         status === 'success'
-          ? 'bg-green-600 text-white border border-green-700'
+          ? 'bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg border border-green-600 hover:shadow-xl hover:from-green-600 hover:to-green-700'
           : status === 'error'
-          ? 'bg-red-600 text-white border border-red-700'
-          : 'bg-blue-600 text-white border border-blue-700 hover:bg-blue-700'
-      } disabled:opacity-60 disabled:cursor-not-allowed`}
+          ? 'bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg border border-red-600 hover:shadow-xl'
+          : 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md border border-blue-700 hover:shadow-lg hover:from-blue-700 hover:to-blue-800 active:from-blue-800 active:to-blue-900'
+      } disabled:opacity-60 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95`}
       title={`Download as ${label}`}
     >
       {isLoading ? (

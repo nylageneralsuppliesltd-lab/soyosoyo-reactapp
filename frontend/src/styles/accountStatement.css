@@ -4,7 +4,7 @@
   min-height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   padding: 0.75rem 0.5rem;
-  font-family: inherit;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .statement-header-section {
@@ -267,7 +267,8 @@
 .statement-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.75rem;
+  table-layout: fixed;
+  font-size: 0.66rem;
 }
 
 .statement-table thead {
@@ -277,22 +278,26 @@
 }
 
 .statement-table th {
-  padding: 0.4rem 0.5rem;
+  padding: 0.2rem 0.28rem;
   text-align: left;
   font-weight: 600;
   border: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.14;
 }
 
 .statement-table th.col-date {
-  width: 12%;
-}
-
-.statement-table th.col-ref {
   width: 10%;
 }
 
+.statement-table th.col-ref {
+  width: 9%;
+}
+
 .statement-table th.col-desc {
-  width: 35%;
+  width: 39%;
 }
 
 .statement-table th.col-opposite {
@@ -300,17 +305,17 @@
 }
 
 .statement-table th.col-debit {
-  width: 12%;
+  width: 11%;
   text-align: right;
 }
 
 .statement-table th.col-credit {
-  width: 12%;
+  width: 11%;
   text-align: right;
 }
 
 .statement-table th.col-balance {
-  width: 15%;
+  width: 20%;
   text-align: right;
 }
 
@@ -337,8 +342,12 @@
 }
 
 .statement-table td {
-  padding: 0.35rem 0.5rem;
+  padding: 0.18rem 0.28rem;
   color: #2d3748;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.12;
 }
 
 .statement-table td.amount {
@@ -357,23 +366,23 @@
 
 .statement-table td.col-date {
   color: #4a5568;
-  font-size: 0.85rem;
+  font-size: 0.66rem;
 }
 
 .statement-table td.col-ref {
   color: #718096;
   font-family: 'Courier New', monospace;
-  font-size: 0.85rem;
+  font-size: 0.64rem;
 }
 
 .statement-table td.col-opposite {
   color: #4a5568;
-  font-size: 0.85rem;
+  font-size: 0.64rem;
 }
 
 .statement-table td.col-narration {
   color: #4a5568;
-  font-size: 0.85rem;
+  font-size: 0.64rem;
   font-style: italic;
 }
 
