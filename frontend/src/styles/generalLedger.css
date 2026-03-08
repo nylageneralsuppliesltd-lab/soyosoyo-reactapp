@@ -305,7 +305,7 @@
 /* Ledger Table */
 .ledger-table-wrapper {
   width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
 }
@@ -314,8 +314,8 @@
   width: 100%;
   min-width: 0;
   border-collapse: collapse;
-  table-layout: fixed;
-  font-size: 0.66rem;
+  table-layout: auto;
+  font-size: 0.6rem;
   background: white;
 }
 
@@ -336,13 +336,13 @@
   line-height: 1.08;
 }
 
-.ledger-table th.col-date { width: 8%; }
-.ledger-table th.col-ref { width: 8%; }
-.ledger-table th.col-desc { width: 28%; }
-.ledger-table th.col-opposite { width: 20%; }
-.ledger-table th.col-debit { width: 11%; text-align: right; }
-.ledger-table th.col-credit { width: 11%; text-align: right; }
-.ledger-table th.col-balance { width: 14%; text-align: right; }
+.ledger-table th.col-date { width: 1%; white-space: nowrap; }
+.ledger-table th.col-ref { width: 1%; white-space: nowrap; }
+.ledger-table th.col-desc { width: auto; }
+.ledger-table th.col-opposite { width: auto; }
+.ledger-table th.col-debit { width: 1%; text-align: right; white-space: nowrap; }
+.ledger-table th.col-credit { width: 1%; text-align: right; white-space: nowrap; }
+.ledger-table th.col-balance { width: 1%; text-align: right; white-space: nowrap; }
 
 .ledger-table tbody tr {
   border-bottom: 1px solid #e0e0e0;
@@ -381,6 +381,7 @@
   text-align: right;
   font-weight: 500;
   font-family: 'Courier New', monospace;
+  white-space: nowrap;
 }
 
 .ledger-table td.col-debit.amount {
@@ -631,12 +632,12 @@
   }
 
   .ledger-table {
-    font-size: 0.68rem;
+    font-size: 0.58rem;
   }
 
   .ledger-table th,
   .ledger-table td {
-    padding: 0.3rem 0.34rem;
+    padding: 0.12rem 0.16rem;
   }
 
   .summary-grid {

@@ -680,7 +680,7 @@
   background: white;
   border-radius: 6px;
   border: 1px solid #e5e7eb;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   -webkit-overflow-scrolling: touch;
@@ -690,7 +690,7 @@
   width: 100%;
   min-width: 0;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .report-table thead tr {
@@ -709,6 +709,35 @@
   overflow-wrap: anywhere;
   word-break: break-word;
   border-bottom: 1px solid #1e40af;
+}
+
+.report-table thead th.col-tight,
+.report-table tbody td.col-tight {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.report-table thead th.col-date,
+.report-table tbody td.col-date,
+.report-table thead th.col-ref,
+.report-table tbody td.col-ref,
+.report-table thead th.col-id,
+.report-table tbody td.col-id {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.report-table thead th.col-amount,
+.report-table tbody td.col-amount {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.report-table thead th.col-wide,
+.report-table tbody td.col-wide {
+  width: auto;
+  white-space: normal;
 }
 
 .report-table tbody tr {

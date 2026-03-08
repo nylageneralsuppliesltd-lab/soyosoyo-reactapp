@@ -64,6 +64,47 @@ const shouldHideColumn = (key) => {
   return hiddenColumns.includes(key.toLowerCase());
 };
 
+const getColumnClass = (key) => {
+  const normalized = String(key || '').toLowerCase();
+
+  if (normalized.includes('date') || normalized.includes('createdat') || normalized.includes('updatedat')) {
+    return 'col-tight col-date';
+  }
+
+  if (normalized === 'id' || normalized.endsWith('id') || normalized.includes('ref') || normalized.includes('reference')) {
+    return 'col-tight col-ref col-id';
+  }
+
+  if (
+    normalized.includes('amount') ||
+    normalized.includes('balance') ||
+    normalized.includes('debit') ||
+    normalized.includes('credit') ||
+    normalized.includes('principal') ||
+    normalized.includes('interest') ||
+    normalized.includes('total') ||
+    normalized.includes('net') ||
+    normalized.includes('value')
+  ) {
+    return 'col-amount';
+  }
+
+  if (
+    normalized.includes('description') ||
+    normalized.includes('narration') ||
+    normalized.includes('account') ||
+    normalized.includes('member') ||
+    normalized.includes('name') ||
+    normalized.includes('category') ||
+    normalized.includes('type') ||
+    normalized.includes('details')
+  ) {
+    return 'col-wide';
+  }
+
+  return '';
+};
+
 const APIReportsPage = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -384,7 +425,7 @@ const APIReportsPage = () => {
                                     Object.keys(reportData.rows[0])
                                       .filter(key => !shouldHideColumn(key))
                                       .map((key) => (
-                                        <th key={key}>
+                                        <th key={key} className={getColumnClass(key)}>
                                           {formatColumnName(key)}
                                         </th>
                                       ))
@@ -400,7 +441,7 @@ const APIReportsPage = () => {
                                       {Object.entries(row)
                                         .filter(([key]) => !shouldHideColumn(key))
                                         .map(([key, cell], cellIndex) => (
-                                          <td key={cellIndex}>
+                                          <td key={cellIndex} className={getColumnClass(key)}>
                                             {formatCellValue(key, cell, row)}
                                           </td>
                                         ))}

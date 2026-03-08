@@ -261,14 +261,14 @@
 /* Transactions Table */
 .transactions-section {
   margin-bottom: 0.75rem;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
 }
 
 .statement-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
   font-size: 0.62rem;
 }
 
@@ -290,15 +290,17 @@
 }
 
 .statement-table th.col-date {
-  width: 8%;
+  width: 1%;
+  white-space: nowrap;
 }
 
 .statement-table th.col-ref {
-  width: 8%;
+  width: 1%;
+  white-space: nowrap;
 }
 
 .statement-table th.col-desc {
-  width: 45%;
+  width: auto;
 }
 
 .statement-table th.col-opposite {
@@ -306,18 +308,21 @@
 }
 
 .statement-table th.col-debit {
-  width: 10%;
+  width: 1%;
   text-align: right;
+  white-space: nowrap;
 }
 
 .statement-table th.col-credit {
-  width: 10%;
+  width: 1%;
   text-align: right;
+  white-space: nowrap;
 }
 
 .statement-table th.col-balance {
-  width: 19%;
+  width: 1%;
   text-align: right;
+  white-space: nowrap;
 }
 
 .statement-table th.col-narration {
@@ -356,6 +361,7 @@
   text-align: right;
   font-weight: 500;
   font-family: 'Courier New', monospace;
+  white-space: nowrap;
 }
 
 .statement-table td.col-debit.amount {
@@ -369,12 +375,14 @@
 .statement-table td.col-date {
   color: #4a5568;
   font-size: 0.6rem;
+  white-space: nowrap;
 }
 
 .statement-table td.col-ref {
   color: #718096;
   font-family: 'Courier New', monospace;
   font-size: 0.58rem;
+  white-space: nowrap;
 }
 
 .statement-table td.col-opposite {
@@ -588,12 +596,12 @@
   }
 
   .statement-table {
-    font-size: 0.8rem;
+    font-size: 0.58rem;
   }
 
   .statement-table th,
   .statement-table td {
-    padding: 0.5rem;
+    padding: 0.12rem 0.16rem;
   }
 
   .summary-grid {
