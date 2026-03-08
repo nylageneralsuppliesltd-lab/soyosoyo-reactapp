@@ -740,6 +740,12 @@
   white-space: normal;
 }
 
+.report-table tbody td.col-wide {
+  max-width: 34ch;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
 .report-table tbody tr {
   transition: background-color 0.1s ease;
   border-bottom: 1px solid #f3f4f6;

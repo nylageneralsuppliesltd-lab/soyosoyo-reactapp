@@ -156,6 +156,18 @@
   white-space: normal;
 }
 
+.members-table td:nth-child(3) {
+  max-width: 34ch;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.members-table td:nth-child(4) {
+  max-width: 20ch;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
 .members-table td small {
   color: #999;
   font-size: 0.85rem;

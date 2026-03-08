@@ -371,8 +371,16 @@
 .ledger-table td.col-desc,
 .ledger-table td.col-opposite {
   white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.ledger-table td.col-desc {
+  max-width: 34ch;
+}
+
+.ledger-table td.col-opposite {
+  max-width: 26ch;
 }
 
 .ledger-table td.col-ref,

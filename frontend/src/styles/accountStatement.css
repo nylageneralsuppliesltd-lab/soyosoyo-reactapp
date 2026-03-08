@@ -354,8 +354,8 @@
   padding: 0.14rem 0.2rem;
   color: #2d3748;
   white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
   line-height: 1.08;
   vertical-align: top;
 }
@@ -392,6 +392,7 @@
   color: #4a5568;
   font-size: 0.64rem;
   white-space: normal;
+  max-width: 24ch;
 }
 
 .statement-table td.col-narration {
@@ -399,6 +400,11 @@
   font-size: 0.64rem;
   font-style: italic;
   white-space: normal;
+  max-width: 28ch;
+}
+
+.statement-table td.col-desc {
+  max-width: 36ch;
 }
 
 .statement-table td.balance-cell {
