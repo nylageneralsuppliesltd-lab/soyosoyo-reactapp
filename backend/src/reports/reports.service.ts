@@ -1694,15 +1694,38 @@ export class ReportsService {
       return `${name} (${type})`;
     };
 
-    const appendDistinctNarration = (base: string, extra?: string | null) => {
+    const normalizeForCompare = (value: string) =>
+      String(value || '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/[^a-z0-9 ]/g, '')
+        .trim();
+
+    const appendDistinctNarration = (
+      base: string,
+      extra?: string | null,
+      context?: { sourceName?: string | null; destinationName?: string | null },
+    ) => {
       const narration = String(extra || '').trim();
       if (!narration) return base;
 
-      const normalizedBase = base.toLowerCase();
       const normalizedNarration = narration.toLowerCase();
+      const hasRouteArrow = normalizedNarration.includes('→') || normalizedNarration.includes('->');
+      const sourceName = String(context?.sourceName || '').trim().toLowerCase();
+      const destinationName = String(context?.destinationName || '').trim().toLowerCase();
+      const hasSource = !!sourceName && normalizedNarration.includes(sourceName);
+      const hasDestination = !!destinationName && normalizedNarration.includes(destinationName);
+
+      if ((hasRouteArrow && (hasSource || hasDestination)) || (hasSource && hasDestination)) {
+        return base;
+      }
+
+      const normalizedBase = normalizeForCompare(base);
+      const normalizedNarrationForCompare = normalizeForCompare(narration);
       if (
-        normalizedBase.includes(normalizedNarration) ||
-        normalizedNarration.includes(normalizedBase)
+        !normalizedNarrationForCompare ||
+        normalizedBase.includes(normalizedNarrationForCompare) ||
+        normalizedNarrationForCompare.includes(normalizedBase)
       ) {
         return base;
       }
@@ -1840,9 +1863,16 @@ export class ReportsService {
             fullDescription = appendDistinctNarration(
               `${deposit.member.name} - ${txType} - From ${sourceAccount}`,
               entry.description,
+              {
+                sourceName: entry.creditAccount?.name,
+                destinationName: entry.debitAccount?.name,
+              },
             );
           } else {
-            fullDescription = appendDistinctNarration(`From ${sourceAccount}`, entry.description);
+            fullDescription = appendDistinctNarration(`From ${sourceAccount}`, entry.description, {
+              sourceName: entry.creditAccount?.name,
+              destinationName: entry.debitAccount?.name,
+            });
           }
         } else {
           // Money going OUT of this account
@@ -1856,9 +1886,16 @@ export class ReportsService {
             fullDescription = appendDistinctNarration(
               `${withdrawal.member.name} - ${txType} - To ${destinationAccount}`,
               entry.description,
+              {
+                sourceName: entry.creditAccount?.name,
+                destinationName: entry.debitAccount?.name,
+              },
             );
           } else {
-            fullDescription = appendDistinctNarration(`To ${destinationAccount}`, entry.description);
+            fullDescription = appendDistinctNarration(`To ${destinationAccount}`, entry.description, {
+              sourceName: entry.creditAccount?.name,
+              destinationName: entry.debitAccount?.name,
+            });
           }
         }
 
@@ -2021,9 +2058,16 @@ export class ReportsService {
           fullDescription = appendDistinctNarration(
             `${deposit.member.name} - ${txType} - ${sourceAccount} → ${bankAccount}`,
             entry.description,
+            {
+              sourceName: entry.creditAccount?.name,
+              destinationName: entry.debitAccount?.name,
+            },
           );
         } else {
-          fullDescription = appendDistinctNarration(`${sourceAccount} → ${bankAccount}`, entry.description);
+          fullDescription = appendDistinctNarration(`${sourceAccount} → ${bankAccount}`, entry.description, {
+            sourceName: entry.creditAccount?.name,
+            destinationName: entry.debitAccount?.name,
+          });
         }
       } else if (creditIsBankAccount && !debitIsBankAccount) {
         // Money OUT of a bank account
@@ -2038,9 +2082,16 @@ export class ReportsService {
           fullDescription = appendDistinctNarration(
             `${withdrawal.member.name} - ${txType} - ${bankAccount} → ${destinationAccount}`,
             entry.description,
+            {
+              sourceName: entry.creditAccount?.name,
+              destinationName: entry.debitAccount?.name,
+            },
           );
         } else {
-          fullDescription = appendDistinctNarration(`${bankAccount} → ${destinationAccount}`, entry.description);
+          fullDescription = appendDistinctNarration(`${bankAccount} → ${destinationAccount}`, entry.description, {
+            sourceName: entry.creditAccount?.name,
+            destinationName: entry.debitAccount?.name,
+          });
         }
       } else if (debitIsBankAccount && creditIsBankAccount) {
         // Transfer between bank accounts
