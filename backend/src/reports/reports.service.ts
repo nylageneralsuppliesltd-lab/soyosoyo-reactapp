@@ -1670,6 +1670,46 @@ export class ReportsService {
     // Filter out GL tracking accounts (including any with 'Ledger' in name)
     const bankAccounts = allBankAccounts.filter(acc => !this.isGlAccount(acc.name));
 
+    const formatTransactionType = (type: string) => {
+      return type
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    };
+
+    const formatAccountLabel = (account: any) => {
+      if (!account) return 'Unknown Account';
+      const name = String(account.name || `Account ${account.id || ''}`).trim();
+      const type = String(account.type || '').toUpperCase();
+      const accountNumber = String(account.accountNumber || '').trim();
+
+      const shouldShowAccountNumber =
+        accountNumber &&
+        !name.toLowerCase().includes(accountNumber.toLowerCase());
+
+      if (shouldShowAccountNumber) {
+        return `${name} (${type} - ${accountNumber})`;
+      }
+
+      return `${name} (${type})`;
+    };
+
+    const appendDistinctNarration = (base: string, extra?: string | null) => {
+      const narration = String(extra || '').trim();
+      if (!narration) return base;
+
+      const normalizedBase = base.toLowerCase();
+      const normalizedNarration = narration.toLowerCase();
+      if (
+        normalizedBase.includes(normalizedNarration) ||
+        normalizedNarration.includes(normalizedBase)
+      ) {
+        return base;
+      }
+
+      return `${base} - ${narration}`;
+    };
+
     // If specific account requested, validate it's a bank account
     if (accountId) {
       const account = bankAccounts.find(acc => acc.id === Number(accountId));
@@ -1788,41 +1828,37 @@ export class ReportsService {
             || (withdrawalCandidates.length === 1 ? withdrawalCandidates[0] : null)
           : null;
 
-        // Helper function to format transaction type
-        const formatTransactionType = (type: string) => {
-          return type
-            .split('_')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
-        };
-
         if (entry.debitAccountId === Number(accountId)) {
           // Money coming INTO this account
           moneyIn = Number(entry.debitAmount);
           balance += moneyIn;
 
-          const bankAccount = entry.debitAccount;
-          const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - ${bankAccount.accountNumber || bankAccount.id})` : '(Bank)';
+          const sourceAccount = formatAccountLabel(entry.creditAccount);
           
           if (deposit && deposit.member) {
             const txType = deposit.type ? formatTransactionType(deposit.type) : 'Deposit';
-            fullDescription = `${deposit.member.name} - ${txType} - ${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
+            fullDescription = appendDistinctNarration(
+              `${deposit.member.name} - ${txType} - From ${sourceAccount}`,
+              entry.description,
+            );
           } else {
-            fullDescription = `${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
+            fullDescription = appendDistinctNarration(`From ${sourceAccount}`, entry.description);
           }
         } else {
           // Money going OUT of this account
           moneyOut = Number(entry.creditAmount);
           balance -= moneyOut;
 
-          const bankAccount = entry.creditAccount;
-          const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - ${bankAccount.accountNumber || bankAccount.id})` : '(Bank)';
+          const destinationAccount = formatAccountLabel(entry.debitAccount);
 
           if (withdrawal && withdrawal.member) {
             const txType = withdrawal.type ? formatTransactionType(withdrawal.type) : 'Withdrawal';
-            fullDescription = `${withdrawal.member.name} - ${txType} - ${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
+            fullDescription = appendDistinctNarration(
+              `${withdrawal.member.name} - ${txType} - To ${destinationAccount}`,
+              entry.description,
+            );
           } else {
-            fullDescription = `${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
+            fullDescription = appendDistinctNarration(`To ${destinationAccount}`, entry.description);
           }
         }
 
@@ -1948,14 +1984,6 @@ export class ReportsService {
     const rows = [];
     let runningBalance = openingBalance;
 
-    // Helper function to format transaction type
-    const formatTransactionType = (type: string) => {
-      return type
-        .split('_')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
-    };
-
     for (const entry of entries) {
       const debitIsBankAccount = bankAccountIds.includes(entry.debitAccountId);
       const creditIsBankAccount = bankAccountIds.includes(entry.creditAccountId);
@@ -1985,28 +2013,34 @@ export class ReportsService {
         moneyIn = Number(entry.debitAmount);
         runningBalance += moneyIn;
         
-        const bankAccount = entry.debitAccount;
-        const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - ${bankAccount.accountNumber || bankAccount.id})` : '(Bank)';
+        const bankAccount = formatAccountLabel(entry.debitAccount);
+        const sourceAccount = formatAccountLabel(entry.creditAccount);
         
         if (deposit && deposit.member) {
           const txType = deposit.type ? formatTransactionType(deposit.type) : 'Deposit';
-          fullDescription = `${deposit.member.name} - ${txType} - ${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
+          fullDescription = appendDistinctNarration(
+            `${deposit.member.name} - ${txType} - ${sourceAccount} → ${bankAccount}`,
+            entry.description,
+          );
         } else {
-          fullDescription = `${entry.creditAccount?.name} → ${bankAccount?.name} ${bankAccountInfo} - ${entry.description}`;
+          fullDescription = appendDistinctNarration(`${sourceAccount} → ${bankAccount}`, entry.description);
         }
       } else if (creditIsBankAccount && !debitIsBankAccount) {
         // Money OUT of a bank account
         moneyOut = Number(entry.creditAmount);
         runningBalance -= moneyOut;
 
-        const bankAccount = entry.creditAccount;
-        const bankAccountInfo = bankAccount ? `(${bankAccount.type.toUpperCase()} - ${bankAccount.accountNumber || bankAccount.id})` : '(Bank)';
+        const bankAccount = formatAccountLabel(entry.creditAccount);
+        const destinationAccount = formatAccountLabel(entry.debitAccount);
 
         if (withdrawal && withdrawal.member) {
           const txType = withdrawal.type ? formatTransactionType(withdrawal.type) : 'Withdrawal';
-          fullDescription = `${withdrawal.member.name} - ${txType} - ${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
+          fullDescription = appendDistinctNarration(
+            `${withdrawal.member.name} - ${txType} - ${bankAccount} → ${destinationAccount}`,
+            entry.description,
+          );
         } else {
-          fullDescription = `${bankAccount?.name} ${bankAccountInfo} → ${entry.debitAccount?.name} - ${entry.description}`;
+          fullDescription = appendDistinctNarration(`${bankAccount} → ${destinationAccount}`, entry.description);
         }
       } else if (debitIsBankAccount && creditIsBankAccount) {
         // Transfer between bank accounts
@@ -2015,9 +2049,9 @@ export class ReportsService {
         const netTransfer = moneyIn - moneyOut;
         runningBalance += netTransfer;
         
-        const debitAccountInfo = entry.debitAccount ? `(${entry.debitAccount.type.toUpperCase()} - ${entry.debitAccount.accountNumber || entry.debitAccount.id})` : '(Bank)';
-        const creditAccountInfo = entry.creditAccount ? `(${entry.creditAccount.type.toUpperCase()} - ${entry.creditAccount.accountNumber || entry.creditAccount.id})` : '(Bank)';
-        fullDescription = `Transfer: ${entry.creditAccount?.name} ${creditAccountInfo} → ${entry.debitAccount?.name} ${debitAccountInfo}`;
+        const debitAccountLabel = formatAccountLabel(entry.debitAccount);
+        const creditAccountLabel = formatAccountLabel(entry.creditAccount);
+        fullDescription = `Transfer: ${creditAccountLabel} → ${debitAccountLabel}`;
       }
 
       // Only add rows that have money in or money out
