@@ -218,21 +218,82 @@ function mapContributionType(description, amount) {
   return null;
 }
 
+// ============ DETERMINISTIC ACCOUNT ROUTING (No E-Wallet → Cash mixing) ============
+class DeterministicAccountResolver {
+  constructor(accountMap) {
+    this.accountMap = new Map(
+      [...accountMap].map(([k, v]) => [k.toLowerCase(), v])
+    );
+  }
+
+  resolveAccountFromDescription(description) {
+    if (!description) return null;
+    const normalized = normalizeText(description).toLowerCase();
+
+    // Rule 1: EXPLICIT CASH (only if "cash" appears and other accounts NOT mentioned)
+    if (this.matchesCashPattern(normalized)) {
+      for (const [key, id] of this.accountMap) {
+        if (key.includes('cash')) return id;
+      }
+    }
+
+    // Rule 2: CHAMASOFT/E-WALLET (explicit mention takes priority)
+    if (this.matchesChamaSoftPattern(normalized)) {
+      for (const [key, id] of this.accountMap) {
+        if (key.includes('c.e.w') || key.includes('chamasoft')) return id;
+      }
+    }
+
+    // Rule 3: COOPERATIVE (must not also match chamasoft)
+    if (this.matchesCooperativePattern(normalized)) {
+      for (const [key, id] of this.accountMap) {
+        if (key.includes('cooperative') && !key.includes('c.e.w')) return id;
+      }
+    }
+
+    // Rule 4: CYTONN/MONEY MARKET
+    if (this.matchesCytonnPattern(normalized)) {
+      for (const [key, id] of this.accountMap) {
+        if (key.includes('cytonn') || key.includes('money market')) return id;
+      }
+    }
+
+    // DEFAULT: E-Wallet (fallback for ambiguous/unrecognized)
+    for (const [key, id] of this.accountMap) {
+      if (key.includes('c.e.w') || key.includes('chamasoft')) return id;
+    }
+
+    return null;
+  }
+
+  matchesCashPattern(normalized) {
+    // Must have "cash" keyword
+    if (!normalized.includes('cash')) return false;
+    // MUST NOT have other account keywords (to avoid accidental routing)
+    if (normalized.includes('chamasoft') || normalized.includes('c.e.w') ||
+        normalized.includes('cooperative') || normalized.includes('cytonn') ||
+        normalized.includes('e-wallet')) return false;
+    // Must be explicit cash terminology
+    return /cash(?:\s+at\s+hand|office|box)?/i.test(normalized);
+  }
+
+  matchesChamaSoftPattern(normalized) {
+    return /chamasoft|c\.e\.w|e-?wallet/i.test(normalized);
+  }
+
+  matchesCooperativePattern(normalized) {
+    return /cooperat(?:ive|or)(?:\s+bank|\s+society)?/i.test(normalized) &&
+           !this.matchesChamaSoftPattern(normalized);
+  }
+
+  matchesCytonnPattern(normalized) {
+    return /cytonn|money\s+market|collection\s+account/i.test(normalized);
+  }
+}
+
 function mapBankAccountId(description, accountMap) {
-  const desc = normalizeText(description).toLowerCase();
-  if (desc.includes('chamasoft e-wallet')) {
-    return accountMap.get('SOYOSOYO MEDICARE COOPERATE SAVINGS AND CREDIT SOCIETY C.E.W');
-  }
-  if (desc.includes('co-operative bank')) {
-    return accountMap.get('SOYOSOYO MEDICARE COOPERATIVE SAVINGS CREDIT SOCIETY');
-  }
-  if (desc.includes('state bank of mauritius') || desc.includes('cytonn')) {
-    return accountMap.get('Cytonn Money Market Fund - Collection Account');
-  }
-  if (desc.includes('cash at hand')) {
-    return accountMap.get('Cash at Hand');
-  }
-  return accountMap.get('SOYOSOYO MEDICARE COOPERATE SAVINGS AND CREDIT SOCIETY C.E.W');
+  const resolver = new DeterministicAccountResolver(accountMap);
+  return resolver.resolveAccountFromDescription(description);
 }
 
 async function main() {

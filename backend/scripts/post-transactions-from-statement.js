@@ -85,29 +85,82 @@ function extractAccountsFromDescription(description) {
   };
 }
 
+// ============ DETERMINISTIC ACCOUNT ROUTING (No E-Wallet → Cash mixing) ============
+class DeterministicAccountResolver {
+  constructor(accounts) {
+    // accounts is an array of {id, name, type}
+    this.accounts = accounts;
+  }
+
+  resolveAccountFromDescription(description) {
+    if (!description) return null;
+    const normalized = normalizeText(description).toLowerCase();
+
+    // Rule 1: EXPLICIT CASH (only if "cash" appears and other accounts NOT mentioned)
+    if (this.matchesCashPattern(normalized)) {
+      const cash = this.accounts.find(a => a.name.toLowerCase().includes('cash'));
+      if (cash) return cash;
+    }
+
+    // Rule 2: CHAMASOFT/E-WALLET (explicit mention takes priority)
+    if (this.matchesChamaSoftPattern(normalized)) {
+      const ew = this.accounts.find(a => 
+        a.name.toLowerCase().includes('c.e.w') || a.name.toLowerCase().includes('chamasoft')
+      );
+      if (ew) return ew;
+    }
+
+    // Rule 3: COOPERATIVE (must not also match chamasoft)
+    if (this.matchesCooperativePattern(normalized)) {
+      const coop = this.accounts.find(a => 
+        a.name.toLowerCase().includes('cooperative') && !a.name.toLowerCase().includes('c.e.w')
+      );
+      if (coop) return coop;
+    }
+
+    // Rule 4: CYTONN/MONEY MARKET
+    if (this.matchesCytonnPattern(normalized)) {
+      const cytonn = this.accounts.find(a =>
+        a.name.toLowerCase().includes('cytonn') || a.name.toLowerCase().includes('money market')
+      );
+      if (cytonn) return cytonn;
+    }
+
+    // DEFAULT: E-Wallet (fallback for ambiguous/unrecognized)
+    const ew = this.accounts.find(a => 
+      a.name.toLowerCase().includes('c.e.w') || a.name.toLowerCase().includes('chamasoft')
+    );
+    return ew || null;
+  }
+
+  matchesCashPattern(normalized) {
+    // Must have "cash" keyword
+    if (!normalized.includes('cash')) return false;
+    // MUST NOT have other account keywords (to avoid accidental routing)
+    if (normalized.includes('chamasoft') || normalized.includes('c.e.w') ||
+        normalized.includes('cooperative') || normalized.includes('cytonn') ||
+        normalized.includes('e-wallet')) return false;
+    // Must be explicit cash terminology
+    return /cash(?:\s+at\s+hand|office|box)?/i.test(normalized);
+  }
+
+  matchesChamaSoftPattern(normalized) {
+    return /chamasoft|c\.e\.w|e-?wallet/i.test(normalized);
+  }
+
+  matchesCooperativePattern(normalized) {
+    return /cooperat(?:ive|or)(?:\s+bank|\s+society)?/i.test(normalized) &&
+           !this.matchesChamaSoftPattern(normalized);
+  }
+
+  matchesCytonnPattern(normalized) {
+    return /cytonn|money\s+market|collection\s+account/i.test(normalized);
+  }
+}
+
 function pickAccount(accounts, hint) {
-  const h = normalizeText(hint).toLowerCase();
-  if (!h) return null;
-
-  const byContains = accounts.find((a) => normalizeText(a.name).toLowerCase().includes(h));
-  if (byContains) return byContains;
-
-  if (/chamasoft|c\.e\.w|e-?wallet/.test(h)) {
-    return accounts.find((a) => /c\.e\.w|chamasoft|e-?wallet/i.test(a.name)) || null;
-  }
-  if (/co-?operative|cooperative/.test(h)) {
-    return accounts.find((a) => /co-?operative|cooperative/i.test(a.name)) || null;
-  }
-  if (/cytonn/.test(h)) {
-    return accounts.find((a) => /cytonn/i.test(a.name)) || null;
-  }
-  if (/state\s+bank\s+of\s+mauritius|money\s+market\s+fund|collection\s+account/.test(h)) {
-    return accounts.find((a) => /cytonn|money\s+market|collection\s+account/i.test(a.name)) || null;
-  }
-  if (/cash at hand|cash/.test(h)) {
-    return accounts.find((a) => /cash/i.test(a.name)) || null;
-  }
-  return null;
+  const resolver = new DeterministicAccountResolver(accounts);
+  return resolver.resolveAccountFromDescription(hint) || accounts[0] || null;
 }
 
 function frequencyDays(freq) {
