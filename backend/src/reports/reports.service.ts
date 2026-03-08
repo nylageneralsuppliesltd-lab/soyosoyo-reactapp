@@ -1694,85 +1694,6 @@ export class ReportsService {
       return `${name} (${type})`;
     };
 
-    const normalizeForCompare = (value: string) =>
-      String(value || '')
-        .toLowerCase()
-        .replace(/\s+/g, ' ')
-        .replace(/[^a-z0-9 ]/g, '')
-        .trim();
-
-    const appendDistinctNarration = (
-      base: string,
-      extra?: string | null,
-      context?: { sourceName?: string | null; destinationName?: string | null },
-    ) => {
-      const narration = String(extra || '').trim();
-      if (!narration) return base;
-
-      const normalizedNarration = narration.toLowerCase();
-      const hasRouteArrow = normalizedNarration.includes('→') || normalizedNarration.includes('->');
-      const sourceName = String(context?.sourceName || '').trim().toLowerCase();
-      const destinationName = String(context?.destinationName || '').trim().toLowerCase();
-      const hasSource = !!sourceName && normalizedNarration.includes(sourceName);
-      const hasDestination = !!destinationName && normalizedNarration.includes(destinationName);
-
-      if ((hasRouteArrow && (hasSource || hasDestination)) || (hasSource && hasDestination)) {
-        return base;
-      }
-
-      const normalizedBase = normalizeForCompare(base);
-      const normalizedNarrationForCompare = normalizeForCompare(narration);
-      if (
-        !normalizedNarrationForCompare ||
-        normalizedBase.includes(normalizedNarrationForCompare) ||
-        normalizedNarrationForCompare.includes(normalizedBase)
-      ) {
-        return base;
-      }
-
-      return `${base} - ${narration}`;
-    };
-
-    const mentionsAccount = (description?: string | null, account?: any) => {
-      const text = String(description || '').toLowerCase();
-      if (!text || !account) return false;
-
-      const accountName = String(account.name || '').toLowerCase().trim();
-      const accountNumber = String(account.accountNumber || '').toLowerCase().trim();
-
-      const compactName = accountName.replace(/[^a-z0-9]/g, '');
-      const compactText = text.replace(/[^a-z0-9]/g, '');
-
-      return (
-        (accountName && text.includes(accountName)) ||
-        (accountNumber && text.includes(accountNumber)) ||
-        (compactName && compactName.length > 12 && compactText.includes(compactName))
-      );
-    };
-
-    const shouldPreferJournalDescription = (
-      description?: string | null,
-      context?: { source?: any; destination?: any },
-    ) => {
-      const text = String(description || '').trim();
-      if (!text) return false;
-
-      const lower = text.toLowerCase();
-      const hasRouteWords =
-        lower.includes('→') ||
-        lower.includes('->') ||
-        lower.includes('deposited to') ||
-        lower.includes('withdrawn from') ||
-        lower.includes('payment to') ||
-        lower.includes('payment from') ||
-        lower.includes('transfer');
-
-      const mentionsSource = mentionsAccount(text, context?.source);
-      const mentionsDestination = mentionsAccount(text, context?.destination);
-
-      return hasRouteWords || mentionsSource || mentionsDestination;
-    };
-
     // If specific account requested, validate it's a bank account
     if (accountId) {
       const account = bankAccounts.find(acc => acc.id === Number(accountId));
@@ -1871,6 +1792,7 @@ export class ReportsService {
         let moneyIn = null;
         let moneyOut = null;
         let fullDescription = '';
+        const journalDescription = String(entry.description || '').trim();
 
         // Try to enrich with deposit/withdrawal data (match by reference + account)
         const normalizedReference = entry.reference ? String(entry.reference).trim().toUpperCase() : null;
@@ -1897,37 +1819,14 @@ export class ReportsService {
           balance += moneyIn;
 
           const sourceAccount = formatAccountLabel(entry.creditAccount);
-          const preferJournalDescription = shouldPreferJournalDescription(entry.description, {
-            source: entry.creditAccount,
-            destination: entry.debitAccount,
-          });
-          
-          if (deposit && deposit.member) {
+
+          if (journalDescription) {
+            fullDescription = journalDescription;
+          } else if (deposit && deposit.member) {
             const txType = deposit.type ? formatTransactionType(deposit.type) : 'Deposit';
-            fullDescription = preferJournalDescription
-              ? appendDistinctNarration(
-                  `${deposit.member.name} - ${txType}`,
-                  entry.description,
-                  {
-                    sourceName: entry.creditAccount?.name,
-                    destinationName: entry.debitAccount?.name,
-                  },
-                )
-              : appendDistinctNarration(
-                  `${deposit.member.name} - ${txType} - From ${sourceAccount}`,
-                  entry.description,
-                  {
-                    sourceName: entry.creditAccount?.name,
-                    destinationName: entry.debitAccount?.name,
-                  },
-                );
+            fullDescription = `${deposit.member.name} - ${txType} - From ${sourceAccount}`;
           } else {
-            fullDescription = preferJournalDescription
-              ? String(entry.description || '').trim() || `From ${sourceAccount}`
-              : appendDistinctNarration(`From ${sourceAccount}`, entry.description, {
-                  sourceName: entry.creditAccount?.name,
-                  destinationName: entry.debitAccount?.name,
-                });
+            fullDescription = `From ${sourceAccount}`;
           }
         } else {
           // Money going OUT of this account
@@ -1935,37 +1834,14 @@ export class ReportsService {
           balance -= moneyOut;
 
           const destinationAccount = formatAccountLabel(entry.debitAccount);
-          const preferJournalDescription = shouldPreferJournalDescription(entry.description, {
-            source: entry.creditAccount,
-            destination: entry.debitAccount,
-          });
 
-          if (withdrawal && withdrawal.member) {
+          if (journalDescription) {
+            fullDescription = journalDescription;
+          } else if (withdrawal && withdrawal.member) {
             const txType = withdrawal.type ? formatTransactionType(withdrawal.type) : 'Withdrawal';
-            fullDescription = preferJournalDescription
-              ? appendDistinctNarration(
-                  `${withdrawal.member.name} - ${txType}`,
-                  entry.description,
-                  {
-                    sourceName: entry.creditAccount?.name,
-                    destinationName: entry.debitAccount?.name,
-                  },
-                )
-              : appendDistinctNarration(
-                  `${withdrawal.member.name} - ${txType} - To ${destinationAccount}`,
-                  entry.description,
-                  {
-                    sourceName: entry.creditAccount?.name,
-                    destinationName: entry.debitAccount?.name,
-                  },
-                );
+            fullDescription = `${withdrawal.member.name} - ${txType} - To ${destinationAccount}`;
           } else {
-            fullDescription = preferJournalDescription
-              ? String(entry.description || '').trim() || `To ${destinationAccount}`
-              : appendDistinctNarration(`To ${destinationAccount}`, entry.description, {
-                  sourceName: entry.creditAccount?.name,
-                  destinationName: entry.debitAccount?.name,
-                });
+            fullDescription = `To ${destinationAccount}`;
           }
         }
 
@@ -2097,6 +1973,7 @@ export class ReportsService {
       let moneyIn = null;
       let moneyOut = null;
       let fullDescription = '';
+      const journalDescription = String(entry.description || '').trim();
 
       // Try to enrich with deposit/withdrawal data (match by reference + account)
       const normalizedReference = entry.reference ? String(entry.reference).trim().toUpperCase() : null;
@@ -2122,37 +1999,14 @@ export class ReportsService {
         
         const bankAccount = formatAccountLabel(entry.debitAccount);
         const sourceAccount = formatAccountLabel(entry.creditAccount);
-        const preferJournalDescription = shouldPreferJournalDescription(entry.description, {
-          source: entry.creditAccount,
-          destination: entry.debitAccount,
-        });
-        
-        if (deposit && deposit.member) {
+
+        if (journalDescription) {
+          fullDescription = journalDescription;
+        } else if (deposit && deposit.member) {
           const txType = deposit.type ? formatTransactionType(deposit.type) : 'Deposit';
-          fullDescription = preferJournalDescription
-            ? appendDistinctNarration(
-                `${deposit.member.name} - ${txType}`,
-                entry.description,
-                {
-                  sourceName: entry.creditAccount?.name,
-                  destinationName: entry.debitAccount?.name,
-                },
-              )
-            : appendDistinctNarration(
-                `${deposit.member.name} - ${txType} - ${sourceAccount} → ${bankAccount}`,
-                entry.description,
-                {
-                  sourceName: entry.creditAccount?.name,
-                  destinationName: entry.debitAccount?.name,
-                },
-              );
+          fullDescription = `${deposit.member.name} - ${txType} - ${sourceAccount} → ${bankAccount}`;
         } else {
-          fullDescription = preferJournalDescription
-            ? String(entry.description || '').trim() || `${sourceAccount} → ${bankAccount}`
-            : appendDistinctNarration(`${sourceAccount} → ${bankAccount}`, entry.description, {
-                sourceName: entry.creditAccount?.name,
-                destinationName: entry.debitAccount?.name,
-              });
+          fullDescription = `${sourceAccount} → ${bankAccount}`;
         }
       } else if (creditIsBankAccount && !debitIsBankAccount) {
         // Money OUT of a bank account
@@ -2161,37 +2015,14 @@ export class ReportsService {
 
         const bankAccount = formatAccountLabel(entry.creditAccount);
         const destinationAccount = formatAccountLabel(entry.debitAccount);
-        const preferJournalDescription = shouldPreferJournalDescription(entry.description, {
-          source: entry.creditAccount,
-          destination: entry.debitAccount,
-        });
 
-        if (withdrawal && withdrawal.member) {
+        if (journalDescription) {
+          fullDescription = journalDescription;
+        } else if (withdrawal && withdrawal.member) {
           const txType = withdrawal.type ? formatTransactionType(withdrawal.type) : 'Withdrawal';
-          fullDescription = preferJournalDescription
-            ? appendDistinctNarration(
-                `${withdrawal.member.name} - ${txType}`,
-                entry.description,
-                {
-                  sourceName: entry.creditAccount?.name,
-                  destinationName: entry.debitAccount?.name,
-                },
-              )
-            : appendDistinctNarration(
-                `${withdrawal.member.name} - ${txType} - ${bankAccount} → ${destinationAccount}`,
-                entry.description,
-                {
-                  sourceName: entry.creditAccount?.name,
-                  destinationName: entry.debitAccount?.name,
-                },
-              );
+          fullDescription = `${withdrawal.member.name} - ${txType} - ${bankAccount} → ${destinationAccount}`;
         } else {
-          fullDescription = preferJournalDescription
-            ? String(entry.description || '').trim() || `${bankAccount} → ${destinationAccount}`
-            : appendDistinctNarration(`${bankAccount} → ${destinationAccount}`, entry.description, {
-                sourceName: entry.creditAccount?.name,
-                destinationName: entry.debitAccount?.name,
-              });
+          fullDescription = `${bankAccount} → ${destinationAccount}`;
         }
       } else if (debitIsBankAccount && creditIsBankAccount) {
         // Transfer between bank accounts
@@ -2202,7 +2033,7 @@ export class ReportsService {
         
         const debitAccountLabel = formatAccountLabel(entry.debitAccount);
         const creditAccountLabel = formatAccountLabel(entry.creditAccount);
-        fullDescription = `Transfer: ${creditAccountLabel} → ${debitAccountLabel}`;
+        fullDescription = journalDescription || `Transfer: ${creditAccountLabel} → ${debitAccountLabel}`;
       }
 
       // Only add rows that have money in or money out
