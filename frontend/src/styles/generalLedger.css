@@ -312,9 +312,10 @@
 
 .ledger-table {
   width: 100%;
-  min-width: 980px;
+  min-width: 0;
   border-collapse: collapse;
-  font-size: 0.74rem;
+  table-layout: fixed;
+  font-size: 0.66rem;
   background: white;
 }
 
@@ -324,20 +325,24 @@
 }
 
 .ledger-table th {
-  padding: 0.42rem 0.45rem;
+  padding: 0.16rem 0.22rem;
   text-align: left;
   font-weight: 600;
   color: #2d3748;
   border-bottom: 2px solid #cbd5e0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.08;
 }
 
-.ledger-table th.col-date { width: 11%; }
-.ledger-table th.col-ref { width: 9%; }
-.ledger-table th.col-desc { width: 18%; }
-.ledger-table th.col-opposite { width: 16%; }
+.ledger-table th.col-date { width: 8%; }
+.ledger-table th.col-ref { width: 8%; }
+.ledger-table th.col-desc { width: 28%; }
+.ledger-table th.col-opposite { width: 20%; }
 .ledger-table th.col-debit { width: 11%; text-align: right; }
 .ledger-table th.col-credit { width: 11%; text-align: right; }
-.ledger-table th.col-balance { width: 13%; text-align: right; }
+.ledger-table th.col-balance { width: 14%; text-align: right; }
 
 .ledger-table tbody tr {
   border-bottom: 1px solid #e0e0e0;
@@ -357,13 +362,16 @@
 }
 
 .ledger-table td {
-  padding: 0.38rem 0.45rem;
+  padding: 0.14rem 0.22rem;
   color: #2d3748;
+  line-height: 1.08;
+  vertical-align: top;
 }
 
 .ledger-table td.col-desc,
 .ledger-table td.col-opposite,
-.ledger-table td.col-ref {
+.ledger-table td.col-ref,
+.ledger-table td.col-date {
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
