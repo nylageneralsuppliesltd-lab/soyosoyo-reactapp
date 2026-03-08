@@ -272,6 +272,42 @@
   font-size: 0.62rem;
 }
 
+.main-content table.statement-table {
+  width: 100%;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.main-content table.statement-table th,
+.main-content table.statement-table td {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  vertical-align: top;
+}
+
+.main-content table.statement-table td.col-date,
+.main-content table.statement-table td.col-ref,
+.main-content table.statement-table td.col-debit,
+.main-content table.statement-table td.col-credit,
+.main-content table.statement-table td.col-balance,
+.main-content table.statement-table td.amount,
+.main-content table.statement-table th.col-date,
+.main-content table.statement-table th.col-ref,
+.main-content table.statement-table th.col-debit,
+.main-content table.statement-table th.col-credit,
+.main-content table.statement-table th.col-balance {
+  white-space: nowrap;
+}
+
+.main-content table.statement-table td.col-desc,
+.main-content table.statement-table td.col-opposite,
+.main-content table.statement-table td.col-narration {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
 .statement-table thead {
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: white;
