@@ -1733,6 +1733,46 @@ export class ReportsService {
       return `${base} - ${narration}`;
     };
 
+    const mentionsAccount = (description?: string | null, account?: any) => {
+      const text = String(description || '').toLowerCase();
+      if (!text || !account) return false;
+
+      const accountName = String(account.name || '').toLowerCase().trim();
+      const accountNumber = String(account.accountNumber || '').toLowerCase().trim();
+
+      const compactName = accountName.replace(/[^a-z0-9]/g, '');
+      const compactText = text.replace(/[^a-z0-9]/g, '');
+
+      return (
+        (accountName && text.includes(accountName)) ||
+        (accountNumber && text.includes(accountNumber)) ||
+        (compactName && compactName.length > 12 && compactText.includes(compactName))
+      );
+    };
+
+    const shouldPreferJournalDescription = (
+      description?: string | null,
+      context?: { source?: any; destination?: any },
+    ) => {
+      const text = String(description || '').trim();
+      if (!text) return false;
+
+      const lower = text.toLowerCase();
+      const hasRouteWords =
+        lower.includes('→') ||
+        lower.includes('->') ||
+        lower.includes('deposited to') ||
+        lower.includes('withdrawn from') ||
+        lower.includes('payment to') ||
+        lower.includes('payment from') ||
+        lower.includes('transfer');
+
+      const mentionsSource = mentionsAccount(text, context?.source);
+      const mentionsDestination = mentionsAccount(text, context?.destination);
+
+      return hasRouteWords || mentionsSource || mentionsDestination;
+    };
+
     // If specific account requested, validate it's a bank account
     if (accountId) {
       const account = bankAccounts.find(acc => acc.id === Number(accountId));
@@ -1857,22 +1897,37 @@ export class ReportsService {
           balance += moneyIn;
 
           const sourceAccount = formatAccountLabel(entry.creditAccount);
+          const preferJournalDescription = shouldPreferJournalDescription(entry.description, {
+            source: entry.creditAccount,
+            destination: entry.debitAccount,
+          });
           
           if (deposit && deposit.member) {
             const txType = deposit.type ? formatTransactionType(deposit.type) : 'Deposit';
-            fullDescription = appendDistinctNarration(
-              `${deposit.member.name} - ${txType} - From ${sourceAccount}`,
-              entry.description,
-              {
-                sourceName: entry.creditAccount?.name,
-                destinationName: entry.debitAccount?.name,
-              },
-            );
+            fullDescription = preferJournalDescription
+              ? appendDistinctNarration(
+                  `${deposit.member.name} - ${txType}`,
+                  entry.description,
+                  {
+                    sourceName: entry.creditAccount?.name,
+                    destinationName: entry.debitAccount?.name,
+                  },
+                )
+              : appendDistinctNarration(
+                  `${deposit.member.name} - ${txType} - From ${sourceAccount}`,
+                  entry.description,
+                  {
+                    sourceName: entry.creditAccount?.name,
+                    destinationName: entry.debitAccount?.name,
+                  },
+                );
           } else {
-            fullDescription = appendDistinctNarration(`From ${sourceAccount}`, entry.description, {
-              sourceName: entry.creditAccount?.name,
-              destinationName: entry.debitAccount?.name,
-            });
+            fullDescription = preferJournalDescription
+              ? String(entry.description || '').trim() || `From ${sourceAccount}`
+              : appendDistinctNarration(`From ${sourceAccount}`, entry.description, {
+                  sourceName: entry.creditAccount?.name,
+                  destinationName: entry.debitAccount?.name,
+                });
           }
         } else {
           // Money going OUT of this account
@@ -1880,22 +1935,37 @@ export class ReportsService {
           balance -= moneyOut;
 
           const destinationAccount = formatAccountLabel(entry.debitAccount);
+          const preferJournalDescription = shouldPreferJournalDescription(entry.description, {
+            source: entry.creditAccount,
+            destination: entry.debitAccount,
+          });
 
           if (withdrawal && withdrawal.member) {
             const txType = withdrawal.type ? formatTransactionType(withdrawal.type) : 'Withdrawal';
-            fullDescription = appendDistinctNarration(
-              `${withdrawal.member.name} - ${txType} - To ${destinationAccount}`,
-              entry.description,
-              {
-                sourceName: entry.creditAccount?.name,
-                destinationName: entry.debitAccount?.name,
-              },
-            );
+            fullDescription = preferJournalDescription
+              ? appendDistinctNarration(
+                  `${withdrawal.member.name} - ${txType}`,
+                  entry.description,
+                  {
+                    sourceName: entry.creditAccount?.name,
+                    destinationName: entry.debitAccount?.name,
+                  },
+                )
+              : appendDistinctNarration(
+                  `${withdrawal.member.name} - ${txType} - To ${destinationAccount}`,
+                  entry.description,
+                  {
+                    sourceName: entry.creditAccount?.name,
+                    destinationName: entry.debitAccount?.name,
+                  },
+                );
           } else {
-            fullDescription = appendDistinctNarration(`To ${destinationAccount}`, entry.description, {
-              sourceName: entry.creditAccount?.name,
-              destinationName: entry.debitAccount?.name,
-            });
+            fullDescription = preferJournalDescription
+              ? String(entry.description || '').trim() || `To ${destinationAccount}`
+              : appendDistinctNarration(`To ${destinationAccount}`, entry.description, {
+                  sourceName: entry.creditAccount?.name,
+                  destinationName: entry.debitAccount?.name,
+                });
           }
         }
 
@@ -2052,22 +2122,37 @@ export class ReportsService {
         
         const bankAccount = formatAccountLabel(entry.debitAccount);
         const sourceAccount = formatAccountLabel(entry.creditAccount);
+        const preferJournalDescription = shouldPreferJournalDescription(entry.description, {
+          source: entry.creditAccount,
+          destination: entry.debitAccount,
+        });
         
         if (deposit && deposit.member) {
           const txType = deposit.type ? formatTransactionType(deposit.type) : 'Deposit';
-          fullDescription = appendDistinctNarration(
-            `${deposit.member.name} - ${txType} - ${sourceAccount} → ${bankAccount}`,
-            entry.description,
-            {
-              sourceName: entry.creditAccount?.name,
-              destinationName: entry.debitAccount?.name,
-            },
-          );
+          fullDescription = preferJournalDescription
+            ? appendDistinctNarration(
+                `${deposit.member.name} - ${txType}`,
+                entry.description,
+                {
+                  sourceName: entry.creditAccount?.name,
+                  destinationName: entry.debitAccount?.name,
+                },
+              )
+            : appendDistinctNarration(
+                `${deposit.member.name} - ${txType} - ${sourceAccount} → ${bankAccount}`,
+                entry.description,
+                {
+                  sourceName: entry.creditAccount?.name,
+                  destinationName: entry.debitAccount?.name,
+                },
+              );
         } else {
-          fullDescription = appendDistinctNarration(`${sourceAccount} → ${bankAccount}`, entry.description, {
-            sourceName: entry.creditAccount?.name,
-            destinationName: entry.debitAccount?.name,
-          });
+          fullDescription = preferJournalDescription
+            ? String(entry.description || '').trim() || `${sourceAccount} → ${bankAccount}`
+            : appendDistinctNarration(`${sourceAccount} → ${bankAccount}`, entry.description, {
+                sourceName: entry.creditAccount?.name,
+                destinationName: entry.debitAccount?.name,
+              });
         }
       } else if (creditIsBankAccount && !debitIsBankAccount) {
         // Money OUT of a bank account
@@ -2076,22 +2161,37 @@ export class ReportsService {
 
         const bankAccount = formatAccountLabel(entry.creditAccount);
         const destinationAccount = formatAccountLabel(entry.debitAccount);
+        const preferJournalDescription = shouldPreferJournalDescription(entry.description, {
+          source: entry.creditAccount,
+          destination: entry.debitAccount,
+        });
 
         if (withdrawal && withdrawal.member) {
           const txType = withdrawal.type ? formatTransactionType(withdrawal.type) : 'Withdrawal';
-          fullDescription = appendDistinctNarration(
-            `${withdrawal.member.name} - ${txType} - ${bankAccount} → ${destinationAccount}`,
-            entry.description,
-            {
-              sourceName: entry.creditAccount?.name,
-              destinationName: entry.debitAccount?.name,
-            },
-          );
+          fullDescription = preferJournalDescription
+            ? appendDistinctNarration(
+                `${withdrawal.member.name} - ${txType}`,
+                entry.description,
+                {
+                  sourceName: entry.creditAccount?.name,
+                  destinationName: entry.debitAccount?.name,
+                },
+              )
+            : appendDistinctNarration(
+                `${withdrawal.member.name} - ${txType} - ${bankAccount} → ${destinationAccount}`,
+                entry.description,
+                {
+                  sourceName: entry.creditAccount?.name,
+                  destinationName: entry.debitAccount?.name,
+                },
+              );
         } else {
-          fullDescription = appendDistinctNarration(`${bankAccount} → ${destinationAccount}`, entry.description, {
-            sourceName: entry.creditAccount?.name,
-            destinationName: entry.debitAccount?.name,
-          });
+          fullDescription = preferJournalDescription
+            ? String(entry.description || '').trim() || `${bankAccount} → ${destinationAccount}`
+            : appendDistinctNarration(`${bankAccount} → ${destinationAccount}`, entry.description, {
+                sourceName: entry.creditAccount?.name,
+                destinationName: entry.debitAccount?.name,
+              });
         }
       } else if (debitIsBankAccount && creditIsBankAccount) {
         // Transfer between bank accounts
