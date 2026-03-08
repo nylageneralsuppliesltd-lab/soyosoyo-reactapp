@@ -290,44 +290,47 @@
 }
 
 .statement-table th.col-date {
-  width: 1%;
+  width: auto;
   white-space: nowrap;
 }
 
 .statement-table th.col-ref {
-  width: 1%;
+  width: auto;
   white-space: nowrap;
 }
 
 .statement-table th.col-desc {
   width: auto;
+  white-space: normal;
 }
 
 .statement-table th.col-opposite {
-  width: 18%;
+  width: auto;
+  white-space: normal;
 }
 
 .statement-table th.col-debit {
-  width: 1%;
+  width: auto;
   text-align: right;
   white-space: nowrap;
 }
 
 .statement-table th.col-credit {
-  width: 1%;
+  width: auto;
   text-align: right;
   white-space: nowrap;
 }
 
 .statement-table th.col-balance {
-  width: 1%;
+  width: auto;
   text-align: right;
   white-space: nowrap;
 }
 
 .statement-table th.col-narration {
-  width: 25%;
+  width: auto;
   text-align: left;
+  white-space: normal;
 }
 
 .statement-table tbody tr {
@@ -388,12 +391,14 @@
 .statement-table td.col-opposite {
   color: #4a5568;
   font-size: 0.64rem;
+  white-space: normal;
 }
 
 .statement-table td.col-narration {
   color: #4a5568;
   font-size: 0.64rem;
   font-style: italic;
+  white-space: normal;
 }
 
 .statement-table td.balance-cell {

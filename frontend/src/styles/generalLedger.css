@@ -369,12 +369,17 @@
 }
 
 .ledger-table td.col-desc,
-.ledger-table td.col-opposite,
-.ledger-table td.col-ref,
-.ledger-table td.col-date {
+.ledger-table td.col-opposite {
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.ledger-table td.col-ref,
+.ledger-table td.col-date {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .ledger-table td.amount {

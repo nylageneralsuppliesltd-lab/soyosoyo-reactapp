@@ -706,14 +706,14 @@
   text-transform: uppercase;
   letter-spacing: 0.2px;
   white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
   border-bottom: 1px solid #1e40af;
 }
 
 .report-table thead th.col-tight,
 .report-table tbody td.col-tight {
-  width: 1%;
+  width: auto;
   white-space: nowrap;
 }
 
@@ -723,13 +723,13 @@
 .report-table tbody td.col-ref,
 .report-table thead th.col-id,
 .report-table tbody td.col-id {
-  width: 1%;
+  width: auto;
   white-space: nowrap;
 }
 
 .report-table thead th.col-amount,
 .report-table tbody td.col-amount {
-  width: 1%;
+  width: auto;
   text-align: right;
   white-space: nowrap;
 }
@@ -758,8 +758,8 @@
   font-size: 0.62rem;
   color: #1f2937;
   white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
   overflow: visible;
   text-overflow: clip;
   max-width: none;

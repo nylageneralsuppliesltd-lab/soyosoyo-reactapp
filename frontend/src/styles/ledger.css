@@ -136,7 +136,6 @@
 .members-table td:nth-child(6),
 .members-table th:nth-child(7),
 .members-table td:nth-child(7) {
-  width: 1%;
   white-space: nowrap;
 }
 
