@@ -150,12 +150,9 @@ label {
 .main-content .table-responsive,
 .main-content [class*='table-wrapper'],
 .main-content [class*='table-container'] {
-  overflow-x: auto;
+  overflow-x: hidden;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable;
-  scroll-behavior: smooth;
-  cursor: grab;
-  scrollbar-width: thin;
 }
 
 .main-content .table-container.table-dragging,
@@ -197,30 +194,49 @@ label {
 }
 
 .main-content table {
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: 0;
   border-collapse: collapse;
   table-layout: auto;
-  font-size: 12px;
-  line-height: 1.2;
+  font-size: 11px;
+  line-height: 1.15;
 }
 
 .main-content table th,
 .main-content table td {
-  padding: 6px 8px !important;
-  font-size: 12px !important;
-  line-height: 1.35;
+  padding: 4px 6px !important;
+  font-size: 11px !important;
+  line-height: 1.2;
+  white-space: normal;
+  vertical-align: top;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.main-content table th[class*='date'],
+.main-content table td[class*='date'],
+.main-content table th[class*='ref'],
+.main-content table td[class*='ref'],
+.main-content table th[class*='id'],
+.main-content table td[class*='id'],
+.main-content table th[class*='amount'],
+.main-content table td[class*='amount'],
+.main-content table th[class*='balance'],
+.main-content table td[class*='balance'],
+.main-content table th[class*='debit'],
+.main-content table td[class*='debit'],
+.main-content table th[class*='credit'],
+.main-content table td[class*='credit'] {
   white-space: nowrap;
-  vertical-align: middle;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .main-content table tbody tr {
   height: auto;
 }
 
-.main-content table:not(.members-table) tbody tr td:first-child {
+.main-content table:not(.members-table) tbody tr[data-row-number] td:first-child {
   position: relative;
   padding-left: 34px !important;
 }
