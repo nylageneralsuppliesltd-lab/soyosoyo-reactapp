@@ -1,0 +1,10 @@
+{
+  "runId": "2026-03-08T12-53-15-561Z",
+  "startedAt": "2026-03-08T12:53:15.561Z",
+  "mode": "full-refresh",
+  "options": {
+    "allowUnresolvedTransfers": false,
+    "skipPostChecks": false,
+    "mappingPath": "C:\\projects\\soyosoyobank\\react-ui\\backend\\scripts\\contribution-transfer-manual-mapping.json"
+  }
+}

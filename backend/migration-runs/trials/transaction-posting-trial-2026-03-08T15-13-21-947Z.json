@@ -1,0 +1,86 @@
+{
+  "generatedAt": "2026-03-08T15:13:26.840Z",
+  "files": {
+    "transactions": "SOYOSOYO  SACCO Transaction Statement (8).xlsx",
+    "depositsList": "SOYOSOYO  SACCO List of Deposits (1).xlsx",
+    "withdrawalsList": "SOYOSOYO  SACCO Withdrawal List (1).xlsx"
+  },
+  "strictMode": true,
+  "summary": {
+    "statementDeposits": 2489,
+    "statementWithdrawals": 339,
+    "depositsListRows": 2489,
+    "withdrawalsListRows": 339,
+    "depositMatches": 2489,
+    "depositUnmatchedFromList": 0,
+    "depositUnmatchedFromStatement": 0,
+    "withdrawalMatches": 339,
+    "withdrawalUnmatchedFromList": 0,
+    "withdrawalUnmatchedFromStatement": 0,
+    "settlementAccountsInScope": 4,
+    "usingVirtualAccounts": false
+  },
+  "accountChecks": {
+    "depositsAgainstGroupAccount": {
+      "compared": 2489,
+      "matches": 2489,
+      "mismatches": 0,
+      "unresolvedExpected": 0,
+      "unresolvedPredicted": 0,
+      "mismatchSamples": []
+    },
+    "withdrawalsHintedOnly": {
+      "withHint": 16,
+      "compared": 16,
+      "matches": 16,
+      "mismatches": 0,
+      "unresolvedExpected": 0,
+      "unresolvedPredicted": 0,
+      "mismatchSamples": []
+    }
+  },
+  "totalsByPredictedSettlementAccount": [
+    {
+      "accountId": 4,
+      "accountName": "Cash at Hand",
+      "depositCount": 53,
+      "depositTotal": 83349,
+      "withdrawalCount": 0,
+      "withdrawalTotal": 0,
+      "netTotal": 83349
+    },
+    {
+      "accountId": 3,
+      "accountName": "Cytonn Money Market Fund - Collection Account",
+      "depositCount": 147,
+      "depositTotal": 356289,
+      "withdrawalCount": 13,
+      "withdrawalTotal": 328500,
+      "netTotal": 27789
+    },
+    {
+      "accountId": 1,
+      "accountName": "SOYOSOYO MEDICARE COOPERATE SAVINGS AND CREDIT SOCIETY C.E.W",
+      "depositCount": 2272,
+      "depositTotal": 3032896,
+      "withdrawalCount": 323,
+      "withdrawalTotal": 3007743.5,
+      "netTotal": 25152.5
+    },
+    {
+      "accountId": 2,
+      "accountName": "SOYOSOYO MEDICARE COOPERATIVE SAVINGS CREDIT SOCIETY",
+      "depositCount": 17,
+      "depositTotal": 88379.65,
+      "withdrawalCount": 3,
+      "withdrawalTotal": 84000,
+      "netTotal": 4379.65
+    }
+  ],
+  "unmatchedSamples": {
+    "depositsFromList": [],
+    "depositsFromStatement": [],
+    "withdrawalsFromList": [],
+    "withdrawalsFromStatement": []
+  }
+}

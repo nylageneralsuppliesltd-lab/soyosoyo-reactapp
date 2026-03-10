@@ -1,0 +1,21 @@
+{
+  "generatedAt": "2026-03-08T15:14:22.575Z",
+  "counts": {
+    "members": 0,
+    "accounts": 4,
+    "contributionTypes": 4,
+    "expenseCategories": 14,
+    "incomeCategories": 1,
+    "fineCategories": 4,
+    "groupRoles": 5,
+    "invoiceTemplates": 0,
+    "assets": 1,
+    "loanTypes": 5,
+    "loans": 0,
+    "deposits": 0,
+    "withdrawals": 0,
+    "journalEntries": 0,
+    "fines": 0,
+    "repayments": 0
+  }
+}

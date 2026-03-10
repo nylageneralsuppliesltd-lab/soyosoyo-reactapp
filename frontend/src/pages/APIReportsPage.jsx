@@ -107,6 +107,7 @@ const getColumnClass = (key) => {
 
 const APIReportsPage = () => {
   const [reports, setReports] = useState([]);
+  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [downloadingReport, setDownloadingReport] = useState(null);
   const [downloadStatus, setDownloadStatus] = useState({});
@@ -115,6 +116,7 @@ const APIReportsPage = () => {
     format: 'json',
     startDate: '',
     endDate: '',
+    memberId: '',
   });
   const [showFilters, setShowFilters] = useState(false);
   const [expandedReport, setExpandedReport] = useState(null);
@@ -125,13 +127,28 @@ const APIReportsPage = () => {
   useEffect(() => {
     const fetchCatalog = async () => {
       try {
-        const response = await fetch(`${API_BASE}/reports/catalog`);
-        if (!response.ok) throw new Error('Failed to fetch catalog');
-        const data = await response.json();
-        setReports(data);
+        const [catalogResponse, membersResponse] = await Promise.all([
+          fetch(`${API_BASE}/reports/catalog`),
+          fetch(`${API_BASE}/members?take=1000&sort=asc`),
+        ]);
+
+        if (!catalogResponse.ok) throw new Error('Failed to fetch catalog');
+        const catalogData = await catalogResponse.json();
+        setReports(catalogData);
+
+        if (membersResponse.ok) {
+          const membersData = await membersResponse.json();
+          const rows = Array.isArray(membersData?.data)
+            ? membersData.data
+            : Array.isArray(membersData)
+            ? membersData
+            : [];
+          setMembers(rows);
+        }
       } catch (error) {
         console.error('Failed to fetch reports:', error);
         setReports([]);
+        setMembers([]);
       } finally {
         setLoading(false);
       }
@@ -142,6 +159,15 @@ const APIReportsPage = () => {
   const handleDownload = async (reportKey, format) => {
     const statusKey = `${reportKey}-${format}`;
     const kebabKey = convertToKebabCase(reportKey);
+
+    if (reportKey === 'memberStatement' && !filters.memberId) {
+      setDownloadStatus(prev => ({ ...prev, [statusKey]: 'error' }));
+      setTimeout(() => {
+        setDownloadStatus(prev => ({ ...prev, [statusKey]: null }));
+      }, 3000);
+      return;
+    }
+
     setDownloadingReport(statusKey);
     setDownloadStatus(prev => ({ ...prev, [statusKey]: 'downloading' }));
 
@@ -153,6 +179,7 @@ const APIReportsPage = () => {
 
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
+      if (filters.memberId) params.append('memberId', filters.memberId);
 
       const response = await fetch(`${API_BASE}/reports/${kebabKey}?${params}`);
 
@@ -231,6 +258,16 @@ const APIReportsPage = () => {
   };
 
   const fetchReportData = async (reportKey) => {
+    if (reportKey === 'memberStatement' && !filters.memberId) {
+      setReportData({
+        rows: [],
+        meta: {
+          note: 'Select a member to preview member statement data.',
+        },
+      });
+      return;
+    }
+
     setReportLoading(true);
     try {
       const kebabKey = convertToKebabCase(reportKey);
@@ -241,6 +278,7 @@ const APIReportsPage = () => {
 
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
+      if (filters.memberId) params.append('memberId', filters.memberId);
 
       const response = await fetch(`${API_BASE}/reports/${kebabKey}?${params}`);
       if (!response.ok) throw new Error(`Failed to fetch report: ${response.status}`);
@@ -357,6 +395,23 @@ const APIReportsPage = () => {
                 <option value="pdf">PDF</option>
               </select>
             </div>
+
+            {/* Member Filter (used by contribution/fines/member statement reports) */}
+            <div className={filters.period === 'custom' ? 'sm:col-span-2 md:col-span-2' : 'sm:col-span-2 md:col-span-2'}>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Member (optional)</label>
+              <select
+                value={filters.memberId}
+                onChange={(e) => setFilters({ ...filters, memberId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All members</option>
+                {members.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name} (#{member.id})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Summary */}
@@ -365,6 +420,11 @@ const APIReportsPage = () => {
               <span className="font-semibold">Period:</span> {getPeriodLabel()} 
               <span className="mx-2">•</span>
               <span className="font-semibold">Format:</span> {filters.format.toUpperCase()}
+              <span className="mx-2">•</span>
+              <span className="font-semibold">Member:</span>{' '}
+              {filters.memberId
+                ? (members.find((member) => String(member.id) === String(filters.memberId))?.name || `#${filters.memberId}`)
+                : 'All'}
             </p>
           </div>
         </div>

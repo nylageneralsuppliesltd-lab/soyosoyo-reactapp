@@ -45,6 +45,8 @@ export interface ContributionTransferDto {
 
 @Injectable()
 export class ContributionTransfersService {
+  private contributionTransferTableAvailable: boolean | null = null;
+
   constructor(private prisma: PrismaService) {}
 
   /**
@@ -57,6 +59,24 @@ export class ContributionTransfersService {
     const mm = String(date.getMonth() + 1).padStart(2, '0');
     const dd = String(date.getDate()).padStart(2, '0');
     return `CT-${yy}${mm}${dd}-${id}`;
+  }
+
+  private async hasContributionTransferTable(): Promise<boolean> {
+    if (this.contributionTransferTableAvailable !== null) {
+      return this.contributionTransferTableAvailable;
+    }
+
+    try {
+      const result = (await this.prisma.$queryRawUnsafe(
+        'SELECT to_regclass(\'public."ContributionTransfer"\') AS table_name',
+      )) as Array<{ table_name: string | null }>;
+
+      this.contributionTransferTableAvailable = Boolean(result?.[0]?.table_name);
+      return this.contributionTransferTableAvailable;
+    } catch {
+      this.contributionTransferTableAvailable = false;
+      return false;
+    }
   }
 
   /**
@@ -119,33 +139,6 @@ export class ContributionTransfersService {
       );
     }
 
-    // Create the transfer record first
-    const transfer = await (this.prisma as any)['contributionTransfer'].create({
-      data: {
-        fromMemberId: data.memberId,
-        fromMemberName: member.name,
-        fromSource: 'contribution',
-        fromContributionType: data.fromContributionType,
-        toMemberId: data.memberId,
-        toMemberName: member.name,
-        toDestination: 'loan',
-        toLoanId: data.toLoanId,
-        amount,
-        date: parsedDate,
-        description: data.description || 'Contribution transfer to loan',
-        notes: data.notes,
-        category: 'contribution_to_loan',
-      },
-    });
-
-    const reference = this.generateReference(transfer.id);
-
-    // Update transfer with reference
-    await (this.prisma as any)['contributionTransfer'].update({
-      where: { id: transfer.id },
-      data: { reference },
-    });
-
     // Get or create GL accounts
     const contributionReceivableAccount = await this.ensureGLAccount(
       'Member Contributions Receivable',
@@ -157,85 +150,135 @@ export class ContributionTransfersService {
       'Outstanding loans to members (Asset)',
     );
 
-    // Create journal entry for GL-level transfer
-    // Debit: Loans Receivable (reduce loan asset)
-    // Credit: Member Contributions Receivable (reduce contribution liability)
-    const narration = [
-      `ContributionTransferId:${transfer.id}`,
-      `From:${data.fromContributionType}`,
-      `To:Loan#${data.toLoanId}(${loan.loanType.name})`,
-      `Member:${member.name}(#${member.id})`,
-      data.description || '',
-    ]
-      .filter(Boolean)
-      .join(' | ');
+    const hasTransferTable = await this.hasContributionTransferTable();
 
-    const journalEntry = await this.prisma.journalEntry.create({
-      data: {
-        date: parsedDate,
-        reference,
-        description: `Contribution transfer to loan - ${member.name}`,
-        narration,
-        debitAccountId: loanReceivableAccount.id,
-        debitAmount: amount,
-        creditAccountId: contributionReceivableAccount.id,
-        creditAmount: amount,
-        category: 'contribution_transfer',
-      },
-    });
+    const response = await this.prisma.$transaction(async (tx) => {
+      const txAny = tx as any;
+      let transfer: any = null;
 
-    // Update loan balance (reduce by transfer amount)
-    await this.prisma.loan.update({
-      where: { id: data.toLoanId },
-      data: {
-        balance: {
-          decrement: amount,
+      if (hasTransferTable) {
+        transfer = await txAny['contributionTransfer'].create({
+          data: {
+            fromMemberId: data.memberId,
+            fromMemberName: member.name,
+            fromSource: 'contribution',
+            fromContributionType: data.fromContributionType,
+            toMemberId: data.memberId,
+            toMemberName: member.name,
+            toDestination: 'loan',
+            toLoanId: data.toLoanId,
+            amount,
+            date: parsedDate,
+            description: data.description || 'Contribution transfer to loan',
+            notes: data.notes,
+            category: 'contribution_to_loan',
+          },
+        });
+      }
+
+      const reference = this.generateReference(transfer?.id ?? `${data.memberId}-${data.toLoanId}-${Date.now()}`);
+
+      // Create journal entry for GL-level transfer
+      // Debit: Loans Receivable (reduce loan asset)
+      // Credit: Member Contributions Receivable (reduce contribution liability)
+      const narration = [
+        transfer ? `ContributionTransferId:${transfer.id}` : 'ContributionTransferId:N/A',
+        `From:${data.fromContributionType}`,
+        `To:Loan#${data.toLoanId}(${loan.loanType.name})`,
+        `Member:${member.name}(#${member.id})`,
+        data.description || '',
+      ]
+        .filter(Boolean)
+        .join(' | ');
+
+      await tx.journalEntry.create({
+        data: {
+          date: parsedDate,
+          reference,
+          description: `Contribution transfer to loan - ${member.name}`,
+          narration,
+          debitAccountId: loanReceivableAccount.id,
+          debitAmount: amount,
+          creditAccountId: contributionReceivableAccount.id,
+          creditAmount: amount,
+          category: 'contribution_transfer',
         },
-      },
-    });
+      });
 
-    const updatedMember = await this.prisma.member.update({
-      where: { id: data.memberId },
-      data: {
-        balance: { decrement: Number(amount) },
-        loanBalance: { decrement: Number(amount) },
-      },
-    });
+      // Update loan balance (reduce by transfer amount)
+      await tx.loan.update({
+        where: { id: data.toLoanId },
+        data: {
+          balance: {
+            decrement: amount,
+          },
+        },
+      });
 
-    // Update member ledger
-    await this.prisma.ledger.create({
-      data: {
-        memberId: data.memberId,
-        type: 'transfer_out',
-        amount: Number(amount),
-        description: `Transfer ${data.fromContributionType} to ${loan.loanType.name}`,
-        reference,
-        balanceAfter: Number(updatedMember.balance),
+      const updatedMember = await tx.member.update({
+        where: { id: data.memberId },
+        data: {
+          balance: { decrement: Number(amount) },
+          loanBalance: { decrement: Number(amount) },
+        },
+      });
+
+      // Update member ledger
+      await tx.ledger.create({
+        data: {
+          memberId: data.memberId,
+          type: 'transfer_out',
+          amount: Number(amount),
+          description: `Transfer ${data.fromContributionType} to ${loan.loanType.name}`,
+          reference,
+          balanceAfter: Number(updatedMember.balance),
+          date: parsedDate,
+        },
+      });
+
+      if (hasTransferTable && transfer) {
+        await txAny['contributionTransfer'].update({
+          where: { id: transfer.id },
+          data: {
+            reference,
+            debitAccount: loanReceivableAccount.name,
+            creditAccount: contributionReceivableAccount.name,
+            journalReference: reference,
+          },
+        });
+
+        return txAny['contributionTransfer'].findUnique({
+          where: { id: transfer.id },
+          include: {
+            fromMember: {
+              select: { id: true, name: true, phone: true },
+            },
+            toMember: {
+              select: { id: true, name: true, phone: true },
+            },
+          },
+        });
+      }
+
+      return {
+        id: null,
+        fromMemberId: data.memberId,
+        fromMemberName: member.name,
+        toMemberId: data.memberId,
+        toMemberName: member.name,
+        toLoanId: data.toLoanId,
+        amount,
         date: parsedDate,
-      },
-    });
-
-    // Update ContributionTransfer with GL posting details
-    await (this.prisma as any)['contributionTransfer'].update({
-      where: { id: transfer.id },
-      data: {
+        reference,
+        description: data.description || 'Contribution transfer to loan',
+        category: 'contribution_to_loan',
         debitAccount: loanReceivableAccount.name,
         creditAccount: contributionReceivableAccount.name,
         journalReference: reference,
-      },
+      };
     });
 
-    return (this.prisma as any)['contributionTransfer'].findUnique({
-      where: { id: transfer.id },
-      include: {
-        fromMember: {
-          select: { id: true, name: true, phone: true },
-        },
-        toMember: {
-          select: { id: true, name: true, phone: true },
-        },
-      },
-    });
+    return response;
   }
 
   /**
@@ -277,34 +320,6 @@ export class ContributionTransfersService {
       );
     }
 
-    // Create the transfer record
-    const transfer = await (this.prisma as any)['contributionTransfer'].create({
-      data: {
-        fromMemberId: data.fromMemberId,
-        fromMemberName: fromMember.name,
-        fromSource: data.fromSource || 'contribution',
-        fromContributionType: data.fromContributionType,
-        toMemberId: data.toMemberId,
-        toMemberName: toMember.name,
-        toDestination: data.toDestination || 'contribution',
-        toContributionType: data.toContributionType,
-        amount,
-        date: parsedDate,
-        description:
-          data.description || `Transfer from ${fromMember.name} to ${toMember.name}`,
-        notes: data.notes,
-        category: 'member_to_member',
-      },
-    });
-
-    const reference = this.generateReference(transfer.id);
-
-    // Update transfer with reference
-    await (this.prisma as any)['contributionTransfer'].update({
-      where: { id: transfer.id },
-      data: { reference },
-    });
-
     // Get or create member-specific GL accounts
     const fromMemberAccount = await this.ensureGLAccount(
       `Member ${fromMember.name} - Contributions`,
@@ -316,97 +331,147 @@ export class ContributionTransfersService {
       `GL account for ${toMember.name}'s contributions`,
     );
 
-    // Create journal entry
-    // Debit: To Member's Contribution Account (increase)
-    // Credit: From Member's Contribution Account (decrease)
-    const narration = [
-      `ContributionTransferId:${transfer.id}`,
-      `From:${fromMember.name}(#${data.fromMemberId})`,
-      `To:${toMember.name}(#${data.toMemberId})`,
-      data.fromContributionType ? `Type:${data.fromContributionType}` : '',
-      data.description || '',
-    ]
-      .filter(Boolean)
-      .join(' | ');
+    const hasTransferTable = await this.hasContributionTransferTable();
 
-    await this.prisma.journalEntry.create({
-      data: {
+    const response = await this.prisma.$transaction(async (tx) => {
+      const txAny = tx as any;
+      let transfer: any = null;
+
+      if (hasTransferTable) {
+        transfer = await txAny['contributionTransfer'].create({
+          data: {
+            fromMemberId: data.fromMemberId,
+            fromMemberName: fromMember.name,
+            fromSource: data.fromSource || 'contribution',
+            fromContributionType: data.fromContributionType,
+            toMemberId: data.toMemberId,
+            toMemberName: toMember.name,
+            toDestination: data.toDestination || 'contribution',
+            toContributionType: data.toContributionType,
+            amount,
+            date: parsedDate,
+            description:
+              data.description || `Transfer from ${fromMember.name} to ${toMember.name}`,
+            notes: data.notes,
+            category: 'member_to_member',
+          },
+        });
+      }
+
+      const reference = this.generateReference(transfer?.id ?? `${data.fromMemberId}-${data.toMemberId}-${Date.now()}`);
+
+      // Create journal entry
+      // Debit: To Member's Contribution Account (increase)
+      // Credit: From Member's Contribution Account (decrease)
+      const narration = [
+        transfer ? `ContributionTransferId:${transfer.id}` : 'ContributionTransferId:N/A',
+        `From:${fromMember.name}(#${data.fromMemberId})`,
+        `To:${toMember.name}(#${data.toMemberId})`,
+        data.fromContributionType ? `Type:${data.fromContributionType}` : '',
+        data.description || '',
+      ]
+        .filter(Boolean)
+        .join(' | ');
+
+      await tx.journalEntry.create({
+        data: {
+          date: parsedDate,
+          reference,
+          description: `Member transfer: ${fromMember.name} → ${toMember.name}`,
+          narration,
+          debitAccountId: toMemberAccount.id,
+          debitAmount: amount,
+          creditAccountId: fromMemberAccount.id,
+          creditAmount: amount,
+          category: 'contribution_transfer',
+        },
+      });
+
+      // Update member balances
+      const updatedFromMember = await tx.member.update({
+        where: { id: data.fromMemberId },
+        data: {
+          balance: {
+            decrement: Number(amount),
+          },
+        },
+      });
+
+      const updatedToMember = await tx.member.update({
+        where: { id: data.toMemberId },
+        data: {
+          balance: {
+            increment: Number(amount),
+          },
+        },
+      });
+
+      // Create ledger entries for both members
+      await tx.ledger.createMany({
+        data: [
+          {
+            memberId: data.fromMemberId,
+            type: 'transfer_out',
+            amount: Number(amount),
+            description: `Transfer to ${toMember.name}`,
+            reference,
+            balanceAfter: Number(updatedFromMember.balance),
+            date: parsedDate,
+          },
+          {
+            memberId: data.toMemberId,
+            type: 'transfer_in',
+            amount: Number(amount),
+            description: `Transfer from ${fromMember.name}`,
+            reference,
+            balanceAfter: Number(updatedToMember.balance),
+            date: parsedDate,
+          },
+        ],
+      });
+
+      if (hasTransferTable && transfer) {
+        await txAny['contributionTransfer'].update({
+          where: { id: transfer.id },
+          data: {
+            reference,
+            debitAccount: toMemberAccount.name,
+            creditAccount: fromMemberAccount.name,
+            journalReference: reference,
+          },
+        });
+
+        return txAny['contributionTransfer'].findUnique({
+          where: { id: transfer.id },
+          include: {
+            fromMember: {
+              select: { id: true, name: true, phone: true },
+            },
+            toMember: {
+              select: { id: true, name: true, phone: true },
+            },
+          },
+        });
+      }
+
+      return {
+        id: null,
+        fromMemberId: data.fromMemberId,
+        fromMemberName: fromMember.name,
+        toMemberId: data.toMemberId,
+        toMemberName: toMember.name,
+        amount,
         date: parsedDate,
         reference,
-        description: `Member transfer: ${fromMember.name} → ${toMember.name}`,
-        narration,
-        debitAccountId: toMemberAccount.id,
-        debitAmount: amount,
-        creditAccountId: fromMemberAccount.id,
-        creditAmount: amount,
-        category: 'contribution_transfer',
-      },
-    });
-
-    // Update member balances
-    const updatedFromMember = await this.prisma.member.update({
-      where: { id: data.fromMemberId },
-      data: {
-        balance: {
-          decrement: Number(amount),
-        },
-      },
-    });
-
-    const updatedToMember = await this.prisma.member.update({
-      where: { id: data.toMemberId },
-      data: {
-        balance: {
-          increment: Number(amount),
-        },
-      },
-    });
-
-    // Create ledger entries for both members
-    await this.prisma.ledger.createMany({
-      data: [
-        {
-          memberId: data.fromMemberId,
-          type: 'transfer_out',
-          amount: Number(amount),
-          description: `Transfer to ${toMember.name}`,
-          reference,
-          balanceAfter: Number(updatedFromMember.balance),
-          date: parsedDate,
-        },
-        {
-          memberId: data.toMemberId,
-          type: 'transfer_in',
-          amount: Number(amount),
-          description: `Transfer from ${fromMember.name}`,
-          reference,
-          balanceAfter: Number(updatedToMember.balance),
-          date: parsedDate,
-        },
-      ],
-    });
-
-    // Update ContributionTransfer with GL posting details
-    await (this.prisma as any)['contributionTransfer'].update({
-      where: { id: transfer.id },
-      data: {
+        description: data.description || `Transfer from ${fromMember.name} to ${toMember.name}`,
+        category: 'member_to_member',
         debitAccount: toMemberAccount.name,
         creditAccount: fromMemberAccount.name,
         journalReference: reference,
-      },
+      };
     });
 
-    return (this.prisma as any)['contributionTransfer'].findUnique({
-      where: { id: transfer.id },
-      include: {
-        fromMember: {
-          select: { id: true, name: true, phone: true },
-        },
-        toMember: {
-          select: { id: true, name: true, phone: true },
-        },
-      },
-    });
+    return response;
   }
 
   /**
@@ -461,6 +526,10 @@ export class ContributionTransfersService {
    * Find all contribution transfers
    */
   async findAll(take = 100, skip = 0, filters?: any) {
+    if (!(await this.hasContributionTransferTable())) {
+      return { data: [], total: 0 };
+    }
+
     const where: any = { isVoided: false };
     if (filters?.fromMemberId) where.fromMemberId = filters.fromMemberId;
     if (filters?.toMemberId) where.toMemberId = filters.toMemberId;
@@ -496,6 +565,10 @@ export class ContributionTransfersService {
    * Find a specific contribution transfer
    */
   async findOne(id: number) {
+    if (!(await this.hasContributionTransferTable())) {
+      throw new NotFoundException('Contribution transfer table is not available in this database');
+    }
+
     const transfer = await (this.prisma as any)['contributionTransfer'].findUnique({
       where: { id },
       include: {
@@ -519,6 +592,10 @@ export class ContributionTransfersService {
    * Void a contribution transfer
    */
   async voidTransfer(id: number, voidedBy: string, voidReason: string) {
+    if (!(await this.hasContributionTransferTable())) {
+      throw new BadRequestException('Contribution transfer table is not available in this database');
+    }
+
     const transfer = await this.findOne(id);
 
     if (transfer.isVoided) {

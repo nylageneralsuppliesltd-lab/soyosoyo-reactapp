@@ -1,18 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DollarSign, FileText, Calendar, CreditCard, Hash } from 'lucide-react';
+import { Search, DollarSign, FileText, Calendar, CreditCard, Hash, CheckCircle, XCircle, Tag } from 'lucide-react';
 import { API_BASE } from '../../utils/apiBase';
-import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import SmartSelect from '../common/SmartSelect';
-import MemberPicker from '../common/MemberPicker';
 
 const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
   const navigate = useNavigate();
-  const createEmptyRow = () => ({
+  const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberId: '',
     memberName: '',
-    memberSearch: '',
     amount: '',
     certificateNumber: '',
     numberOfShares: '',
@@ -22,12 +19,15 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
     notes: ''
   });
 
-  const [rows, setRows] = useState([createEmptyRow()]);
   const [members, setMembers] = useState([]);
   const [accounts, setAccounts] = useState([]);
+  const [filteredMembers, setFilteredMembers] = useState([]);
+  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [shareValue, setShareValue] = useState(100);
+  const [shareValue, setShareValue] = useState(100); // Default share value
+  const [depositCategories, setDepositCategories] = useState([]);
 
   const paymentMethods = [
     { value: 'cash', label: 'Cash' },
@@ -38,48 +38,69 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
     { value: 'other', label: 'Other' }
   ];
 
+  const fetchDepositCategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/settings/deposit-categories`);
+      const data = await response.json();
+      setDepositCategories(Array.isArray(data) ? data : (data.data || []));
+    } catch (err) {
+      console.error('Failed to fetch deposit categories:', err);
+      setDepositCategories([]);
+    }
+  };
+
   useEffect(() => {
     fetchMembers();
     fetchAccounts();
     fetchShareValue();
+    fetchDepositCategories();
   }, []);
 
   useEffect(() => {
     if (editingDeposit) {
-      setRows([
-        {
-          date: editingDeposit.date ? new Date(editingDeposit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          memberId: editingDeposit.memberId || '',
-          memberName: editingDeposit.memberName || '',
-          memberSearch: editingDeposit.memberName || '',
-          amount: editingDeposit.amount || '',
-          certificateNumber: editingDeposit.certificateNumber || '',
-          numberOfShares: editingDeposit.numberOfShares || '',
-          paymentMethod: editingDeposit.method || 'cash',
-          accountId: editingDeposit.accountId || '',
-          reference: editingDeposit.reference || '',
-          notes: editingDeposit.description || editingDeposit.notes || ''
-        }
-      ]);
+      setFormData({
+        date: editingDeposit.date ? new Date(editingDeposit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        memberId: editingDeposit.memberId || '',
+        memberName: editingDeposit.memberName || '',
+        amount: editingDeposit.amount || '',
+        certificateNumber: editingDeposit.certificateNumber || '',
+        numberOfShares: editingDeposit.numberOfShares || '',
+        paymentMethod: editingDeposit.method || 'cash',
+        accountId: editingDeposit.accountId || '',
+        reference: editingDeposit.reference || '',
+        notes: editingDeposit.description || editingDeposit.notes || ''
+      });
+      setMemberSearch(editingDeposit.memberName || '');
     }
   }, [editingDeposit]);
 
+  useEffect(() => {
+    if (formData.amount && shareValue) {
+      const shares = Math.floor(parseFloat(formData.amount) / shareValue);
+      setFormData(prev => ({ ...prev, numberOfShares: shares.toString() }));
+    }
+  }, [formData.amount, shareValue]);
+
   const fetchMembers = async () => {
     try {
-      const response = await fetch(`${API_BASE}/members`);
+      const response = await fetch(`${API_BASE}/members?take=5000&sort=asc`);
       const data = await response.json();
       const membersArray = Array.isArray(data) ? data : (data.data || []);
       setMembers(membersArray);
+      setFilteredMembers(membersArray);
     } catch (error) {
       console.error('Error fetching members:', error);
       setMembers([]);
+      setFilteredMembers([]);
     }
   };
 
   const fetchAccounts = async () => {
     try {
-      const realAccounts = await fetchRealAccounts();
-      setAccounts(realAccounts);
+      const response = await fetch(`${API_BASE}/accounts`);
+      const data = await response.json();
+      const accountsArray = Array.isArray(data) ? data : (data.data || []);
+      setAccounts(accountsArray.filter(acc => ['ASSET', 'BANK'].includes(acc.type)));
     } catch (error) {
       console.error('Error fetching accounts:', error);
       setAccounts([]);
@@ -93,48 +114,42 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
         const data = await response.json();
         if (data.value) setShareValue(parseFloat(data.value));
       }
+      // If endpoint doesn't exist (404), use default value of 100
     } catch (error) {
       console.error('Error fetching share value:', error);
+      // Use default share value of 100
     }
   };
 
-  const updateRow = (index, patch) => {
-    setRows((prev) => prev.map((row, i) => {
-      if (i !== index) return row;
-      const next = { ...row, ...patch };
-      if (Object.prototype.hasOwnProperty.call(patch, 'amount') && shareValue) {
-        const amountValue = parseFloat(patch.amount || '0');
-        if (!Number.isNaN(amountValue) && amountValue > 0) {
-          next.numberOfShares = Math.floor(amountValue / shareValue).toString();
-        } else {
-          next.numberOfShares = '';
-        }
-      }
-      return next;
-    }));
+  const handleMemberSearch = (searchTerm) => {
+    setMemberSearch(searchTerm);
+    if (searchTerm.length > 0) {
+      const filtered = members.filter(member =>
+        member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        member.phone?.includes(searchTerm) ||
+        member.idNumber?.includes(searchTerm)
+      );
+      setFilteredMembers(filtered);
+      setShowMemberDropdown(true);
+    } else {
+      setFilteredMembers(members);
+      setShowMemberDropdown(false);
+    }
   };
 
-  const selectMember = (index, member) => {
-    updateRow(index, {
+  const selectMember = (member) => {
+    setFormData({
+      ...formData,
       memberId: member.id.toString(),
-      memberName: `${member.name}`,
-      memberSearch: `${member.name}`
+      memberName: `${member.name}`
     });
+    setMemberSearch(`${member.name}`);
+    setShowMemberDropdown(false);
   };
 
-  const handleSmartSelectChange = (index, field) => (valueOrEvent) => {
+  const handleSmartSelectChange = (field) => (valueOrEvent) => {
     const value = valueOrEvent?.target ? valueOrEvent.target.value : valueOrEvent;
-    updateRow(index, { [field]: value });
-  };
-
-  const addRow = () => {
-    if (editingDeposit) return;
-    setRows((prev) => [...prev, createEmptyRow()]);
-  };
-
-  const removeRow = (index) => {
-    if (editingDeposit) return;
-    setRows((prev) => prev.filter((_, i) => i !== index));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -143,43 +158,25 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
     setMessage({ type: '', text: '' });
 
     try {
-      if (rows.length === 0) {
-        throw new Error('Please add at least one share capital row');
-      }
-
-      if (editingDeposit && rows.length > 1) {
-        throw new Error('Editing supports a single share capital row');
-      }
-
-      rows.forEach((row, index) => {
-        if (!row.amount || parseFloat(row.amount) <= 0) {
-          throw new Error(`Row ${index + 1}: Valid amount is required`);
-        }
-        if (!row.memberId) {
-          throw new Error(`Row ${index + 1}: Member is required`);
-        }
-      });
+      const payload = {
+        date: formData.date,
+        memberId: parseInt(formData.memberId),
+        memberName: formData.memberName,
+        amount: parseFloat(formData.amount),
+        type: 'share_capital',
+        paymentType: 'share_capital',
+        certificateNumber: formData.certificateNumber,
+        numberOfShares: parseInt(formData.numberOfShares),
+        method: formData.paymentMethod,
+        paymentMethod: formData.paymentMethod,
+        accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+        reference: formData.reference,
+        description: formData.notes,
+        notes: formData.notes
+      };
 
       let response;
       if (editingDeposit) {
-        const row = rows[0];
-        const payload = {
-          date: row.date,
-          memberId: parseInt(row.memberId),
-          memberName: row.memberName,
-          amount: parseFloat(row.amount),
-          type: 'share_capital',
-          paymentType: 'share_capital',
-          certificateNumber: row.certificateNumber,
-          numberOfShares: parseInt(row.numberOfShares),
-          method: row.paymentMethod,
-          paymentMethod: row.paymentMethod,
-          accountId: row.accountId ? parseInt(row.accountId) : undefined,
-          reference: row.reference,
-          description: row.notes,
-          notes: row.notes
-        };
-
         const depositId = parseInt(editingDeposit.id, 10);
         if (isNaN(depositId)) {
           throw new Error('Invalid deposit ID');
@@ -190,26 +187,10 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
           body: JSON.stringify(payload)
         });
       } else {
-        const payments = rows.map((row) => ({
-          date: row.date,
-          memberId: parseInt(row.memberId),
-          memberName: row.memberName,
-          amount: parseFloat(row.amount),
-          type: 'share_capital',
-          paymentType: 'share_capital',
-          certificateNumber: row.certificateNumber,
-          numberOfShares: parseInt(row.numberOfShares),
-          method: row.paymentMethod,
-          paymentMethod: row.paymentMethod,
-          accountId: row.accountId ? parseInt(row.accountId) : undefined,
-          reference: row.reference,
-          description: row.notes,
-          notes: row.notes
-        }));
         response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payments })
+          body: JSON.stringify({ deposits: [payload] })
         });
       }
 
@@ -219,11 +200,25 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
       }
 
       setMessage({ type: 'success', text: `Share capital payment ${editingDeposit ? 'updated' : 'recorded'} successfully!` });
-      setRows([createEmptyRow()]);
+      
+      // Reset form
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        memberId: '',
+        memberName: '',
+        amount: '',
+        certificateNumber: '',
+        numberOfShares: '',
+        paymentMethod: 'cash',
+        accountId: '',
+        reference: '',
+        notes: ''
+      });
+      setMemberSearch('');
 
       if (onSuccess) onSuccess();
       if (onCancel) onCancel();
-
+      
       setTimeout(() => setMessage({ type: '', text: '' }), 5000);
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -231,6 +226,8 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
       setLoading(false);
     }
   };
+
+  const selectedAccount = accounts.find(acc => acc.id === parseInt(formData.accountId));
 
   return (
     <div className="form-container">
@@ -246,178 +243,200 @@ const ShareCapitalForm = ({ onSuccess, onCancel, editingDeposit }) => {
       )}
 
       <form onSubmit={handleSubmit} className="form-card">
-        <div className="form-batch-list">
-          {rows.map((row, index) => {
-            const selectedAccount = accounts.find(acc => acc.id === parseInt(row.accountId));
-            return (
-              <div key={`share-row-${index}`} className="form-batch-row">
-                <div className="form-group">
-                  <label>
-                    <Calendar size={18} />
-                    Date *
-                  </label>
-                  <input
-                    type="date"
-                    value={row.date}
-                    onChange={(e) => updateRow(index, { date: e.target.value })}
-                    required
-                  />
-                </div>
+        <div className="form-grid-2">
+          <div className="form-group">
+            <label>
+              <Calendar size={18} />
+              Date *
+            </label>
+            <input
+              type="date"
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              required
+            />
+          </div>
 
-                <div className="form-group form-batch-span-full">
-                  <MemberPicker
-                    label="Member"
-                    members={members}
-                    value={row.memberSearch}
-                    onChange={(value) => updateRow(index, { memberSearch: value })}
-                    onSelect={(member) => selectMember(index, member)}
-                    onAddNew={() => navigate('/members/create')}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    <DollarSign size={18} />
-                    Amount (KSh) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={row.amount}
-                    onChange={(e) => updateRow(index, { amount: e.target.value })}
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    <Hash size={18} />
-                    Number of Shares
-                  </label>
-                  <input
-                    type="number"
-                    value={row.numberOfShares}
-                    readOnly
-                  />
-                  <small className="form-hint">Based on share value of KSh {shareValue}</small>
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    <Hash size={18} />
-                    Certificate Number
-                  </label>
-                  <input
-                    type="text"
-                    value={row.certificateNumber}
-                    onChange={(e) => updateRow(index, { certificateNumber: e.target.value })}
-                    placeholder="Certificate number (optional)"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    <CreditCard size={18} />
-                    Payment Method *
-                  </label>
-                  <select
-                    value={row.paymentMethod}
-                    onChange={(e) => updateRow(index, { paymentMethod: e.target.value })}
-                    required
+          <div className="form-group member-search-group">
+            <label>
+              <Search size={18} />
+              Member *
+            </label>
+            <input
+              type="text"
+              value={memberSearch}
+              onChange={(e) => handleMemberSearch(e.target.value)}
+              onFocus={() => setShowMemberDropdown(true)}
+              placeholder="Search by name, phone, or member number"
+              required
+            />
+            {showMemberDropdown && (
+              <div className="member-dropdown">
+                {filteredMembers.length > 0 && filteredMembers.slice(0, 10).map(member => (
+                  <button
+                    key={member.id}
+                    type="button"
+                    className="member-option"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      selectMember(member);
+                    }}
                   >
-                    {paymentMethods.map(method => (
-                      <option key={method.value} value={method.value}>
-                        {method.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <SmartSelect
-                    label="Account"
-                    name="accountId"
-                    value={row.accountId}
-                    onChange={handleSmartSelectChange(index, 'accountId')}
-                    options={accounts.map(account => ({
-                      id: account.id,
-                      name: getAccountDisplayName(account),
-                    }))}
-                    onAddNew={() => navigate('/settings/accounts/create')}
-                    placeholder="Select account or create new..."
-                    showAddButton={true}
-                    addButtonType="account"
-                    icon={CreditCard}
-                  />
-                  {selectedAccount && (
-                    <div className="account-balance-info">
-                      Balance: KSh {selectedAccount.balance?.toLocaleString() || '0.00'}
+                    <div className="member-info">
+                      <span className="member-name">{member.name}</span>
+                      <span className="member-number">{member.idNumber || 'N/A'}</span>
                     </div>
-                  )}
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    <Hash size={18} />
-                    Reference Number
-                  </label>
-                  <input
-                    type="text"
-                    value={row.reference}
-                    onChange={(e) => updateRow(index, { reference: e.target.value })}
-                    placeholder="Receipt number, transaction ID, etc."
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    <FileText size={18} />
-                    Additional Notes
-                  </label>
-                  <input
-                    type="text"
-                    value={row.notes}
-                    onChange={(e) => updateRow(index, { notes: e.target.value })}
-                    placeholder="Optional notes about this payment"
-                  />
-                </div>
-
-                {rows.length > 1 && !editingDeposit && (
-                  <div className="form-group form-batch-span-full">
-                    <button
-                      type="button"
-                      className="btn-form-remove-row"
-                      onClick={() => removeRow(index)}
-                    >
-                      Remove row
-                    </button>
+                    <div className="member-details">
+                      <span className="member-phone">{member.phone}</span>
+                    </div>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="member-option add-member-option"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/members/create');
+                  }}
+                >
+                  <div className="member-info">
+                    <span className="member-name">+ Add New Member</span>
                   </div>
-                )}
+                  <div className="member-details">
+                    <span className="member-phone">Register a new member</span>
+                  </div>
+                </button>
               </div>
-            );
-          })}
-        </div>
-
-        <div className="form-batch-actions">
-          {!editingDeposit && (
-            <button type="button" className="btn-form-add-row" onClick={addRow}>
-              Add another field
-            </button>
-          )}
-          <div className="form-actions">
-            {onCancel && (
-              <button type="button" className="btn btn-secondary" onClick={onCancel}>
-                Cancel
-              </button>
             )}
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? (editingDeposit ? 'Updating...' : 'Recording...') : (editingDeposit ? 'Update Share Capital' : 'Record Share Capital')}
-            </button>
           </div>
         </div>
+
+        <div className="form-grid-2">
+          <div className="form-group">
+            <label>
+              <DollarSign size={18} />
+              Amount (KSh) *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={formData.amount}
+              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+              placeholder="0.00"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>
+              <Hash size={18} />
+              Number of Shares
+            </label>
+            <input
+              type="number"
+              value={formData.numberOfShares}
+              readOnly
+              placeholder="Auto-calculated"
+              title={`Share value: KSh ${shareValue}`}
+            />
+            <small className="field-hint">Based on KSh {shareValue} per share</small>
+          </div>
+        </div>
+
+        <div className="form-grid-2">
+          <div className="form-group">
+            <label>
+              <FileText size={18} />
+              Certificate Number
+            </label>
+            <input
+              type="text"
+              value={formData.certificateNumber}
+              onChange={(e) => setFormData({ ...formData, certificateNumber: e.target.value })}
+              placeholder="e.g., SC-2024-001"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>
+              <CreditCard size={18} />
+              Payment Method *
+            </label>
+            <select
+              value={formData.paymentMethod}
+              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+              required
+            >
+              {paymentMethods.map(method => (
+                <option key={method.value} value={method.value}>
+                  {method.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="form-grid-2">
+          <div className="form-group">
+            <SmartSelect
+              label="Account"
+              name="accountId"
+              value={formData.accountId}
+              onChange={handleSmartSelectChange('accountId')}
+              options={accounts.map(acc => ({ id: acc.id, name: `${acc.code} - ${acc.name}` }))}
+              onAddNew={() => navigate('/settings/accounts/create')}
+              placeholder="Select account or create new..."
+              showAddButton={true}
+              addButtonType="account"
+              icon={CreditCard}
+            />
+            {selectedAccount && (
+              <small className="account-balance">
+                Balance: KSh {selectedAccount.balance?.toLocaleString() || '0.00'}
+              </small>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label>
+              <Hash size={18} />
+              Reference Number
+            </label>
+            <input
+              type="text"
+              value={formData.reference}
+              onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+              placeholder="Receipt/Transaction ref"
+            />
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>
+            <FileText size={18} />
+            Notes
+          </label>
+          <textarea
+            value={formData.notes}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            placeholder="Additional notes about this share capital payment..."
+            rows="3"
+          />
+        </div>
+
+        <div className="form-actions">
+          {onCancel && (
+            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? (editingDeposit ? 'Updating...' : 'Recording...') : (editingDeposit ? 'Update Share Capital' : 'Record Share Capital Payment')}
+          </button>
+        </div>
       </form>
+
+
     </div>
   );
 };

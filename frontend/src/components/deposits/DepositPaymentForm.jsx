@@ -3,19 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { Upload, Plus, Check, AlertCircle, ChevronDown } from 'lucide-react';
 import '../../styles/deposits.css';
 import { API_BASE } from '../../utils/apiBase';
-import { fetchRealAccounts, getAccountDisplayName } from '../../utils/accountHelpers';
 import SmartSelect from '../common/SmartSelect';
 import { useSmartFormAction } from '../../hooks/useSmartFormAction';
-import MemberPicker from '../common/MemberPicker';
 
 const DepositPaymentForm = ({ onSuccess, onCancel }) => {
   const navigate = useNavigate();
   const { handleAddNew } = useSmartFormAction();
-  const createEmptyRow = () => ({
+  const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     memberName: '',
     memberId: '',
-    memberSearch: '',
     amount: '',
     paymentType: 'contribution',
     contributionType: '',
@@ -25,13 +22,13 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
     notes: '',
   });
 
-  const [rows, setRows] = useState([createEmptyRow()]);
-
   const [members, setMembers] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
   const [depositCategories, setDepositCategories] = useState([]);
 
   useEffect(() => {
@@ -53,7 +50,7 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
 
   const fetchMembers = async () => {
     try {
-      const response = await fetch(`${API_BASE}/members`);
+      const response = await fetch(`${API_BASE}/members?take=5000&sort=asc`);
       const data = await response.json();
       setMembers(Array.isArray(data) ? data : (data.data || []));
     } catch (err) {
@@ -64,42 +61,45 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
 
   const fetchAccounts = async () => {
     try {
-      const realAccounts = await fetchRealAccounts();
-      setAccounts(realAccounts);
+      const response = await fetch(`${API_BASE}/accounts`);
+      const data = await response.json();
+      const accountsArray = Array.isArray(data) ? data : (data.data || []);
+      setAccounts(accountsArray);
     } catch (err) {
       console.error('Failed to fetch accounts:', err);
       setAccounts([]);
     }
   };
 
-  const updateRow = (index, patch) => {
-    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
-  };
+  const filteredMembers = memberSearch
+    ? members.filter(
+        (m) =>
+          m.name?.toLowerCase().includes(memberSearch.toLowerCase()) ||
+          m.phone?.includes(memberSearch),
+      )
+    : [];
 
-  const handleMemberSelect = (index, member) => {
-    updateRow(index, {
+  const handleMemberSelect = (member) => {
+    setFormData({
+      ...formData,
       memberId: member.id,
       memberName: member.name,
-      memberSearch: '',
+    });
+    setMemberSearch('');
+    setShowMemberDropdown(false);
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value,
     });
   };
 
-  const handleChange = (index, e) => {
-    const { name, value } = e.target;
-    updateRow(index, { [name]: value });
-  };
-
-  const handleSmartSelectChange = (index, field) => (valueOrEvent) => {
+  const handleSmartSelectChange = (field) => (valueOrEvent) => {
     const value = valueOrEvent?.target ? valueOrEvent.target.value : valueOrEvent;
-    updateRow(index, { [field]: value });
-  };
-
-  const addRow = () => {
-    setRows((prev) => [...prev, createEmptyRow()]);
-  };
-
-  const removeRow = (index) => {
-    setRows((prev) => prev.filter((_, i) => i !== index));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -109,33 +109,28 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
     setSuccess(false);
 
     try {
-      if (rows.length === 0) {
-        throw new Error('Please add at least one payment row');
+      if (!formData.memberName && !formData.memberId) {
+        throw new Error('Member name or ID is required');
+      }
+      if (!formData.amount || parseFloat(formData.amount) <= 0) {
+        throw new Error('Valid amount is required');
       }
 
-      rows.forEach((row, index) => {
-        const memberRequired = !['income', 'miscellaneous'].includes(row.paymentType);
-        if (memberRequired && !row.memberName && !row.memberId) {
-          throw new Error(`Row ${index + 1}: Member name or ID is required`);
-        }
-        if (!row.amount || parseFloat(row.amount) <= 0) {
-          throw new Error(`Row ${index + 1}: Valid amount is required`);
-        }
-      });
-
       const payload = {
-        payments: rows.map((row) => ({
-          date: row.date,
-          memberName: row.memberName || undefined,
-          memberId: row.memberId ? parseInt(row.memberId) : undefined,
-          amount: parseFloat(row.amount),
-          paymentType: row.paymentType,
-          contributionType: row.contributionType || undefined,
-          paymentMethod: row.paymentMethod,
-          accountId: row.accountId ? parseInt(row.accountId) : undefined,
-          reference: row.reference || undefined,
-          notes: row.notes || undefined,
-        })),
+        payments: [
+          {
+            date: formData.date,
+            memberName: formData.memberName,
+            memberId: formData.memberId ? parseInt(formData.memberId) : undefined,
+            amount: parseFloat(formData.amount),
+            paymentType: formData.paymentType,
+            contributionType: formData.contributionType || undefined,
+            paymentMethod: formData.paymentMethod,
+            accountId: formData.accountId ? parseInt(formData.accountId) : undefined,
+            reference: formData.reference || undefined,
+            notes: formData.notes || undefined,
+          },
+        ],
       };
 
       const response = await fetch(`${API_BASE}/deposits/bulk/import-json`, {
@@ -153,7 +148,18 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
       setSuccess(true);
 
       // Reset form
-      setRows([createEmptyRow()]);
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        memberName: '',
+        memberId: '',
+        amount: '',
+        paymentType: 'contribution',
+        contributionType: '',
+        paymentMethod: 'cash',
+        accountId: '',
+        reference: '',
+        notes: '',
+      });
 
       if (onSuccess) onSuccess(result);
       if (onCancel) onCancel();
@@ -203,176 +209,190 @@ const DepositPaymentForm = ({ onSuccess, onCancel }) => {
       )}
 
       <form onSubmit={handleSubmit} className="form-card">
-        <div className="form-batch-list">
-          {rows.map((row, index) => (
-            <div key={`payment-row-${index}`} className="form-batch-row">
-              <div className="form-group">
-                <label>Date *</label>
-                <input
-                  type="date"
-                  name="date"
-                  value={row.date}
-                  onChange={(e) => handleChange(index, e)}
-                  required
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group form-batch-span-full">
-                <MemberPicker
-                  label="Member"
-                  members={members}
-                  value={row.memberSearch || row.memberName}
-                  onChange={(value) => updateRow(index, { memberSearch: value })}
-                  onSelect={(member) => handleMemberSelect(index, member)}
-                  onAddNew={() => navigate('/members/create')}
-                  required={!['income', 'miscellaneous'].includes(row.paymentType)}
-                />
-                {row.memberName && row.memberId && (
-                  <small className="form-hint">ID: {row.memberId}</small>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label>Payment Type *</label>
-                <select
-                  name="paymentType"
-                  value={row.paymentType}
-                  onChange={(e) => handleChange(index, e)}
-                  className="form-input"
-                >
-                  {paymentTypes.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {row.paymentType === 'contribution' && (
-                <div className="form-group">
-                  <SmartSelect
-                    label="Contribution Type"
-                    name="contributionType"
-                    value={row.contributionType}
-                    onChange={handleSmartSelectChange(index, 'contributionType')}
-                    options={(depositCategories.length > 0
-                      ? depositCategories.filter(cat => !cat.type || cat.type === 'contribution')
-                      : [])
-                      .map(cat => ({
-                        id: cat.name,
-                        name: cat.name,
-                      }))}
-                    onAddNew={() => navigate('/settings/contributions/create')}
-                    addButtonText="Add Contribution Type"
-                    addButtonType="contribution_type"
-                    placeholder="Select or create contribution type..."
-                    showAddButton
-                  />
-                </div>
-              )}
-
-              <div className="form-group">
-                <label>Amount (KES) *</label>
-                <input
-                  type="number"
-                  name="amount"
-                  placeholder="0.00"
-                  value={row.amount}
-                  onChange={(e) => handleChange(index, e)}
-                  step="0.01"
-                  min="0"
-                  required
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Payment Method *</label>
-                <select
-                  name="paymentMethod"
-                  value={row.paymentMethod}
-                  onChange={(e) => handleChange(index, e)}
-                  className="form-input"
-                >
-                  {paymentMethods.map((method) => (
-                    <option key={method.value} value={method.value}>
-                      {method.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <SmartSelect
-                  label="Account Receiving Payment"
-                  name="accountId"
-                  value={row.accountId}
-                  onChange={handleSmartSelectChange(index, 'accountId')}
-                  options={accounts.map(account => ({
-                    id: account.id,
-                    name: getAccountDisplayName(account),
-                  }))}
-                  onAddNew={() => navigate('/settings/accounts/create')}
-                  addButtonText="Add Bank Account"
-                  addButtonType="bank_account"
-                  placeholder="Select account or leave blank for cashbox..."
-                  showAddButton
-                />
-                <small className="form-hint">Leave blank for default cash account</small>
-              </div>
-
-              <div className="form-group">
-                <label>Reference Code</label>
-                <input
-                  type="text"
-                  name="reference"
-                  placeholder="e.g., REF-001, CHK-123"
-                  value={row.reference}
-                  onChange={(e) => handleChange(index, e)}
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group form-batch-span-full">
-                <label>Additional Notes</label>
-                <textarea
-                  name="notes"
-                  placeholder="Any additional notes..."
-                  value={row.notes}
-                  onChange={(e) => handleChange(index, e)}
-                  className="form-input form-textarea"
-                  rows="3"
-                />
-              </div>
-
-              {rows.length > 1 && (
-                <div className="form-group form-batch-span-full">
-                  <button
-                    type="button"
-                    className="btn-form-remove-row"
-                    onClick={() => removeRow(index)}
-                  >
-                    Remove row
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+        {/* Date */}
+        <div className="form-group">
+          <label>Date *</label>
+          <input
+            type="date"
+            name="date"
+            value={formData.date}
+            onChange={handleChange}
+            required
+            className="form-input"
+          />
         </div>
 
-        <div className="form-batch-actions">
-          <button type="button" className="btn-form-add-row" onClick={addRow}>
-            Add another field
-          </button>
-          <div className="form-actions">
-            <button type="button" onClick={onCancel} className="btn btn-secondary">
-              Cancel
-            </button>
-            <button type="submit" disabled={loading} className="btn btn-primary">
-              {loading ? 'Recording...' : 'Record Payment'}
-            </button>
+        {/* Member Selection */}
+        <div className="form-group">
+          <label>Member Name *</label>
+          <div className="member-search-container">
+            <input
+              type="text"
+              placeholder="Search member by name or phone"
+              value={memberSearch || formData.memberName}
+              onChange={(e) => {
+                setMemberSearch(e.target.value);
+                setShowMemberDropdown(true);
+              }}
+              onFocus={() => setShowMemberDropdown(true)}
+              className="form-input"
+            />
+            {showMemberDropdown && (
+              <div className="member-dropdown">
+                {filteredMembers.length > 0 && filteredMembers.slice(0, 10).map((member) => (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => handleMemberSelect(member)}
+                    className="dropdown-item"
+                  >
+                    <span className="member-name">{member.name}</span>
+                    <span className="member-phone">{member.phone}</span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="dropdown-item add-member-option"
+                  onClick={() => navigate('/members/create')}
+                >
+                  <span className="member-name">+ Add New Member</span>
+                  <span className="member-phone">Register a new member</span>
+                </button>
+              </div>
+            )}
           </div>
+          {formData.memberName && formData.memberId && (
+            <small className="form-hint">ID: {formData.memberId}</small>
+          )}
+        </div>
+
+        {/* Payment Type */}
+        <div className="form-group">
+          <label>Payment Type *</label>
+          <select
+            name="paymentType"
+            value={formData.paymentType}
+            onChange={handleChange}
+            className="form-input"
+          >
+            {paymentTypes.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Contribution Type (conditional) */}
+        {formData.paymentType === 'contribution' && (
+          <div className="form-group">
+            <SmartSelect
+              label="Contribution Type"
+              name="contributionType"
+              value={formData.contributionType}
+              onChange={handleSmartSelectChange('contributionType')}
+              options={depositCategories
+                .filter(cat => cat.type === 'contribution')
+                .map(cat => ({
+                  id: cat.name,
+                  name: cat.name,
+                }))}
+              onAddNew={() => navigate('/settings/contributions/create')}
+              addButtonText="Add Contribution Type"
+              addButtonType="contribution_type"
+              placeholder="Select or create contribution type..."
+              showAddButton
+            />
+          </div>
+        )}
+
+        {/* Amount */}
+        <div className="form-group">
+          <label>Amount (KES) *</label>
+          <input
+            type="number"
+            name="amount"
+            placeholder="0.00"
+            value={formData.amount}
+            onChange={handleChange}
+            step="0.01"
+            min="0"
+            required
+            className="form-input"
+          />
+        </div>
+
+        {/* Payment Method */}
+        <div className="form-group">
+          <label>Payment Method *</label>
+          <select
+            name="paymentMethod"
+            value={formData.paymentMethod}
+            onChange={handleChange}
+            className="form-input"
+          >
+            {paymentMethods.map((method) => (
+              <option key={method.value} value={method.value}>
+                {method.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Account (optional) */}
+        <div className="form-group">
+          <SmartSelect
+            label="Account Receiving Payment"
+            name="accountId"
+            value={formData.accountId}
+            onChange={handleSmartSelectChange('accountId')}
+            options={accounts.map(account => ({
+              id: account.id,
+              name: `${account.name} (${account.type})`,
+            }))}
+            onAddNew={() => navigate('/settings/accounts/create')}
+            addButtonText="Add Bank Account"
+            addButtonType="bank_account"
+            placeholder="Select account or leave blank for cashbox..."
+            showAddButton
+          />
+          <small className="form-hint">Leave blank for default cash account</small>
+        </div>
+
+        {/* Reference (optional) */}
+        <div className="form-group">
+          <label>Reference Code</label>
+          <input
+            type="text"
+            name="reference"
+            placeholder="e.g., REF-001, CHK-123"
+            value={formData.reference}
+            onChange={handleChange}
+            className="form-input"
+          />
+        </div>
+
+        {/* Notes (optional) */}
+        <div className="form-group">
+          <label>Additional Notes</label>
+          <textarea
+            name="notes"
+            placeholder="Any additional notes..."
+            value={formData.notes}
+            onChange={handleChange}
+            className="form-input form-textarea"
+            rows="3"
+          />
+        </div>
+
+        {/* Action Buttons */}
+        <div className="form-actions">
+          <button type="button" onClick={onCancel} className="btn btn-secondary">
+            Cancel
+          </button>
+          <button type="submit" disabled={loading} className="btn btn-primary">
+            {loading ? 'Recording...' : 'Record Payment'}
+          </button>
         </div>
       </form>
 

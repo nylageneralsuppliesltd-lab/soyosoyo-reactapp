@@ -1,0 +1,58 @@
+Cash Flow Statement
+2025 2026
+Money In
+Member's deposits
+(https://app.chamasoft.com/group/reports/member_deposits_summary)
+935,780.00 1,205,879.00
+Member loan overpayments
+(https://app.chamasoft.com/group/reports/member_loan_overpayments_summary)
+6,532.58 6,745.26
+Interest paid on loans
+(https://app.chamasoft.com/group/reports/loan_interest_summary)
+133,540.06 176,528.81
+Interest money market investments
+(https://app.chamasoft.com/group/reports/money_market_interest_summary)
+0.00 0.00
+Income from stock sales
+(https://app.chamasoft.com/group/reports/income_from_stock_summary)
+0.00 0.00
+Loan charges
+(https://app.chamasoft.com/group/reports/loan_charges_summary)
+0.00 0.00
+Income (https://app.chamasoft.com/group/reports/income_summary) 7,219.00 7,240.00
+Fines (https://app.chamasoft.com/group/reports/income_fine_summary) 0.00 0.00
+Miscellaneous
+(https://app.chamasoft.com/group/reports/miscellaneous_summary)
+57,200.00 57,200.00
+Total Money In 1,358,082.62 1,880,890.95
+Money Out
+Asset purchases, property, plant and equipment
+(https://app.chamasoft.com/group/reports/asset_purchase_summary)
+0.00 0.00
+Loans to members
+(https://app.chamasoft.com/group/reports/eazzyclub_loans_summary)
+1,072,940.47 1,312,000.00
+Depreciation of stocks
+(https://app.chamasoft.com/group/reports/depreciation_of_stocks)
+0.00 0.00
+Interest on bank loans
+(https://app.chamasoft.com/group/reports/interest_on_bank_loans)
+0.00 0.00
+SOYOSOYO SACCO
+Tezo, Kilifi COUNTY
+Telephone: 254786077257
+E-mail Address: info@soyosoyosacco.com
+SOYOSOYO SACCO
+Cash Flow Statement as at 2025 to 2026
+2025 2026
+Loan interest type
+(https://app.chamasoft.com/group/reports/interest_on_bank_loans)
+0.00 0.00
+Dividends (https://app.chamasoft.com/group/reports/dividends_summary) 0.00 0.00
+Expenses (https://app.chamasoft.com/group/reports/expenses_summary) 160,623.50 174,843.50
+Other financial assets
+(https://app.chamasoft.com/group/reports/financial_assets_summary)
+0.00 0.00
+Total Money Out 1,233,563.97 1,486,843.50
+Total Cash at Bank/Hand 63,704.15 140,670.15
+Powered by

@@ -40,7 +40,7 @@ class DeterministicAccountResolver {
   resolveAccountFromDescription(description) {
     if (!description) return null;
 
-    const normalized = this.normalizeText(description).toLowerCase();
+    const normalized = this.normalizeAccountPatternText(description);
 
     // Rule 1: Check for EXPLICIT CASH indicators
     // Only route to cash if the word "cash" appears AND it's not ambiguous
@@ -82,10 +82,10 @@ class DeterministicAccountResolver {
 
     // EXPLICIT exclusions (these are NOT cash account transactions):
     if (normalized.includes('chamasoft')) return false;
-    if (normalized.includes('c.e.w')) return false;
+    if (normalized.includes('cew')) return false;
     if (normalized.includes('cooperative')) return false;
     if (normalized.includes('cytonn')) return false;
-    if (normalized.includes('e-wallet')) return false;
+    if (normalized.includes('ewallet')) return false;
 
     // Must be explicit "cash at hand", "cash office", or lone "cash" context
     return /cash(?:\s+at\s+hand|office|box|desk|\s+payment|-to-cash)?/i.test(normalized);
@@ -95,7 +95,7 @@ class DeterministicAccountResolver {
    * CHAMASOFT/E-WALLET pattern: Look for explicit Chamasoft/C.E.W/e-wallet mentions
    */
   matchesChamaSoftPattern(normalized) {
-    return /chamasoft|c\.e\.w|e-?wallet/i.test(normalized);
+    return /chamasoft|\bcew\b|e\s*-?\s*wallet/i.test(normalized);
   }
 
   /**
@@ -103,7 +103,7 @@ class DeterministicAccountResolver {
    */
   matchesCooperativePattern(normalized) {
     // Must have "cooperative" but NOT chamasoft/c.e.w
-    return /cooperat(?:ive|or)\s+(?:bank|society|savings)/i.test(normalized) &&
+    return /cooperative\s+(?:bank|society|savings)/i.test(normalized) &&
            !this.matchesChamaSoftPattern(normalized);
   }
 
@@ -111,7 +111,7 @@ class DeterministicAccountResolver {
    * CYTONN pattern: Look for "cytonn" or "money market fund"
    */
   matchesCytonnPattern(normalized) {
-    return /cytonn|money\s+market\s+fund|collection\s+account/i.test(normalized);
+    return /cytonn|money\s+market\s+fund|collection\s+account|state\s+bank\s+of\s+mauritius|\bmauritius\b/i.test(normalized);
   }
 
   /**
@@ -163,6 +163,15 @@ class DeterministicAccountResolver {
     return String(value ?? '')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  normalizeAccountPatternText(value) {
+    return this.normalizeText(value)
+      .toLowerCase()
+      .replace(/[‐‑‒–—−]/g, '-')
+      .replace(/co\s*-\s*operative/g, 'cooperative')
+      .replace(/e\s*-\s*wallet/g, 'ewallet')
+      .replace(/\bc\s*\.?\s*e\s*\.?\s*w\b/g, 'cew');
   }
 
   /**

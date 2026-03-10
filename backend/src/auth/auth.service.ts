@@ -425,7 +425,23 @@ export class AuthService {
   }
 
   async verifyResetCode(identifier: string, resetCode: string, newPassword: string) {
-    const member = await this.resolveMemberByIdentifier(identifier);
+    const normalizedIdentifier = String(identifier || '').trim();
+    const normalizedResetCode = String(resetCode || '').replace(/\s+/g, '').trim();
+    const normalizedPassword = String(newPassword || '').trim();
+
+    if (!normalizedIdentifier) {
+      throw new BadRequestException('Identifier is required');
+    }
+
+    if (!/^\d{6}$/.test(normalizedResetCode)) {
+      throw new BadRequestException('Reset code must be 6 digits (numbers only)');
+    }
+
+    if (normalizedPassword.length < 6) {
+      throw new BadRequestException('Password must be at least 6 characters');
+    }
+
+    const member = await this.resolveMemberByIdentifier(normalizedIdentifier);
     if (!member) {
       throw new UnauthorizedException('Invalid identifier');
     }
@@ -443,12 +459,13 @@ export class AuthService {
       throw new BadRequestException('Reset code expired. Please request a new one.');
     }
 
-    if (member.resetCode !== resetCode) {
-      throw new BadRequestException('Invalid reset code');
+    const storedResetCode = String(member.resetCode || '').replace(/\s+/g, '').trim();
+    if (storedResetCode !== normalizedResetCode) {
+      throw new BadRequestException('Invalid reset code. Use the latest code sent to your email and avoid spaces.');
     }
 
     // Hash new password
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await bcrypt.hash(normalizedPassword, 10);
 
     // Update member password
     const prismaAny = this.prisma as any;

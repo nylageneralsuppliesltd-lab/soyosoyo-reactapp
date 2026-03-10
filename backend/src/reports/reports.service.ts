@@ -25,6 +25,7 @@ export class ReportsService {
   getCatalog() {
     return [
       { key: 'contributions', name: 'Contribution Summary', filters: ['period', 'memberId'] },
+      { key: 'memberStatement', name: 'Member Statement', filters: ['period', 'memberId'] },
       { key: 'contributionMatrix', name: 'Contribution Matrix', filters: ['startDate', 'endDate'] },
       { key: 'fines', name: 'Fines Summary', filters: ['period', 'status', 'memberId'] },
       { key: 'loans', name: 'Loans (Member) Portfolio', filters: ['period', 'status'] },
@@ -53,6 +54,9 @@ export class ReportsService {
     switch (key) {
       case 'contributions':
         result = await this.contributionReport(dateRange, query.memberId);
+        break;
+      case 'memberStatement':
+        result = await this.memberStatementReport(dateRange, query.memberId);
         break;
       case 'contributionMatrix':
         result = await this.contributionMatrixReport(query.startDate, query.endDate);
@@ -1251,10 +1255,7 @@ export class ReportsService {
       }),
       this.prisma.asset.findMany({
         where: {
-          OR: [
-            { purchaseDate: null },
-            { purchaseDate: { lte: asOfDate } },
-          ],
+          purchaseDate: { lte: asOfDate },
         },
         select: {
           description: true,
@@ -1533,6 +1534,126 @@ export class ReportsService {
         count: deposits.length,
         byCategory,
       } 
+    };
+  }
+
+  private async memberStatementReport(dateRange: { start: Date; end: Date }, memberId?: string) {
+    const numericMemberId = Number(memberId);
+    if (!memberId || !Number.isFinite(numericMemberId) || numericMemberId <= 0) {
+      throw new BadRequestException('memberId is required for member statement report');
+    }
+
+    const member = await this.prisma.member.findUnique({
+      where: { id: numericMemberId },
+      select: { id: true, name: true },
+    });
+    if (!member) {
+      throw new BadRequestException('Member not found');
+    }
+
+    const [openingDeposits, openingWithdrawals, deposits, withdrawals] = await Promise.all([
+      this.prisma.deposit.aggregate({
+        where: {
+          memberId: numericMemberId,
+          date: { lt: dateRange.start },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.withdrawal.aggregate({
+        where: {
+          memberId: numericMemberId,
+          date: { lt: dateRange.start },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.deposit.findMany({
+        where: {
+          memberId: numericMemberId,
+          date: { gte: dateRange.start, lte: dateRange.end },
+        },
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      }),
+      this.prisma.withdrawal.findMany({
+        where: {
+          memberId: numericMemberId,
+          date: { gte: dateRange.start, lte: dateRange.end },
+        },
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      }),
+    ]);
+
+    const openingBalance =
+      Number(openingDeposits._sum.amount || 0) - Number(openingWithdrawals._sum.amount || 0);
+
+    const statementEntries = [
+      ...deposits.map((deposit) => ({
+        date: deposit.date,
+        sortId: deposit.id,
+        transactionType: String(deposit.type || 'contribution'),
+        category: deposit.category || 'General Contribution',
+        amount: Number(deposit.amount || 0),
+        reference: deposit.reference || '',
+        description: deposit.description || 'Member deposit',
+        paymentMethod: deposit.method || 'cash',
+        direction: 'credit' as const,
+      })),
+      ...withdrawals.map((withdrawal) => ({
+        date: withdrawal.date,
+        sortId: withdrawal.id,
+        transactionType: String(withdrawal.type || 'withdrawal'),
+        category: withdrawal.category || 'General Withdrawal',
+        amount: Number(withdrawal.amount || 0),
+        reference: withdrawal.reference || '',
+        description: withdrawal.description || withdrawal.narration || 'Member withdrawal',
+        paymentMethod: withdrawal.method || 'cash',
+        direction: 'debit' as const,
+      })),
+    ].sort((a, b) => {
+      const dateDiff = a.date.getTime() - b.date.getTime();
+      if (dateDiff !== 0) return dateDiff;
+      if (a.direction === b.direction) return a.sortId - b.sortId;
+      return a.direction === 'credit' ? -1 : 1;
+    });
+
+    let runningBalance = openingBalance;
+    const rows = statementEntries.map((entry) => {
+      runningBalance += entry.direction === 'credit' ? entry.amount : -Math.abs(entry.amount);
+      return {
+        date: entry.date,
+        memberId: member.id,
+        memberName: member.name,
+        transactionType: entry.transactionType,
+        posting: entry.direction,
+        category: entry.category,
+        credit: entry.direction === 'credit' ? Number(entry.amount.toFixed(2)) : 0,
+        debit: entry.direction === 'debit' ? Number(entry.amount.toFixed(2)) : 0,
+        amount: Number(entry.amount.toFixed(2)),
+        paymentMethod: entry.paymentMethod,
+        reference: entry.reference,
+        description: entry.description,
+        runningBalance: Number(runningBalance.toFixed(2)),
+      };
+    });
+
+    const contributionRows = rows.filter((row) => row.transactionType === 'contribution');
+    const totalCredits = rows.reduce((sum, row) => sum + Number(row.credit || 0), 0);
+    const totalDebits = rows.reduce((sum, row) => sum + Number(row.debit || 0), 0);
+
+    return {
+      rows,
+      meta: {
+        memberId: member.id,
+        memberName: member.name,
+        openingBalance: Number(openingBalance.toFixed(2)),
+        totalCredits: Number(totalCredits.toFixed(2)),
+        totalDebits: Number(totalDebits.toFixed(2)),
+        closingBalance: Number((openingBalance + totalCredits - totalDebits).toFixed(2)),
+        contributionPostings: contributionRows.length,
+        contributionTotal: Number(
+          contributionRows.reduce((sum, row) => sum + Number(row.amount || 0), 0).toFixed(2),
+        ),
+        count: rows.length,
+      },
     };
   }
 

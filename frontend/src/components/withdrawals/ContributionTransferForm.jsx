@@ -21,11 +21,18 @@ const ContributionTransferForm = ({ onSuccess, onCancel }) => {
     description: '',
   });
 
+  const fallbackContributionTypes = [
+    'Monthly Minimum Contribution',
+    'Risk Fund',
+    'Share Capital',
+    'Registration Fee',
+  ];
+
   useEffect(() => {
     const load = async () => {
       try {
         const [membersRes, contribRes, loansRes] = await Promise.all([
-          fetch(`${API_BASE}/members`),
+          fetch(`${API_BASE}/members?take=5000&sort=asc`),
           fetch(`${API_BASE}/settings/contribution-types`),
           fetch(`${API_BASE}/loans?take=1000&skip=0`),
         ]);
@@ -170,7 +177,9 @@ const ContributionTransferForm = ({ onSuccess, onCancel }) => {
             {contributionTypes.map((ct) => (
               <option key={ct.id} value={ct.name}>{ct.name}</option>
             ))}
-            {contributionTypes.length === 0 && <option value="Monthly Minimum Contribution">Monthly Minimum Contribution</option>}
+            {contributionTypes.length === 0 && fallbackContributionTypes.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
           </select>
         </div>
 

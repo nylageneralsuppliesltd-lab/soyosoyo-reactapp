@@ -5,20 +5,28 @@ const ExcelJS = require('exceljs');
 const bcrypt = require('bcryptjs');
 const { PrismaClient, Prisma } = require('@prisma/client');
 const { PrismaNeon } = require('@prisma/adapter-neon');
+const { resolveSourceFiles } = require('./source-file-resolver');
 
 const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 const BACKEND_DIR = path.resolve(__dirname, '..');
 
-const FILES = {
-  members: 'SOYOSOYO  SACCO List of Members.xlsx',
-  loansSummary: 'SOYOSOYO  SACCO Loans Summary (6).xlsx',
-  memberLoans: 'SOYOSOYO  SACCO List of Member Loans.xlsx',
-  transactions: 'SOYOSOYO  SACCO Transaction Statement (7).xlsx',
-  expenses: 'SOYOSOYO  SACCO Expenses Summary (1).xlsx',
-  contributionTransfers: 'SOYOSOYO  SACCO Contribution Transfers.xlsx',
-};
+const FILES = resolveSourceFiles(
+  ['members', 'loansSummary', 'memberLoans', 'transactions', 'expenses', 'contributionTransfers'],
+  { backendDir: BACKEND_DIR },
+);
+
+const ARGS = new Set(process.argv.slice(2));
+const SKIP_CONTRIBUTION_TRANSFERS = ARGS.has('--skip-contribution-transfers');
+const WIPE_SETTINGS = ARGS.has('--wipe-settings');
+const CONFIRM_WIPE_SETTINGS = ARGS.has('--confirm-wipe-settings');
+const SETTINGS_ONLY = ARGS.has('--settings-only');
+const STATEMENT_REPAYMENT_MAPPING_FILE = path.join(__dirname, 'statement-loan-repayment-mapping.json');
+const STATEMENT_REPAYMENT_UNRESOLVED_REPORT_FILE = path.join(
+  __dirname,
+  'statement-loan-repayment-unresolved-report.json',
+);
 
 function parseMoney(value) {
   if (value === null || value === undefined) return 0;
@@ -98,6 +106,11 @@ async function snapshotBeforeWipe() {
       accounts: await prisma.account.count(),
       contributionTypes: await prisma.contributionType.count(),
       expenseCategories: await prisma.expenseCategory.count(),
+      incomeCategories: await prisma.incomeCategory.count(),
+      fineCategories: await prisma.fineCategory.count(),
+      groupRoles: await prisma.groupRole.count(),
+      invoiceTemplates: await prisma.invoiceTemplate.count(),
+      assets: await prisma.asset.count(),
       loanTypes: await prisma.loanType.count(),
       loans: await prisma.loan.count(),
       deposits: await prisma.deposit.count(),
@@ -116,7 +129,37 @@ async function snapshotBeforeWipe() {
   console.log(`🛟 Snapshot written: ${outPath}`);
 }
 
-async function wipeAll() {
+async function wipeAll(options = {}) {
+  const preserveSettings = options.preserveSettings !== false;
+
+  if (preserveSettings) {
+    await prisma.$executeRawUnsafe(`
+      TRUNCATE TABLE
+        "JournalEntry",
+        "CategoryLedgerEntry",
+        "Repayment",
+        "Fine",
+        "Loan",
+        "Deposit",
+        "Withdrawal",
+        "MemberInvoice",
+        "Ledger",
+        "Member"
+      RESTART IDENTITY CASCADE;
+    `);
+
+    // Keep settings catalogs, but reset category-ledger aggregates for clean recomputation.
+    await prisma.$executeRawUnsafe(`
+      UPDATE "CategoryLedger"
+      SET "totalAmount" = 0,
+          "balance" = 0,
+          "updatedAt" = NOW();
+    `);
+
+    console.log('🧹 Database wipe complete (settings preserved)');
+    return;
+  }
+
   await prisma.$executeRawUnsafe(`
     TRUNCATE TABLE
       "JournalEntry",
@@ -137,10 +180,43 @@ async function wipeAll() {
       "Member"
     RESTART IDENTITY CASCADE;
   `);
-  console.log('🧹 Database wipe complete');
+  console.log('🧹 Database wipe complete (including settings)');
 }
 
-async function seedSettingsCatalogs() {
+async function ensureSystemSettingsConfig() {
+  const defaults = {
+    disqualifyInactiveMembers: true,
+    shareCapitalDividendPercent: 50,
+    memberSavingsDividendPercent: 50,
+    dividendWithholdingResidentPercent: 0,
+    dividendWithholdingNonResidentPercent: 0,
+    interestWithholdingResidentPercent: 0,
+    interestWithholdingNonResidentPercent: 0,
+    externalInterestTaxablePercent: 50,
+    externalInterestTaxRatePercent: 30,
+  };
+
+  const tableExists = await prisma.$queryRawUnsafe(
+    `SELECT
+      CAST(to_regclass('public."IFRSConfig"') AS TEXT) AS t1,
+      CAST(to_regclass('public."iFRSConfig"') AS TEXT) AS t2`,
+  );
+
+  const target = tableExists?.[0]?.t1 ? '"IFRSConfig"' : tableExists?.[0]?.t2 ? '"iFRSConfig"' : null;
+  if (!target) return;
+
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO ${target} ("key", "value", "createdAt", "updatedAt")
+     VALUES ($1, $2, NOW(), NOW())
+     ON CONFLICT ("key") DO NOTHING`,
+    'system_settings',
+    JSON.stringify(defaults),
+  );
+}
+
+async function seedSettingsCatalogs(options = {}) {
+  const preserveExisting = options.preserveExisting !== false;
+
   const contributionSeed = [
     {
       name: 'Registration Fee',
@@ -191,7 +267,15 @@ async function seedSettingsCatalogs() {
   ];
 
   for (const item of contributionSeed) {
-    await prisma.contributionType.create({ data: item });
+    if (preserveExisting) {
+      await prisma.contributionType.upsert({
+        where: { name: item.name },
+        update: {},
+        create: item,
+      });
+    } else {
+      await prisma.contributionType.create({ data: item });
+    }
   }
 
   const loanTypes = [
@@ -203,15 +287,23 @@ async function seedSettingsCatalogs() {
   ];
 
   for (const item of loanTypes) {
-    await prisma.loanType.create({
-      data: {
-        name: item.name,
-        interestRate: new Prisma.Decimal(item.interestRate),
-        periodMonths: item.periodMonths,
-        maxAmount: new Prisma.Decimal(item.maxAmount),
-        interestType: 'flat',
-      },
-    });
+    const loanTypeData = {
+      name: item.name,
+      interestRate: new Prisma.Decimal(item.interestRate),
+      periodMonths: item.periodMonths,
+      maxAmount: new Prisma.Decimal(item.maxAmount),
+      interestType: 'flat',
+    };
+
+    if (preserveExisting) {
+      await prisma.loanType.upsert({
+        where: { name: item.name },
+        update: {},
+        create: loanTypeData,
+      });
+    } else {
+      await prisma.loanType.create({ data: loanTypeData });
+    }
   }
 
   const expensesWb = await readWorkbook(FILES.expenses);
@@ -227,12 +319,75 @@ async function seedSettingsCatalogs() {
     categorySet.add(category);
   }
 
-  for (const name of categorySet) {
-    await prisma.expenseCategory.create({ data: { name } });
+  if (categorySet.size) {
+    await prisma.expenseCategory.createMany({
+      data: [...categorySet].map((name) => ({ name })),
+      skipDuplicates: true,
+    });
   }
 
-  await prisma.account.create({
-    data: {
+  const incomeCategorySeed = [
+    { name: 'General Income', description: 'Default income category' },
+  ];
+  for (const item of incomeCategorySeed) {
+    await prisma.incomeCategory.upsert({
+      where: { name: item.name },
+      update: {},
+      create: item,
+    });
+  }
+
+  const fineCategorySeed = [
+    { name: 'Late Payment' },
+    { name: 'Absenteeism' },
+    { name: 'Rule Violation' },
+    { name: 'Other' },
+  ];
+  for (const item of fineCategorySeed) {
+    await prisma.fineCategory.upsert({
+      where: { name: item.name },
+      update: {},
+      create: item,
+    });
+  }
+
+  const groupRoleSeed = [
+    {
+      name: 'Member',
+      description: 'Standard SACCO member role',
+      permissions: ['view_members'],
+    },
+    {
+      name: 'Treasurer',
+      description: 'Finance operations role',
+      permissions: ['view_members', 'record_deposits', 'record_withdrawals', 'view_ledger', 'view_reports'],
+    },
+    {
+      name: 'Secretary',
+      description: 'Operations and reporting role',
+      permissions: ['view_members', 'view_reports'],
+    },
+    {
+      name: 'Chairperson',
+      description: 'Approval and oversight role',
+      permissions: ['view_members', 'approve_loans', 'view_reports'],
+    },
+    {
+      name: 'Administrator',
+      description: 'Full administrative role',
+      permissions: ['view_members', 'edit_members', 'record_deposits', 'record_withdrawals', 'approve_loans', 'view_reports', 'manage_settings', 'manage_roles', 'view_ledger'],
+    },
+  ];
+  for (const item of groupRoleSeed) {
+    await prisma.groupRole.upsert({
+      where: { name: item.name },
+      update: {},
+      create: item,
+    });
+  }
+
+  const accountSeed = [
+    {
       type: 'mobileMoney',
       name: 'SOYOSOYO MEDICARE COOPERATE SAVINGS AND CREDIT SOCIETY C.E.W',
       description: 'Chamasoft E-Wallet (Headoffice)',
@@ -242,9 +397,7 @@ async function seedSettingsCatalogs() {
       currency: 'KES',
       isActive: true,
     },
-  });
-  await prisma.account.create({
-    data: {
+    {
       type: 'bank',
       name: 'SOYOSOYO MEDICARE COOPERATIVE SAVINGS CREDIT SOCIETY',
       description: 'Co-operative Bank of Kenya (Kilifi)',
@@ -255,9 +408,7 @@ async function seedSettingsCatalogs() {
       currency: 'KES',
       isActive: true,
     },
-  });
-  await prisma.account.create({
-    data: {
+    {
       type: 'bank',
       name: 'Cytonn Money Market Fund - Collection Account',
       description: 'State Bank of Mauritius (Thika)',
@@ -268,9 +419,7 @@ async function seedSettingsCatalogs() {
       currency: 'KES',
       isActive: true,
     },
-  });
-  await prisma.account.create({
-    data: {
+    {
       type: 'cash',
       name: 'Cash at Hand',
       description: 'Physical cash account from transaction statements',
@@ -278,9 +427,42 @@ async function seedSettingsCatalogs() {
       currency: 'KES',
       isActive: true,
     },
-  });
+  ];
 
-  console.log('⚙️ Settings catalogs seeded');
+  for (const account of accountSeed) {
+    if (preserveExisting) {
+      await prisma.account.upsert({
+        where: { name: account.name },
+        update: {},
+        create: account,
+      });
+    } else {
+      await prisma.account.create({ data: account });
+    }
+  }
+
+  const shareValueAsset = await prisma.asset.findFirst({ where: { name: '__SHARE_VALUE__' } });
+  if (!shareValueAsset) {
+    const firstAccount = await prisma.account.findFirst({ orderBy: { id: 'asc' } });
+    if (firstAccount) {
+      await prisma.asset.create({
+        data: {
+          name: '__SHARE_VALUE__',
+          category: 'configuration',
+          description: 'Share value configuration',
+          purchasePrice: new Prisma.Decimal('100.00'),
+          purchaseDate: new Date(),
+          purchaseAccountId: firstAccount.id,
+          currentValue: new Prisma.Decimal('100.00'),
+          status: 'active',
+        },
+      });
+    }
+  }
+
+  await ensureSystemSettingsConfig();
+
+  console.log(`⚙️ Settings catalogs aligned (${preserveExisting ? 'preserve-existing' : 'fresh-seed'})`);
 }
 
 async function importMembers() {
@@ -466,6 +648,207 @@ function mapContributionType(description, amount) {
   return null;
 }
 
+function parseRepaymentDescription(description) {
+  const desc = normalizeText(description);
+  const memberMatch = desc.match(/Loan Repayment\s+by\s+(.+?)\s+for\s+the\s+loan/i);
+  const amountMatch = desc.match(/loan\s+of\s+KES\s+([\d,]+(?:\.\d+)?)/i);
+  const disbursedMatch = desc.match(/Disbursed\s+(\d{2}-\d{2}-\d{4})/i);
+  return {
+    memberName: memberMatch ? normalizeText(memberMatch[1]) : null,
+    principal: amountMatch ? parseMoney(amountMatch[1]) : null,
+    disbursedOn: disbursedMatch ? disbursedMatch[1] : null,
+  };
+}
+
+function toMoney(value) {
+  const num = Number(value || 0);
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+}
+
+function formatDateKey(date) {
+  if (!date) return null;
+  const parsed = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const dd = String(parsed.getDate()).padStart(2, '0');
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+  const yyyy = String(parsed.getFullYear());
+  return `${dd}-${mm}-${yyyy}`;
+}
+
+function normalizeNameKey(value) {
+  return normalizeText(value).toLowerCase();
+}
+
+function resolvePaymentMethodByAccountType(accountType) {
+  if (accountType === 'mobileMoney') return 'mpesa';
+  if (accountType === 'bank') return 'bank';
+  return 'cash';
+}
+
+function estimateRepaymentSplit(loanState, paymentAmount) {
+  const amount = toMoney(paymentAmount);
+  const outstanding = Math.max(0, toMoney(loanState.balance));
+  const principalOriginal = Math.max(0, toMoney(loanState.amount));
+  const interestRate = Number(loanState.interestRate || 0);
+  const periodMonths = Math.max(1, Number(loanState.periodMonths || 12));
+  const interestType = normalizeText(loanState.interestType || 'flat').toLowerCase();
+
+  let estimatedInterest = 0;
+  if (interestType === 'reducing') {
+    estimatedInterest = outstanding * (interestRate / 100 / 12);
+  } else {
+    const totalInterest = principalOriginal * (interestRate / 100) * (periodMonths / 12);
+    estimatedInterest = totalInterest / periodMonths;
+  }
+
+  estimatedInterest = Math.max(0, toMoney(estimatedInterest));
+  let principal = toMoney(amount - estimatedInterest);
+  principal = Math.min(Math.max(0, principal), outstanding);
+
+  let interest = toMoney(amount - principal);
+  if (interest < 0) {
+    interest = 0;
+    principal = Math.min(outstanding, amount);
+  }
+
+  if (principal > outstanding) {
+    principal = outstanding;
+    interest = toMoney(amount - principal);
+  }
+
+  return {
+    principal: toMoney(principal),
+    interest: toMoney(interest),
+  };
+}
+
+function loadStatementRepaymentMapping(filePath) {
+  if (!fs.existsSync(filePath)) return { rows: {} };
+  const raw = fs.readFileSync(filePath, 'utf8');
+  const parsed = JSON.parse(raw);
+  if (!parsed || typeof parsed !== 'object' || !parsed.rows || typeof parsed.rows !== 'object') {
+    return { rows: {} };
+  }
+  return { rows: parsed.rows };
+}
+
+function buildStatementRepaymentMappingTemplate(unresolvedRows) {
+  const rows = {};
+  for (const item of unresolvedRows) {
+    rows[String(item.depositId)] = {
+      action: 'map_loan',
+      loanId: null,
+      note: `member=${item.memberName || 'N/A'} amount=${item.amount || 0} reason=${item.reason}`,
+    };
+  }
+  return { rows };
+}
+
+function normalizeKey(value) {
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractAccountHints(description) {
+  const desc = normalizeText(description);
+  const fromMatch = desc.match(/from\s+(.+?)(?:\s-\s|,\s|\s+for\s|\s+deposited\s+to|$)/i);
+  const toMatch = desc.match(/\bto\s+(.+?)(?:\s-\s|,\s|\s+for\s|$)/i);
+  const depositedToMatch = desc.match(/deposited\s+to\s+(.+?)(?:\s-\s|,\s|\s+for\s|$)/i);
+  const withdrawnFromMatch = desc.match(/withdrawn\s+from\s+(.+?)(?:\s-\s|,\s|\s+for\s|$)/i);
+
+  return {
+    from: fromMatch ? normalizeText(fromMatch[1]) : null,
+    to: toMatch ? normalizeText(toMatch[1]) : null,
+    depositedTo: depositedToMatch ? normalizeText(depositedToMatch[1]) : null,
+    withdrawnFrom: withdrawnFromMatch ? normalizeText(withdrawnFromMatch[1]) : null,
+  };
+}
+
+function buildExpenseCategoryClassifier(categoryNames) {
+  const categories = categoryNames
+    .map((name) => ({
+      name,
+      key: normalizeKey(name),
+      tokens: normalizeKey(name).split(' ').filter((token) => token.length > 2),
+    }))
+    .filter((item) => item.key)
+    .sort((a, b) => b.key.length - a.key.length);
+
+  const resolveCategoryName = (target) => {
+    const key = normalizeKey(target);
+    if (!key) return null;
+    const exact = categories.find((item) => item.key === key);
+    if (exact) return exact.name;
+    const partial = categories.find((item) => item.key.includes(key) || key.includes(item.key));
+    return partial ? partial.name : null;
+  };
+
+  const fallbackCategory =
+    resolveCategoryName('Operating Expenses') ||
+    resolveCategoryName('Office Expenses') ||
+    categoryNames[0] ||
+    'Operating Expenses';
+
+  const manualRules = [
+    { pattern: /withdrawal\s+charges?|bank\s+charges?/i, target: 'Bank Charges' },
+    { pattern: /chamasoft|subscription/i, target: 'Chamasoft subscription' },
+    { pattern: /\brent\b/i, target: 'Rent' },
+    { pattern: /\btransport|fare|fuel|matatu\b/i, target: 'Transport' },
+    { pattern: /t\s*shirts?|caps?|banner|ushirika\s+day/i, target: 'T shirts and Caps' },
+    { pattern: /decorat/i, target: 'Decorations' },
+    { pattern: /office/i, target: 'Office Expenses' },
+    { pattern: /stationer|brochure|printing|photocopy|paper|pen/i, target: 'Stationery' },
+    { pattern: /\baudit\b/i, target: 'Audit Fees' },
+    { pattern: /\bagm\b|annual\s+general\s+meeting/i, target: 'AGM' },
+    { pattern: /kilifi|cooperatives?/i, target: 'Kilifi County - Cooperatives' },
+    { pattern: /\bvinolo\b/i, target: 'Vinolo' },
+    { pattern: /\bsiki\b/i, target: 'Siki' },
+  ];
+
+  return (description) => {
+    const raw = normalizeText(description);
+    if (!raw) return fallbackCategory;
+
+    const cleaned = raw
+      .replace(/^expense\s*:\s*/i, '')
+      .replace(/^\d{6,}\s*-\s*/i, '')
+      .trim();
+
+    const rawKey = normalizeKey(raw);
+    const cleanedKey = normalizeKey(cleaned);
+
+    const exact = categories.find((item) => rawKey.includes(item.key) || cleanedKey.includes(item.key));
+    if (exact) return exact.name;
+
+    for (const rule of manualRules) {
+      if (rule.pattern.test(raw)) {
+        const matched = resolveCategoryName(rule.target);
+        if (matched) return matched;
+      }
+    }
+
+    const cleanedTokens = new Set(cleanedKey.split(' ').filter((token) => token.length > 2));
+    let best = null;
+    for (const category of categories) {
+      const matches = category.tokens.filter((token) => cleanedTokens.has(token)).length;
+      if (!matches) continue;
+      const score = matches / Math.max(1, category.tokens.length);
+      if (!best || score > best.score || (score === best.score && matches > best.matches)) {
+        best = { name: category.name, score, matches };
+      }
+    }
+
+    if (best && (best.matches >= 2 || best.score >= 0.85)) {
+      return best.name;
+    }
+
+    return fallbackCategory;
+  };
+}
+
 // ============ DETERMINISTIC ACCOUNT ROUTING (No E-Wallet → Cash mixing) ============
 class DeterministicAccountResolver {
   constructor(accountMap) {
@@ -474,9 +857,18 @@ class DeterministicAccountResolver {
     );
   }
 
+  normalizeAccountPatternText(value) {
+    return normalizeText(value)
+      .toLowerCase()
+      .replace(/[‐‑‒–—−]/g, '-')
+      .replace(/co\s*-\s*operative/g, 'cooperative')
+      .replace(/e\s*-\s*wallet/g, 'ewallet')
+      .replace(/\bc\s*\.?\s*e\s*\.?\s*w\b/g, 'cew');
+  }
+
   resolveAccountFromDescription(description) {
     if (!description) return null;
-    const normalized = normalizeText(description).toLowerCase();
+    const normalized = this.normalizeAccountPatternText(description);
 
     // Rule 1: EXPLICIT CASH (only if "cash" appears and other accounts NOT mentioned)
     if (this.matchesCashPattern(normalized)) {
@@ -518,35 +910,56 @@ class DeterministicAccountResolver {
     // Must have "cash" keyword
     if (!normalized.includes('cash')) return false;
     // MUST NOT have other account keywords (to avoid accidental routing)
-    if (normalized.includes('chamasoft') || normalized.includes('c.e.w') ||
+    if (normalized.includes('chamasoft') || normalized.includes('cew') ||
         normalized.includes('cooperative') || normalized.includes('cytonn') ||
-        normalized.includes('e-wallet')) return false;
+        normalized.includes('ewallet')) return false;
     // Must be explicit cash terminology
     return /cash(?:\s+at\s+hand|office|box)?/i.test(normalized);
   }
 
   matchesChamaSoftPattern(normalized) {
-    return /chamasoft|c\.e\.w|e-?wallet/i.test(normalized);
+    return /chamasoft|\bcew\b|e\s*-?\s*wallet/i.test(normalized);
   }
 
   matchesCooperativePattern(normalized) {
-    return /cooperat(?:ive|or)(?:\s+bank|\s+society)?/i.test(normalized) &&
+    return /cooperative(?:\s+bank|\s+society)?/i.test(normalized) &&
            !this.matchesChamaSoftPattern(normalized);
   }
 
   matchesCytonnPattern(normalized) {
-    return /cytonn|money\s+market|collection\s+account/i.test(normalized);
+    return /cytonn|money\s+market|collection\s+account|state\s+bank\s+of\s+mauritius|\bmauritius\b/i.test(normalized);
   }
 }
 
-function mapBankAccountId(description, accountMap) {
+function mapBankAccountId(description, accountMap, direction = 'either') {
+  const hints = extractAccountHints(description);
   const resolver = new DeterministicAccountResolver(accountMap);
+
+  const hintedCandidates = direction === 'deposit'
+    ? [hints.depositedTo, hints.to, description]
+    : direction === 'withdrawal'
+      ? [hints.withdrawnFrom, hints.from, hints.to, description]
+      : [hints.depositedTo, hints.withdrawnFrom, hints.to, hints.from, description];
+
+  for (const hint of hintedCandidates) {
+    const resolved = resolver.resolveAccountFromDescription(hint || '');
+    if (resolved) return resolved;
+  }
+
   return resolver.resolveAccountFromDescription(description);
 }
 
 async function importTransactionStatement(memberMap) {
   const accounts = await prisma.account.findMany({ select: { id: true, name: true } });
   const accountMap = new Map(accounts.map((a) => [a.name, a.id]));
+  const accountNameById = new Map(accounts.map((a) => [a.id, a.name]));
+
+  const expenseCategoryNames = (await prisma.expenseCategory.findMany({
+    select: { name: true },
+    orderBy: { name: 'asc' },
+  })).map((item) => item.name);
+  const classifyExpenseCategory = buildExpenseCategoryClassifier(expenseCategoryNames);
+
   const wb = await readWorkbook(FILES.transactions);
   const ws = wb.worksheets[0];
   const headers = getHeaders(ws, 2);
@@ -571,6 +984,11 @@ async function importTransactionStatement(memberMap) {
 
   let deposits = 0;
   let withdrawals = 0;
+  const expenseCategorySummary = new Map();
+  const cashFlowSummary = {
+    deposits: { count: 0, total: 0 },
+    withdrawals: { count: 0, total: 0 },
+  };
 
   for (const { row, date } of rows) {
 
@@ -582,9 +1000,9 @@ async function importTransactionStatement(memberMap) {
     const { memberName } = extractMemberAndContribution(description);
     const genericMember = memberName || extractMemberGeneric(description);
     const memberId = genericMember ? memberMap.get(genericMember.toLowerCase()) || null : null;
-    const accountId = mapBankAccountId(description, accountMap);
 
     if (deposited > 0) {
+      const accountId = mapBankAccountId(description, accountMap, 'deposit');
       let type = 'income';
       if (/Contribution payment/i.test(txnType)) type = 'contribution';
       else if (/Loan Repayment/i.test(txnType)) type = 'loan_repayment';
@@ -609,32 +1027,453 @@ async function importTransactionStatement(memberMap) {
           description,
         },
       });
+
+      if (/cash at hand/i.test(accountNameById.get(accountId) || '')) {
+        cashFlowSummary.deposits.count += 1;
+        cashFlowSummary.deposits.total += deposited;
+      }
+
       deposits += 1;
     }
 
     if (withdrawn > 0) {
+      const accountId = mapBankAccountId(description, accountMap, 'withdrawal');
       let type = 'expense';
       if (/Funds Transfer/i.test(txnType)) type = 'transfer';
       else if (/Loan Disbursement|Bank Loan Disbursement/i.test(txnType)) type = 'loan_disbursement';
+
+      const expenseCategory = type === 'expense' ? classifyExpenseCategory(description) : null;
 
       await prisma.withdrawal.create({
         data: {
           memberId: memberId || undefined,
           amount: new Prisma.Decimal(withdrawn),
           type,
+          category: expenseCategory,
           date,
           accountId,
           description,
         },
       });
+
+      if (/cash at hand/i.test(accountNameById.get(accountId) || '')) {
+        cashFlowSummary.withdrawals.count += 1;
+        cashFlowSummary.withdrawals.total += withdrawn;
+      }
+
+      if (type === 'expense') {
+        const current = expenseCategorySummary.get(expenseCategory) || { count: 0, total: 0 };
+        current.count += 1;
+        current.total += withdrawn;
+        expenseCategorySummary.set(expenseCategory, current);
+      }
+
       withdrawals += 1;
     }
   }
 
   console.log(`🏦 Statement transactions imported: deposits=${deposits}, withdrawals=${withdrawals}`);
+  console.log('\n💼 Expense summary (classified from statement + expense catalog):');
+  for (const [categoryName, totals] of [...expenseCategorySummary.entries()].sort((a, b) => b[1].total - a[1].total)) {
+    console.log(`  - ${categoryName}: count=${totals.count}, total=${totals.total.toFixed(2)} KES`);
+  }
+
+  console.log('\n💵 Cash at Hand mapping summary (migration import stage):');
+  console.log(`  - Deposits mapped to Cash at Hand: count=${cashFlowSummary.deposits.count}, total=${cashFlowSummary.deposits.total.toFixed(2)} KES`);
+  console.log(`  - Withdrawals mapped to Cash at Hand: count=${cashFlowSummary.withdrawals.count}, total=${cashFlowSummary.withdrawals.total.toFixed(2)} KES`);
+}
+
+async function applyStatementLoanRepayments() {
+  const mappingConfig = loadStatementRepaymentMapping(STATEMENT_REPAYMENT_MAPPING_FILE);
+
+  const deposits = await prisma.deposit.findMany({
+    where: {
+      type: 'loan_repayment',
+      amount: { gt: 0 },
+    },
+    select: {
+      id: true,
+      memberId: true,
+      memberName: true,
+      amount: true,
+      date: true,
+      description: true,
+      accountId: true,
+    },
+    orderBy: [{ date: 'asc' }, { id: 'asc' }],
+  });
+
+  if (deposits.length === 0) {
+    console.log('💳 Statement loan repayment allocation: no loan repayment deposits found');
+    return;
+  }
+
+  const accounts = await prisma.account.findMany({
+    select: { id: true, type: true },
+  });
+  const accountTypeById = new Map(accounts.map((item) => [item.id, item.type]));
+
+  const loans = await prisma.loan.findMany({
+    where: { loanDirection: 'outward' },
+    select: {
+      id: true,
+      memberId: true,
+      memberName: true,
+      amount: true,
+      balance: true,
+      interestRate: true,
+      interestType: true,
+      periodMonths: true,
+      status: true,
+      disbursementDate: true,
+      member: { select: { name: true } },
+      loanType: { select: { interestRate: true, interestType: true, periodMonths: true } },
+    },
+    orderBy: [{ disbursementDate: 'asc' }, { id: 'asc' }],
+  });
+
+  const loanStateById = new Map(
+    loans.map((loan) => {
+      const memberName = normalizeText(loan.member?.name || loan.memberName || '');
+      const memberNameKey = normalizeNameKey(memberName);
+      return [
+        loan.id,
+        {
+          id: loan.id,
+          memberId: loan.memberId || null,
+          memberName,
+          memberNameKey,
+          amount: toMoney(Number(loan.amount || 0)),
+          balance: toMoney(Number(loan.balance || 0)),
+          interestRate: toMoney(Number(loan.interestRate || loan.loanType?.interestRate || 0)),
+          interestType: normalizeText(loan.interestType || loan.loanType?.interestType || 'flat').toLowerCase(),
+          periodMonths: Number(loan.periodMonths || loan.loanType?.periodMonths || 12),
+          status: normalizeText(loan.status).toLowerCase(),
+          disbursementDate: loan.disbursementDate || null,
+        },
+      ];
+    }),
+  );
+
+  const summary = {
+    totalLoanRepaymentDeposits: deposits.length,
+    allocated: 0,
+    skippedExisting: 0,
+    unresolved: 0,
+    mappedOverridesUsed: 0,
+    mappedSkips: 0,
+    principalPosted: 0,
+    interestPosted: 0,
+    byInterestType: {
+      flat: 0,
+      reducing: 0,
+      other: 0,
+    },
+  };
+
+  const unresolvedRows = [];
+
+  const pickLoanForDeposit = (deposit, parsedRepayment, rowMapping) => {
+    const paymentMemberKey = normalizeNameKey(
+      parsedRepayment.memberName || deposit.memberName || '',
+    );
+
+    const openLoans = [...loanStateById.values()].filter((loan) => loan.balance > 0.01);
+
+    if (openLoans.length === 0) {
+      return { loan: null, reason: 'no_open_loan' };
+    }
+
+    if (rowMapping?.loanId) {
+      const mappedLoanId = Number(rowMapping.loanId);
+      if (!Number.isFinite(mappedLoanId)) {
+        return { loan: null, reason: 'mapped_loan_invalid' };
+      }
+      const mappedLoan = loanStateById.get(mappedLoanId);
+      if (!mappedLoan || mappedLoan.balance <= 0.01) {
+        return { loan: null, reason: 'mapped_loan_not_open' };
+      }
+      return { loan: mappedLoan, reason: null };
+    }
+
+    const scored = openLoans
+      .map((loan) => {
+        let score = 0;
+
+        if (deposit.memberId && loan.memberId === deposit.memberId) score += 6;
+        if (!deposit.memberId && paymentMemberKey && loan.memberNameKey === paymentMemberKey) score += 5;
+
+        if (parsedRepayment.principal) {
+          const amountDelta = Math.abs(loan.amount - parsedRepayment.principal);
+          if (amountDelta < 0.01) score += 5;
+          else if (amountDelta <= 1) score += 4;
+          else if (amountDelta <= 10) score += 2;
+        }
+
+        if (parsedRepayment.disbursedOn) {
+          const disbursedKey = formatDateKey(loan.disbursementDate);
+          if (disbursedKey && disbursedKey === parsedRepayment.disbursedOn) score += 4;
+        }
+
+        if (loan.status === 'active') score += 1;
+
+        return { loan, score };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const dateA = a.loan.disbursementDate ? new Date(a.loan.disbursementDate).getTime() : 0;
+        const dateB = b.loan.disbursementDate ? new Date(b.loan.disbursementDate).getTime() : 0;
+        if (dateA !== dateB) return dateA - dateB;
+        return a.loan.id - b.loan.id;
+      });
+
+    if (scored.length === 0) {
+      if (deposit.memberId) {
+        const memberLoans = openLoans.filter((loan) => loan.memberId === deposit.memberId);
+        if (memberLoans.length === 1) return { loan: memberLoans[0], reason: null };
+      }
+      return { loan: null, reason: 'loan_not_resolvable' };
+    }
+
+    if (scored.length === 1) {
+      return { loan: scored[0].loan, reason: null };
+    }
+
+    if (scored[0].score === scored[1].score) {
+      const tied = scored.filter((item) => item.score === scored[0].score).map((item) => item.loan.id);
+      return {
+        loan: null,
+        reason: `ambiguous_loan_candidates(${tied.join(',')})`,
+      };
+    }
+
+    return { loan: scored[0].loan, reason: null };
+  };
+
+  for (const deposit of deposits) {
+    const amount = toMoney(Number(deposit.amount || 0));
+    if (!amount || amount <= 0) continue;
+
+    const reference = `stmt-repay-d${deposit.id}`;
+    const existing = await prisma.repayment.findFirst({ where: { reference }, select: { id: true } });
+    if (existing) {
+      summary.skippedExisting += 1;
+      continue;
+    }
+
+    const rowMapping = mappingConfig.rows[String(deposit.id)] || null;
+    if (rowMapping && String(rowMapping.action || '').toLowerCase() === 'skip') {
+      summary.mappedSkips += 1;
+      continue;
+    }
+    if (rowMapping && rowMapping.loanId) {
+      summary.mappedOverridesUsed += 1;
+    }
+
+    const parsedRepayment = parseRepaymentDescription(deposit.description);
+    const selected = pickLoanForDeposit(deposit, parsedRepayment, rowMapping);
+
+    if (!selected.loan) {
+      summary.unresolved += 1;
+      unresolvedRows.push({
+        depositId: deposit.id,
+        date: deposit.date,
+        memberName: normalizeText(parsedRepayment.memberName || deposit.memberName || ''),
+        amount,
+        reason: selected.reason,
+        description: normalizeText(deposit.description),
+      });
+      continue;
+    }
+
+    const loan = selected.loan;
+    const split = estimateRepaymentSplit(loan, amount);
+    const principalPaid = split.principal;
+    const interestPaid = split.interest;
+
+    const newBalance = toMoney(Math.max(0, loan.balance - principalPaid));
+    const method = resolvePaymentMethodByAccountType(
+      deposit.accountId ? accountTypeById.get(deposit.accountId) : null,
+    );
+
+    await prisma.$transaction(async (tx) => {
+      await tx.repayment.create({
+        data: {
+          loanId: loan.id,
+          memberId: loan.memberId || deposit.memberId || undefined,
+          accountId: deposit.accountId || undefined,
+          amount: new Prisma.Decimal(amount),
+          principal: new Prisma.Decimal(principalPaid),
+          interest: new Prisma.Decimal(interestPaid),
+          method,
+          reference,
+          notes: `Source: Statement loan_repayment deposit #${deposit.id}${deposit.description ? ` | ${normalizeText(deposit.description)}` : ''}`,
+          date: deposit.date,
+        },
+      });
+
+      await tx.loan.update({
+        where: { id: loan.id },
+        data: {
+          balance: new Prisma.Decimal(newBalance),
+          status: newBalance <= 0.01 ? 'closed' : undefined,
+        },
+      });
+
+      if (loan.memberId && principalPaid > 0) {
+        const updatedMember = await tx.member.update({
+          where: { id: loan.memberId },
+          data: {
+            loanBalance: { decrement: principalPaid },
+          },
+          select: { balance: true },
+        });
+
+        await tx.ledger.create({
+          data: {
+            memberId: loan.memberId,
+            type: 'loan_repayment',
+            amount,
+            description: `Statement loan repayment for Loan #${loan.id}`,
+            reference,
+            balanceAfter: Number(updatedMember.balance),
+            date: deposit.date,
+          },
+        });
+      }
+    });
+
+    loan.balance = newBalance;
+    loan.status = newBalance <= 0.01 ? 'closed' : loan.status;
+
+    summary.allocated += 1;
+    summary.principalPosted += principalPaid;
+    summary.interestPosted += interestPaid;
+
+    if (loan.interestType === 'reducing') summary.byInterestType.reducing += 1;
+    else if (loan.interestType === 'flat' || !loan.interestType) summary.byInterestType.flat += 1;
+    else summary.byInterestType.other += 1;
+  }
+
+  summary.principalPosted = toMoney(summary.principalPosted);
+  summary.interestPosted = toMoney(summary.interestPosted);
+
+  console.log('\n💳 Statement loan repayment allocation summary:');
+  console.log(`  - Source loan_repayment deposits: ${summary.totalLoanRepaymentDeposits}`);
+  console.log(`  - Repayments allocated to loans: ${summary.allocated}`);
+  console.log(`  - Existing repayments skipped: ${summary.skippedExisting}`);
+  console.log(`  - Mapping overrides used: ${summary.mappedOverridesUsed}`);
+  console.log(`  - Mapping explicit skips: ${summary.mappedSkips}`);
+  console.log(`  - Unresolved for manual mapping: ${summary.unresolved}`);
+  console.log(`  - Principal posted: ${summary.principalPosted.toFixed(2)} KES`);
+  console.log(`  - Interest posted: ${summary.interestPosted.toFixed(2)} KES`);
+  console.log(
+    `  - Interest mode usage: flat=${summary.byInterestType.flat}, reducing=${summary.byInterestType.reducing}, other=${summary.byInterestType.other}`,
+  );
+
+  if (unresolvedRows.length > 0) {
+    const report = {
+      generatedAt: new Date().toISOString(),
+      unresolvedCount: unresolvedRows.length,
+      unresolvedRows,
+      mappingTemplate: buildStatementRepaymentMappingTemplate(unresolvedRows),
+    };
+
+    fs.writeFileSync(STATEMENT_REPAYMENT_UNRESOLVED_REPORT_FILE, JSON.stringify(report, null, 2));
+    console.log(`  - Unresolved report: ${STATEMENT_REPAYMENT_UNRESOLVED_REPORT_FILE}`);
+
+    if (!fs.existsSync(STATEMENT_REPAYMENT_MAPPING_FILE)) {
+      fs.writeFileSync(
+        STATEMENT_REPAYMENT_MAPPING_FILE,
+        JSON.stringify(buildStatementRepaymentMappingTemplate(unresolvedRows), null, 2),
+      );
+      console.log(`  - Mapping template created: ${STATEMENT_REPAYMENT_MAPPING_FILE}`);
+    }
+  }
 }
 
 async function importContributionTransfers(memberMap) {
+  const hasContributionTransferTable = async () => {
+    try {
+      const result = await prisma.$queryRawUnsafe(
+        'SELECT to_regclass(\'public."ContributionTransfer"\') AS table_name',
+      );
+      return Boolean(result?.[0]?.table_name);
+    } catch {
+      return false;
+    }
+  };
+
+  const ensureGLAccount = async (name, description) => {
+    const existing = await prisma.account.findFirst({ where: { name, type: 'gl' } });
+    if (existing) return existing;
+
+    return prisma.account.create({
+      data: {
+        name,
+        type: 'gl',
+        description: description || null,
+        currency: 'KES',
+        balance: new Prisma.Decimal(0),
+      },
+    });
+  };
+
+  const extractContributionTypeFromDetails = (details) => {
+    const text = normalizeText(details);
+    const match = text.match(/from\s+contribution\s*-\s*(.+)$/i);
+    return match ? normalizeText(match[1]) : 'Monthly Minimum Contribution';
+  };
+
+  const resolveToMemberIdFromText = (details, description, members, fromMemberId) => {
+    const combined = `${normalizeText(details)} ${normalizeText(description)}`.toLowerCase();
+    if (!combined || combined.includes('another member')) return null;
+
+    const exact = members.find((member) =>
+      member.id !== fromMemberId && combined.includes(member.name.toLowerCase()),
+    );
+    return exact ? exact.id : null;
+  };
+
+  const resolveLoanForTransfer = async (memberId, details, description, amount) => {
+    const loans = await prisma.loan.findMany({
+      where: {
+        memberId,
+        balance: { gt: 0 },
+        status: { in: ['active', 'defaulted', 'pending'] },
+      },
+      select: {
+        id: true,
+        balance: true,
+        status: true,
+        loanType: { select: { name: true } },
+      },
+      orderBy: [{ balance: 'desc' }, { id: 'desc' }],
+    });
+
+    if (loans.length === 0) return { loan: null, reason: 'no_open_loan' };
+
+    const hintText = `${normalizeText(details)} ${normalizeText(description)}`.toLowerCase();
+    const hinted = loans.filter((loan) => {
+      const typeName = normalizeText(loan.loanType?.name).toLowerCase();
+      if (!typeName) return false;
+      const tokens = typeName.split(/[^a-z0-9]+/).filter((token) => token.length > 3);
+      return tokens.some((token) => hintText.includes(token));
+    });
+
+    if (hinted.length === 1) return { loan: hinted[0], reason: null };
+    if (hinted.length > 1) return { loan: null, reason: 'ambiguous_loan_by_type' };
+    if (loans.length === 1) return { loan: loans[0], reason: null };
+
+    const exactAmountMatch = loans.filter(
+      (loan) => Math.abs(Number(loan.balance) - Number(amount)) < 0.01,
+    );
+    if (exactAmountMatch.length === 1) return { loan: exactAmountMatch[0], reason: null };
+
+    return { loan: null, reason: 'ambiguous_loan_multiple_open' };
+  };
+
   const wb = await readWorkbook(FILES.contributionTransfers);
   const ws = wb.worksheets[0];
   const headers = getHeaders(ws, 2);
@@ -645,43 +1484,299 @@ async function importContributionTransfers(memberMap) {
   const detailIdx = headers.findIndex((h) => /Transfer Details/i.test(h));
   const descIdx = headers.findIndex((h) => /^Description$/i.test(h));
 
-  let created = 0;
+  const canWriteTransferTable = await hasContributionTransferTable();
+  const members = await prisma.member.findMany({ select: { id: true, name: true } });
+
+  const contributionReceivableAccount = await ensureGLAccount(
+    'Member Contributions Receivable',
+    'GL account for tracking member contribution balances',
+  );
+  const loansReceivableAccount = await ensureGLAccount(
+    'Loans Receivable',
+    'Outstanding loans to members (Asset)',
+  );
+
+  const memberContributionGlCache = new Map();
+  const getMemberContributionGl = async (memberName) => {
+    const key = normalizeText(memberName);
+    if (memberContributionGlCache.has(key)) return memberContributionGlCache.get(key);
+    const glAccount = await ensureGLAccount(
+      `Member ${key} - Contributions`,
+      `GL account for ${key}'s contributions`,
+    );
+    memberContributionGlCache.set(key, glAccount);
+    return glAccount;
+  };
+
+  const summary = {
+    totalRows: 0,
+    created: 0,
+    appliedContributionToLoan: 0,
+    appliedMemberToMember: 0,
+    skippedExisting: 0,
+    unresolved: 0,
+  };
+  const unresolvedRows = [];
+
   for (let r = 3; r <= ws.rowCount; r += 1) {
     const row = ws.getRow(r);
     const memberName = normalizeText(row.getCell(memberIdx + 1).value);
     if (!memberName) continue;
+
     const amount = parseMoney(row.getCell(amountIdx + 1).value);
     if (!amount) continue;
+
     const date = parseDate(row.getCell(dateIdx + 1).value) || new Date();
     const details = normalizeText(row.getCell(detailIdx + 1).value);
     const description = normalizeText(row.getCell(descIdx + 1).value);
+    const reference = `ct-import-r${r}`;
     const memberId = memberMap.get(memberName.toLowerCase()) || null;
-    const isMemberToMember = /another\s+member/i.test(details || '');
-    const category = isMemberToMember ? 'member_to_member' : 'contribution_to_loan';
-    const toDestination = isMemberToMember ? 'contribution' : 'loan';
 
-    await prisma.contributionTransfer.create({
-      data: {
-        fromMemberId: memberId || undefined,
-        fromMemberName: memberName,
-        fromSource: 'contribution',
-        fromContributionType: 'Monthly Minimum Contribution',
-        toMemberId: isMemberToMember ? undefined : memberId || undefined,
-        toMemberName: isMemberToMember ? null : memberName,
-        toDestination,
-        toContributionType: isMemberToMember ? 'Member Contribution' : null,
-        toLoanId: null,
-        amount: new Prisma.Decimal(amount),
-        date,
-        reference: null,
-        description: `${details}${description ? ` | ${description}` : ''}`,
-        category,
-      },
+    summary.totalRows += 1;
+
+    const existingJournal = await prisma.journalEntry.findFirst({
+      where: { reference },
+      select: { id: true },
     });
-    created += 1;
+    if (existingJournal) {
+      summary.skippedExisting += 1;
+      continue;
+    }
+
+    if (!memberId) {
+      summary.unresolved += 1;
+      unresolvedRows.push({ row: r, memberName, amount, reason: 'member_not_found' });
+      continue;
+    }
+
+    const isMemberToMember = /another\s+member/i.test(details || '');
+
+    if (isMemberToMember) {
+      const toMemberId = resolveToMemberIdFromText(details, description, members, memberId);
+      if (!toMemberId || toMemberId === memberId) {
+        summary.unresolved += 1;
+        unresolvedRows.push({
+          row: r,
+          memberName,
+          amount,
+          reason: toMemberId ? 'destination_same_member' : 'destination_member_not_resolvable',
+        });
+        continue;
+      }
+
+      const toMember = members.find((member) => member.id === toMemberId);
+      if (!toMember) {
+        summary.unresolved += 1;
+        unresolvedRows.push({ row: r, memberName, amount, reason: 'destination_member_not_found' });
+        continue;
+      }
+
+      const fromMemberGl = await getMemberContributionGl(memberName);
+      const toMemberGl = await getMemberContributionGl(toMember.name);
+      const amountDecimal = new Prisma.Decimal(amount);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.journalEntry.create({
+          data: {
+            date,
+            reference,
+            description: `Member transfer: ${memberName} → ${toMember.name}`,
+            narration: [
+              `Source:Contribution Transfer File Row ${r}`,
+              `From:${memberName}(#${memberId})`,
+              `To:${toMember.name}(#${toMemberId})`,
+              description,
+            ]
+              .filter(Boolean)
+              .join(' | '),
+            debitAccountId: toMemberGl.id,
+            debitAmount: amountDecimal,
+            creditAccountId: fromMemberGl.id,
+            creditAmount: amountDecimal,
+            category: 'contribution_transfer',
+          },
+        });
+
+        const updatedFromMember = await tx.member.update({
+          where: { id: memberId },
+          data: { balance: { decrement: amount } },
+          select: { balance: true },
+        });
+
+        const updatedToMember = await tx.member.update({
+          where: { id: toMemberId },
+          data: { balance: { increment: amount } },
+          select: { balance: true },
+        });
+
+        await tx.ledger.createMany({
+          data: [
+            {
+              memberId,
+              type: 'transfer_out',
+              amount,
+              description: `Transfer to ${toMember.name}`,
+              reference,
+              balanceAfter: Number(updatedFromMember.balance),
+              date,
+            },
+            {
+              memberId: toMemberId,
+              type: 'transfer_in',
+              amount,
+              description: `Transfer from ${memberName}`,
+              reference,
+              balanceAfter: Number(updatedToMember.balance),
+              date,
+            },
+          ],
+        });
+
+        if (canWriteTransferTable) {
+          await tx.contributionTransfer.create({
+            data: {
+              fromMemberId: memberId,
+              fromMemberName: memberName,
+              fromSource: 'contribution',
+              fromContributionType: 'Monthly Minimum Contribution',
+              toMemberId,
+              toMemberName: toMember.name,
+              toDestination: 'contribution',
+              toContributionType: 'Member Contribution',
+              toLoanId: null,
+              amount: amountDecimal,
+              date,
+              reference,
+              description: `${details}${description ? ` | ${description}` : ''}`,
+              category: 'member_to_member',
+              debitAccount: toMemberGl.name,
+              creditAccount: fromMemberGl.name,
+              journalReference: reference,
+            },
+          });
+        }
+      });
+
+      summary.created += 1;
+      summary.appliedMemberToMember += 1;
+      continue;
+    }
+
+    const { loan, reason } = await resolveLoanForTransfer(memberId, details, description, amount);
+    if (!loan) {
+      summary.unresolved += 1;
+      unresolvedRows.push({ row: r, memberName, amount, reason });
+      continue;
+    }
+
+    if (Number(amount) > Number(loan.balance) + 0.01) {
+      summary.unresolved += 1;
+      unresolvedRows.push({
+        row: r,
+        memberName,
+        amount,
+        reason: `amount_exceeds_loan_balance(loan=${loan.id},balance=${Number(loan.balance).toFixed(2)})`,
+      });
+      continue;
+    }
+
+    const fromContributionType = extractContributionTypeFromDetails(details);
+    const amountDecimal = new Prisma.Decimal(amount);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.journalEntry.create({
+        data: {
+          date,
+          reference,
+          description: `Contribution transfer to loan - ${memberName}`,
+          narration: [
+            `Source:Contribution Transfer File Row ${r}`,
+            `From:${fromContributionType}`,
+            `To:Loan#${loan.id}(${normalizeText(loan.loanType?.name) || 'Loan'})`,
+            description,
+          ]
+            .filter(Boolean)
+            .join(' | '),
+          debitAccountId: loansReceivableAccount.id,
+          debitAmount: amountDecimal,
+          creditAccountId: contributionReceivableAccount.id,
+          creditAmount: amountDecimal,
+          category: 'contribution_transfer',
+        },
+      });
+
+      await tx.loan.update({
+        where: { id: loan.id },
+        data: { balance: { decrement: amountDecimal } },
+      });
+
+      const updatedMember = await tx.member.update({
+        where: { id: memberId },
+        data: {
+          balance: { decrement: amount },
+          loanBalance: { decrement: amount },
+        },
+        select: { balance: true },
+      });
+
+      await tx.ledger.create({
+        data: {
+          memberId,
+          type: 'transfer_out',
+          amount,
+          description: `Transfer ${fromContributionType} to ${normalizeText(loan.loanType?.name) || 'Loan'}`,
+          reference,
+          balanceAfter: Number(updatedMember.balance),
+          date,
+        },
+      });
+
+      if (canWriteTransferTable) {
+        await tx.contributionTransfer.create({
+          data: {
+            fromMemberId: memberId,
+            fromMemberName: memberName,
+            fromSource: 'contribution',
+            fromContributionType,
+            toMemberId: memberId,
+            toMemberName: memberName,
+            toDestination: 'loan',
+            toLoanId: loan.id,
+            amount: amountDecimal,
+            date,
+            reference,
+            description: `${details}${description ? ` | ${description}` : ''}`,
+            category: 'contribution_to_loan',
+            debitAccount: loansReceivableAccount.name,
+            creditAccount: contributionReceivableAccount.name,
+            journalReference: reference,
+          },
+        });
+      }
+    });
+
+    summary.created += 1;
+    summary.appliedContributionToLoan += 1;
   }
 
-  console.log(`🔁 Contribution transfers imported: ${created}`);
+  console.log('\n🔁 Contribution transfer extraction summary (safe internal posting):');
+  console.log(`  - Source rows parsed: ${summary.totalRows}`);
+  console.log(`  - Applied transfers: ${summary.created}`);
+  console.log(`    • Contribution → Loan applied: ${summary.appliedContributionToLoan}`);
+  console.log(`    • Member → Member applied: ${summary.appliedMemberToMember}`);
+  console.log(`  - Skipped existing (idempotent by reference): ${summary.skippedExisting}`);
+  console.log(`  - Unresolved / skipped for safety: ${summary.unresolved}`);
+  console.log(`  - ContributionTransfer table available: ${canWriteTransferTable ? 'yes' : 'no (posted without transfer-record table)'}`);
+
+  if (unresolvedRows.length > 0) {
+    console.log('\n⚠️ Unresolved contribution transfer rows (manual review needed):');
+    for (const row of unresolvedRows.slice(0, 30)) {
+      console.log(`  - row=${row.row} member=${row.memberName || 'N/A'} amount=${row.amount || 0} reason=${row.reason}`);
+    }
+    if (unresolvedRows.length > 30) {
+      console.log(`  ...and ${unresolvedRows.length - 30} more`);
+    }
+  }
 }
 
 async function updateMemberActivity() {
@@ -780,7 +1875,16 @@ async function reportTotals() {
 }
 
 async function main() {
+  if (WIPE_SETTINGS && !CONFIRM_WIPE_SETTINGS) {
+    throw new Error('Refusing to wipe settings without --confirm-wipe-settings');
+  }
+
   console.log('🚀 Starting real-data migration (date-safe mode)...');
+  console.log(`⚙️  Options: skipContributionTransfers=${SKIP_CONTRIBUTION_TRANSFERS}, wipeSettings=${WIPE_SETTINGS}, settingsOnly=${SETTINGS_ONLY}`);
+  console.log('📂 Resolved source files:');
+  for (const [key, fileName] of Object.entries(FILES)) {
+    console.log(`  - ${key}: ${fileName}`);
+  }
 
   for (const key of Object.keys(FILES)) {
     const filePath = path.join(BACKEND_DIR, FILES[key]);
@@ -789,15 +1893,27 @@ async function main() {
     }
   }
 
+  if (SETTINGS_ONLY) {
+    await seedSettingsCatalogs({ preserveExisting: true });
+    console.log('✅ Settings alignment complete (no data wipe, no migration import)');
+    return;
+  }
+
   await snapshotBeforeWipe();
-  await wipeAll();
-  await seedSettingsCatalogs();
+  await wipeAll({ preserveSettings: !WIPE_SETTINGS });
+  await seedSettingsCatalogs({ preserveExisting: !WIPE_SETTINGS });
   const memberMap = await importMembers();
   await importLoans(memberMap);
   await importTransactionStatement(memberMap);
-  await importContributionTransfers(memberMap);
+  await applyStatementLoanRepayments();
   await updateMemberActivity();
   await updateLoanDelinquency();
+  if (SKIP_CONTRIBUTION_TRANSFERS) {
+    console.log('⏭️  Skipping final contribution transfer phase (flag enabled)');
+  } else {
+    console.log('🔚 Running contribution transfers as final migration posting step...');
+    await importContributionTransfers(memberMap);
+  }
   await reportTotals();
 
   console.log('✅ Migration complete');

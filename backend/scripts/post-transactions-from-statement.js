@@ -2,6 +2,7 @@ const ExcelJS = require('exceljs');
 const path = require('path');
 const { PrismaClient, Prisma } = require('@prisma/client');
 const { PrismaNeon } = require('@prisma/adapter-neon');
+const { resolveSourceFiles } = require('./source-file-resolver');
 
 require('dotenv').config();
 
@@ -9,6 +10,10 @@ const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 const BACKEND_DIR = path.resolve(__dirname, '..');
 const APPLY = process.argv.includes('--apply');
+const FILES = resolveSourceFiles(['transactions', 'expenses', 'accountBalances'], {
+  backendDir: BACKEND_DIR,
+  allowMissing: true,
+});
 
 function normalizeText(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -40,6 +45,14 @@ function parseMoney(value) {
   const raw = String(value).replace(/,/g, '').trim();
   const num = Number(raw);
   return Number.isFinite(num) ? num : 0;
+}
+
+function normalizeKey(value) {
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function classifyType(typeText) {
@@ -78,10 +91,137 @@ function parseLoanDisbursementDescription(description) {
 function extractAccountsFromDescription(description) {
   const desc = normalizeText(description);
   const fromMatch = desc.match(/from\s+(.+?)(?:\s-\s|,\s|\s+for\s|\s+deposited\s+to|$)/i);
-  const toMatch = desc.match(/(?:to|deposited\s+to|withdrawn\s+from)\s+(.+?)(?:\s-\s|,\s|\s+for\s|$)/i);
+  const toMatch = desc.match(/\bto\s+(.+?)(?:\s-\s|,\s|\s+for\s|$)/i);
+  const depositedToMatch = desc.match(/deposited\s+to\s+(.+?)(?:\s-\s|,\s|\s+for\s|$)/i);
+  const withdrawnFromMatch = desc.match(/withdrawn\s+from\s+(.+?)(?:\s-\s|,\s|\s+for\s|$)/i);
   return {
     from: fromMatch ? normalizeText(fromMatch[1]) : null,
     to: toMatch ? normalizeText(toMatch[1]) : null,
+    depositedTo: depositedToMatch ? normalizeText(depositedToMatch[1]) : null,
+    withdrawnFrom: withdrawnFromMatch ? normalizeText(withdrawnFromMatch[1]) : null,
+  };
+}
+
+async function loadExpenseCategoryNames() {
+  const workbook = new ExcelJS.Workbook();
+  const expenseFile = FILES.expenses || 'SOYOSOYO  SACCO Expenses Summary (1).xlsx';
+  await workbook.xlsx.readFile(path.join(BACKEND_DIR, expenseFile));
+  const worksheet = workbook.worksheets[0];
+
+  const categoryNames = new Set();
+  for (let r = 3; r <= worksheet.rowCount; r += 1) {
+    const name = normalizeText(worksheet.getRow(r).getCell(2).value);
+    if (!name || /^totals?$/i.test(name)) continue;
+    categoryNames.add(name);
+  }
+
+  return [...categoryNames];
+}
+
+async function loadExpectedTargetTotal() {
+  const fallback = 17857.15;
+  const balancesFile = FILES.accountBalances;
+  if (!balancesFile) return fallback;
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(path.join(BACKEND_DIR, balancesFile));
+  const worksheet = workbook.worksheets[0];
+
+  const parseMoney = (value) => {
+    const raw = String(value ?? '').replace(/,/g, '').trim();
+    const num = Number(raw);
+    return Number.isFinite(num) ? num : null;
+  };
+
+  for (let r = 1; r <= worksheet.rowCount; r += 1) {
+    const label = normalizeText(worksheet.getRow(r).getCell(2).value).toLowerCase();
+    if (!/grand totals?/.test(label)) continue;
+    const amount = parseMoney(worksheet.getRow(r).getCell(4).value);
+    if (amount !== null) return amount;
+  }
+
+  return fallback;
+}
+
+function buildExpenseCategoryClassifier(categoryNames) {
+  const categories = categoryNames
+    .map((name) => ({
+      name,
+      key: normalizeKey(name),
+      tokens: normalizeKey(name).split(' ').filter((token) => token.length > 2),
+    }))
+    .filter((item) => item.key)
+    .sort((a, b) => b.key.length - a.key.length);
+
+  const resolveCategoryName = (target) => {
+    const key = normalizeKey(target);
+    if (!key) return null;
+    const exact = categories.find((item) => item.key === key);
+    if (exact) return exact.name;
+    const partial = categories.find((item) => item.key.includes(key) || key.includes(item.key));
+    return partial ? partial.name : null;
+  };
+
+  const fallbackCategory =
+    resolveCategoryName('Operating Expenses') ||
+    resolveCategoryName('Office Expenses') ||
+    categoryNames[0] ||
+    'Operating Expenses';
+
+  const manualRules = [
+    { pattern: /withdrawal\s+charges?|bank\s+charges?/i, target: 'Bank Charges' },
+    { pattern: /chamasoft|subscription/i, target: 'Chamasoft subscription' },
+    { pattern: /\brent\b/i, target: 'Rent' },
+    { pattern: /\btransport|fare|fuel|matatu\b/i, target: 'Transport' },
+    { pattern: /t\s*shirts?|caps?|banner|ushirika\s+day/i, target: 'T shirts and Caps' },
+    { pattern: /decorat/i, target: 'Decorations' },
+    { pattern: /office/i, target: 'Office Expenses' },
+    { pattern: /stationer|brochure|printing|photocopy|paper|pen/i, target: 'Stationery' },
+    { pattern: /\baudit\b/i, target: 'Audit Fees' },
+    { pattern: /\bagm\b|annual\s+general\s+meeting/i, target: 'AGM' },
+    { pattern: /kilifi|cooperatives?/i, target: 'Kilifi County - Cooperatives' },
+    { pattern: /\bvinolo\b/i, target: 'Vinolo' },
+    { pattern: /\bsiki\b/i, target: 'Siki' },
+  ];
+
+  return (description) => {
+    const raw = normalizeText(description);
+    if (!raw) return fallbackCategory;
+
+    const cleaned = raw
+      .replace(/^expense\s*:\s*/i, '')
+      .replace(/^\d{6,}\s*-\s*/i, '')
+      .trim();
+
+    const rawKey = normalizeKey(raw);
+    const cleanedKey = normalizeKey(cleaned);
+
+    const exact = categories.find((item) => rawKey.includes(item.key) || cleanedKey.includes(item.key));
+    if (exact) return exact.name;
+
+    for (const rule of manualRules) {
+      if (rule.pattern.test(raw)) {
+        const matched = resolveCategoryName(rule.target);
+        if (matched) return matched;
+      }
+    }
+
+    const cleanedTokens = new Set(cleanedKey.split(' ').filter((token) => token.length > 2));
+    let best = null;
+    for (const category of categories) {
+      const matches = category.tokens.filter((token) => cleanedTokens.has(token)).length;
+      if (!matches) continue;
+      const score = matches / Math.max(1, category.tokens.length);
+      if (!best || score > best.score || (score === best.score && matches > best.matches)) {
+        best = { name: category.name, score, matches };
+      }
+    }
+
+    if (best && (best.matches >= 2 || best.score >= 0.85)) {
+      return best.name;
+    }
+
+    return fallbackCategory;
   };
 }
 
@@ -92,9 +232,18 @@ class DeterministicAccountResolver {
     this.accounts = accounts;
   }
 
+  normalizeAccountPatternText(value) {
+    return normalizeText(value)
+      .toLowerCase()
+      .replace(/[‐‑‒–—−]/g, '-')
+      .replace(/co\s*-\s*operative/g, 'cooperative')
+      .replace(/e\s*-\s*wallet/g, 'ewallet')
+      .replace(/\bc\s*\.?\s*e\s*\.?\s*w\b/g, 'cew');
+  }
+
   resolveAccountFromDescription(description) {
     if (!description) return null;
-    const normalized = normalizeText(description).toLowerCase();
+    const normalized = this.normalizeAccountPatternText(description);
 
     // Rule 1: EXPLICIT CASH (only if "cash" appears and other accounts NOT mentioned)
     if (this.matchesCashPattern(normalized)) {
@@ -137,30 +286,53 @@ class DeterministicAccountResolver {
     // Must have "cash" keyword
     if (!normalized.includes('cash')) return false;
     // MUST NOT have other account keywords (to avoid accidental routing)
-    if (normalized.includes('chamasoft') || normalized.includes('c.e.w') ||
+    if (normalized.includes('chamasoft') || normalized.includes('cew') ||
         normalized.includes('cooperative') || normalized.includes('cytonn') ||
-        normalized.includes('e-wallet')) return false;
+        normalized.includes('ewallet')) return false;
     // Must be explicit cash terminology
     return /cash(?:\s+at\s+hand|office|box)?/i.test(normalized);
   }
 
   matchesChamaSoftPattern(normalized) {
-    return /chamasoft|c\.e\.w|e-?wallet/i.test(normalized);
+    return /chamasoft|\bcew\b|e\s*-?\s*wallet/i.test(normalized);
   }
 
   matchesCooperativePattern(normalized) {
-    return /cooperat(?:ive|or)(?:\s+bank|\s+society)?/i.test(normalized) &&
+    return /cooperative(?:\s+bank|\s+society)?/i.test(normalized) &&
            !this.matchesChamaSoftPattern(normalized);
   }
 
   matchesCytonnPattern(normalized) {
-    return /cytonn|money\s+market|collection\s+account/i.test(normalized);
+    return /cytonn|money\s+market|collection\s+account|state\s+bank\s+of\s+mauritius|\bmauritius\b/i.test(normalized);
   }
 }
 
 function pickAccount(accounts, hint) {
+  const normalizedHint = normalizeText(hint);
+  if (!normalizedHint) return null;
   const resolver = new DeterministicAccountResolver(accounts);
-  return resolver.resolveAccountFromDescription(hint) || accounts[0] || null;
+  return resolver.resolveAccountFromDescription(normalizedHint);
+}
+
+function findDefaultSettlementAccount(accounts) {
+  return accounts.find((account) => /c\.?e\.?w|chamasoft|e\s*-?\s*wallet/i.test(account.name)) || accounts[0] || null;
+}
+
+function pickAccountForDirection(accounts, description, direction, extracted) {
+  const data = extracted || extractAccountsFromDescription(description);
+  const hints = direction === 'deposit'
+    ? [data.depositedTo, data.to, description]
+    : direction === 'withdrawal'
+      ? [data.withdrawnFrom, data.from, data.to, description]
+      : [data.depositedTo, data.withdrawnFrom, data.to, data.from, description];
+
+  for (const hint of hints) {
+    if (!normalizeText(hint)) continue;
+    const account = pickAccount(accounts, hint);
+    if (account) return account;
+  }
+
+  return pickAccount(accounts, description) || findDefaultSettlementAccount(accounts);
 }
 
 function frequencyDays(freq) {
@@ -220,31 +392,84 @@ async function ensureGlAccounts() {
   };
 }
 
-async function createJournalIfMissing(payload, existingRefs, dryRun) {
-  if (existingRefs.has(payload.reference)) {
-    return { created: false, skipped: true };
-  }
+async function createJournalEntriesBulk(entries, chunkSize = 200) {
+  let inserted = 0;
 
-  if (dryRun) {
-    return { created: false, skipped: false };
-  }
-
-  await prisma.$transaction(async (tx) => {
-    await tx.journalEntry.create({ data: payload });
-    await tx.account.update({
-      where: { id: payload.debitAccountId },
-      data: { balance: { increment: payload.debitAmount } },
+  for (let i = 0; i < entries.length; i += chunkSize) {
+    const chunk = entries.slice(i, i + chunkSize);
+    const result = await prisma.journalEntry.createMany({
+      data: chunk,
+      skipDuplicates: true,
     });
-    if (payload.creditAccountId) {
-      await tx.account.update({
-        where: { id: payload.creditAccountId },
-        data: { balance: { decrement: payload.creditAmount } },
-      });
-    }
+    inserted += Number(result?.count || 0);
+  }
+
+  return inserted;
+}
+
+async function recomputeAccountBalancesFromJournals() {
+  const allAccounts = await prisma.account.findMany({ select: { id: true } });
+
+  for (const account of allAccounts) {
+    const [debits, credits] = await Promise.all([
+      prisma.journalEntry.aggregate({
+        where: { debitAccountId: account.id },
+        _sum: { debitAmount: true },
+      }),
+      prisma.journalEntry.aggregate({
+        where: { creditAccountId: account.id },
+        _sum: { creditAmount: true },
+      }),
+    ]);
+
+    const debitSum = Number(debits?._sum?.debitAmount || 0);
+    const creditSum = Number(credits?._sum?.creditAmount || 0);
+    const balance = new Prisma.Decimal(debitSum - creditSum);
+
+    await prisma.account.update({
+      where: { id: account.id },
+      data: { balance },
+    });
+  }
+}
+
+async function ensureExpenseCategoryAndGl(categoryName, dryRun, cache, fallbackAccount) {
+  if (cache.has(categoryName)) {
+    return cache.get(categoryName);
+  }
+
+  await prisma.expenseCategory.upsert({
+    where: { name: categoryName },
+    update: {},
+    create: { name: categoryName },
   });
 
-  existingRefs.add(payload.reference);
-  return { created: true, skipped: false };
+  const glName = `${categoryName} Expense`;
+  let expenseGl = await prisma.account.findFirst({ where: { name: glName } });
+
+  if (!expenseGl && !dryRun) {
+    expenseGl = await prisma.account.create({
+      data: {
+        name: glName,
+        type: 'gl',
+        description: `GL account for ${categoryName} expense`,
+        currency: 'KES',
+        balance: new Prisma.Decimal(0),
+      },
+    });
+  }
+
+  if (!expenseGl && dryRun) {
+    expenseGl = {
+      id: fallbackAccount.id,
+      name: glName,
+      type: 'gl',
+    };
+  }
+
+  const result = expenseGl || fallbackAccount;
+  cache.set(categoryName, result);
+  return result;
 }
 
 async function postTransactions() {
@@ -253,10 +478,31 @@ async function postTransactions() {
   console.log('\n' + '='.repeat(90));
   console.log(`MASTER STATEMENT GL POSTING (${dryRun ? 'DRY-RUN' : 'APPLY'})`);
   console.log('='.repeat(90));
+  console.log(`📂 Statement source: ${FILES.transactions || 'SOYOSOYO  SACCO Transaction Statement (7).xlsx'}`);
+  if (FILES.expenses) {
+    console.log(`📂 Expense source: ${FILES.expenses}`);
+  }
+  if (FILES.accountBalances) {
+    console.log(`📂 Account-balance target source: ${FILES.accountBalances}`);
+  }
 
   try {
     const gl = await ensureGlAccounts();
     const accounts = await prisma.account.findMany({ where: { type: { in: ['mobileMoney', 'bank', 'cash'] } } });
+    const expenseCategoryNamesFromFile = await loadExpenseCategoryNames();
+    if (expenseCategoryNamesFromFile.length > 0) {
+      await prisma.expenseCategory.createMany({
+        data: expenseCategoryNamesFromFile.map((name) => ({ name })),
+        skipDuplicates: true,
+      });
+    }
+    const expenseCategoryNames = (await prisma.expenseCategory.findMany({
+      select: { name: true },
+      orderBy: { name: 'asc' },
+    })).map((item) => item.name);
+    const classifyExpenseCategory = buildExpenseCategoryClassifier(expenseCategoryNames);
+    const expenseGlCache = new Map();
+
     const existingRefsList = await prisma.journalEntry.findMany({
       where: { reference: { startsWith: 'stmt-gl-r' } },
       select: { reference: true },
@@ -264,7 +510,8 @@ async function postTransactions() {
     const existingRefs = new Set(existingRefsList.map((item) => item.reference).filter(Boolean));
 
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.readFile(path.join(BACKEND_DIR, 'SOYOSOYO  SACCO Transaction Statement (7).xlsx'));
+    const statementFile = FILES.transactions || 'SOYOSOYO  SACCO Transaction Statement (7).xlsx';
+    await wb.xlsx.readFile(path.join(BACKEND_DIR, statementFile));
     const ws = wb.worksheets[0];
 
     const rows = [];
@@ -301,7 +548,10 @@ async function postTransactions() {
       byType: {},
     };
 
+    const pendingJournalEntries = [];
+
     const repaymentGroups = new Map();
+    const expenseSummary = new Map();
 
     for (const tx of rows) {
       stats.byType[tx.type] = (stats.byType[tx.type] || 0) + 1;
@@ -314,7 +564,7 @@ async function postTransactions() {
       let category = tx.type;
 
       if (tx.type === 'contribution') {
-        const bank = pickAccount(accounts, extracted.to || tx.description) || accounts[0];
+        const bank = pickAccountForDirection(accounts, tx.description, 'deposit', extracted) || accounts[0];
         if (!bank) {
           stats.parseErrors++;
           continue;
@@ -322,7 +572,7 @@ async function postTransactions() {
         debitAccountId = bank.id;
         creditAccountId = gl.memberContributions.id;
       } else if (tx.type === 'loan_repayment') {
-        const bank = pickAccount(accounts, extracted.to || tx.description) || accounts[0];
+        const bank = pickAccountForDirection(accounts, tx.description, 'deposit', extracted) || accounts[0];
         if (!bank) {
           stats.parseErrors++;
           continue;
@@ -338,7 +588,7 @@ async function postTransactions() {
           repaymentGroups.set(key, bucket);
         }
       } else if (tx.type === 'loan_disbursement') {
-        const bank = pickAccount(accounts, extracted.to || extracted.from || tx.description) || accounts[0];
+        const bank = pickAccountForDirection(accounts, tx.description, 'withdrawal', extracted) || accounts[0];
         if (!bank) {
           stats.parseErrors++;
           continue;
@@ -346,7 +596,7 @@ async function postTransactions() {
         debitAccountId = gl.loansReceivable.id;
         creditAccountId = bank.id;
       } else if (tx.type === 'bank_loan_disbursement') {
-        const bank = pickAccount(accounts, extracted.to || tx.description) || accounts[0];
+        const bank = pickAccountForDirection(accounts, tx.description, 'deposit', extracted) || accounts[0];
         if (!bank) {
           stats.parseErrors++;
           continue;
@@ -354,15 +604,25 @@ async function postTransactions() {
         debitAccountId = bank.id;
         creditAccountId = gl.bankLoansPayable.id;
       } else if (tx.type === 'expense') {
-        const bank = pickAccount(accounts, extracted.to || extracted.from || tx.description) || accounts[0];
+        const bank = pickAccountForDirection(accounts, tx.description, 'withdrawal', extracted) || accounts[0];
         if (!bank) {
           stats.parseErrors++;
           continue;
         }
-        debitAccountId = gl.operatingExpenses.id;
+        const expenseCategory = classifyExpenseCategory(tx.description);
+        const expenseGl = await ensureExpenseCategoryAndGl(expenseCategory, dryRun, expenseGlCache, gl.operatingExpenses);
+
+        debitAccountId = expenseGl.id;
         creditAccountId = bank.id;
+        category = `expense:${expenseCategory}`;
+
+        const current = expenseSummary.get(expenseCategory) || { count: 0, total: 0, glName: expenseGl.name };
+        current.count += 1;
+        current.total += amount;
+        current.glName = expenseGl.name;
+        expenseSummary.set(expenseCategory, current);
       } else if (tx.type === 'income') {
-        const bank = pickAccount(accounts, extracted.to || tx.description) || accounts[0];
+        const bank = pickAccountForDirection(accounts, tx.description, 'deposit', extracted) || accounts[0];
         if (!bank) {
           stats.parseErrors++;
           continue;
@@ -370,7 +630,7 @@ async function postTransactions() {
         debitAccountId = bank.id;
         creditAccountId = gl.interestIncome.id;
       } else if (tx.type === 'miscellaneous') {
-        const bank = pickAccount(accounts, extracted.to || tx.description) || accounts[0];
+        const bank = pickAccountForDirection(accounts, tx.description, 'deposit', extracted) || accounts[0];
         if (!bank) {
           stats.parseErrors++;
           continue;
@@ -378,8 +638,8 @@ async function postTransactions() {
         debitAccountId = bank.id;
         creditAccountId = gl.otherIncome.id;
       } else if (tx.type === 'transfer') {
-        const fromAcc = pickAccount(accounts, extracted.from || tx.description);
-        const toAcc = pickAccount(accounts, extracted.to || tx.description);
+        const fromAcc = pickAccountForDirection(accounts, tx.description, 'withdrawal', extracted);
+        const toAcc = pickAccountForDirection(accounts, tx.description, 'deposit', extracted);
         if (!fromAcc || !toAcc || fromAcc.id === toAcc.id) {
           stats.parseErrors++;
           continue;
@@ -391,7 +651,7 @@ async function postTransactions() {
         continue;
       }
 
-      const result = await createJournalIfMissing({
+      const payload = {
         date: tx.date,
         reference: ref,
         description: tx.description.slice(0, 500),
@@ -401,10 +661,31 @@ async function postTransactions() {
         creditAccountId,
         creditAmount: new Prisma.Decimal(amount),
         category,
-      }, existingRefs, dryRun);
+      };
 
-      if (result.skipped) stats.skippedExisting++;
-      if (result.created) stats.created++;
+      if (existingRefs.has(ref)) {
+        stats.skippedExisting++;
+        continue;
+      }
+
+      existingRefs.add(ref);
+
+      if (dryRun) {
+        stats.created++;
+        continue;
+      }
+
+      pendingJournalEntries.push(payload);
+    }
+
+    if (!dryRun && pendingJournalEntries.length > 0) {
+      stats.created = await createJournalEntriesBulk(pendingJournalEntries, 200);
+      await recomputeAccountBalancesFromJournals();
+    }
+
+    console.log('\nExpense GL summary (statement expense classification):');
+    for (const [expenseCategory, info] of [...expenseSummary.entries()].sort((a, b) => b[1].total - a[1].total)) {
+      console.log(`  - ${expenseCategory} -> GL: ${info.glName} | count=${info.count}, total=${info.total.toFixed(2)} KES`);
     }
 
     console.log('\nGL posting summary:');
@@ -521,13 +802,14 @@ async function postTransactions() {
     });
 
     const total = cashAndBankAccounts.reduce((sum, a) => sum + Number(a.balance), 0);
+    const expectedTargetTotal = await loadExpectedTargetTotal();
     console.log('\nCash/Bank balances:');
     for (const account of cashAndBankAccounts) {
       console.log(`  - ${account.name}: ${Number(account.balance).toFixed(2)} KES`);
     }
     console.log(`  - total: ${total.toFixed(2)} KES`);
-    console.log('  - expected target total: 17857.15 KES');
-    console.log(`  - variance: ${(total - 17857.15).toFixed(2)} KES`);
+    console.log(`  - expected target total: ${expectedTargetTotal.toFixed(2)} KES`);
+    console.log(`  - variance: ${(total - expectedTargetTotal).toFixed(2)} KES`);
 
     console.log('\nDone.');
   } catch (error) {

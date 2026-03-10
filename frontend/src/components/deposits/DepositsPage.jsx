@@ -12,8 +12,7 @@ import {
   Search,
   Edit,
   Trash2,
-  Eye,
-  Ban
+  Eye
 } from 'lucide-react';
 import ContributionForm from './ContributionForm';
 import FinePaymentForm from './FinePaymentForm';
@@ -37,40 +36,12 @@ const DepositsPage = () => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingDeposit, setEditingDeposit] = useState(null);
-  
-  // Pagination and date filtering
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
-  const [totalCount, setTotalCount] = useState(0);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [currentUser] = useState(() => {
-    try {
-      const stored =
-        localStorage.getItem('currentUser') ||
-        localStorage.getItem('currentMember') ||
-        localStorage.getItem('user');
-      return stored ? JSON.parse(stored) : null;
-    } catch (error) {
-      return null;
-    }
-  });
-
-  const isAdmin = String(currentUser?.role || currentUser?.user?.role || '').toLowerCase() === 'admin';
-  const canManage = import.meta.env.DEV ? true : isAdmin;
-  const actorName =
-    currentUser?.name ||
-    currentUser?.fullName ||
-    currentUser?.email ||
-    currentUser?.phone ||
-    currentUser?.id ||
-    'system';
 
   useEffect(() => {
     if (activeTab === 'list') {
       fetchDeposits();
     }
-  }, [activeTab, page, pageSize, startDate, endDate]);
+  }, [activeTab]);
 
   useEffect(() => {
     if (deposits.length > 0) {
@@ -82,44 +53,28 @@ const DepositsPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({
-        skip: ((page - 1) * pageSize).toString(),
-        take: pageSize.toString(),
-      });
-      
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
-      
-      const response = await fetch(`${API_BASE}/deposits?${params.toString()}`);
+      const response = await fetch(`${API_BASE}/deposits?take=5000&skip=0`);
       if (!response.ok) throw new Error('Failed to fetch deposits');
       const data = await response.json();
-      
-      // Handle both paginated and non-paginated responses
-      if (data.data && Array.isArray(data.data)) {
-        setDeposits(data.data);
-        setTotalCount(data.total || data.data.length);
-      } else if (Array.isArray(data)) {
-        setDeposits(data);
-        setTotalCount(data.length);
-      } else {
-        setDeposits([]);
-        setTotalCount(0);
-      }
+      const rows = Array.isArray(data) ? data : data?.data || [];
+      setDeposits(
+        rows.map((row) => ({
+          ...row,
+          memberName: row.member?.name || row.memberName || null,
+        })),
+      );
     } catch (err) {
       setError(err.message);
       setDeposits([]);
-      setTotalCount(0);
     } finally {
       setLoading(false);
     }
   };
 
-  const listDeposits = deposits.filter((deposit) => !deposit.isSystemGenerated);
-
   const calculateStats = () => {
-    const totalAmount = listDeposits.reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
+    const totalAmount = deposits.reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
     const byType = {};
-    listDeposits.forEach(d => {
+    deposits.forEach(d => {
       const type = d.type || 'contribution';
       if (!byType[type]) {
         byType[type] = { count: 0, amount: 0 };
@@ -127,7 +82,7 @@ const DepositsPage = () => {
       byType[type].count++;
       byType[type].amount += parseFloat(d.amount || 0);
     });
-    setStats({ totalAmount, totalCount: listDeposits.length, byType });
+    setStats({ totalAmount, totalCount: deposits.length, byType });
   };
 
   const handleViewDetails = (deposit) => {
@@ -141,7 +96,7 @@ const DepositsPage = () => {
   };
 
   const handleDeleteDeposit = async (id) => {
-    if (!window.confirm('Delete this deposit? This removes the record and reverses any posted accounting.')) {
+    if (!window.confirm('Are you sure you want to delete this deposit? This action cannot be undone.')) {
       return;
     }
 
@@ -162,39 +117,6 @@ const DepositsPage = () => {
     }
   };
 
-  const handleVoidDeposit = async (deposit) => {
-    if (deposit.isVoided) {
-      return;
-    }
-
-    const reason = window.prompt('Reason for voiding this deposit?');
-    if (!reason) {
-      return;
-    }
-
-    if (!window.confirm('Void will reverse accounting and keep a record. Continue?')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/deposits/${deposit.id}/void`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason, actor: actorName }),
-      });
-
-      if (response.ok) {
-        alert('Deposit voided successfully');
-        fetchDeposits();
-      } else {
-        alert('Failed to void deposit');
-      }
-    } catch (error) {
-      console.error('Error voiding deposit:', error);
-      alert('Error voiding deposit');
-    }
-  };
-
   const handleSuccess = () => {
     fetchDeposits();
     setActiveTab('list');
@@ -206,7 +128,7 @@ const DepositsPage = () => {
     setEditingDeposit(null);
   };
 
-  const filteredDeposits = listDeposits.filter((deposit) => {
+  const filteredDeposits = deposits.filter((deposit) => {
     const matchesType = filterType === 'all' || deposit.type === filterType;
     const matchesSearch =
       !searchTerm ||
@@ -225,35 +147,11 @@ const DepositsPage = () => {
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-KE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  };
-
-  const formatDateTime = (dateString) => {
-    return new Date(dateString).toLocaleString('en-KE', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     });
   };
-
-  const formatDateWithTime = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('en-KE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
-  const getRecordedAt = (deposit) => deposit.recordedAt || deposit.createdAt || deposit.date;
 
   const getTypeBadge = (type) => {
     const badges = {
@@ -305,9 +203,6 @@ const DepositsPage = () => {
         type="deposit"
         onClose={() => setShowDetailModal(false)}
         onEdit={handleEditDeposit}
-        onVoid={handleVoidDeposit}
-        onDelete={(transaction) => handleDeleteDeposit(transaction.id)}
-        canManage={canManage}
       />
 
       <div className="form-header-section">
@@ -389,44 +284,6 @@ const DepositsPage = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              
-              <div className="date-filters">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    setPage(1); // Reset to first page
-                  }}
-                  placeholder="Start Date"
-                  className="date-input"
-                />
-                <span className="date-separator">to</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => {
-                    setEndDate(e.target.value);
-                    setPage(1); // Reset to first page
-                  }}
-                  placeholder="End Date"
-                  className="date-input"
-                />
-                {(startDate || endDate) && (
-                  <button
-                    onClick={() => {
-                      setStartDate('');
-                      setEndDate('');
-                      setPage(1);
-                    }}
-                    className="btn-clear-dates"
-                    title="Clear dates"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-              
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
@@ -440,21 +297,6 @@ const DepositsPage = () => {
                 <option value="income">Income</option>
                 <option value="miscellaneous">Miscellaneous</option>
               </select>
-              
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(1);
-                }}
-                className="pagesize-select"
-              >
-                <option value={25}>25 per page</option>
-                <option value={50}>50 per page</option>
-                <option value={100}>100 per page</option>
-                <option value={200}>200 per page</option>
-              </select>
-
             </div>
 
             {loading ? (
@@ -478,7 +320,7 @@ const DepositsPage = () => {
                 <table className="deposits-table">
                   <thead>
                     <tr>
-                      <th>Transaction Date / Recorded On</th>
+                      <th>Date</th>
                       <th>Type</th>
                       <th>Member</th>
                       <th>Description</th>
@@ -489,21 +331,9 @@ const DepositsPage = () => {
                   </thead>
                   <tbody>
                     {filteredDeposits.map((deposit) => (
-                      <tr key={deposit.id} className={deposit.isVoided ? 'row-voided' : ''}>
-                        <td>
-                          <div className="timestamp-cell">
-                            <div className="transaction-date">
-                              <strong>Deposit Date:</strong> {formatDate(deposit.date)}
-                            </div>
-                            <div className="recorded-at" style={{fontSize: '0.85em', color: '#666'}}>
-                              <strong>Recorded On:</strong> {formatDateWithTime(deposit.createdAt)}
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          {getTypeBadge(deposit.type)}
-                          {deposit.isVoided && <span className="void-badge">VOID</span>}
-                        </td>
+                      <tr key={deposit.id}>
+                        <td>{formatDate(deposit.date)}</td>
+                        <td>{getTypeBadge(deposit.type)}</td>
                         <td><span style={!deposit.memberName ? {color: '#999', fontStyle: 'italic'} : {}}>{deposit.memberName || 'No Member'}</span></td>
                         <td className="description-cell">
                           {deposit.description || deposit.narration || '-'}
@@ -526,34 +356,20 @@ const DepositsPage = () => {
                             >
                               <Eye size={16} />
                             </button>
-                            {!deposit.isVoided && (
-                              <button
-                                className="btn-icon"
-                                title="Edit"
-                                onClick={() => handleEditDeposit(deposit)}
-                              >
-                                <Edit size={16} />
-                              </button>
-                            )}
-                            {canManage && (
-                              <button
-                                className={`btn-icon warning ${deposit.isVoided ? 'disabled' : ''}`}
-                                title="Void"
-                                onClick={() => handleVoidDeposit(deposit)}
-                                disabled={deposit.isVoided}
-                              >
-                                <Ban size={16} />
-                              </button>
-                            )}
-                            {canManage && (
-                              <button
-                                className="btn-icon danger"
-                                title="Delete"
-                                onClick={() => handleDeleteDeposit(deposit.id)}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
+                            <button
+                              className="btn-icon"
+                              title="Edit"
+                              onClick={() => handleEditDeposit(deposit)}
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              className="btn-icon danger"
+                              title="Delete"
+                              onClick={() => handleDeleteDeposit(deposit.id)}
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -578,48 +394,6 @@ const DepositsPage = () => {
                     </tr>
                   </tfoot>
                 </table>
-              </div>
-            )}
-            
-            {/* Pagination Controls */}
-            {!loading && filteredDeposits.length > 0 && (
-              <div className="pagination-controls">
-                <div className="pagination-info">
-                  Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, totalCount)} of {totalCount} entries
-                </div>
-                <div className="pagination-buttons">
-                  <button
-                    onClick={() => setPage(1)}
-                    disabled={page === 1}
-                    className="btn-page"
-                  >
-                    First
-                  </button>
-                  <button
-                    onClick={() => setPage(page - 1)}
-                    disabled={page === 1}
-                    className="btn-page"
-                  >
-                    Previous
-                  </button>
-                  <span className="page-indicator">
-                    Page {page} of {Math.ceil(totalCount / pageSize)}
-                  </span>
-                  <button
-                    onClick={() => setPage(page + 1)}
-                    disabled={page >= Math.ceil(totalCount / pageSize)}
-                    className="btn-page"
-                  >
-                    Next
-                  </button>
-                  <button
-                    onClick={() => setPage(Math.ceil(totalCount / pageSize))}
-                    disabled={page >= Math.ceil(totalCount / pageSize)}
-                    className="btn-page"
-                  >
-                    Last
-                  </button>
-                </div>
               </div>
             )}
           </div>

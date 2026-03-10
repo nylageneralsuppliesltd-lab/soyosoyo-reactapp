@@ -3,10 +3,8 @@ import { Response } from 'express';
 import { ReportsService } from './reports.service';
 import { FinancialStatementsService } from './financial-statements.service';
 import { CashPositionService } from './cash-position.service';
-import { Access } from '../auth/access.decorator';
 
 @Controller('reports')
-@Access('reports', 'read')
 export class ReportsController {
   constructor(
     private readonly reportsService: ReportsService,
@@ -24,9 +22,9 @@ export class ReportsController {
     return this.reportsService.handleReport('contributions', query, res);
   }
 
-  @Get('contribution-matrix')
-  async contributionMatrix(@Query() query: any, @Res({ passthrough: true }) res: Response) {
-    return this.reportsService.handleReport('contributionMatrix', query, res);
+  @Get('member-statement')
+  async memberStatement(@Query() query: any, @Res({ passthrough: true }) res: Response) {
+    return this.reportsService.handleReport('memberStatement', query, res);
   }
 
   @Get('fines')
@@ -64,11 +62,6 @@ export class ReportsController {
     return this.reportsService.handleReport('transactions', query, res);
   }
 
-  @Get('reference-search')
-  async referenceSearch(@Query('reference') reference?: string) {
-    return this.reportsService.referenceSearch(reference);
-  }
-
   @Get('cash-flow')
   async cashFlow(@Query() query: any, @Res({ passthrough: true }) res: Response) {
     return this.reportsService.handleReport('cashFlow', query, res);
@@ -89,6 +82,26 @@ export class ReportsController {
     return this.reportsService.handleReport('balanceSheet', query, res);
   }
 
+  @Get('enhanced-balance-sheet')
+  async enhancedBalanceSheet(
+    @Query('mode') mode?: 'monthly' | 'yearly',
+    @Query('asOf') asOf?: string,
+  ) {
+    const selectedMode = mode === 'yearly' ? 'yearly' : 'monthly';
+    const asOfDate = asOf ? new Date(asOf) : new Date();
+    return this.reportsService.enhancedBalanceSheet(selectedMode, asOfDate);
+  }
+
+  @Get('enhanced-income-statement')
+  async enhancedIncomeStatement(
+    @Query('mode') mode?: 'monthly' | 'yearly',
+    @Query('asOf') asOf?: string,
+  ) {
+    const selectedMode = mode === 'yearly' ? 'yearly' : 'monthly';
+    const endDate = asOf ? new Date(asOf) : new Date();
+    return this.reportsService.enhancedIncomeStatement(selectedMode, endDate);
+  }
+
   @Get('sasra')
   async sasra(@Query() query: any, @Res({ passthrough: true }) res: Response) {
     return this.reportsService.handleReport('sasra', query, res);
@@ -97,16 +110,6 @@ export class ReportsController {
   @Get('dividends')
   async dividends(@Query() query: any, @Res({ passthrough: true }) res: Response) {
     return this.reportsService.handleReport('dividends', query, res);
-  }
-
-  @Get('dividend-recommendation')
-  async dividendRecommendation(@Query() query: any, @Res({ passthrough: true }) res: Response) {
-    return this.reportsService.handleReport('dividendRecommendation', query, res);
-  }
-
-  @Get('dividend-category-payouts')
-  async dividendCategoryPayouts(@Query() query: any, @Res({ passthrough: true }) res: Response) {
-    return this.reportsService.handleReport('dividendCategoryPayouts', query, res);
   }
 
   @Get('general-ledger')
@@ -158,35 +161,5 @@ export class ReportsController {
     @Param('accountType') accountType: 'cash' | 'bank' | 'mobileMoney' | 'pettyCash',
   ) {
     return this.cashPosition.getAccountTypeDetails(accountType);
-  }
-
-  @Get('enhanced-balance-sheet')
-  async enhancedBalanceSheet(
-    @Query('mode') mode?: 'monthly' | 'yearly',
-    @Query('asOf') asOf?: string,
-  ) {
-    const date = asOf ? new Date(asOf) : new Date();
-    const viewMode = mode || 'monthly';
-    return this.reportsService.enhancedBalanceSheet(viewMode, date);
-  }
-
-  @Get('enhanced-income-statement')
-  async enhancedIncomeStatement(
-    @Query('mode') mode?: 'monthly' | 'yearly',
-    @Query('endDate') endDate?: string,
-  ) {
-    const date = endDate ? new Date(endDate) : new Date();
-    const viewMode = mode || 'monthly';
-    return this.reportsService.enhancedIncomeStatement(viewMode, date);
-  }
-
-  @Get('income-breakdown')
-  async incomeBreakdown(
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ) {
-    const start = startDate ? new Date(startDate) : new Date('2020-01-01');
-    const end = endDate ? new Date(endDate) : new Date();
-    return this.reportsService.incomeBreakdown(start, end);
   }
 }

@@ -1,0 +1,235 @@
+{
+  "generatedAt": "2026-03-08T15:41:23.577Z",
+  "mode": "DRY-RUN",
+  "unresolvedCount": 14,
+  "unresolvedRows": [
+    {
+      "row": 3,
+      "memberName": "Jeff Chai",
+      "amount": 700,
+      "reason": "no_open_loan",
+      "details": "Contribution transfer to Loan share From Contribution - Monthly Minimum Contribution",
+      "description": "to reduce arrears",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 5,
+      "memberName": "Elias Hutuba Charo",
+      "amount": 300,
+      "reason": "destination_member_not_resolvable",
+      "details": "Contribution transfer to Another member",
+      "description": "",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 6,
+      "memberName": "Safari Kahindi",
+      "amount": 5000,
+      "reason": "no_open_loan",
+      "details": "Contribution transfer to Loan share From Contribution - Monthly Minimum Contribution",
+      "description": "Recovery of loan arrears",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 7,
+      "memberName": "Zawadi Ngumbao",
+      "amount": 4000,
+      "reason": "no_open_loan",
+      "details": "Contribution transfer to Loan share From Contribution - Monthly Minimum Contribution",
+      "description": "Loan arrears repayment",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 8,
+      "memberName": "Ellen Mwaringa",
+      "amount": 3000,
+      "reason": "no_open_loan",
+      "details": "Contribution transfer to Loan share From Contribution - Monthly Minimum Contribution",
+      "description": "Loan arrears recovery",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 9,
+      "memberName": "Crispus Rama",
+      "amount": 5000,
+      "reason": "no_open_loan",
+      "details": "Contribution transfer to Loan share From Contribution - Monthly Minimum Contribution",
+      "description": "Loan arrears repayment",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 10,
+      "memberName": "Priscah Menza",
+      "amount": 1800,
+      "reason": "no_open_loan",
+      "details": "Contribution transfer to Loan share From Contribution - Monthly Minimum Contribution",
+      "description": "Bad loan for 2024",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 11,
+      "memberName": "Jeff Chai",
+      "amount": 5000,
+      "reason": "no_open_loan",
+      "details": "Contribution transfer to Loan share From Contribution - Monthly Minimum Contribution",
+      "description": "To repay emergency loan of Mar 2025",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 12,
+      "memberName": "Mercy Mangi",
+      "amount": 5047,
+      "reason": "ambiguous_loan_by_type",
+      "details": "Contribution transfer to Loan share From Contribution - Monthly Minimum Contribution",
+      "description": "Emergency Loan of Mar 2025 in arrears",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 14,
+      "memberName": "Katore Charo",
+      "amount": 4000,
+      "reason": "no_open_loan",
+      "details": "Contribution transfer to Loan share From Contribution - Monthly Minimum Contribution",
+      "description": "Loan in default for 2 consecutive months",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 15,
+      "memberName": "Getrude Mwabili",
+      "amount": 2000,
+      "reason": "destination_member_not_resolvable",
+      "details": "Contribution transfer to Another member",
+      "description": "",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 16,
+      "memberName": "Kavumbi Shedrack Thuva",
+      "amount": 2200,
+      "reason": "destination_member_not_resolvable",
+      "details": "Contribution transfer to Another member",
+      "description": "Members request and confirmed",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 17,
+      "memberName": "David Andala Were",
+      "amount": 564,
+      "reason": "no_open_loan",
+      "details": "Contribution transfer to Loan share From Contribution - Monthly Minimum Contribution",
+      "description": "Unable to repay",
+      "fromContributionType": "Monthly Minimum Contribution"
+    },
+    {
+      "row": 18,
+      "memberName": "Ronald Kahindi Sharifu",
+      "amount": 200,
+      "reason": "destination_member_not_resolvable",
+      "details": "Contribution transfer to Another member",
+      "description": "Member opted out",
+      "fromContributionType": "Monthly Minimum Contribution"
+    }
+  ],
+  "mappingTemplate": {
+    "rows": {
+      "3": {
+        "action": "contribution_to_loan",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Jeff Chai amount=700 reason=no_open_loan"
+      },
+      "5": {
+        "action": "member_to_member",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Elias Hutuba Charo amount=300 reason=destination_member_not_resolvable"
+      },
+      "6": {
+        "action": "contribution_to_loan",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Safari Kahindi amount=5000 reason=no_open_loan"
+      },
+      "7": {
+        "action": "contribution_to_loan",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Zawadi Ngumbao amount=4000 reason=no_open_loan"
+      },
+      "8": {
+        "action": "contribution_to_loan",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Ellen Mwaringa amount=3000 reason=no_open_loan"
+      },
+      "9": {
+        "action": "contribution_to_loan",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Crispus Rama amount=5000 reason=no_open_loan"
+      },
+      "10": {
+        "action": "contribution_to_loan",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Priscah Menza amount=1800 reason=no_open_loan"
+      },
+      "11": {
+        "action": "contribution_to_loan",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Jeff Chai amount=5000 reason=no_open_loan"
+      },
+      "12": {
+        "action": "contribution_to_loan",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Mercy Mangi amount=5047 reason=ambiguous_loan_by_type"
+      },
+      "14": {
+        "action": "contribution_to_loan",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Katore Charo amount=4000 reason=no_open_loan"
+      },
+      "15": {
+        "action": "member_to_member",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Getrude Mwabili amount=2000 reason=destination_member_not_resolvable"
+      },
+      "16": {
+        "action": "member_to_member",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Kavumbi Shedrack Thuva amount=2200 reason=destination_member_not_resolvable"
+      },
+      "17": {
+        "action": "contribution_to_loan",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=David Andala Were amount=564 reason=no_open_loan"
+      },
+      "18": {
+        "action": "member_to_member",
+        "toMemberId": null,
+        "toLoanId": null,
+        "fromContributionType": "Monthly Minimum Contribution",
+        "note": "member=Ronald Kahindi Sharifu amount=200 reason=destination_member_not_resolvable"
+      }
+    }
+  }
+}

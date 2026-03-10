@@ -1,0 +1,19 @@
+{
+  "runId": "2026-03-08T15-14-20-152Z",
+  "startedAt": "2026-03-08T15:14:20.152Z",
+  "mode": "full-refresh",
+  "options": {
+    "allowUnresolvedTransfers": false,
+    "skipPostChecks": false,
+    "wipeSettings": false,
+    "mappingPath": "C:\\projects\\soyosoyobank\\react-ui\\backend\\scripts\\contribution-transfer-manual-mapping.json"
+  },
+  "resolvedSources": {
+    "members": "SOYOSOYO  SACCO List of Members (1).xlsx",
+    "loansSummary": "SOYOSOYO  SACCO Loans Summary (7).xlsx",
+    "memberLoans": "SOYOSOYO  SACCO List of Member Loans (1).xlsx",
+    "transactions": "SOYOSOYO  SACCO Transaction Statement (8).xlsx",
+    "expenses": "SOYOSOYO  SACCO Expenses Summary (2).xlsx",
+    "contributionTransfers": "SOYOSOYO  SACCO Contribution Transfers (1).xlsx"
+  }
+}

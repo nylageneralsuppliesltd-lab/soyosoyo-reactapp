@@ -17,3 +17,4 @@ AUDIT_DATABASE_URL="postgresql://user:password@host:port/auditdb?sslmode=require
 - `npm run prisma:migrate:dev` — apply and create migrations against `DIRECT_URL`.
 - `npm run prisma:generate:audit` — generate the audit Prisma client using `AUDIT_DATABASE_URL`.
 - `npm run start:dev` — start NestJS in watch mode (expects both env vars set).
+- `npm run data:refresh:safe` — controlled full dataset refresh runner (see `SAFE_FULL_REFRESH.md`).

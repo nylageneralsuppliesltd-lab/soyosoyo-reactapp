@@ -21,6 +21,53 @@ export default function LoginPage() {
   });
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [showSecrets, setShowSecrets] = useState({
+    loginPassword: false,
+    registerPassword: false,
+    developerAccessKey: false,
+    resetNewPassword: false,
+    resetConfirmPassword: false,
+  });
+
+  const clearFieldError = (field) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const toggleSecret = (field) => {
+    setShowSecrets((prev) => ({ ...prev, [field]: !prev[field] }));
+  };
+
+  const getErrorMessage = (error) => {
+    const apiMessage = error?.response?.data?.message;
+    if (Array.isArray(apiMessage)) return apiMessage.join('; ');
+    return apiMessage || error?.message || 'Request failed';
+  };
+
+  const toFriendlyAuthMessage = (rawMessage) => {
+    const messageText = String(rawMessage || '').trim();
+    if (!messageText) return 'Request failed. Please try again.';
+
+    if (/invalid credentials/i.test(messageText)) {
+      return 'Email/phone or password is incorrect. Please check and try again.';
+    }
+    if (/profile login is not enabled/i.test(messageText)) {
+      return 'Profile login is not enabled for this account yet. Use "Enable Member Profile" first.';
+    }
+    if (/invalid reset code/i.test(messageText)) {
+      return 'Reset code is not valid. Use the latest code sent to your email and avoid spaces.';
+    }
+    if (/reset code expired/i.test(messageText)) {
+      return 'Reset code has expired. Request a fresh code and try again.';
+    }
+
+    return messageText;
+  };
 
   const pollResetDispatchStatus = async (requestId) => {
     const maxChecks = 10;
@@ -56,12 +103,16 @@ export default function LoginPage() {
   const handleRequestReset = async (e) => {
     e.preventDefault();
     setMessage('');
+    setFieldErrors({});
     setLoading(true);
     try {
-      if (!resetForm.identifier.trim()) {
+      const identifier = resetForm.identifier.trim();
+      if (!identifier) {
+        setFieldErrors({ resetIdentifier: 'Please enter your email or phone number' });
         throw new Error('Please enter your email or phone number');
       }
-      const response = await resetPassword({ identifier: resetForm.identifier });
+
+      const response = await resetPassword({ identifier });
       const requestId = response?.data?.requestId;
       const dispatchStatus = response?.data?.dispatchStatus;
 
@@ -74,7 +125,7 @@ export default function LoginPage() {
 
       setMessage('✓ Reset request accepted. Checking delivery status...');
       setMode('verify-reset');
-      setResetForm({ ...resetForm, resetCode: '', newPassword: '', confirmPassword: '' });
+      setResetForm({ ...resetForm, identifier, resetCode: '', newPassword: '', confirmPassword: '' });
 
       if (requestId) {
         pollResetDispatchStatus(requestId);
@@ -82,7 +133,7 @@ export default function LoginPage() {
         console.warn('[PasswordResetDispatch] No requestId in reset-request response; cannot verify dispatch status');
       }
     } catch (error) {
-      setMessage(error?.response?.data?.message || error?.message || 'Failed to send reset code');
+      setMessage(toFriendlyAuthMessage(getErrorMessage(error) || 'Failed to send reset code'));
     } finally {
       setLoading(false);
     }
@@ -91,19 +142,30 @@ export default function LoginPage() {
   const handleVerifyReset = async (e) => {
     e.preventDefault();
     setMessage('');
+    setFieldErrors({});
+
+    const normalizedCode = String(resetForm.resetCode || '').replace(/\s+/g, '').trim();
+    const newPassword = String(resetForm.newPassword || '');
+    const confirmPassword = String(resetForm.confirmPassword || '');
+    const errors = {};
     
-    if (!resetForm.resetCode.trim()) {
-      setMessage('Please enter the reset code');
-      return;
+    if (!normalizedCode) {
+      errors.resetCode = 'Please enter the reset code';
+    } else if (!/^\d{6}$/.test(normalizedCode)) {
+      errors.resetCode = 'Reset code must be exactly 6 digits';
     }
     
-    if (resetForm.newPassword !== resetForm.confirmPassword) {
-      setMessage('Passwords do not match');
-      return;
+    if (newPassword.length < 6) {
+      errors.newPassword = 'Password must be at least 6 characters';
     }
-    
-    if (resetForm.newPassword.length < 6) {
-      setMessage('Password must be at least 6 characters');
+
+    if (newPassword !== confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match';
+    }
+
+    if (Object.keys(errors).length) {
+      setFieldErrors(errors);
+      setMessage('Please fix the highlighted fields and try again.');
       return;
     }
 
@@ -111,8 +173,8 @@ export default function LoginPage() {
     try {
       await verifyResetCode({
         identifier: resetForm.identifier,
-        resetCode: resetForm.resetCode,
-        newPassword: resetForm.newPassword,
+        resetCode: normalizedCode,
+        newPassword,
       });
       setMessage('✓ Password reset successful! You can now login.');
       setTimeout(() => {
@@ -121,7 +183,7 @@ export default function LoginPage() {
         setForm({ ...form, identifier: resetForm.identifier, password: '' });
       }, 2000);
     } catch (error) {
-      setMessage(error?.response?.data?.message || error?.message || 'Failed to reset password');
+      setMessage(toFriendlyAuthMessage(getErrorMessage(error) || 'Failed to reset password'));
     } finally {
       setLoading(false);
     }
@@ -130,21 +192,36 @@ export default function LoginPage() {
   const submit = async (e) => {
     e.preventDefault();
     setMessage('');
+    setFieldErrors({});
     setLoading(true);
     try {
       if (mode === 'login') {
-        await login(form.identifier, form.password);
+        const identifier = String(form.identifier || '').trim();
+        const password = String(form.password || '');
+        const errors = {};
+        if (!identifier) errors.identifier = 'Identifier is required';
+        if (!password) errors.password = 'Password is required';
+        if (Object.keys(errors).length) {
+          setFieldErrors(errors);
+          throw new Error('Please provide login credentials');
+        }
+        await login(identifier, password);
       } else if (mode === 'register') {
+        const password = String(form.password || '');
+        if (password.length < 6) {
+          setFieldErrors({ registerPassword: 'Password must be at least 6 characters' });
+          throw new Error('Password must be at least 6 characters');
+        }
         await register({
           memberId: form.memberId ? Number(form.memberId) : undefined,
-          identifier: form.identifier || undefined,
-          password: form.password,
+          identifier: form.identifier ? String(form.identifier).trim() : undefined,
+          password,
           developerAccessKey: form.developerAccessKey || undefined,
         });
       }
       navigate('/profile-hub');
     } catch (error) {
-      setMessage(error?.response?.data?.message || error?.message || 'Request failed');
+      setMessage(toFriendlyAuthMessage(getErrorMessage(error) || 'Request failed'));
     } finally {
       setLoading(false);
     }
@@ -190,23 +267,40 @@ export default function LoginPage() {
               <input
                 className="form-input"
                 value={form.identifier}
-                onChange={(e) => setForm({ ...form, identifier: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, identifier: e.target.value });
+                  clearFieldError('identifier');
+                }}
                 placeholder="e.g. +254712345678 or user@email.com"
                 required
               />
+              {fieldErrors.identifier && (
+                <div style={{ color: '#c0392b', fontSize: '0.85rem', marginTop: 6 }}>{fieldErrors.identifier}</div>
+              )}
             </div>
 
             <div className="form-field">
               <label>Password</label>
               <input
-                type="password"
+                type={showSecrets.loginPassword ? 'text' : 'password'}
                 className="form-input"
                 value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, password: e.target.value });
+                  clearFieldError('password');
+                }}
                 minLength={6}
                 required
               />
-              <div style={{ marginTop: '8px', textAlign: 'right' }}>
+              <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => toggleSecret('loginPassword')}
+                  style={{ fontSize: '0.9rem', color: '#2c3e50', textDecoration: 'none' }}
+                >
+                  {showSecrets.loginPassword ? 'Hide password' : 'Show password'}
+                </button>
                 <button
                   type="button"
                   className="link-button"
@@ -214,12 +308,16 @@ export default function LoginPage() {
                     setMode('reset');
                     setResetForm({ ...resetForm, identifier: form.identifier });
                     setMessage('');
+                    setFieldErrors({});
                   }}
                   style={{ fontSize: '0.9rem', color: '#3498db', textDecoration: 'none' }}
                 >
                   Forgot your password?
                 </button>
               </div>
+              {fieldErrors.password && (
+                <div style={{ color: '#c0392b', fontSize: '0.85rem', marginTop: 6 }}>{fieldErrors.password}</div>
+              )}
             </div>
           </div>
 
@@ -269,23 +367,49 @@ export default function LoginPage() {
             <div className="form-field">
               <label>Password</label>
               <input
-                type="password"
+                type={showSecrets.registerPassword ? 'text' : 'password'}
                 className="form-input"
                 value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, password: e.target.value });
+                  clearFieldError('registerPassword');
+                }}
                 minLength={6}
                 required
               />
+              <div style={{ marginTop: '8px' }}>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => toggleSecret('registerPassword')}
+                  style={{ fontSize: '0.9rem', color: '#2c3e50', textDecoration: 'none' }}
+                >
+                  {showSecrets.registerPassword ? 'Hide password' : 'Show password'}
+                </button>
+              </div>
+              {fieldErrors.registerPassword && (
+                <div style={{ color: '#c0392b', fontSize: '0.85rem', marginTop: 6 }}>{fieldErrors.registerPassword}</div>
+              )}
             </div>
 
             <div className="form-field">
               <label>Developer Access Key (optional)</label>
               <input
-                type="password"
+                type={showSecrets.developerAccessKey ? 'text' : 'password'}
                 className="form-input"
                 value={form.developerAccessKey}
                 onChange={(e) => setForm({ ...form, developerAccessKey: e.target.value })}
               />
+              <div style={{ marginTop: '8px' }}>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => toggleSecret('developerAccessKey')}
+                  style={{ fontSize: '0.9rem', color: '#2c3e50', textDecoration: 'none' }}
+                >
+                  {showSecrets.developerAccessKey ? 'Hide access key' : 'Show access key'}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -316,10 +440,16 @@ export default function LoginPage() {
               <input
                 className="form-input"
                 value={resetForm.identifier}
-                onChange={(e) => setResetForm({ ...resetForm, identifier: e.target.value })}
+                onChange={(e) => {
+                  setResetForm({ ...resetForm, identifier: e.target.value });
+                  clearFieldError('resetIdentifier');
+                }}
                 placeholder="e.g. +254712345678 or user@email.com"
                 required
               />
+              {fieldErrors.resetIdentifier && (
+                <div style={{ color: '#c0392b', fontSize: '0.85rem', marginTop: 6 }}>{fieldErrors.resetIdentifier}</div>
+              )}
             </div>
           </div>
 
@@ -350,37 +480,78 @@ export default function LoginPage() {
               <input
                 className="form-input"
                 value={resetForm.resetCode}
-                onChange={(e) => setResetForm({ ...resetForm, resetCode: e.target.value })}
+                onChange={(e) => {
+                  setResetForm({ ...resetForm, resetCode: e.target.value });
+                  clearFieldError('resetCode');
+                }}
                 placeholder="Enter 6-digit code"
                 maxLength={6}
                 required
               />
+              <div style={{ color: '#7f8c8d', fontSize: '0.82rem', marginTop: 6 }}>
+                Tip: paste only digits; spaces are ignored automatically.
+              </div>
+              {fieldErrors.resetCode && (
+                <div style={{ color: '#c0392b', fontSize: '0.85rem', marginTop: 6 }}>{fieldErrors.resetCode}</div>
+              )}
             </div>
 
             <div className="form-field">
               <label>New Password</label>
               <input
-                type="password"
+                type={showSecrets.resetNewPassword ? 'text' : 'password'}
                 className="form-input"
                 value={resetForm.newPassword}
-                onChange={(e) => setResetForm({ ...resetForm, newPassword: e.target.value })}
+                onChange={(e) => {
+                  setResetForm({ ...resetForm, newPassword: e.target.value });
+                  clearFieldError('newPassword');
+                }}
                 placeholder="At least 6 characters"
                 minLength={6}
                 required
               />
+              <div style={{ marginTop: '8px' }}>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => toggleSecret('resetNewPassword')}
+                  style={{ fontSize: '0.9rem', color: '#2c3e50', textDecoration: 'none' }}
+                >
+                  {showSecrets.resetNewPassword ? 'Hide password' : 'Show password'}
+                </button>
+              </div>
+              {fieldErrors.newPassword && (
+                <div style={{ color: '#c0392b', fontSize: '0.85rem', marginTop: 6 }}>{fieldErrors.newPassword}</div>
+              )}
             </div>
 
             <div className="form-field">
               <label>Confirm Password</label>
               <input
-                type="password"
+                type={showSecrets.resetConfirmPassword ? 'text' : 'password'}
                 className="form-input"
                 value={resetForm.confirmPassword}
-                onChange={(e) => setResetForm({ ...resetForm, confirmPassword: e.target.value })}
+                onChange={(e) => {
+                  setResetForm({ ...resetForm, confirmPassword: e.target.value });
+                  clearFieldError('confirmPassword');
+                }}
                 placeholder="Confirm your new password"
                 minLength={6}
                 required
               />
+              <div style={{ marginTop: '8px' }}>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => toggleSecret('resetConfirmPassword')}
+                  style={{ fontSize: '0.9rem', color: '#2c3e50', textDecoration: 'none' }}
+                >
+                  {showSecrets.resetConfirmPassword ? 'Hide password' : 'Show password'}
+                </button>
+              </div>
+              {fieldErrors.confirmPassword && (
+                <div style={{ color: '#c0392b', fontSize: '0.85rem', marginTop: 6 }}>{fieldErrors.confirmPassword}</div>
+              )}
             </div>
           </div>
 

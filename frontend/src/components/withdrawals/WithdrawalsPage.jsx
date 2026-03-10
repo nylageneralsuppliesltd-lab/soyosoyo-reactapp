@@ -1,11 +1,10 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { DollarSign, ArrowRightLeft, RefreshCcw, TrendingUp, List, Plus, Upload, Edit, Trash2, Search, Eye, Ban } from 'lucide-react';
+import { DollarSign, ArrowRightLeft, RefreshCcw, TrendingUp, List, Plus, Upload, Edit, Trash2, Search, Eye } from 'lucide-react';
 import ExpenseForm from './ExpenseForm';
 import TransferForm from './TransferForm';
-import ContributionTransferForm from './ContributionTransferForm';
 import RefundForm from './RefundForm';
 import DividendForm from './DividendForm';
-import WithdrawalsBatchEntry from './WithdrawalsBatchEntry';
+import ContributionTransferForm from './ContributionTransferForm';
 import TransactionDetailModal from '../TransactionDetailModal';
 import '../../styles/withdrawals.css';
 import { API_BASE } from '../../utils/apiBase';
@@ -20,113 +19,33 @@ const WithdrawalsPage = () => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingWithdrawal, setEditingWithdrawal] = useState(null);
-  
-  // Pagination and date filtering
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
-  const [totalCount, setTotalCount] = useState(0);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [currentUser] = useState(() => {
-    try {
-      const stored =
-        localStorage.getItem('currentUser') ||
-        localStorage.getItem('currentMember') ||
-        localStorage.getItem('user');
-      return stored ? JSON.parse(stored) : null;
-    } catch (error) {
-      return null;
-    }
-  });
-
-  const isAdmin = String(currentUser?.role || currentUser?.user?.role || '').toLowerCase() === 'admin';
-  const canManage = import.meta.env.DEV ? true : isAdmin;
-  const actorName =
-    currentUser?.name ||
-    currentUser?.fullName ||
-    currentUser?.email ||
-    currentUser?.phone ||
-    currentUser?.id ||
-    'system';
 
   useEffect(() => {
     if (activeTab === 'list') {
       fetchWithdrawals();
       fetchStats();
     }
-  }, [activeTab, page, pageSize, startDate, endDate]);
+  }, [activeTab]);
 
   const fetchWithdrawals = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        skip: ((page - 1) * pageSize).toString(),
-        take: pageSize.toString(),
-      });
-      
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
-      
-      const [withdrawalsResponse, contributionTransfersResponse] = await Promise.all([
-        fetch(`${API_BASE}/withdrawals?${params.toString()}`),
-        fetch(`${API_BASE}/contribution-transfers?${params.toString()}`),
-      ]);
-
-      let normalizedWithdrawals = [];
-      if (withdrawalsResponse.ok) {
-        const data = await withdrawalsResponse.json();
-        if (data.data && Array.isArray(data.data)) {
-          normalizedWithdrawals = data.data;
-        } else if (Array.isArray(data)) {
-          normalizedWithdrawals = data;
-        }
-      }
-
-      let normalizedTransfers = [];
-      if (contributionTransfersResponse.ok) {
-        const transferData = await contributionTransfersResponse.json();
-        const transferRows = transferData.data && Array.isArray(transferData.data)
-          ? transferData.data
-          : Array.isArray(transferData)
-            ? transferData
-            : [];
-
-        normalizedTransfers = transferRows.map((transfer) => ({
-          id: `ct-${transfer.id}`,
-          rawId: transfer.id,
-          type: 'contribution_transfer',
-          amount: transfer.amount,
-          date: transfer.date,
-          createdAt: transfer.createdAt,
-          updatedAt: transfer.updatedAt,
-          reference: transfer.reference,
-          description:
-            transfer.description ||
-            `Contribution transfer: ${transfer.fromMember?.name || transfer.fromMemberName || 'Member'} → ${transfer.toMember?.name || transfer.toMemberName || transfer.toDestination || 'Target'}`,
-          memberName: transfer.fromMember?.name || transfer.fromMemberName || '-',
-          category: transfer.category || 'Contribution Transfer',
-          method: 'internal',
-          isVoided: transfer.isVoided,
-          isSystemGenerated: false,
-          account: { name: 'GL Internal Transfer' },
-        }));
-      }
-
-      const merged = [...normalizedWithdrawals, ...normalizedTransfers].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-      );
-
-      if (merged.length > 0) {
-        setWithdrawals(merged);
-        setTotalCount(merged.length);
+      const response = await fetch(`${API_BASE}/withdrawals?take=5000&skip=0`);
+      if (response.ok) {
+        const data = await response.json();
+        const rows = Array.isArray(data) ? data : data?.data || [];
+        setWithdrawals(
+          rows.map((row) => ({
+            ...row,
+            memberName: row.member?.name || row.memberName || null,
+          })),
+        );
       } else {
         setWithdrawals([]);
-        setTotalCount(0);
       }
     } catch (error) {
       console.error('Error fetching withdrawals:', error);
       setWithdrawals([]);
-      setTotalCount(0);
     } finally {
       setLoading(false);
     }
@@ -145,7 +64,7 @@ const WithdrawalsPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this withdrawal? This removes the record and reverses any posted accounting.')) {
+    if (!window.confirm('Are you sure you want to delete this withdrawal?')) {
       return;
     }
 
@@ -164,40 +83,6 @@ const WithdrawalsPage = () => {
     } catch (error) {
       console.error('Error deleting withdrawal:', error);
       alert('Error deleting withdrawal');
-    }
-  };
-
-  const handleVoid = async (withdrawal) => {
-    if (withdrawal.isVoided) {
-      return;
-    }
-
-    const reason = window.prompt('Reason for voiding this withdrawal?');
-    if (!reason) {
-      return;
-    }
-
-    if (!window.confirm('Void will reverse accounting and keep a record. Continue?')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/withdrawals/${withdrawal.id}/void`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason, actor: actorName }),
-      });
-
-      if (response.ok) {
-        alert('Withdrawal voided successfully');
-        fetchWithdrawals();
-        fetchStats();
-      } else {
-        alert('Failed to void withdrawal');
-      }
-    } catch (error) {
-      console.error('Error voiding withdrawal:', error);
-      alert('Error voiding withdrawal');
     }
   };
 
@@ -223,9 +108,7 @@ const WithdrawalsPage = () => {
     setEditingWithdrawal(null);
   };
 
-  const listWithdrawals = withdrawals.filter((w) => !w.isSystemGenerated);
-
-  const filteredWithdrawals = listWithdrawals.filter((w) => {
+  const filteredWithdrawals = withdrawals.filter((w) => {
     const matchesSearch =
       w.memberName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       w.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -246,44 +129,18 @@ const WithdrawalsPage = () => {
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-KE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  };
-
-  const formatDateTime = (dateString) => {
-    return new Date(dateString).toLocaleString('en-KE', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     });
   };
-
-  const formatDateWithTime = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('en-KE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
-  const getRecordedAt = (withdrawal) => withdrawal.recordedAt || withdrawal.createdAt || withdrawal.date;
 
   const getTypeBadge = (type) => {
     const badges = {
       expense: { label: 'Expense', className: 'badge-expense' },
       transfer: { label: 'Transfer', className: 'badge-transfer' },
-      contribution_transfer: { label: 'Contribution Transfer', className: 'badge-transfer' },
       refund: { label: 'Refund', className: 'badge-refund' },
       dividend: { label: 'Dividend', className: 'badge-dividend' },
-      loan_disbursement: { label: 'Loan Disbursement', className: 'badge-disbursement' },
     };
     const badge = badges[type] || { label: type, className: 'badge-default' };
     return <span className={`badge ${badge.className}`}>{badge.label}</span>;
@@ -324,9 +181,6 @@ const WithdrawalsPage = () => {
         transaction={selectedTransaction}
         type="withdrawal"
         onClose={() => setShowDetailModal(false)}
-        onVoid={handleVoid}
-        onDelete={(transaction) => handleDelete(transaction.id)}
-        canManage={canManage}
       />
 
       <div className="page-header">
@@ -377,13 +231,6 @@ const WithdrawalsPage = () => {
           <TrendingUp size={18} />
           Dividend Payout
         </button>
-        <button
-          className={`menu-tab ${activeTab === 'batch' ? 'active' : ''}`}
-          onClick={() => setActiveTab('batch')}
-        >
-          <Upload size={18} />
-          Batch Entry & Import
-        </button>
       </div>
 
       <div className="withdrawals-content">
@@ -401,44 +248,6 @@ const WithdrawalsPage = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              
-              <div className="date-filters">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    setPage(1);
-                  }}
-                  placeholder="Start Date"
-                  className="date-input"
-                />
-                <span className="date-separator">to</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => {
-                    setEndDate(e.target.value);
-                    setPage(1);
-                  }}
-                  placeholder="End Date"
-                  className="date-input"
-                />
-                {(startDate || endDate) && (
-                  <button
-                    onClick={() => {
-                      setStartDate('');
-                      setEndDate('');
-                      setPage(1);
-                    }}
-                    className="btn-clear-dates"
-                    title="Clear dates"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-              
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
@@ -447,24 +256,8 @@ const WithdrawalsPage = () => {
                 <option value="all">All Types</option>
                 <option value="expense">Expenses</option>
                 <option value="transfer">Transfers</option>
-                <option value="contribution_transfer">Contribution Transfers</option>
                 <option value="refund">Refunds</option>
                 <option value="dividend">Dividends</option>
-                <option value="loan_disbursement">Loan Disbursements</option>
-              </select>
-              
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(1);
-                }}
-                className="pagesize-select"
-              >
-                <option value={25}>25 per page</option>
-                <option value={50}>50 per page</option>
-                <option value={100}>100 per page</option>
-                <option value={200}>200 per page</option>
               </select>
             </div>
 
@@ -484,7 +277,7 @@ const WithdrawalsPage = () => {
                 <table className="withdrawals-table">
                   <thead>
                     <tr>
-                      <th>Transaction Date / Recorded On</th>
+                      <th>Date</th>
                       <th>Type</th>
                       <th>Member/Category</th>
                       <th>Description</th>
@@ -496,21 +289,9 @@ const WithdrawalsPage = () => {
                   </thead>
                   <tbody>
                     {filteredWithdrawals.map((withdrawal) => (
-                      <tr key={withdrawal.id} className={withdrawal.isVoided ? 'row-voided' : ''}>
-                        <td>
-                          <div className="timestamp-cell">
-                            <div className="transaction-date">
-                              <strong>Withdrawal Date:</strong> {formatDate(withdrawal.date)}
-                            </div>
-                            <div className="recorded-at" style={{fontSize: '0.85em', color: '#666'}}>
-                              <strong>Recorded On:</strong> {formatDateWithTime(withdrawal.createdAt)}
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          {getTypeBadge(withdrawal.type)}
-                          {withdrawal.isVoided && <span className="void-badge">VOID</span>}
-                        </td>
+                      <tr key={withdrawal.id}>
+                        <td>{formatDate(withdrawal.date)}</td>
+                        <td>{getTypeBadge(withdrawal.type)}</td>
                         <td>
                           {withdrawal.memberName || withdrawal.category || '-'}
                         </td>
@@ -536,34 +317,20 @@ const WithdrawalsPage = () => {
                             >
                               <Eye size={16} />
                             </button>
-                            {!withdrawal.isVoided && withdrawal.type !== 'contribution_transfer' && (
-                              <button
-                                className="btn-icon"
-                                title="Edit"
-                                onClick={() => handleEditWithdrawal(withdrawal)}
-                              >
-                                <Edit size={16} />
-                              </button>
-                            )}
-                            {canManage && withdrawal.type !== 'contribution_transfer' && (
-                              <button
-                                className={`btn-icon warning ${withdrawal.isVoided ? 'disabled' : ''}`}
-                                title="Void"
-                                onClick={() => handleVoid(withdrawal)}
-                                disabled={withdrawal.isVoided}
-                              >
-                                <Ban size={16} />
-                              </button>
-                            )}
-                            {canManage && withdrawal.type !== 'contribution_transfer' && (
-                              <button
-                                className="btn-icon danger"
-                                title="Delete"
-                                onClick={() => handleDelete(withdrawal.id)}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
+                            <button
+                              className="btn-icon"
+                              title="Edit"
+                              onClick={() => handleEditWithdrawal(withdrawal)}
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              className="btn-icon danger"
+                              title="Delete"
+                              onClick={() => handleDelete(withdrawal.id)}
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -590,48 +357,6 @@ const WithdrawalsPage = () => {
                 </table>
               </div>
             )}
-            
-            {/* Pagination Controls */}
-            {!loading && filteredWithdrawals.length > 0 && (
-              <div className="pagination-controls">
-                <div className="pagination-info">
-                  Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, totalCount)} of {totalCount} entries
-                </div>
-                <div className="pagination-buttons">
-                  <button
-                    onClick={() => setPage(1)}
-                    disabled={page === 1}
-                    className="btn-page"
-                  >
-                    First
-                  </button>
-                  <button
-                    onClick={() => setPage(page - 1)}
-                    disabled={page === 1}
-                    className="btn-page"
-                  >
-                    Previous
-                  </button>
-                  <span className="page-indicator">
-                    Page {page} of {Math.ceil(totalCount / pageSize)}
-                  </span>
-                  <button
-                    onClick={() => setPage(page + 1)}
-                    disabled={page >= Math.ceil(totalCount / pageSize)}
-                    className="btn-page"
-                  >
-                    Next
-                  </button>
-                  <button
-                    onClick={() => setPage(Math.ceil(totalCount / pageSize))}
-                    disabled={page >= Math.ceil(totalCount / pageSize)}
-                    className="btn-page"
-                  >
-                    Last
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -640,7 +365,6 @@ const WithdrawalsPage = () => {
         {activeTab === 'contribution-transfer' && <ContributionTransferForm onSuccess={handleSuccess} onCancel={handleCancel} />}
         {activeTab === 'refund' && <RefundForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
         {activeTab === 'dividend' && <DividendForm onSuccess={handleSuccess} onCancel={handleCancel} editingWithdrawal={editingWithdrawal} />}
-        {activeTab === 'batch' && <WithdrawalsBatchEntry onSuccess={handleSuccess} />}
       </div>
     </div>
   );

@@ -100,7 +100,7 @@ const WithdrawalsBatchEntry = ({ onSuccess }) => {
       try {
         const [realAccounts, membersResponse, categoriesResponse] = await Promise.all([
           fetchRealAccounts(),
-          fetch(`${API_BASE}/members`),
+          fetch(`${API_BASE}/members?take=5000&sort=asc`),
           fetch(`${API_BASE}/settings/expense-categories`),
         ]);
 

@@ -43,6 +43,113 @@ export class DepositsService {
       .join(' ');
   }
 
+  private normalizeForComparison(value?: string | null) {
+    return String(value || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLowerCase();
+  }
+
+  private async resolveMemberIdentity(options: {
+    memberId?: number | string | null;
+    memberName?: string | null;
+    allowFuzzyName?: boolean;
+  }): Promise<{ id: number; name: string } | null> {
+    const { memberId, memberName, allowFuzzyName = false } = options;
+    const parsedMemberId =
+      memberId === null || memberId === undefined || memberId === ''
+        ? null
+        : parseInt(String(memberId), 10);
+
+    if (parsedMemberId !== null && Number.isFinite(parsedMemberId)) {
+      const member = await this.prisma.member.findUnique({
+        where: { id: parsedMemberId },
+        select: { id: true, name: true },
+      });
+      if (!member) {
+        throw new BadRequestException(`Member ID '${parsedMemberId}' not found`);
+      }
+      return member;
+    }
+
+    const trimmedName = String(memberName || '').trim();
+    if (!trimmedName) {
+      return null;
+    }
+
+    const exactMatches = await this.prisma.member.findMany({
+      where: {
+        OR: [
+          { name: { equals: trimmedName, mode: 'insensitive' } },
+          { phone: trimmedName },
+          { idNumber: trimmedName },
+        ],
+      },
+      select: { id: true, name: true },
+      take: 10,
+    });
+
+    if (exactMatches.length === 1) {
+      return exactMatches[0];
+    }
+
+    if (exactMatches.length > 1) {
+      throw new BadRequestException(
+        `Member lookup for '${trimmedName}' is ambiguous. Use member ID.`,
+      );
+    }
+
+    if (!allowFuzzyName) {
+      return null;
+    }
+
+    const fuzzyMatches = await this.prisma.member.findMany({
+      where: { name: { contains: trimmedName, mode: 'insensitive' } },
+      select: { id: true, name: true },
+      take: 10,
+    });
+
+    if (fuzzyMatches.length === 1) {
+      return fuzzyMatches[0];
+    }
+
+    if (fuzzyMatches.length > 1) {
+      const normalizedTarget = this.normalizeForComparison(trimmedName);
+      const normalizedExact = fuzzyMatches.filter(
+        (candidate) => this.normalizeForComparison(candidate.name) === normalizedTarget,
+      );
+
+      if (normalizedExact.length === 1) {
+        return normalizedExact[0];
+      }
+
+      throw new BadRequestException(
+        `Member name '${trimmedName}' matched multiple members. Use member ID.`,
+      );
+    }
+
+    return null;
+  }
+
+  private applyCanonicalMemberName<T extends { member?: { name?: string | null } | null; memberName?: string | null }>(
+    record: T | null,
+  ): T | null {
+    if (!record) {
+      return record;
+    }
+
+    return {
+      ...record,
+      memberName: record.member?.name || record.memberName || null,
+    };
+  }
+
+  private applyCanonicalMemberNames<T extends { member?: { name?: string | null } | null; memberName?: string | null }>(
+    records: T[],
+  ): T[] {
+    return records.map((record) => this.applyCanonicalMemberName(record) as T);
+  }
+
   private async resolveSettlementAccount(options: {
     accountId?: number | null;
     fallbackAccountId?: number | null;
@@ -137,10 +244,17 @@ export class DepositsService {
 
   async create(data: any) {
     try {
+      const inputMemberName = data.memberName?.trim() || null;
+      const resolvedMember = await this.resolveMemberIdentity({
+        memberId: data.memberId,
+        memberName: inputMemberName,
+        allowFuzzyName: true,
+      });
+
       // Transform and validate incoming data
       const depositData = {
-        memberName: data.memberName?.trim() || null,
-        memberId: data.memberId ? parseInt(data.memberId) : null,
+        memberName: resolvedMember?.name || inputMemberName,
+        memberId: resolvedMember?.id ?? null,
         amount: data.amount ? parseFloat(data.amount) : 0,
         method: data.method || 'cash',
         reference: data.reference?.trim() || null,
@@ -252,19 +366,23 @@ export class DepositsService {
   }
 
   async findAll(take = 100, skip = 0) {
-    return this.prisma.deposit.findMany({
+    const records = await this.prisma.deposit.findMany({
       take,
       skip,
       orderBy: { date: 'desc' },
       include: { member: true },
     });
+
+    return this.applyCanonicalMemberNames(records);
   }
 
   async findOne(id: number) {
-    return this.prisma.deposit.findUnique({
+    const record = await this.prisma.deposit.findUnique({
       where: { id },
       include: { member: true },
     });
+
+    return this.applyCanonicalMemberName(record);
   }
 
   async update(id: number, data: any) {
@@ -279,10 +397,26 @@ export class DepositsService {
         throw new BadRequestException('Deposit not found');
       }
 
+      const hasMemberIdInPayload = Object.prototype.hasOwnProperty.call(data, 'memberId');
+      const hasMemberNameInPayload = Object.prototype.hasOwnProperty.call(data, 'memberName');
+      const targetMemberId = hasMemberIdInPayload ? data.memberId : existingDeposit.memberId;
+      const targetMemberName =
+        hasMemberIdInPayload && data.memberId === null && !hasMemberNameInPayload
+          ? null
+          : hasMemberNameInPayload
+          ? data.memberName?.trim() || null
+          : existingDeposit.memberName;
+
+      const resolvedMember = await this.resolveMemberIdentity({
+        memberId: targetMemberId,
+        memberName: targetMemberName,
+        allowFuzzyName: hasMemberNameInPayload,
+      });
+
       // Normalize input data
       const depositData = {
-        memberName: data.memberName?.trim() || existingDeposit.memberName,
-        memberId: data.memberId ? parseInt(data.memberId) : existingDeposit.memberId,
+        memberName: resolvedMember?.name || targetMemberName,
+        memberId: resolvedMember?.id ?? (targetMemberId ?? null),
         amount: data.amount ? parseFloat(data.amount) : Number(existingDeposit.amount),
         method: data.method || existingDeposit.method,
         reference: data.reference?.trim() || existingDeposit.reference,
@@ -436,7 +570,7 @@ export class DepositsService {
         }
       }
 
-      return updatedDeposit;
+      return this.applyCanonicalMemberName(updatedDeposit);
     } catch (error) {
       console.error('Deposit update error:', error);
       throw error;
@@ -550,10 +684,13 @@ export class DepositsService {
   }
 
   async findByMember(memberId: number) {
-    return this.prisma.deposit.findMany({
+    const records = await this.prisma.deposit.findMany({
       where: { memberId },
       orderBy: { date: 'desc' },
+      include: { member: true },
     });
+
+    return this.applyCanonicalMemberNames(records);
   }
 
   /**
@@ -590,22 +727,14 @@ export class DepositsService {
    * Process a single payment with full double-entry bookkeeping
    */
   private async processPayment(payment: BulkPaymentRecord): Promise<number> {
-    // Resolve member
-    let memberId = payment.memberId;
-    if (!memberId && payment.memberName) {
-      const member = await this.prisma.member.findFirst({
-        where: {
-          OR: [
-            { name: { contains: payment.memberName, mode: 'insensitive' } },
-            { phone: payment.memberName },
-          ],
-        },
-      });
-      if (!member) {
-        throw new BadRequestException(`Member '${payment.memberName}' not found`);
-      }
-      memberId = member.id;
-    }
+    const inputMemberName = payment.memberName ? String(payment.memberName).trim() : null;
+    const resolvedMember = await this.resolveMemberIdentity({
+      memberId: payment.memberId,
+      memberName: inputMemberName,
+      allowFuzzyName: false,
+    });
+    const memberId = resolvedMember?.id ?? null;
+    const memberName = resolvedMember?.name || inputMemberName;
 
     // Validate required fields
     if (!payment.amount || payment.amount <= 0) {
@@ -631,7 +760,7 @@ export class DepositsService {
     const deposit = await this.prisma.deposit.create({
       data: {
         memberId: memberId || null,
-        memberName: payment.memberName || null,
+        memberName: memberName || null,
         type: depositType as any,
         category: payment.contributionType || payment.paymentType,
         amount: amountDecimal,

@@ -1,11 +1,41 @@
 const { PrismaClient } = require('@prisma/client');
 const { PrismaNeon } = require('@prisma/adapter-neon');
+const ExcelJS = require('exceljs');
+const path = require('path');
+const { resolveSourceFiles } = require('./source-file-resolver');
 require('dotenv').config();
 
 const prisma = new PrismaClient({ adapter: new PrismaNeon({ connectionString: process.env.DATABASE_URL }) });
 
+async function resolveExpectedTargetTotal() {
+  const fallback = 17857.15;
+  const backendDir = path.resolve(__dirname, '..');
+  const files = resolveSourceFiles(['accountBalances'], {
+    backendDir,
+    allowMissing: true,
+  });
+
+  if (!files.accountBalances) return fallback;
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(path.join(backendDir, files.accountBalances));
+  const worksheet = workbook.worksheets[0];
+
+  for (let r = 1; r <= worksheet.rowCount; r += 1) {
+    const label = String(worksheet.getRow(r).getCell(2).text || '').trim().toLowerCase();
+    if (!/grand totals?/.test(label)) continue;
+
+    const rawAmount = String(worksheet.getRow(r).getCell(4).text || '').replace(/,/g, '').trim();
+    const amount = Number(rawAmount);
+    if (Number.isFinite(amount)) return amount;
+  }
+
+  return fallback;
+}
+
 async function verify() {
   console.log('\n=== CHECKING FOR DUPLICATES ===\n');
+  const expectedTarget = await resolveExpectedTargetTotal();
   
   // Check deposits by type
   console.log('DEPOSITS breakdown by type:');
@@ -85,8 +115,8 @@ async function verify() {
     console.log(`  ${a.name}: ${bal.toFixed(2)} KES`);
   });
   console.log(`  TOTAL: ${total.toFixed(2)} KES`);
-  console.log(`  TARGET: 17,857.15 KES`);
-  console.log(`  VARIANCE: ${(total - 17857.15).toFixed(2)} KES`);
+  console.log(`  TARGET: ${expectedTarget.toFixed(2)} KES`);
+  console.log(`  VARIANCE: ${(total - expectedTarget).toFixed(2)} KES`);
   
   // Check loans with status tags
   const loansWithStatus = await prisma.loan.count({

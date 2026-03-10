@@ -1,0 +1,83 @@
+Income Statement
+2025 2026
+Income
+Interest income
+Interest on loans
+(https://app.chamasoft.com/group/reports/loan_interest_summary)
+123,060.06 35,057.89
+Interest on debtor loans 0.00 0.00
+Interest money market investments
+(https://app.chamasoft.com/group/reports/money_market_interest_summary)
+0.00 0.00
+Income from stock sales
+(https://app.chamasoft.com/group/reports/income_from_stock_summary)
+0.00 0.00
+Total Interest Income 123,060.06 35,057.89
+Interest Expense
+Interest on deposits 0.00 0.00
+Interest on bank loans
+(https://app.chamasoft.com/group/reports/interest_on_bank_loans)
+0.00 0.00
+Depreciation of stocks
+(https://app.chamasoft.com/group/reports/depreciation_of_stocks)
+0.00 0.00
+Net Interest Income 123,060.06 35,057.89
+Other Operating Income
+Loan Charges
+(https://app.chamasoft.com/group/reports/loan_charges_summary)
+0.00 0.00
+Vikoi 0.00 0.00
+Interest 1,711.00 0.00
+Lemon Tea Grass 0.00 0.00
+Siki 0.00 0.00
+SOYOSOYO SACCO
+Tezo, Kilifi COUNTY
+Telephone: 254786077257
+E-mail Address: info@soyosoyosacco.com
+SOYOSOYO SACCO
+Statement of Comprehensive Income statement for 2025 to 2026
+2025 2026
+Dividends 0.00 0.00
+T shirt 0.00 0.00
+Cytonn MMF 2,008.00 21.00
+Vinolo 0.00 0.00
+Fines (https://app.chamasoft.com/group/reports/income_fine_summary) 0.00 0.00
+Loan Fines (https://app.chamasoft.com/group/reports/loan_fine_summary) 28,184.03 3,753.76
+Miscellaneous
+(https://app.chamasoft.com/group/reports/miscellaneous_summary)
+27,540.00 0.00
+59,443.03 3,774.76
+Expenditure
+Administrative Expenses
+Chamasoft subscription 4,000.00 11,000.00
+Other Operating Expenses
+Stationery 0.00 0.00
+Bank Charges 21,889.50 3,220.00
+Siki 0.00 0.00
+Company Registration 0.00 0.00
+Audit Fees 10,800.00 0.00
+Wages 0.00 0.00
+Salaries 0.00 0.00
+Rent 0.00 0.00
+Decorations 0.00 0.00
+Vinolo 0.00 0.00
+Office Expenses 0.00 0.00
+Insurance Fees 0.00 0.00
+T shirts and Caps 0.00 0.00
+Transport 0.00 0.00
+Kilifi County - Cooperatives 5,000.00 0.00
+Search Fee 0.00 0.00
+Food and Drinks 0.00 0.00
+Vikoi 0.00 0.00
+Operating Expenses 0.00 0.00
+Benevolence 0.00 0.00
+Lemon Tea Grass 0.00 0.00
+Telephone & Postages 0.00 0.00
+AGM 9,400.00 0.00
+2025 2026
+KRA - Income tax 0.00 0.00
+Net Operating Surplus/ Deficit for the year before tax 131,413.59 24,612.65
+Net Operating Surplus/ Deficit for the year after tax 131,413.59 24,612.65
+Dividends 0.00 0.00
+Net Surplus for the year c/d to retaining earnings 131,413.59 24,612.65
+Powered by

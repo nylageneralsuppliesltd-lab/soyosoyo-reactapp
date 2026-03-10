@@ -1,0 +1,57 @@
+{
+  "generatedAt": "2026-03-08T14:34:16.263Z",
+  "files": {
+    "transactions": "SOYOSOYO  SACCO Transaction Statement (8).xlsx",
+    "depositsList": "SOYOSOYO  SACCO List of Deposits (1).xlsx",
+    "withdrawalsList": "SOYOSOYO  SACCO Withdrawal List (1).xlsx"
+  },
+  "strictMode": true,
+  "summary": {
+    "statementDeposits": 2489,
+    "statementWithdrawals": 339,
+    "depositsListRows": 2489,
+    "withdrawalsListRows": 339,
+    "depositMatches": 2489,
+    "depositUnmatchedFromList": 0,
+    "depositUnmatchedFromStatement": 0,
+    "withdrawalMatches": 339,
+    "withdrawalUnmatchedFromList": 0,
+    "withdrawalUnmatchedFromStatement": 0
+  },
+  "accountChecks": {
+    "depositsAgainstGroupAccount": {
+      "compared": 0,
+      "matches": 0,
+      "mismatches": 0,
+      "unresolvedExpected": 2489,
+      "unresolvedPredicted": 0,
+      "mismatchSamples": []
+    },
+    "withdrawalsHintedOnly": {
+      "withHint": 16,
+      "compared": 0,
+      "matches": 0,
+      "mismatches": 0,
+      "unresolvedExpected": 16,
+      "unresolvedPredicted": 0,
+      "mismatchSamples": []
+    }
+  },
+  "totalsByPredictedSettlementAccount": [
+    {
+      "accountId": null,
+      "accountName": "UNRESOLVED",
+      "depositCount": 2489,
+      "depositTotal": 3560913.65,
+      "withdrawalCount": 339,
+      "withdrawalTotal": 3420243.5,
+      "netTotal": 140670.15
+    }
+  ],
+  "unmatchedSamples": {
+    "depositsFromList": [],
+    "depositsFromStatement": [],
+    "withdrawalsFromList": [],
+    "withdrawalsFromStatement": []
+  }
+}

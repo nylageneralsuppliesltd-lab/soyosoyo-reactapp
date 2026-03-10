@@ -1,8 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Prisma } from '@prisma/client';
-import { AuditService } from '../audit/audit.service';
-import { randomUUID } from 'crypto';
 
 export interface ExpenseRecord {
   date: string;
@@ -48,74 +46,50 @@ export interface DividendPayoutRecord {
   notes?: string;
 }
 
-export interface InterestPayoutRecord {
-  date: string;
-  memberId: number;
-  memberName?: string;
-  amount: number;
-  accountId?: number;
-  paymentMethod: 'cash' | 'bank' | 'mpesa' | 'check_off' | 'bank_deposit' | 'other';
-  reference?: string;
-  notes?: string;
-}
-
 @Injectable()
 export class WithdrawalsService {
-  constructor(
-    private prisma: PrismaService,
-    private auditService: AuditService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
-  private generateReference(prefix: string) {
-    // Generate short, human-readable reference: PREFIX-YYMMDD-XXXX
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let randomCode = '';
-    for (let i = 0; i < 4; i++) {
-      randomCode += chars.charAt(Math.floor(Math.random() * chars.length));
+  private buildDefaultReference(withdrawal: {
+    id: number;
+    type?: string | null;
+    reference?: string | null;
+  }) {
+    if (withdrawal.reference) {
+      return withdrawal.reference;
     }
-    const date = new Date();
-    const yy = String(date.getFullYear()).slice(-2);
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${prefix}-${yy}${mm}${dd}-${randomCode}`;
-  }
 
-  private async assertReferenceUnique(reference?: string | null, excludeId?: number) {
-    if (!reference) return;
-    const existing = await this.prisma.withdrawal.findFirst({
-      where: {
-        reference,
-        ...(excludeId ? { id: { not: excludeId } } : {}),
-      },
-      select: { id: true },
-    });
-
-    if (existing) {
-      throw new BadRequestException('Reference already exists for another withdrawal.');
+    switch (withdrawal.type) {
+      case 'expense':
+        return `EXP-${withdrawal.id}`;
+      case 'transfer':
+        return `TRF-${withdrawal.id}`;
+      case 'refund':
+        return `REF-${withdrawal.id}`;
+      case 'dividend':
+        return `DIV-${withdrawal.id}`;
+      default:
+        return `WTH-${withdrawal.id}`;
     }
   }
 
-  private toAuditSnapshot(withdrawal: any) {
+  private applyCanonicalMemberName<T extends { member?: { name?: string | null } | null; memberName?: string | null }>(
+    record: T | null,
+  ): T | null {
+    if (!record) {
+      return record;
+    }
+
     return {
-      id: withdrawal.id,
-      memberId: withdrawal.memberId,
-      memberName: withdrawal.memberName,
-      amount: Number(withdrawal.amount),
-      grossAmount: withdrawal.grossAmount ? Number(withdrawal.grossAmount) : null,
-      withholdingTaxAmount: withdrawal.withholdingTaxAmount
-        ? Number(withdrawal.withholdingTaxAmount)
-        : null,
-      withholdingTaxRate: withdrawal.withholdingTaxRate ? Number(withdrawal.withholdingTaxRate) : null,
-      method: withdrawal.method,
-      reference: withdrawal.reference,
-      date: withdrawal.date ? new Date(withdrawal.date).toISOString() : null,
-      notes: withdrawal.notes,
-      type: withdrawal.type,
-      category: withdrawal.category,
-      description: withdrawal.description,
-      narration: withdrawal.narration,
-      accountId: withdrawal.accountId,
+      ...record,
+      memberName: record.member?.name || record.memberName || null,
     };
+  }
+
+  private applyCanonicalMemberNames<T extends { member?: { name?: string | null } | null; memberName?: string | null }>(
+    records: T[],
+  ): T[] {
+    return records.map((record) => this.applyCanonicalMemberName(record) as T);
   }
 
   /**
@@ -138,62 +112,6 @@ export class WithdrawalsService {
         balance: new Prisma.Decimal(0),
       },
     });
-  }
-
-  private async getWithholdingSettings(
-    prismaClient: Prisma.TransactionClient | PrismaService = this.prisma,
-  ) {
-    const defaults = {
-      dividendWithholdingResidentPercent: 0,
-      dividendWithholdingNonResidentPercent: 0,
-      interestWithholdingResidentPercent: 0,
-      interestWithholdingNonResidentPercent: 0,
-    };
-
-    const record = await prismaClient.iFRSConfig.findUnique({
-      where: { key: 'system_settings' },
-    });
-
-    if (!record?.value) {
-      return defaults;
-    }
-
-    try {
-      const parsed = JSON.parse(record.value);
-      return {
-        ...defaults,
-        ...parsed,
-      };
-    } catch {
-      return defaults;
-    }
-  }
-
-  private resolveWithholdingRate(
-    settings: any,
-    isResident: boolean,
-    type: 'dividend' | 'interest',
-  ) {
-    if (type === 'interest') {
-      return isResident
-        ? Number(settings.interestWithholdingResidentPercent || 0)
-        : Number(settings.interestWithholdingNonResidentPercent || 0);
-    }
-
-    return isResident
-      ? Number(settings.dividendWithholdingResidentPercent || 0)
-      : Number(settings.dividendWithholdingNonResidentPercent || 0);
-  }
-
-  private calculateWithholdingAmount(grossAmount: Prisma.Decimal, ratePercent: number) {
-    if (!ratePercent) {
-      return new Prisma.Decimal(0);
-    }
-
-    return grossAmount
-      .mul(new Prisma.Decimal(ratePercent))
-      .div(100)
-      .toDecimalPlaces(2);
   }
 
   /**
@@ -240,9 +158,6 @@ export class WithdrawalsService {
       }
 
       // Create withdrawal record
-      const effectiveReference = reference?.trim() || this.generateReference('EXP');
-      await this.assertReferenceUnique(effectiveReference);
-
       const withdrawal = await this.prisma.withdrawal.create({
         data: {
           type: 'expense',
@@ -250,7 +165,7 @@ export class WithdrawalsService {
           amount: amountDecimal,
           description: description || `Expense - ${category}`,
           narration: notes || null,
-          reference: effectiveReference,
+          reference: reference || null,
           method: paymentMethod,
           accountId: cashAccount.id,
           date: parsedDate,
@@ -278,22 +193,12 @@ export class WithdrawalsService {
     // Proper double-entry journal entry:
     // Debit: Expense GL Account (expense increases, reducing equity)
     // Credit: Cash Account (asset decreases)
-    const narrationParts = [
-      `WithdrawalId:${withdrawal.id}`,
-      `Category:${category}`,
-      `AccountId:${cashAccount.id}`,
-      `SourceRef:${effectiveReference ?? 'n/a'}`,
-    ];
-    const narration = notes
-      ? `${notes} | ${narrationParts.join(' | ')}`
-      : narrationParts.join(' | ');
-
     await this.prisma.journalEntry.create({
       data: {
         date: parsedDate,
-        reference: effectiveReference,
-        description: `Expense - ${category} (withdrawalId:${withdrawal.id})`,
-        narration,
+        reference: reference || `EXP-${withdrawal.id}`,
+        description: `Expense - ${category}`,
+        narration: notes || null,
         debitAccountId: expenseGLAccount.id,
         debitAmount: amountDecimal,
         creditAccountId: cashAccount.id,
@@ -355,9 +260,6 @@ export class WithdrawalsService {
       throw new NotFoundException('One or both accounts not found');
     }
 
-    const effectiveReference = reference?.trim() || this.generateReference('TRF');
-    await this.assertReferenceUnique(effectiveReference);
-
     // Create withdrawal record for tracking
     const withdrawal = await this.prisma.withdrawal.create({
       data: {
@@ -366,7 +268,7 @@ export class WithdrawalsService {
         amount: amountDecimal,
         description: description || `Transfer from ${fromAccount.name} to ${toAccount.name}`,
         narration: notes || null,
-        reference: effectiveReference,
+        reference: reference || null,
         method: 'bank',
         accountId: fromAccountId,
         date: parsedDate,
@@ -374,22 +276,12 @@ export class WithdrawalsService {
     });
 
     // Double-entry: DR To Account, CR From Account
-    const narrationParts = [
-      `TransferId:${withdrawal.id}`,
-      `FromAccount:${fromAccountId}`,
-      `ToAccount:${toAccountId}`,
-      `SourceRef:${effectiveReference ?? 'n/a'}`,
-    ];
-    const narration = notes
-      ? `${notes} | ${narrationParts.join(' | ')}`
-      : narrationParts.join(' | ');
-
     await this.prisma.journalEntry.create({
       data: {
         date: parsedDate,
-        reference: effectiveReference,
-        description: `Transfer: ${fromAccount.name} → ${toAccount.name} (transferId:${withdrawal.id})`,
-        narration,
+        reference: reference || `TRF-${withdrawal.id}`,
+        description: `Transfer: ${fromAccount.name} → ${toAccount.name}`,
+        narration: notes || null,
         debitAccountId: toAccountId,
         debitAmount: amountDecimal,
         creditAccountId: fromAccountId,
@@ -416,7 +308,7 @@ export class WithdrawalsService {
    * Record Contribution Refund with double-entry
    */
   async createRefund(data: RefundRecord) {
-    const { date, memberId, memberName, amount, contributionType, accountId, paymentMethod, reference, notes } = data;
+    const { date, memberId, amount, contributionType, accountId, paymentMethod, reference, notes } = data;
 
     if (!amount || amount <= 0) {
       throw new BadRequestException('Valid amount is required');
@@ -445,9 +337,6 @@ export class WithdrawalsService {
       throw new NotFoundException('Account not found');
     }
 
-    const effectiveReference = reference?.trim() || this.generateReference('REF');
-    await this.assertReferenceUnique(effectiveReference);
-
     // Create withdrawal record
     const withdrawal = await this.prisma.withdrawal.create({
       data: {
@@ -455,10 +344,10 @@ export class WithdrawalsService {
         category: `Refund - ${contributionType}`,
         amount: amountDecimal,
         memberId,
-        memberName: memberName || member.name,
+        memberName: member.name,
         description: `Contribution refund - ${contributionType}`,
         narration: notes || null,
-        reference: effectiveReference,
+        reference: reference || null,
         method: paymentMethod,
         accountId: cashAccount.id,
         date: parsedDate,
@@ -487,23 +376,12 @@ export class WithdrawalsService {
     // Proper double-entry journal entry:
     // Debit: Contributions Received GL (liability decreases)
     // Credit: Cash/Bank Account (asset decreases)
-    const narrationParts = [
-      `RefundId:${withdrawal.id}`,
-      `MemberId:${memberId}`,
-      `ContributionType:${contributionType}`,
-      `AccountId:${cashAccount.id}`,
-      `SourceRef:${effectiveReference ?? 'n/a'}`,
-    ];
-    const narration = notes
-      ? `${notes} | ${narrationParts.join(' | ')}`
-      : narrationParts.join(' | ');
-
     await this.prisma.journalEntry.create({
       data: {
         date: parsedDate,
-        reference: effectiveReference,
-        description: `Refund to ${member.name} - ${contributionType} (refundId:${withdrawal.id})`,
-        narration,
+        reference: reference || `REF-${withdrawal.id}`,
+        description: `Refund to ${member.name} - ${contributionType}`,
+        narration: notes || null,
         debitAccountId: contributionGLAccount.id,
         debitAmount: amountDecimal,
         creditAccountId: cashAccount.id,
@@ -531,7 +409,7 @@ export class WithdrawalsService {
         // Store positive amount; downstream balance math treats refunds as debits
         amount: Number(amount),
         description: `Refund - ${contributionType}`,
-        reference: effectiveReference,
+        reference: reference || null,
         balanceAfter: Number(updatedMember.balance),
         date: parsedDate,
       },
@@ -544,7 +422,7 @@ export class WithdrawalsService {
    * Record Dividend Payout with double-entry
    */
   async createDividend(data: DividendPayoutRecord) {
-    const { date, memberId, memberName, amount, accountId, paymentMethod, reference, notes } = data;
+    const { date, memberId, amount, accountId, paymentMethod, reference, notes } = data;
 
     if (!amount || amount <= 0) {
       throw new BadRequestException('Valid amount is required');
@@ -555,7 +433,7 @@ export class WithdrawalsService {
     }
 
     const parsedDate = new Date(date || new Date());
-    const grossAmountDecimal = new Prisma.Decimal(amount);
+    const amountDecimal = new Prisma.Decimal(amount);
 
     // Get member
     const member = await this.prisma.member.findUnique({ where: { id: memberId } });
@@ -574,29 +452,17 @@ export class WithdrawalsService {
       throw new NotFoundException('Account not found');
     }
 
-    const effectiveReference = reference?.trim() || this.generateReference('DIV');
-    await this.assertReferenceUnique(effectiveReference);
-
-    const settings = await this.getWithholdingSettings();
-    const isResident = member.isResident !== false;
-    const withholdingRate = this.resolveWithholdingRate(settings, isResident, 'dividend');
-    const withholdingAmount = this.calculateWithholdingAmount(grossAmountDecimal, withholdingRate);
-    const netAmountDecimal = grossAmountDecimal.minus(withholdingAmount);
-
     // Create withdrawal record
     const withdrawal = await this.prisma.withdrawal.create({
       data: {
         type: 'dividend',
         category: 'Dividend Payout',
-        amount: netAmountDecimal,
-        grossAmount: grossAmountDecimal,
-        withholdingTaxAmount: withholdingAmount,
-        withholdingTaxRate: new Prisma.Decimal(withholdingRate),
+        amount: amountDecimal,
         memberId,
-        memberName: memberName || member.name,
+        memberName: member.name,
         description: `Dividend payout to ${member.name}`,
         narration: notes || null,
-        reference: effectiveReference,
+        reference: reference || null,
         method: paymentMethod,
         accountId: cashAccount.id,
         date: parsedDate,
@@ -624,57 +490,24 @@ export class WithdrawalsService {
     // Proper double-entry journal entry:
     // Debit: Dividends Payable GL Account (liability decreases)
     // Credit: Cash Account (asset decreases)
-    // Credit: Withholding Tax Payable (if applicable)
-    const narrationParts = [
-      `DividendId:${withdrawal.id}`,
-      `MemberId:${memberId}`,
-      `AccountId:${cashAccount.id}`,
-      `SourceRef:${effectiveReference ?? 'n/a'}`,
-    ];
-    const narration = notes
-      ? `${notes} | ${narrationParts.join(' | ')}`
-      : narrationParts.join(' | ');
-
     await this.prisma.journalEntry.create({
       data: {
         date: parsedDate,
-        reference: effectiveReference,
-        description: `Dividend payout to ${member.name} (dividendId:${withdrawal.id})`,
-        narration,
+        reference: reference || `DIV-${withdrawal.id}`,
+        description: `Dividend payout to ${member.name}`,
+        narration: notes || null,
         debitAccountId: dividendGLAccount.id,
-        debitAmount: netAmountDecimal,
+        debitAmount: amountDecimal,
         creditAccountId: cashAccount.id,
-        creditAmount: netAmountDecimal,
+        creditAmount: amountDecimal,
         category: 'dividend',
       },
     });
 
-    if (withholdingAmount.gt(0)) {
-      const withholdingGLAccount = await this.ensureAccountByName(
-        'Withholding Tax Payable',
-        'gl',
-        'GL account for withholding tax payable',
-      );
-
-      await this.prisma.journalEntry.create({
-        data: {
-          date: parsedDate,
-          reference: effectiveReference,
-          description: `Dividend withholding tax for ${member.name} (dividendId:${withdrawal.id})`,
-          narration,
-          debitAccountId: dividendGLAccount.id,
-          debitAmount: withholdingAmount,
-          creditAccountId: withholdingGLAccount.id,
-          creditAmount: withholdingAmount,
-          category: 'dividend',
-        },
-      });
-    }
-
     // Update account balance
     await this.prisma.account.update({
       where: { id: cashAccount.id },
-      data: { balance: { decrement: netAmountDecimal } },
+      data: { balance: { decrement: amountDecimal } },
     });
 
     // Update member ledger (dividends don't affect contribution balance)
@@ -682,9 +515,9 @@ export class WithdrawalsService {
       data: {
         memberId,
         type: 'dividend',
-        amount: Number(netAmountDecimal),
+        amount: Number(amount),
         description: 'Dividend payout',
-        reference: effectiveReference,
+        reference: reference || null,
         balanceAfter: Number(member.balance), // Balance unchanged by dividends
         date: parsedDate,
       },
@@ -694,25 +527,39 @@ export class WithdrawalsService {
   }
 
   /**
-   * Record Interest Payout with double-entry
+   * Record Interest Payout with double-entry bookkeeping
+   * Uses TransactionType=expense and category="Interest Payout" because
+   * TransactionType enum does not include a dedicated "interest" value.
    */
-  async createInterestPayout(data: InterestPayoutRecord) {
+  async createInterestPayout(data: {
+    date: string;
+    memberId?: number;
+    memberName?: string;
+    amount: number;
+    accountId?: number;
+    paymentMethod: 'cash' | 'bank' | 'mpesa' | 'check_off' | 'bank_deposit' | 'other';
+    reference?: string;
+    notes?: string;
+  }) {
     const { date, memberId, memberName, amount, accountId, paymentMethod, reference, notes } = data;
 
     if (!amount || amount <= 0) {
       throw new BadRequestException('Valid amount is required');
     }
 
-    if (!memberId) {
-      throw new BadRequestException('Member is required');
-    }
-
     const parsedDate = new Date(date || new Date());
-    const grossAmountDecimal = new Prisma.Decimal(amount);
+    const amountDecimal = new Prisma.Decimal(amount);
 
-    const member = await this.prisma.member.findUnique({ where: { id: memberId } });
-    if (!member) {
-      throw new NotFoundException('Member not found');
+    let member = null as null | { id: number; name: string; balance: number };
+    if (memberId) {
+      member = await this.prisma.member.findUnique({
+        where: { id: memberId },
+        select: { id: true, name: true, balance: true },
+      });
+
+      if (!member) {
+        throw new NotFoundException('Member not found');
+      }
     }
 
     if (!accountId) {
@@ -720,109 +567,187 @@ export class WithdrawalsService {
     }
 
     const cashAccount = await this.prisma.account.findUnique({ where: { id: accountId } });
-
     if (!cashAccount) {
       throw new NotFoundException('Account not found');
     }
 
-    const effectiveReference = reference?.trim() || this.generateReference('INT');
-    await this.assertReferenceUnique(effectiveReference);
-
-    const settings = await this.getWithholdingSettings();
-    const isResident = member.isResident !== false;
-    const withholdingRate = this.resolveWithholdingRate(settings, isResident, 'interest');
-    const withholdingAmount = this.calculateWithholdingAmount(grossAmountDecimal, withholdingRate);
-    const netAmountDecimal = grossAmountDecimal.minus(withholdingAmount);
+    const effectiveMemberName = member?.name || memberName?.trim() || null;
+    const description = effectiveMemberName
+      ? `Interest payout to ${effectiveMemberName}`
+      : 'Interest payout';
 
     const withdrawal = await this.prisma.withdrawal.create({
       data: {
-        type: 'interest',
+        type: 'expense',
         category: 'Interest Payout',
-        amount: netAmountDecimal,
-        grossAmount: grossAmountDecimal,
-        withholdingTaxAmount: withholdingAmount,
-        withholdingTaxRate: new Prisma.Decimal(withholdingRate),
-        memberId,
-        memberName: memberName || member.name,
-        description: `Interest payout to ${member.name}`,
+        amount: amountDecimal,
+        memberId: member?.id || null,
+        memberName: effectiveMemberName,
+        description,
         narration: notes || null,
-        reference: effectiveReference,
+        reference: reference || null,
         method: paymentMethod,
         accountId: cashAccount.id,
         date: parsedDate,
       },
     });
 
-    const interestGLAccount = await this.ensureAccountByName(
-      'Interest Payable',
+    const interestExpenseAccount = await this.ensureAccountByName(
+      'Interest Expense',
       'gl',
-      'GL account for interest payable',
+      'GL account for member interest payouts',
     );
-
-    const narrationParts = [
-      `InterestId:${withdrawal.id}`,
-      `MemberId:${memberId}`,
-      `AccountId:${cashAccount.id}`,
-      `SourceRef:${effectiveReference ?? 'n/a'}`,
-    ];
-    const narration = notes
-      ? `${notes} | ${narrationParts.join(' | ')}`
-      : narrationParts.join(' | ');
 
     await this.prisma.journalEntry.create({
       data: {
         date: parsedDate,
-        reference: effectiveReference,
-        description: `Interest payout to ${member.name} (interestId:${withdrawal.id})`,
-        narration,
-        debitAccountId: interestGLAccount.id,
-        debitAmount: netAmountDecimal,
+        reference: reference || `INT-${withdrawal.id}`,
+        description,
+        narration: notes || null,
+        debitAccountId: interestExpenseAccount.id,
+        debitAmount: amountDecimal,
         creditAccountId: cashAccount.id,
-        creditAmount: netAmountDecimal,
-        category: 'interest',
+        creditAmount: amountDecimal,
+        category: 'interest_payout',
       },
     });
 
-    if (withholdingAmount.gt(0)) {
-      const withholdingGLAccount = await this.ensureAccountByName(
-        'Withholding Tax Payable',
-        'gl',
-        'GL account for withholding tax payable',
-      );
+    await this.prisma.account.update({
+      where: { id: cashAccount.id },
+      data: { balance: { decrement: amountDecimal } },
+    });
 
-      await this.prisma.journalEntry.create({
+    if (member) {
+      await this.prisma.ledger.create({
         data: {
+          memberId: member.id,
+          type: 'interest_payout',
+          amount: Number(amount),
+          description: 'Interest payout',
+          reference: reference || null,
+          // Interest payout does not alter contribution balance.
+          balanceAfter: Number(member.balance),
           date: parsedDate,
-          reference: effectiveReference,
-          description: `Interest withholding tax for ${member.name} (interestId:${withdrawal.id})`,
-          narration,
-          debitAccountId: interestGLAccount.id,
-          debitAmount: withholdingAmount,
-          creditAccountId: withholdingGLAccount.id,
-          creditAmount: withholdingAmount,
-          category: 'interest',
         },
       });
     }
 
-    await this.prisma.account.update({
-      where: { id: cashAccount.id },
-      data: { balance: { decrement: netAmountDecimal } },
-    });
-
-    await this.prisma.ledger.create({
-      data: {
-        memberId,
-        type: 'interest',
-        amount: Number(netAmountDecimal),
-        description: 'Interest payout',
-        reference: effectiveReference,
-        balanceAfter: Number(member.balance),
-        date: parsedDate,
-      },
-    });
-
     return withdrawal;
+  }
+
+  async void(id: number, data?: { reason?: string; actor?: string }) {
+    const existingWithdrawal = await this.prisma.withdrawal.findUnique({
+      where: { id },
+      include: { member: true },
+    });
+
+    if (!existingWithdrawal) {
+      throw new BadRequestException('Withdrawal not found');
+    }
+
+    if (!existingWithdrawal.accountId) {
+      throw new BadRequestException('Cannot void withdrawal without an account');
+    }
+
+    const reason = data?.reason?.trim() || 'Voided by user';
+    const actor = data?.actor?.trim() || 'System';
+    const now = new Date();
+    const amountDecimal = new Prisma.Decimal(existingWithdrawal.amount || 0);
+    const amountNumber = Number(existingWithdrawal.amount || 0);
+
+    // Reverse primary cash/bank movement for the original withdrawal.
+    await this.prisma.account.update({
+      where: { id: existingWithdrawal.accountId },
+      data: { balance: { increment: amountDecimal } },
+    });
+
+    // Refunds decreased member contribution balance; voiding should restore it.
+    if (existingWithdrawal.type === 'refund' && existingWithdrawal.memberId) {
+      const updatedMember = await this.prisma.member.update({
+        where: { id: existingWithdrawal.memberId },
+        data: { balance: { increment: amountNumber } },
+      });
+
+      await this.prisma.ledger.create({
+        data: {
+          memberId: existingWithdrawal.memberId,
+          type: 'refund_void',
+          amount: Math.abs(amountNumber),
+          description: `Voided refund - ${reason}`,
+          reference: existingWithdrawal.reference
+            ? `VOID-${existingWithdrawal.reference}`
+            : `VOID-WTH-${existingWithdrawal.id}`,
+          balanceAfter: Number(updatedMember.balance),
+          date: now,
+        },
+      });
+    }
+
+    const defaultReference = this.buildDefaultReference(existingWithdrawal);
+    const referenceCandidates = Array.from(
+      new Set(
+        [
+          existingWithdrawal.reference,
+          defaultReference,
+          `EXP-${existingWithdrawal.id}`,
+          `TRF-${existingWithdrawal.id}`,
+          `REF-${existingWithdrawal.id}`,
+          `DIV-${existingWithdrawal.id}`,
+          `INT-${existingWithdrawal.id}`,
+        ].filter((value): value is string => Boolean(value && String(value).trim())),
+      ),
+    );
+
+    const originalJournal = await this.prisma.journalEntry.findFirst({
+      where: {
+        reference: { in: referenceCandidates },
+      },
+      orderBy: { id: 'desc' },
+    });
+
+    // Transfers also moved funds into a destination account (debit side).
+    // Reverse that destination-side increment when the original journal is resolvable.
+    if (existingWithdrawal.type === 'transfer') {
+      if (!originalJournal?.debitAccountId) {
+        throw new BadRequestException('Unable to void transfer: original journal entry not found');
+      }
+
+      if (originalJournal.debitAccountId !== existingWithdrawal.accountId) {
+        await this.prisma.account.update({
+          where: { id: originalJournal.debitAccountId },
+          data: { balance: { decrement: amountDecimal } },
+        });
+      }
+    }
+
+    if (originalJournal?.debitAccountId) {
+      const reverseDebitAccountId = originalJournal.creditAccountId || existingWithdrawal.accountId;
+      const reverseCreditAccountId = originalJournal.debitAccountId;
+
+      await this.prisma.journalEntry.create({
+        data: {
+          date: now,
+          reference: existingWithdrawal.reference
+            ? `VOID-${existingWithdrawal.reference}`
+            : `VOID-WTH-${existingWithdrawal.id}`,
+          description: `Void withdrawal #${existingWithdrawal.id} - ${reason}`,
+          narration: `Voided by ${actor}`,
+          debitAccountId: reverseDebitAccountId,
+          debitAmount: amountDecimal,
+          creditAccountId: reverseCreditAccountId,
+          creditAmount: amountDecimal,
+          category: 'withdrawal_void',
+        },
+      });
+    }
+
+    await this.prisma.withdrawal.delete({ where: { id } });
+
+    return {
+      success: true,
+      id,
+      message: 'Withdrawal voided successfully',
+    };
   }
 
   /**
@@ -836,10 +761,9 @@ export class WithdrawalsService {
     transactionId: number,
     transactionType: string,
     description: string,
-    prismaClient: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
     try {
-      let categoryLedger = await prismaClient.categoryLedger.findFirst({
+      let categoryLedger = await this.prisma.categoryLedger.findFirst({
         where: {
           OR: [
             { expenseCategoryId: categoryType === 'expense' ? categoryId : undefined },
@@ -849,7 +773,7 @@ export class WithdrawalsService {
       });
 
       if (!categoryLedger) {
-        categoryLedger = await prismaClient.categoryLedger.create({
+        categoryLedger = await this.prisma.categoryLedger.create({
           data: {
             categoryType,
             categoryName,
@@ -861,7 +785,7 @@ export class WithdrawalsService {
 
       const newBalance = Number(categoryLedger.balance) + amount;
 
-      await prismaClient.categoryLedger.update({
+      await this.prisma.categoryLedger.update({
         where: { id: categoryLedger.id },
         data: { 
           balance: newBalance,
@@ -869,7 +793,7 @@ export class WithdrawalsService {
         },
       });
 
-      await prismaClient.categoryLedgerEntry.create({
+      await this.prisma.categoryLedgerEntry.create({
         data: {
           categoryLedgerId: categoryLedger.id,
           type: 'debit',
@@ -886,96 +810,10 @@ export class WithdrawalsService {
     }
   }
 
-  private async reverseCategoryLedger(
-    categoryName: string,
-    amount: number,
-    transactionId: number,
-    prismaClient: Prisma.TransactionClient | PrismaService = this.prisma,
-  ) {
-    try {
-      const expenseCategory = await prismaClient.expenseCategory.findFirst({
-        where: { name: categoryName },
-      });
-
-      if (!expenseCategory) return;
-
-      const categoryLedger = await prismaClient.categoryLedger.findFirst({
-        where: { expenseCategoryId: expenseCategory.id },
-      });
-
-      if (!categoryLedger) return;
-
-      const newBalance = Number(categoryLedger.balance) - amount;
-
-      await prismaClient.categoryLedger.update({
-        where: { id: categoryLedger.id },
-        data: {
-          balance: newBalance,
-          totalAmount: { decrement: amount },
-        },
-      });
-
-      await prismaClient.categoryLedgerEntry.create({
-        data: {
-          categoryLedgerId: categoryLedger.id,
-          type: 'credit',
-          amount,
-          balanceAfter: newBalance,
-          description: `Reversal - ${categoryName}`,
-          sourceType: 'withdrawal',
-          sourceId: transactionId.toString(),
-        },
-      });
-    } catch (error) {
-      console.warn('Category ledger reversal failed:', error.message);
-    }
-  }
-
-  private async findWithdrawalJournalEntries(
-    withdrawal: any,
-    prismaClient: Prisma.TransactionClient | PrismaService = this.prisma,
-  ) {
-    const referenceFilter = withdrawal.reference ? { reference: withdrawal.reference } : undefined;
-    const tags = [
-      `WithdrawalId:${withdrawal.id}`,
-      `TransferId:${withdrawal.id}`,
-      `RefundId:${withdrawal.id}`,
-      `DividendId:${withdrawal.id}`,
-      `InterestId:${withdrawal.id}`,
-    ];
-
-    return prismaClient.journalEntry.findMany({
-      where: {
-        OR: [
-          referenceFilter,
-          ...tags.map((tag) => ({ narration: { contains: tag } })),
-        ].filter(Boolean) as any,
-      },
-    });
-  }
-
-  private async deleteWithdrawalLedgerEntries(
-    memberId: number | null,
-    reference: string | null,
-    date: Date,
-    prismaClient: Prisma.TransactionClient | PrismaService = this.prisma,
-  ) {
-    if (!memberId) return;
-
-    await prismaClient.ledger.deleteMany({
-      where: {
-        memberId,
-        OR: [
-          { reference: reference || undefined },
-          { date },
-        ],
-      },
-    });
-  }
-
   async findAll(take = 100, skip = 0) {
-    // Fetch withdrawals (expenses, transfers, refunds, dividends)
-    const withdrawals = await this.prisma.withdrawal.findMany({
+    const records = await this.prisma.withdrawal.findMany({
+      take,
+      skip,
       orderBy: { date: 'desc' },
       include: { 
         member: true,
@@ -983,1034 +821,48 @@ export class WithdrawalsService {
       },
     });
 
-    // Fetch active/disbursed loans (loan disbursements = money out)
-    const loans = await this.prisma.loan.findMany({
-      where: {
-        status: { in: ['active', 'closed'] },
-        disbursementDate: { not: null },
-      },
-      orderBy: { disbursementDate: 'desc' },
-      include: { 
-        member: true,
-        loanType: true,
-      },
-    });
-
-    // Transform withdrawals to common format
-    const withdrawalEntries = withdrawals.map(w => ({
-      ...w,
-      transactionType: 'withdrawal',
-      source: 'withdrawal',
-      recordedAt: w.createdAt || w.date,
-      isSystemGenerated: false,
-    }));
-
-    // Transform loans to common format (as withdrawal entries)
-    const loanEntries = loans.map(l => ({
-      id: l.id,
-      memberId: l.memberId,
-      memberName: l.memberName || l.member?.name || l.externalName || l.bankName || 'Unknown',
-      member: l.member,
-      amount: l.amount,
-      method: 'bank_transfer',
-      reference: `LOAN-${l.id}`,
-      date: l.disbursementDate,
-      notes: l.notes || `Loan disbursed - ${l.loanType?.name || 'Loan'}`,
-      type: 'loan_disbursement',
-      category: 'Loan Disbursement',
-      purpose: l.purpose,
-      description: `Loan disbursement - ${l.loanType?.name || 'Loan'}`,
-      transactionType: 'withdrawal',
-      source: 'loan',
-      recordedAt: l.createdAt || l.disbursementDate,
-      isSystemGenerated: false,
-      loanId: l.id,
-      loanType: l.loanType,
-      loanStatus: l.status,
-      loanDirection: l.loanDirection,
-      balance: l.balance,
-      interestRate: l.interestRate,
-      periodMonths: l.periodMonths,
-      createdAt: l.createdAt,
-      updatedAt: l.updatedAt,
-    }));
-
-    // Combine and sort by date (descending)
-    const allEntries = [...withdrawalEntries, ...loanEntries].sort((a, b) => {
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
-      return dateB.getTime() - dateA.getTime();
-    });
-
-    // Apply pagination
-    const paginatedEntries = allEntries.slice(skip, skip + take);
-
-    return {
-      data: paginatedEntries,
-      total: allEntries.length,
-      withdrawals: withdrawalEntries.length,
-      loans: loanEntries.length,
-    };
+    return this.applyCanonicalMemberNames(records);
   }
 
   async findOne(id: number) {
-    return this.prisma.withdrawal.findUnique({
+    const record = await this.prisma.withdrawal.findUnique({
       where: { id },
       include: { 
         member: true,
         account: true,
       },
     });
+
+    return this.applyCanonicalMemberName(record);
   }
 
   async update(id: number, data: any) {
-    const { updatedWithdrawal, beforeSnapshot } = await this.prisma.$transaction(async (tx) => {
-      const existingWithdrawal = await tx.withdrawal.findUnique({
-        where: { id },
-        include: { member: true, account: true },
-      });
-
-      if (!existingWithdrawal) {
-        throw new NotFoundException('Withdrawal not found');
-      }
-
-      if (existingWithdrawal.isVoided) {
-        throw new BadRequestException('Voided withdrawals cannot be edited');
-      }
-
-      const beforeSnapshot = this.toAuditSnapshot(existingWithdrawal);
-      const journalEntries = await this.findWithdrawalJournalEntries(existingWithdrawal, tx);
-      const oldAmount = Number(existingWithdrawal.amount);
-      const oldReference = existingWithdrawal.reference || null;
-      const oldDate = existingWithdrawal.date;
-
-      if (existingWithdrawal.type === 'expense') {
-        const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-        if (cashAccountId) {
-          await tx.account.update({
-            where: { id: cashAccountId },
-            data: { balance: { increment: oldAmount } },
-          });
-        }
-        await this.reverseCategoryLedger(existingWithdrawal.category, oldAmount, existingWithdrawal.id, tx);
-      }
-
-      if (existingWithdrawal.type === 'transfer') {
-        const fromAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-        const toAccountId = journalEntries[0]?.debitAccountId || null;
-        if (fromAccountId) {
-          await tx.account.update({
-            where: { id: fromAccountId },
-            data: { balance: { increment: oldAmount } },
-          });
-        }
-        if (toAccountId) {
-          await tx.account.update({
-            where: { id: toAccountId },
-            data: { balance: { decrement: oldAmount } },
-          });
-        }
-      }
-
-      if (existingWithdrawal.type === 'refund') {
-        const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-        if (cashAccountId) {
-          await tx.account.update({
-            where: { id: cashAccountId },
-            data: { balance: { increment: oldAmount } },
-          });
-        }
-        if (existingWithdrawal.memberId) {
-          await tx.member.update({
-            where: { id: existingWithdrawal.memberId },
-            data: { balance: { increment: oldAmount } },
-          });
-        }
-        await this.deleteWithdrawalLedgerEntries(
-          existingWithdrawal.memberId,
-          oldReference,
-          oldDate,
-          tx,
-        );
-      }
-
-      if (existingWithdrawal.type === 'dividend') {
-        const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-        if (cashAccountId) {
-          await tx.account.update({
-            where: { id: cashAccountId },
-            data: { balance: { increment: oldAmount } },
-          });
-        }
-        await this.deleteWithdrawalLedgerEntries(
-          existingWithdrawal.memberId,
-          oldReference,
-          oldDate,
-          tx,
-        );
-      }
-
-      if (existingWithdrawal.type === 'interest') {
-        const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-        if (cashAccountId) {
-          await tx.account.update({
-            where: { id: cashAccountId },
-            data: { balance: { increment: oldAmount } },
-          });
-        }
-        await this.deleteWithdrawalLedgerEntries(
-          existingWithdrawal.memberId,
-          oldReference,
-          oldDate,
-          tx,
-        );
-      }
-
-      if (journalEntries.length > 0) {
-        await tx.journalEntry.deleteMany({
-          where: { id: { in: journalEntries.map((entry) => entry.id) } },
-        });
-      } else {
-        await tx.journalEntry.deleteMany({
-          where: {
-            OR: [
-              { reference: existingWithdrawal.reference || undefined },
-              { narration: { contains: `WithdrawalId:${existingWithdrawal.id}` } },
-              { narration: { contains: `TransferId:${existingWithdrawal.id}` } },
-              { narration: { contains: `RefundId:${existingWithdrawal.id}` } },
-              { narration: { contains: `DividendId:${existingWithdrawal.id}` } },
-            ],
-          },
-        });
-      }
-
-      const newAmount = data.amount !== undefined ? Number(data.amount) : oldAmount;
-      const newDate = data.date ? new Date(data.date) : existingWithdrawal.date;
-      const newReference = data.reference?.trim() || existingWithdrawal.reference || null;
-      await this.assertReferenceUnique(newReference, existingWithdrawal.id);
-      const newNotes = data.notes ?? existingWithdrawal.notes ?? null;
-      const newDescription = data.description?.trim() || existingWithdrawal.description;
-      const newNarration = data.narration?.trim() || existingWithdrawal.narration;
-      const newCategory = data.category?.trim() || existingWithdrawal.category;
-      const newAccountId = data.accountId ?? existingWithdrawal.accountId;
-      const newMemberId = data.memberId ?? existingWithdrawal.memberId;
-      const newMemberName = data.memberName ?? existingWithdrawal.memberName;
-      const newMethod = data.method ?? existingWithdrawal.method;
-      const toAccountId = data.toAccountId ?? journalEntries[0]?.debitAccountId ?? null;
-
-      const isPayout = existingWithdrawal.type === 'dividend' || existingWithdrawal.type === 'interest';
-      let payoutGrossAmountDecimal: Prisma.Decimal | null = null;
-      let payoutNetAmountDecimal: Prisma.Decimal | null = null;
-      let payoutWithholdingAmountDecimal: Prisma.Decimal | null = null;
-      let payoutWithholdingRate = 0;
-
-      if (isPayout) {
-        if (!newMemberId) {
-          throw new BadRequestException('Member is required');
-        }
-
-        const payoutMember = await tx.member.findUnique({ where: { id: newMemberId } });
-        if (!payoutMember) {
-          throw new NotFoundException('Member not found');
-        }
-
-        const settings = await this.getWithholdingSettings(tx);
-        const isResident = payoutMember.isResident !== false;
-        const payoutType = existingWithdrawal.type === 'interest' ? 'interest' : 'dividend';
-        payoutWithholdingRate = this.resolveWithholdingRate(settings, isResident, payoutType);
-
-        payoutGrossAmountDecimal = new Prisma.Decimal(newAmount);
-        payoutWithholdingAmountDecimal = this.calculateWithholdingAmount(
-          payoutGrossAmountDecimal,
-          payoutWithholdingRate,
-        );
-        payoutNetAmountDecimal = payoutGrossAmountDecimal.minus(payoutWithholdingAmountDecimal);
-      }
-
-      const updateData: any = {
-        amount: isPayout && payoutNetAmountDecimal ? payoutNetAmountDecimal : newAmount,
-        date: newDate,
-        reference: newReference,
-        notes: newNotes,
-        description: newDescription,
-        narration: newNarration,
-        category: newCategory,
-        accountId: newAccountId,
-        memberId: newMemberId,
-        memberName: newMemberName,
-        method: newMethod,
-      };
-
-      if (isPayout) {
-        updateData.grossAmount = payoutGrossAmountDecimal;
-        updateData.withholdingTaxAmount = payoutWithholdingAmountDecimal;
-        updateData.withholdingTaxRate = new Prisma.Decimal(payoutWithholdingRate);
-      }
-
-      let updatedWithdrawal = await tx.withdrawal.update({
-        where: { id },
-        data: updateData,
-        include: { member: true, account: true },
-      });
-
-      if (existingWithdrawal.type === 'expense') {
-        if (!newAccountId) {
-          throw new BadRequestException('Account is required');
-        }
-
-        let expenseCategory = await tx.expenseCategory.findFirst({
-          where: { name: newCategory },
-        });
-
-        if (!expenseCategory) {
-          expenseCategory = await tx.expenseCategory.create({
-            data: { name: newCategory },
-          });
-        }
-
-        const cashAccount = await tx.account.findUnique({ where: { id: newAccountId } });
-        if (!cashAccount) {
-          throw new NotFoundException('Account not found');
-        }
-
-        const expenseGLAccountName = `${newCategory} Expense`;
-        let expenseGLAccount = await tx.account.findFirst({
-          where: { name: expenseGLAccountName },
-        });
-
-        if (!expenseGLAccount) {
-          expenseGLAccount = await tx.account.create({
-            data: {
-              name: expenseGLAccountName,
-              type: 'gl',
-              description: `GL account for ${newCategory} expense`,
-              currency: 'KES',
-              balance: new Prisma.Decimal(0),
-            },
-          });
-        }
-
-        const narrationParts = [
-          `WithdrawalId:${updatedWithdrawal.id}`,
-          `Category:${newCategory}`,
-          `AccountId:${cashAccount.id}`,
-          `SourceRef:${newReference ?? 'n/a'}`,
-        ];
-        const journalNarration = newNotes
-          ? `${newNotes} | ${narrationParts.join(' | ')}`
-          : narrationParts.join(' | ');
-
-        await tx.journalEntry.create({
-          data: {
-            date: newDate,
-            reference: newReference,
-            description: `Expense - ${newCategory} (withdrawalId:${updatedWithdrawal.id})`,
-            narration: journalNarration,
-            debitAccountId: expenseGLAccount.id,
-            debitAmount: new Prisma.Decimal(newAmount),
-            creditAccountId: cashAccount.id,
-            creditAmount: new Prisma.Decimal(newAmount),
-            category: 'expense',
-          },
-        });
-
-        await tx.account.update({
-          where: { id: cashAccount.id },
-          data: { balance: { decrement: newAmount } },
-        });
-
-        await this.updateCategoryLedger(
-          expenseCategory.id,
-          'expense',
-          newCategory,
-          Number(newAmount),
-          updatedWithdrawal.id,
-          'withdrawal',
-          newDescription || `Expense - ${newCategory}`,
-          tx,
-        );
-      }
-
-      if (existingWithdrawal.type === 'transfer') {
-        if (!newAccountId || !toAccountId) {
-          throw new BadRequestException('Both from and to accounts are required');
-        }
-
-        if (newAccountId === toAccountId) {
-          throw new BadRequestException('Cannot transfer to the same account');
-        }
-
-        const fromAccount = await tx.account.findUnique({ where: { id: newAccountId } });
-        const toAccount = await tx.account.findUnique({ where: { id: toAccountId } });
-
-        if (!fromAccount || !toAccount) {
-          throw new NotFoundException('One or both accounts not found');
-        }
-
-        const narrationParts = [
-          `TransferId:${updatedWithdrawal.id}`,
-          `FromAccount:${newAccountId}`,
-          `ToAccount:${toAccountId}`,
-          `SourceRef:${newReference ?? 'n/a'}`,
-        ];
-        const journalNarration = newNotes
-          ? `${newNotes} | ${narrationParts.join(' | ')}`
-          : narrationParts.join(' | ');
-
-        await tx.journalEntry.create({
-          data: {
-            date: newDate,
-            reference: newReference,
-            description: `Transfer: ${fromAccount.name} → ${toAccount.name} (transferId:${updatedWithdrawal.id})`,
-            narration: journalNarration,
-            debitAccountId: toAccountId,
-            debitAmount: new Prisma.Decimal(newAmount),
-            creditAccountId: newAccountId,
-            creditAmount: new Prisma.Decimal(newAmount),
-            category: 'transfer',
-          },
-        });
-
-        await tx.account.update({
-          where: { id: newAccountId },
-          data: { balance: { decrement: newAmount } },
-        });
-
-        await tx.account.update({
-          where: { id: toAccountId },
-          data: { balance: { increment: newAmount } },
-        });
-      }
-
-      if (existingWithdrawal.type === 'refund') {
-        if (!newAccountId) {
-          throw new BadRequestException('Account is required');
-        }
-
-        if (!newMemberId) {
-          throw new BadRequestException('Member is required');
-        }
-
-        const cashAccount = await tx.account.findUnique({ where: { id: newAccountId } });
-        if (!cashAccount) {
-          throw new NotFoundException('Account not found');
-        }
-
-        const contributionType = data.contributionType
-          ? String(data.contributionType).trim()
-          : newCategory?.startsWith('Refund - ')
-            ? newCategory.replace('Refund - ', '')
-            : 'Contributions';
-
-        const contributionGLName = contributionType
-          ? `${contributionType} Received`
-          : 'Contributions Received';
-
-        let contributionGLAccount = await tx.account.findFirst({
-          where: { name: contributionGLName },
-        });
-
-        if (!contributionGLAccount) {
-          contributionGLAccount = await tx.account.create({
-            data: {
-              name: contributionGLName,
-              type: 'gl',
-              description: `GL account for ${contributionType || 'Contributions'} liability`,
-              currency: 'KES',
-              balance: new Prisma.Decimal(0),
-            },
-          });
-        }
-
-        const narrationParts = [
-          `RefundId:${updatedWithdrawal.id}`,
-          `MemberId:${newMemberId}`,
-          `ContributionType:${contributionType}`,
-          `AccountId:${cashAccount.id}`,
-          `SourceRef:${newReference ?? 'n/a'}`,
-        ];
-        const journalNarration = newNotes
-          ? `${newNotes} | ${narrationParts.join(' | ')}`
-          : narrationParts.join(' | ');
-
-        await tx.journalEntry.create({
-          data: {
-            date: newDate,
-            reference: newReference,
-            description: `Refund to ${newMemberName || 'Member'} - ${contributionType} (refundId:${updatedWithdrawal.id})`,
-            narration: journalNarration,
-            debitAccountId: contributionGLAccount.id,
-            debitAmount: new Prisma.Decimal(newAmount),
-            creditAccountId: cashAccount.id,
-            creditAmount: new Prisma.Decimal(newAmount),
-            category: 'refund',
-          },
-        });
-
-        await tx.account.update({
-          where: { id: cashAccount.id },
-          data: { balance: { decrement: newAmount } },
-        });
-
-        const updatedMember = await tx.member.update({
-          where: { id: newMemberId },
-          data: { balance: { decrement: Number(newAmount) } },
-        });
-
-        await tx.ledger.create({
-          data: {
-            memberId: newMemberId,
-            type: 'refund',
-            amount: Number(newAmount),
-            description: `Refund - ${contributionType}`,
-            reference: newReference,
-            balanceAfter: Number(updatedMember.balance),
-            date: newDate,
-          },
-        });
-      }
-
-      if (existingWithdrawal.type === 'dividend') {
-        if (!newAccountId) {
-          throw new BadRequestException('Account is required');
-        }
-
-        if (!newMemberId) {
-          throw new BadRequestException('Member is required');
-        }
-
-        const cashAccount = await tx.account.findUnique({ where: { id: newAccountId } });
-        if (!cashAccount) {
-          throw new NotFoundException('Account not found');
-        }
-
-        let dividendGLAccount = await tx.account.findFirst({
-          where: { name: 'Dividends Payable' },
-        });
-
-        if (!dividendGLAccount) {
-          dividendGLAccount = await tx.account.create({
-            data: {
-              name: 'Dividends Payable',
-              type: 'gl',
-              description: 'GL account for dividends payable',
-              currency: 'KES',
-              balance: new Prisma.Decimal(0),
-            },
-          });
-        }
-
-        const narrationParts = [
-          `DividendId:${updatedWithdrawal.id}`,
-          `MemberId:${newMemberId}`,
-          `AccountId:${cashAccount.id}`,
-          `SourceRef:${newReference ?? 'n/a'}`,
-        ];
-        const journalNarration = newNotes
-          ? `${newNotes} | ${narrationParts.join(' | ')}`
-          : narrationParts.join(' | ');
-
-        const netAmountDecimal = payoutNetAmountDecimal || new Prisma.Decimal(newAmount);
-        const withholdingAmountDecimal = payoutWithholdingAmountDecimal || new Prisma.Decimal(0);
-
-        await tx.journalEntry.create({
-          data: {
-            date: newDate,
-            reference: newReference,
-            description: `Dividend payout to ${newMemberName || 'Member'} (dividendId:${updatedWithdrawal.id})`,
-            narration: journalNarration,
-            debitAccountId: dividendGLAccount.id,
-            debitAmount: netAmountDecimal,
-            creditAccountId: cashAccount.id,
-            creditAmount: netAmountDecimal,
-            category: 'dividend',
-          },
-        });
-
-        if (withholdingAmountDecimal.gt(0)) {
-          const withholdingGLAccount = await this.ensureAccountByName(
-            'Withholding Tax Payable',
-            'gl',
-            'GL account for withholding tax payable',
-          );
-
-          await tx.journalEntry.create({
-            data: {
-              date: newDate,
-              reference: newReference,
-              description: `Dividend withholding tax for ${newMemberName || 'Member'} (dividendId:${updatedWithdrawal.id})`,
-              narration: journalNarration,
-              debitAccountId: dividendGLAccount.id,
-              debitAmount: withholdingAmountDecimal,
-              creditAccountId: withholdingGLAccount.id,
-              creditAmount: withholdingAmountDecimal,
-              category: 'dividend',
-            },
-          });
-        }
-
-        await tx.account.update({
-          where: { id: cashAccount.id },
-          data: { balance: { decrement: Number(netAmountDecimal) } },
-        });
-
-        await tx.ledger.create({
-          data: {
-            memberId: newMemberId,
-            type: 'dividend',
-            amount: Number(netAmountDecimal),
-            description: 'Dividend payout',
-            reference: newReference,
-            balanceAfter: Number(updatedWithdrawal.member?.balance || 0),
-            date: newDate,
-          },
-        });
-      }
-
-      if (existingWithdrawal.type === 'interest') {
-        if (!newAccountId) {
-          throw new BadRequestException('Account is required');
-        }
-
-        if (!newMemberId) {
-          throw new BadRequestException('Member is required');
-        }
-
-        const cashAccount = await tx.account.findUnique({ where: { id: newAccountId } });
-        if (!cashAccount) {
-          throw new NotFoundException('Account not found');
-        }
-
-        const interestGLAccount = await this.ensureAccountByName(
-          'Interest Payable',
-          'gl',
-          'GL account for interest payable',
-        );
-
-        const narrationParts = [
-          `InterestId:${updatedWithdrawal.id}`,
-          `MemberId:${newMemberId}`,
-          `AccountId:${cashAccount.id}`,
-          `SourceRef:${newReference ?? 'n/a'}`,
-        ];
-        const journalNarration = newNotes
-          ? `${newNotes} | ${narrationParts.join(' | ')}`
-          : narrationParts.join(' | ');
-
-        const netAmountDecimal = payoutNetAmountDecimal || new Prisma.Decimal(newAmount);
-        const withholdingAmountDecimal = payoutWithholdingAmountDecimal || new Prisma.Decimal(0);
-
-        await tx.journalEntry.create({
-          data: {
-            date: newDate,
-            reference: newReference,
-            description: `Interest payout to ${newMemberName || 'Member'} (interestId:${updatedWithdrawal.id})`,
-            narration: journalNarration,
-            debitAccountId: interestGLAccount.id,
-            debitAmount: netAmountDecimal,
-            creditAccountId: cashAccount.id,
-            creditAmount: netAmountDecimal,
-            category: 'interest',
-          },
-        });
-
-        if (withholdingAmountDecimal.gt(0)) {
-          const withholdingGLAccount = await this.ensureAccountByName(
-            'Withholding Tax Payable',
-            'gl',
-            'GL account for withholding tax payable',
-          );
-
-          await tx.journalEntry.create({
-            data: {
-              date: newDate,
-              reference: newReference,
-              description: `Interest withholding tax for ${newMemberName || 'Member'} (interestId:${updatedWithdrawal.id})`,
-              narration: journalNarration,
-              debitAccountId: interestGLAccount.id,
-              debitAmount: withholdingAmountDecimal,
-              creditAccountId: withholdingGLAccount.id,
-              creditAmount: withholdingAmountDecimal,
-              category: 'interest',
-            },
-          });
-        }
-
-        await tx.account.update({
-          where: { id: cashAccount.id },
-          data: { balance: { decrement: Number(netAmountDecimal) } },
-        });
-
-        await tx.ledger.create({
-          data: {
-            memberId: newMemberId,
-            type: 'interest',
-            amount: Number(netAmountDecimal),
-            description: 'Interest payout',
-            reference: newReference,
-            balanceAfter: Number(updatedWithdrawal.member?.balance || 0),
-            date: newDate,
-          },
-        });
-      }
-
-      return { updatedWithdrawal, beforeSnapshot };
-    }, { timeout: 15000 });
-
-    const afterSnapshot = this.toAuditSnapshot(updatedWithdrawal);
-    await this.auditService.log({
-      actor: data?.updatedBy || data?.actor || 'system',
-      action: 'withdrawal.update',
-      resource: 'withdrawal',
-      resourceId: String(id),
-      payload: {
-        before: beforeSnapshot,
-        after: afterSnapshot,
+    // For simplicity, only allow updating notes/description
+    return this.prisma.withdrawal.update({
+      where: { id },
+      data: {
+        notes: data.notes,
+        description: data.description,
+        narration: data.narration,
       },
+      include: { member: true, account: true },
     });
-
-    return updatedWithdrawal;
   }
 
   async remove(id: number) {
-    const { deletedWithdrawal, beforeSnapshot } = await this.prisma.$transaction(async (tx) => {
-      const existingWithdrawal = await tx.withdrawal.findUnique({
-        where: { id },
-        include: { member: true, account: true },
-      });
-
-      if (!existingWithdrawal) {
-        throw new NotFoundException('Withdrawal not found');
-      }
-
-      const beforeSnapshot = this.toAuditSnapshot(existingWithdrawal);
-      const journalEntries = await this.findWithdrawalJournalEntries(existingWithdrawal, tx);
-      const hasPostedEntries = journalEntries.length > 0;
-
-      if (existingWithdrawal.isVoided) {
-        if (existingWithdrawal.memberId) {
-          await this.deleteWithdrawalLedgerEntries(
-            existingWithdrawal.memberId,
-            existingWithdrawal.reference || null,
-            existingWithdrawal.date,
-            tx,
-          );
-        }
-
-        await tx.journalEntry.deleteMany({
-          where: {
-            OR: [
-              { reference: existingWithdrawal.reference || undefined },
-              { narration: { contains: `WithdrawalId:${existingWithdrawal.id}` } },
-              { narration: { contains: `TransferId:${existingWithdrawal.id}` } },
-              { narration: { contains: `RefundId:${existingWithdrawal.id}` } },
-              { narration: { contains: `DividendId:${existingWithdrawal.id}` } },
-              { reference: `VOID-${existingWithdrawal.reference || `WTH-${existingWithdrawal.id}`}` },
-            ],
-          },
-        });
-      } else {
-        const oldAmount = Number(existingWithdrawal.amount);
-        const oldReference = existingWithdrawal.reference || null;
-        const oldDate = existingWithdrawal.date;
-
-        if (hasPostedEntries && existingWithdrawal.type === 'expense') {
-          const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-          if (cashAccountId) {
-            await tx.account.update({
-              where: { id: cashAccountId },
-              data: { balance: { increment: oldAmount } },
-            });
-          }
-          await this.reverseCategoryLedger(existingWithdrawal.category, oldAmount, existingWithdrawal.id, tx);
-        }
-
-        if (hasPostedEntries && existingWithdrawal.type === 'transfer') {
-          const fromAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-          const toAccountId = journalEntries[0]?.debitAccountId || null;
-          if (fromAccountId) {
-            await tx.account.update({
-              where: { id: fromAccountId },
-              data: { balance: { increment: oldAmount } },
-            });
-          }
-          if (toAccountId) {
-            await tx.account.update({
-              where: { id: toAccountId },
-              data: { balance: { decrement: oldAmount } },
-            });
-          }
-        }
-
-        if (hasPostedEntries && existingWithdrawal.type === 'refund') {
-          const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-          if (cashAccountId) {
-            await tx.account.update({
-              where: { id: cashAccountId },
-              data: { balance: { increment: oldAmount } },
-            });
-          }
-          if (existingWithdrawal.memberId) {
-            await tx.member.update({
-              where: { id: existingWithdrawal.memberId },
-              data: { balance: { increment: oldAmount } },
-            });
-          }
-          await this.deleteWithdrawalLedgerEntries(
-            existingWithdrawal.memberId,
-            oldReference,
-            oldDate,
-            tx,
-          );
-        }
-
-        if (hasPostedEntries && existingWithdrawal.type === 'dividend') {
-          const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-          if (cashAccountId) {
-            await tx.account.update({
-              where: { id: cashAccountId },
-              data: { balance: { increment: oldAmount } },
-            });
-          }
-          await this.deleteWithdrawalLedgerEntries(
-            existingWithdrawal.memberId,
-            oldReference,
-            oldDate,
-            tx,
-          );
-        }
-
-        if (hasPostedEntries && existingWithdrawal.type === 'interest') {
-          const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-          if (cashAccountId) {
-            await tx.account.update({
-              where: { id: cashAccountId },
-              data: { balance: { increment: oldAmount } },
-            });
-          }
-          await this.deleteWithdrawalLedgerEntries(
-            existingWithdrawal.memberId,
-            oldReference,
-            oldDate,
-            tx,
-          );
-        }
-
-        if (hasPostedEntries) {
-          await tx.journalEntry.deleteMany({
-            where: { id: { in: journalEntries.map((entry) => entry.id) } },
-          });
-        } else {
-          await tx.journalEntry.deleteMany({
-            where: {
-              OR: [
-                { reference: existingWithdrawal.reference || undefined },
-                { narration: { contains: `WithdrawalId:${existingWithdrawal.id}` } },
-                { narration: { contains: `TransferId:${existingWithdrawal.id}` } },
-                { narration: { contains: `RefundId:${existingWithdrawal.id}` } },
-                { narration: { contains: `DividendId:${existingWithdrawal.id}` } },
-              ],
-            },
-          });
-        }
-      }
-
-      const deletedWithdrawal = await tx.withdrawal.delete({ where: { id } });
-
-      return { deletedWithdrawal, beforeSnapshot };
-    });
-
-    await this.auditService.log({
-      actor: 'system',
-      action: 'withdrawal.delete',
-      resource: 'withdrawal',
-      resourceId: String(id),
-      payload: {
-        before: beforeSnapshot,
-      },
-    });
-
-    return deletedWithdrawal;
-  }
-
-  async void(id: number, data: any) {
-    const { updatedWithdrawal, beforeSnapshot } = await this.prisma.$transaction(async (tx) => {
-      const existingWithdrawal = await tx.withdrawal.findUnique({
-        where: { id },
-        include: { member: true, account: true },
-      });
-
-      if (!existingWithdrawal) {
-        throw new NotFoundException('Withdrawal not found');
-      }
-
-      if (existingWithdrawal.isVoided) {
-        throw new BadRequestException('Withdrawal is already voided');
-      }
-
-      const beforeSnapshot = this.toAuditSnapshot(existingWithdrawal);
-      const journalEntries = await this.findWithdrawalJournalEntries(existingWithdrawal, tx);
-      const oldAmount = Number(existingWithdrawal.amount);
-
-      if (existingWithdrawal.type === 'expense') {
-        const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-        if (cashAccountId) {
-          await tx.account.update({
-            where: { id: cashAccountId },
-            data: { balance: { increment: oldAmount } },
-          });
-        }
-        await this.reverseCategoryLedger(existingWithdrawal.category, oldAmount, existingWithdrawal.id, tx);
-      }
-
-      if (existingWithdrawal.type === 'transfer') {
-        const fromAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-        const toAccountId = journalEntries[0]?.debitAccountId || null;
-        if (fromAccountId) {
-          await tx.account.update({
-            where: { id: fromAccountId },
-            data: { balance: { increment: oldAmount } },
-          });
-        }
-        if (toAccountId) {
-          await tx.account.update({
-            where: { id: toAccountId },
-            data: { balance: { decrement: oldAmount } },
-          });
-        }
-      }
-
-      if (existingWithdrawal.type === 'refund') {
-        const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-        if (cashAccountId) {
-          await tx.account.update({
-            where: { id: cashAccountId },
-            data: { balance: { increment: oldAmount } },
-          });
-        }
-        if (existingWithdrawal.memberId) {
-          const updatedMember = await tx.member.update({
-            where: { id: existingWithdrawal.memberId },
-            data: { balance: { increment: oldAmount } },
-          });
-
-          await tx.ledger.create({
-            data: {
-              memberId: existingWithdrawal.memberId,
-              type: 'refund_void',
-              amount: -oldAmount,
-              description: `Void refund ${existingWithdrawal.reference || `REF-${existingWithdrawal.id}`}`,
-              reference: existingWithdrawal.reference || `REF-${existingWithdrawal.id}`,
-              balanceAfter: Number(updatedMember.balance),
-              date: new Date(),
-            },
-          });
-        }
-      }
-
-      if (existingWithdrawal.type === 'dividend') {
-        const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-        if (cashAccountId) {
-          await tx.account.update({
-            where: { id: cashAccountId },
-            data: { balance: { increment: oldAmount } },
-          });
-        }
-        if (existingWithdrawal.memberId) {
-          const member = await tx.member.findUnique({
-            where: { id: existingWithdrawal.memberId },
-          });
-
-          await tx.ledger.create({
-            data: {
-              memberId: existingWithdrawal.memberId,
-              type: 'dividend_void',
-              amount: -oldAmount,
-              description: `Void dividend ${existingWithdrawal.reference || `DIV-${existingWithdrawal.id}`}`,
-              reference: existingWithdrawal.reference || `DIV-${existingWithdrawal.id}`,
-              balanceAfter: Number(member?.balance || 0),
-              date: new Date(),
-            },
-          });
-        }
-      }
-
-      if (existingWithdrawal.type === 'interest') {
-        const cashAccountId = journalEntries[0]?.creditAccountId || existingWithdrawal.accountId;
-        if (cashAccountId) {
-          await tx.account.update({
-            where: { id: cashAccountId },
-            data: { balance: { increment: oldAmount } },
-          });
-        }
-        if (existingWithdrawal.memberId) {
-          const member = await tx.member.findUnique({
-            where: { id: existingWithdrawal.memberId },
-          });
-
-          await tx.ledger.create({
-            data: {
-              memberId: existingWithdrawal.memberId,
-              type: 'interest_void',
-              amount: -oldAmount,
-              description: `Void interest ${existingWithdrawal.reference || `INT-${existingWithdrawal.id}`}`,
-              reference: existingWithdrawal.reference || `INT-${existingWithdrawal.id}`,
-              balanceAfter: Number(member?.balance || 0),
-              date: new Date(),
-            },
-          });
-        }
-      }
-
-      const voidReference = `VOID-${existingWithdrawal.reference || `WTH-${existingWithdrawal.id}`}`;
-      for (const entry of journalEntries) {
-        await tx.journalEntry.create({
-          data: {
-            date: new Date(),
-            reference: voidReference,
-            description: `Void withdrawal ${existingWithdrawal.reference || `WTH-${existingWithdrawal.id}`}`,
-            narration: `VoidOfRef:${entry.reference || 'n/a'} | WithdrawalId:${existingWithdrawal.id}`,
-            debitAccountId: entry.creditAccountId,
-            debitAmount: entry.creditAmount,
-            creditAccountId: entry.debitAccountId,
-            creditAmount: entry.debitAmount,
-            category: entry.category,
-          },
-        });
-      }
-
-      const updatedWithdrawal = await tx.withdrawal.update({
-        where: { id },
-        data: {
-          isVoided: true,
-          voidedAt: new Date(),
-          voidedBy: data?.actor || data?.updatedBy || 'system',
-          voidReason: data?.reason ? String(data.reason).trim() : null,
-        },
-      });
-
-      return { updatedWithdrawal, beforeSnapshot };
-    });
-
-    await this.auditService.log({
-      actor: data?.actor || data?.updatedBy || 'system',
-      action: 'withdrawal.void',
-      resource: 'withdrawal',
-      resourceId: String(id),
-      payload: {
-        before: beforeSnapshot,
-      },
-    });
-
-    return updatedWithdrawal;
+    // Note: This should ideally reverse the double-entry bookkeeping
+    // For now, simple deletion
+    return this.prisma.withdrawal.delete({ where: { id } });
   }
 
   async findByMember(memberId: number) {
-    return this.prisma.withdrawal.findMany({
+    const records = await this.prisma.withdrawal.findMany({
       where: { memberId },
       orderBy: { date: 'desc' },
-      include: { account: true },
+      include: { member: true, account: true },
     });
+
+    return this.applyCanonicalMemberNames(records);
   }
 
   async getWithdrawalStats() {
